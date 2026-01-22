@@ -24,6 +24,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `scripts/` — optional helper scripts (no dependencies beyond standard shell tools)
 - `modules/` — optional modules (including Instruments)
 - `docs/` — optional docs (including Instruments overview + presentation)
+- `cone/` — optional process-only context log (agentic handoff/compaction)
 
 ## Quick start (existing repo)
 

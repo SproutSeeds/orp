@@ -55,6 +55,19 @@ Sync procedure:
 3) If out of date, sync it (script or manual):
    - `<ORP_ROOT>/scripts/orp-agent-integrate.sh --sync /path/to/your/agent/instructions.md`
 
+### ORP checkpoint tool (recommended for agent workflows)
+
+Use the checkpoint tool to keep handoffs/compactions honest and to reduce “drift-by-forgetting” before `git commit` / `git push`.
+
+- Command:
+  - `<ORP_ROOT>/scripts/orp-checkpoint.sh --sync --agent-file /path/to/your/agent/instructions.md "checkpoint note"`
+- Recommended moments:
+  - after context compaction/summarization or handoff
+  - before `git commit` / `git push`
+  - before publishing any **Verified/Exact** claim
+
+This writes a process-only entry to `<ORP_ROOT>/cone/CONTEXT_LOG.md` and reports ORP snippet sync status.
+
 <!-- ORP:END -->
 
 ## Optional helper script

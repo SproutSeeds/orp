@@ -28,6 +28,7 @@ This project follows ORP: `orp/PROTOCOL.md`.
 5) Optional (agent users): integrate ORP into your agent’s primary instruction file:
 - Read `orp/AGENT_INTEGRATION.md`
 - Or run: `orp/scripts/orp-agent-integrate.sh --sync /path/to/your/agent/instructions.md`
+   - Optional checkpoint tool (writes a process-only handoff/compaction log): `orp/scripts/orp-checkpoint.sh --sync --agent-file /path/to/your/agent/instructions.md "checkpoint note"`
 
 ## Option B — Start a new project from ORP
 
@@ -45,6 +46,7 @@ cp -R /Users/codymitchell/Documents/code/orp/* /path/to/new-project/
 4) Optional (agent users): integrate ORP into your agent’s primary instruction file:
 - Read `AGENT_INTEGRATION.md`
 - Or run: `scripts/orp-agent-integrate.sh --sync /path/to/your/agent/instructions.md`
+   - Optional checkpoint tool (writes a process-only handoff/compaction log): `scripts/orp-checkpoint.sh --sync --agent-file /path/to/your/agent/instructions.md "checkpoint note"`
 
 ## Optional helper script
 
