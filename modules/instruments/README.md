@@ -6,6 +6,13 @@ This document defines **what an Instrument is**, **how Instruments integrate wit
 
 ---
 
+## Quick links
+
+- Orbit: `modules/instruments/ORBIT/README.md` · `modules/instruments/ORBIT/TEMPLATE.md`
+- Compression: `modules/instruments/COMPRESSION/README.md` · `modules/instruments/COMPRESSION/TEMPLATE.md`
+- Adversarial: `modules/instruments/ADVERSARIAL/README.md` · `modules/instruments/ADVERSARIAL/TEMPLATE.md`
+- Create a new instrument: `modules/instruments/INSTRUMENT_TEMPLATE.md`
+
 ## 1) What We Are Building (Plainly)
 
 ORP is a protocol for **truth under pressure**.
@@ -170,4 +177,3 @@ But every lens must answer to verification.
 
 *Orbit is the first instrument.
 It will not be the last.*
-

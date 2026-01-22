@@ -22,6 +22,8 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `templates/` — claim, verification, failure, and issue templates
 - `examples/` — minimal examples (illustrative, not exhaustive)
 - `scripts/` — optional helper scripts (no dependencies beyond standard shell tools)
+- `modules/` — optional modules (including Instruments)
+- `docs/` — optional docs (including Instruments overview + presentation)
 
 ## Quick start (existing repo)
 

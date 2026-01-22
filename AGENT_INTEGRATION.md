@@ -34,6 +34,12 @@ artifact paths (code/data/proofs/logs/papers).
 - When verifying: run the hook and write `templates/VERIFICATION_RECORD.md`.
 - When something fails: write `templates/FAILED_TOPIC.md` and link it from the claim/issue.
 
+### Instruments (optional; upstream framing only)
+
+- ORP may include optional Instruments under `modules/instruments/` (e.g., Orbit / Compression / Adversarial).
+- Instruments are **process-only** and must not contain evidence/results. Verification remains blind to instruments.
+- If an Instrument is used, note it in the claim’s **Instrument (optional)** section (name + parameters explored).
+
 ### Protocol sync checks (required)
 
 To prevent drift (especially after **context compaction / summarization**), re-check ORP and re-sync this block:
