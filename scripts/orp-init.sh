@@ -7,7 +7,7 @@ set -eu
 #   ./scripts/orp-init.sh /path/to/your/repo/orp
 #
 # This script copies:
-#   LICENSE, README.md, INSTALL.md, PROTOCOL.md, AGENT_INTEGRATION.md, templates/, examples/, scripts/
+#   LICENSE, README.md, INSTALL.md, PROTOCOL.md, AGENT_INTEGRATION.md, templates/, examples/, scripts/, modules/, docs/
 #
 # It does NOT:
 #   - initialize git
@@ -42,6 +42,8 @@ cp -f "./LICENSE" "./README.md" "./INSTALL.md" "./PROTOCOL.md" "./AGENT_INTEGRAT
 cp -f "./templates/"*.md "$TARGET/templates/"
 cp -f "./examples/"*.md "$TARGET/examples/"
 cp -f "./scripts/"*.sh "$TARGET/scripts/"
+cp -R "./modules" "$TARGET/"
+cp -R "./docs" "$TARGET/"
 
 echo "ORP copied to: $TARGET"
 echo "IMPORTANT: Edit $TARGET/PROTOCOL.md and define Canonical Paths."

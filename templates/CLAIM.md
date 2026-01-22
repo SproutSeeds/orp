@@ -12,6 +12,10 @@ Choose one: **Exact / Verified / Heuristic / Conjecture**
 
 ## Scope / Assumptions
 
+## Instrument (optional)
+- Instrument(s) used:
+- Instrument parameters explored (if any):
+
 ## Canonical Artifacts (source of truth)
 List exact paths (code/data/paper/proof/logs). ORP docs are not evidence.
 

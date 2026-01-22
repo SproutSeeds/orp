@@ -8,6 +8,10 @@ Choose one:
 - Question
 - Alignment/polish (non-blocking)
 
+## Instrument (optional)
+- Instrument(s) used:
+- Instrument parameters explored (if any):
+
 ## Summary
 
 ## Links to canonical artifacts

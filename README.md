@@ -11,6 +11,9 @@ ORP is a **project-agnostic, docs-first protocol** for doing research (or resear
 **Boundary (non-negotiable):** ORP files are **process-only**. They are **not evidence** and must **not** be cited as proof for
 results. Evidence lives in your project’s **canonical artifact paths** (data, code, paper, proofs, logs, etc.).
 
+ORP also supports optional, modular **Instruments** for framing inquiry upstream of claims. Instruments are process-only and
+verification remains independent of framing. See `modules/instruments/README.md` and `docs/WHY_INSTRUMENTS.md`.
+
 ## What’s in this folder
 
 - `AGENT_INTEGRATION.md` — optional: integrate ORP into an AI agent’s primary instruction file
