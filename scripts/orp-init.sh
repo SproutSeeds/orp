@@ -7,7 +7,7 @@ set -eu
 #   ./scripts/orp-init.sh /path/to/your/repo/orp
 #
 # This script copies:
-#   README.md, INSTALL.md, PROTOCOL.md, templates/, examples/
+#   LICENSE, README.md, INSTALL.md, PROTOCOL.md, AGENT_INTEGRATION.md, templates/, examples/, scripts/
 #
 # It does NOT:
 #   - initialize git
@@ -36,11 +36,12 @@ if [ -e "$TARGET/PROTOCOL.md" ]; then
 fi
 
 mkdir -p "$TARGET"
-mkdir -p "$TARGET/templates" "$TARGET/examples"
+mkdir -p "$TARGET/templates" "$TARGET/examples" "$TARGET/scripts"
 
-cp -f "./README.md" "./INSTALL.md" "./PROTOCOL.md" "$TARGET/"
+cp -f "./LICENSE" "./README.md" "./INSTALL.md" "./PROTOCOL.md" "./AGENT_INTEGRATION.md" "$TARGET/"
 cp -f "./templates/"*.md "$TARGET/templates/"
 cp -f "./examples/"*.md "$TARGET/examples/"
+cp -f "./scripts/"*.sh "$TARGET/scripts/"
 
 echo "ORP copied to: $TARGET"
 echo "IMPORTANT: Edit $TARGET/PROTOCOL.md and define Canonical Paths."
