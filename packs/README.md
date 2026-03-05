@@ -12,4 +12,4 @@ Available packs:
 Install through ORP CLI:
 
 - `./scripts/orp pack list`
-- `./scripts/orp pack install --pack-id erdos-open-problems --target-repo-root /path/to/repo`
+- `./scripts/orp pack install --pack-id erdos-open-problems`

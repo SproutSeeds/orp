@@ -17,6 +17,10 @@ variables:
     description: Default gate timeout in seconds.
     required: false
     default: "1200"
+  PROBLEM857_LEAN_BUILD_COMMAND:
+    description: Command used by Problem 857 discovery profile for Lean build gate.
+    required: false
+    default: "lake build SunflowerLean.Balance"
   MATHLIB_REPO_ROOT:
     description: Path to local mathlib checkout used by local/tighten/ready gates.
     required: false

@@ -17,4 +17,4 @@ Additional v1 runtime draft examples:
 
 Pack install flow can generate these config files automatically:
 
-- `./scripts/orp pack install --pack-id erdos-open-problems --target-repo-root /path/to/repo`
+- `./scripts/orp pack install --pack-id erdos-open-problems`

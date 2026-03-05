@@ -42,8 +42,7 @@ Install all pack components into a target repo and write dependency audit:
 
 ```bash
 ./scripts/orp pack install \
-  --pack-id erdos-open-problems \
-  --target-repo-root /path/to/sunflower-coda/repo
+  --pack-id erdos-open-problems
 ```
 
 Install public-only component:
@@ -51,7 +50,6 @@ Install public-only component:
 ```bash
 ./scripts/orp pack install \
   --pack-id erdos-open-problems \
-  --target-repo-root /path/to/repo \
   --include catalog
 ```
 
@@ -64,6 +62,7 @@ Enforce strict adapter readiness:
   --include live_compare \
   --include problem857 \
   --include governance \
+  --no-bootstrap \
   --strict-deps
 ```
 
@@ -74,6 +73,7 @@ Dependency matrix:
 Optional:
 
 - `ORP_TIMEOUT_SEC` (default `1200`)
+- `PROBLEM857_LEAN_BUILD_COMMAND` (default `lake build SunflowerLean.Balance`)
 - `MATHLIB_REPO_ROOT` (default `$HOME/Documents/code/mathlib4`)
 - `MATHLIB_GITHUB_REPO` (default `leanprover-community/mathlib4`)
 - `MATHLIB_GITHUB_AUTHOR` (default `SproutSeeds`)

@@ -94,24 +94,23 @@ Install pack configs into a target repo (recommended):
 ./scripts/orp pack list
 
 ./scripts/orp pack install \
-  --pack-id erdos-open-problems \
-  --target-repo-root /path/to/repo
+  --pack-id erdos-open-problems
 ```
 
 This writes rendered configs and a dependency audit report at:
 
-- `/path/to/repo/orp.erdos-catalog-sync.yml`
-- `/path/to/repo/orp.erdos-live-compare.yml`
-- `/path/to/repo/orp.erdos-problem857.yml`
-- `/path/to/repo/orp.erdos-mathlib-pr-governance.yml`
-- `/path/to/repo/orp.erdos.pack-install-report.md`
+- `./orp.erdos-catalog-sync.yml`
+- `./orp.erdos-live-compare.yml`
+- `./orp.erdos-problem857.yml`
+- `./orp.erdos.pack-install-report.md`
+
+By default, install includes starter scaffolding for Problems 857/20/367 so `live_compare` runs are install-and-go in a fresh repo.
 
 For public-only adoption (no private sunflower adapters yet):
 
 ```bash
 ./scripts/orp pack install \
   --pack-id erdos-open-problems \
-  --target-repo-root /path/to/repo \
   --include catalog
 ```
 

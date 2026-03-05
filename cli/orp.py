@@ -653,6 +653,10 @@ def cmd_pack_install(args: argparse.Namespace) -> int:
         forwarded.extend(["--report", args.report])
     if args.strict_deps:
         forwarded.append("--strict-deps")
+    if not args.bootstrap:
+        forwarded.append("--no-bootstrap")
+    if args.overwrite_bootstrap:
+        forwarded.append("--overwrite-bootstrap")
 
     cmd = [sys.executable, str(script_path), *forwarded]
     proc = subprocess.run(cmd, cwd=str(repo_root))
@@ -1067,8 +1071,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_pack_install.add_argument(
         "--target-repo-root",
-        required=True,
-        help="Target repository root for rendered config files",
+        default=".",
+        help="Target repository root for rendered config files (default: current directory)",
     )
     s_pack_install.add_argument(
         "--orp-repo-root",
@@ -1082,7 +1086,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help=(
             "Component to install (repeatable). "
-            "Default when omitted: all components."
+            "Default when omitted: catalog + live_compare + problem857."
         ),
     )
     s_pack_install.add_argument(
@@ -1101,6 +1105,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit non-zero if dependency audit finds missing paths",
     )
+    s_pack_install.add_argument(
+        "--no-bootstrap",
+        dest="bootstrap",
+        action="store_false",
+        help="Disable starter adapter scaffolding",
+    )
+    s_pack_install.add_argument(
+        "--overwrite-bootstrap",
+        action="store_true",
+        help="Allow bootstrap to overwrite existing scaffolded files",
+    )
+    s_pack_install.set_defaults(bootstrap=True)
     s_pack_install.set_defaults(func=cmd_pack_install)
 
     s_report = sub.add_parser("report", help="Run report operations")

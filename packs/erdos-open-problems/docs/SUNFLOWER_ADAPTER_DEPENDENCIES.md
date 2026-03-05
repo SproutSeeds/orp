@@ -7,6 +7,7 @@ When you install `erdos-open-problems` with:
 `./scripts/orp pack install --pack-id erdos-open-problems ...`
 
 ORP writes an install report with dependency audit counts.
+By default, ORP also scaffolds starter adapter files for 857/20/367 (`--no-bootstrap` disables this).
 
 ## Component dependency matrix
 

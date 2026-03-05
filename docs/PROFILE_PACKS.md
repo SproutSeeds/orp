@@ -56,24 +56,27 @@ Recommended via ORP CLI:
 ./scripts/orp pack list
 
 ./scripts/orp pack install \
-  --pack-id erdos-open-problems \
-  --target-repo-root /path/to/repo
+  --pack-id erdos-open-problems
 ```
 
 This installs rendered config files and writes a dependency audit report:
 
-- `/path/to/repo/orp.erdos-catalog-sync.yml`
-- `/path/to/repo/orp.erdos-live-compare.yml`
-- `/path/to/repo/orp.erdos-problem857.yml`
-- `/path/to/repo/orp.erdos-mathlib-pr-governance.yml`
-- `/path/to/repo/orp.erdos.pack-install-report.md`
+- `./orp.erdos-catalog-sync.yml`
+- `./orp.erdos-live-compare.yml`
+- `./orp.erdos-problem857.yml`
+- `./orp.erdos.pack-install-report.md`
+
+Default install behavior is starter-friendly:
+
+- includes `catalog`, `live_compare`, and `problem857`,
+- scaffolds starter 857/20/367 board scripts + board JSON seeds for install-and-go,
+- keeps `governance` optional.
 
 Public-only setup (no private adapters yet):
 
 ```bash
 ./scripts/orp pack install \
   --pack-id erdos-open-problems \
-  --target-repo-root /path/to/repo \
   --include catalog
 ```
 
@@ -86,6 +89,7 @@ Strict mode for private adapter readiness:
   --include live_compare \
   --include problem857 \
   --include governance \
+  --no-bootstrap \
   --strict-deps
 ```
 

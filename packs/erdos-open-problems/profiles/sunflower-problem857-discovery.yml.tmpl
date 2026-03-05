@@ -94,7 +94,7 @@ gates:
   - id: lean_build_balance
     description: Verify deterministic Lean build for Balance module.
     phase: interface_lift
-    command: lake build SunflowerLean.Balance
+    command: {{PROBLEM857_LEAN_BUILD_COMMAND}}
     working_dir: {{TARGET_REPO_ROOT}}/sunflower_lean
     timeout_sec: {{ORP_TIMEOUT_SEC}}
     pass:
