@@ -1,0 +1,253 @@
+version: "1"
+
+project:
+  name: sunflower-coda-mathlib-pr-governance
+  repo_root: .
+  canonical_paths:
+    checklist_doc: /path/to/sunflower-coda/repo/docs/MATHLIB_SUBMISSION_CHECKLIST.md
+    issue_viability_doc: /path/to/sunflower-coda/repo/docs/MATHLIB_ISSUE_VIABILITY_GATE.md
+    draft_pr_template_doc: /path/to/sunflower-coda/repo/docs/MATHLIB_DRAFT_PR_TEMPLATE.md
+    upstream_lane_doc: /path/to/sunflower-coda/repo/docs/UPSTREAM_PR_LANE.md
+    upstream_plan: /path/to/sunflower-coda/repo/analysis/UPSTREAM_PR_PLAN.yaml
+    default_pr_body_file: /path/to/sunflower-coda/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
+    mathlib_repo_root: /path/to/mathlib4
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 1200
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: pr
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: checklist_presence
+    description: Verify required mathlib submission and lane docs are present.
+    phase: scope_lock
+    command: >
+      test -f docs/MATHLIB_SUBMISSION_CHECKLIST.md &&
+      test -f docs/MATHLIB_DRAFT_PR_TEMPLATE.md &&
+      test -f docs/MATHLIB_ISSUE_VIABILITY_GATE.md &&
+      test -f docs/UPSTREAM_PR_LANE.md
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+    evidence:
+      include_stdout: false
+      include_stderr: true
+      paths:
+        - /path/to/sunflower-coda/repo/docs/MATHLIB_SUBMISSION_CHECKLIST.md
+        - /path/to/sunflower-coda/repo/docs/MATHLIB_DRAFT_PR_TEMPLATE.md
+        - /path/to/sunflower-coda/repo/docs/MATHLIB_ISSUE_VIABILITY_GATE.md
+        - /path/to/sunflower-coda/repo/docs/UPSTREAM_PR_LANE.md
+    on_fail: stop
+
+  - id: queue_policy_guard
+    description: Enforce anti-spam queue policy defaults before any PR creation step.
+    phase: scope_lock
+    command: python3 scripts/upstream-pr-plan.py summary
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - policy.submission_mode=hold
+        - policy.max_prs_per_session=2
+        - policy.require_explicit_approval=True
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - /path/to/sunflower-coda/repo/analysis/UPSTREAM_PR_PLAN.yaml
+    on_fail: mark_blocked
+
+  - id: lane_checklist_snapshot
+    description: Print required contributor/style/queue checklist snapshot.
+    phase: scope_lock
+    command: bash scripts/upstream-pr-lane.sh checklist
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - "== Mathlib Submission Checklist =="
+        - checklist_doc=
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: continue
+
+  - id: issue_viability_decision
+    description: Require PASS from issue viability gate before implementation/drafting.
+    phase: structure_kernel
+    command: >
+      python3 scripts/mathlib-issue-viability-gate.py
+      --repo leanprover-community/mathlib4
+      --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
+      --author SproutSeeds
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - decision=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: naturality_snippet
+    description: Capture natural-generality check text before PR packaging work.
+    phase: structure_kernel
+    command: >
+      bash scripts/mathlib-naturality-snippet.sh
+      --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
+      --branch "${ORP_BRANCH_NAME:-issue-${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}}"
+      --module "${ORP_NATURALITY_MODULE:-TODO}"
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - "Natural Generality Check"
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: local_issue_gate_core
+    description: Run local build/lint gate while keeping viability/tighten as explicit atomic steps.
+    phase: interface_lift
+    command: >
+      bash scripts/mathlib-issue-local-gate.sh
+      --repo /path/to/mathlib4
+      --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
+      --skip-viability
+      --skip-tighten-fine-tooth
+    working_dir: /path/to/sunflower-coda/repo
+    timeout_sec: 1200
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - gate=PASS
+        - marker_file=
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: tighten_fine_tooth
+    description: Run final tighten/fine-tooth gate for no-sorry/no-conflict/no-duplicate checks.
+    phase: verification
+    command: >
+      bash scripts/mathlib-tighten-fine-tooth-gate.sh
+      --repo /path/to/mathlib4
+      --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
+      --author SproutSeeds
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - tighten_fine_tooth=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: ready_to_draft_freeze
+    description: Require micro-pass confirmations and freeze marker on the current HEAD.
+    phase: verification
+    command: >
+      bash scripts/mathlib-ready-to-draft-gate.sh
+      --repo /path/to/mathlib4
+      --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
+      --confirm-naming
+      --confirm-docstring-tone
+      --confirm-readability
+      --note "${ORP_READY_NOTE:-micro-pass complete: naming/docstring-tone/readability}"
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_to_draft=PASS
+        - next=open/update draft PR only when explicit user go-ahead is given
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: pr_body_preflight
+    description: Enforce concise portable PR body with explicit intelligent-systems disclosure.
+    phase: verification
+    command: >
+      python3 scripts/mathlib-pr-body-preflight.py
+      --file "${ORP_PR_BODY_FILE:-analysis/MATHLIB_DRAFT_PR_BODY.md}"
+      --fix &&
+      python3 scripts/mathlib-pr-body-preflight.py
+      --file "${ORP_PR_BODY_FILE:-analysis/MATHLIB_DRAFT_PR_BODY.md}"
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - gate=PASS
+        - metrics:
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - /path/to/sunflower-coda/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
+    on_fail: mark_blocked
+
+profiles:
+  sunflower_mathlib_pre_open:
+    description: Pre-open governance profile (policy + viability + naturality checks).
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - checklist_presence
+      - queue_policy_guard
+      - lane_checklist_snapshot
+      - issue_viability_decision
+      - naturality_snippet
+
+  sunflower_mathlib_draft_readiness:
+    description: Draft-readiness profile (local gate, tighten, freeze, PR-body hygiene).
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - local_issue_gate_core
+      - tighten_fine_tooth
+      - ready_to_draft_freeze
+      - pr_body_preflight
+
+  sunflower_mathlib_full_flow:
+    description: End-to-end profile from pre-open policy checks to draft-readiness gates.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - checklist_presence
+      - queue_policy_guard
+      - lane_checklist_snapshot
+      - issue_viability_decision
+      - naturality_snippet
+      - local_issue_gate_core
+      - tighten_fine_tooth
+      - ready_to_draft_freeze
+      - pr_body_preflight

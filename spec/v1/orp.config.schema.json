@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orp.dev/spec/v1/orp.config.schema.json",
+  "title": "ORP Config v1",
+  "description": "Configuration for ORP runtime gates, lifecycle mapping, and profiles.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "project",
+    "lifecycle",
+    "gates",
+    "profiles"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "packet": {
+      "$ref": "#/$defs/packet"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "atomic_board": {
+      "$ref": "#/$defs/atomic_board"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gate"
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    }
+  },
+  "$defs": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "canonical_paths"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "repo_root": {
+          "type": "string"
+        },
+        "canonical_paths": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shell": {
+          "type": "string"
+        },
+        "default_timeout_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "artifacts_root": {
+          "type": "string"
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_kind": {
+          "type": "string",
+          "enum": [
+            "pr",
+            "claim",
+            "verification",
+            "problem_scope",
+            "atom_pass"
+          ]
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "write_markdown": {
+          "type": "boolean"
+        },
+        "deterministic_mode": {
+          "type": "boolean"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_status_map",
+        "atom_status_map"
+      ],
+      "properties": {
+        "claim_status_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready",
+              "reviewed",
+              "accepted",
+              "blocked",
+              "retracted"
+            ]
+          }
+        },
+        "atom_status_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready",
+              "reviewed",
+              "accepted",
+              "blocked",
+              "retracted"
+            ]
+          }
+        },
+        "claim_level_values": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Exact",
+              "Verified",
+              "Heuristic",
+              "Conjecture"
+            ]
+          }
+        }
+      }
+    },
+    "atomic_board": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "board_path": {
+          "type": "string"
+        },
+        "refresh_command": {
+          "type": "string"
+        },
+        "ready_command": {
+          "type": "string"
+        },
+        "set_atom_command_template": {
+          "type": "string"
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "phase",
+        "command",
+        "pass"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "scope_lock",
+            "structure_kernel",
+            "quant_assembly",
+            "interface_lift",
+            "verification",
+            "custom"
+          ]
+        },
+        "command": {
+          "type": "string"
+        },
+        "working_dir": {
+          "type": "string"
+        },
+        "timeout_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "pass": {
+          "$ref": "#/$defs/pass_rule"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "on_fail": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "continue",
+            "mark_blocked"
+          ]
+        }
+      }
+    },
+    "pass_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exit_codes"
+      ],
+      "properties": {
+        "exit_codes": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "stdout_must_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stdout_must_not_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stderr_must_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stderr_must_not_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "file_must_exist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include_stdout": {
+          "type": "boolean"
+        },
+        "include_stderr": {
+          "type": "boolean"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "mode",
+        "packet_kind",
+        "gate_ids"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "discovery",
+            "collaboration",
+            "review"
+          ]
+        },
+        "packet_kind": {
+          "type": "string",
+          "enum": [
+            "pr",
+            "claim",
+            "verification",
+            "problem_scope",
+            "atom_pass"
+          ]
+        },
+        "gate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

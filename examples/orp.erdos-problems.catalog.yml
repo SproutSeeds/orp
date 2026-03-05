@@ -1,0 +1,88 @@
+version: "1"
+
+project:
+  name: erdos-problems-catalog-sync
+  repo_root: .
+  canonical_paths:
+    erdos_all_json: /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.all.json
+    erdos_open_json: /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.open.json
+    erdos_closed_json: /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.closed.json
+    erdos_active_json: /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.active.json
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 1200
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: problem_scope
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: erdos_catalog_sync
+    description: Sync all Erdos problems from erdosproblems.com and publish open/closed/active snapshots.
+    phase: scope_lock
+    command: >
+      python3 /path/to/orp/scripts/orp-erdos-problems-sync.py
+      --source-url https://erdosproblems.com/range/1-end
+      --timeout-sec 90
+      --active-status open
+      --out-all /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.all.json
+      --out-open /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.open.json
+      --out-closed /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.closed.json
+      --out-active /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.active.json
+      --out-open-list /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_open_problems.md
+    working_dir: /path/to/orp
+    timeout_sec: 1200
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - parsed_total=
+        - summary.open=
+        - summary.closed=
+        - active_status=open
+        - out_open_list=
+      file_must_exist:
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.all.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.open.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.closed.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.active.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_open_problems.md
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.all.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.open.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.closed.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_problems.active.json
+        - /path/to/sunflower-coda/repo/analysis/erdos_problems/erdos_open_problems.md
+    on_fail: stop
+
+profiles:
+  erdos_catalog_sync_active:
+    description: Sync Erdos problem catalog with open-default active status (override via ERDOS_ACTIVE_STATUS).
+    mode: discovery
+    packet_kind: problem_scope
+    gate_ids:
+      - erdos_catalog_sync

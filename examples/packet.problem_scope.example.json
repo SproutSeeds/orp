@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.0.0",
+  "packet_id": "pkt-problem857-T2.G3.A1-20260304T160656Z",
+  "kind": "problem_scope",
+  "created_at_utc": "2026-03-04T16:06:56Z",
+  "protocol_boundary": {
+    "process_only": true,
+    "evidence_paths": [
+      "sunflower_lean/SunflowerLean/Balance.lean",
+      "analysis/problem857_counting_gateboard.json",
+      "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
+      "orchestrator/logs/run-20260304-1606/SPEC_CHECK.json"
+    ],
+    "note": "Packet is process metadata. Evidence remains in canonical artifact paths."
+  },
+  "repo": {
+    "root_path": "/path/to/repo",
+    "git": {
+      "remote": "origin",
+      "branch": "main",
+      "commit": "abc1234"
+    }
+  },
+  "run": {
+    "run_id": "run-20260304-1606",
+    "tool": {
+      "name": "orp",
+      "version": "0.1.0"
+    },
+    "deterministic_input_hash": "sha256:4f1f4f4f4f4f4f4f",
+    "started_at_utc": "2026-03-04T16:06:20Z",
+    "ended_at_utc": "2026-03-04T16:06:56Z",
+    "duration_ms": 36000
+  },
+  "lifecycle": {
+    "workflow_state": "reviewed",
+    "atom_status": "done",
+    "state_note": "Atomic closure proof step completed and board snapshot refreshed."
+  },
+  "atomic_context": {
+    "board_id": "problem857_master_atomic_ops_board",
+    "problem_id": "857",
+    "ticket_id": "T2",
+    "gate_id": "T2.G3",
+    "atom_id": "T2.G3.A1",
+    "dependencies": [
+      "T2.G2.A3"
+    ],
+    "ready_queue_size": 0,
+    "board_snapshot_path": "analysis/problem857_counting_gateboard.json",
+    "route_status": {
+      "counting_uniform": {
+        "done": 4,
+        "total": 4,
+        "strict_done": 4,
+        "strict_total": 4
+      },
+      "counting_mixed": {
+        "done": 6,
+        "total": 6,
+        "strict_done": 6,
+        "strict_total": 6
+      }
+    }
+  },
+  "gates": [
+    {
+      "gate_id": "board_refresh",
+      "phase": "scope_lock",
+      "command": "python3 scripts/problem857_ops_board.py refresh --write-md --sync-json",
+      "status": "pass",
+      "exit_code": 0,
+      "duration_ms": 510,
+      "stdout_path": "orp/artifacts/run-20260304-1606/board_refresh.stdout.log",
+      "stderr_path": "orp/artifacts/run-20260304-1606/board_refresh.stderr.log",
+      "evidence_paths": [
+        "analysis/problem857_counting_gateboard.json",
+        "docs/PROBLEM857_COUNTING_OPS_BOARD.md"
+      ]
+    },
+    {
+      "gate_id": "spec_faithfulness",
+      "phase": "quant_assembly",
+      "command": "python3 orchestrator/spec_check.py --run-id run-20260304-1606",
+      "status": "pass",
+      "exit_code": 0,
+      "duration_ms": 190,
+      "stdout_path": "orp/artifacts/run-20260304-1606/spec_faithfulness.stdout.log",
+      "stderr_path": "orp/artifacts/run-20260304-1606/spec_faithfulness.stderr.log",
+      "evidence_paths": [
+        "orchestrator/logs/run-20260304-1606/SPEC_CHECK.json"
+      ]
+    },
+    {
+      "gate_id": "lean_build_balance",
+      "phase": "interface_lift",
+      "command": "lake build SunflowerLean.Balance",
+      "status": "pass",
+      "exit_code": 0,
+      "duration_ms": 27890,
+      "stdout_path": "orp/artifacts/run-20260304-1606/lean_build_balance.stdout.log",
+      "stderr_path": "orp/artifacts/run-20260304-1606/lean_build_balance.stderr.log",
+      "evidence_paths": [
+        "sunflower_lean/SunflowerLean/Balance.lean"
+      ]
+    }
+  ],
+  "summary": {
+    "overall_result": "PASS",
+    "gates_passed": 3,
+    "gates_failed": 0,
+    "gates_total": 3,
+    "note": "This packet captures one atomic proof pass, not a merge decision."
+  },
+  "artifacts": {
+    "packet_json_path": "orp/packets/pkt-problem857-T2.G3.A1-20260304T160656Z.json",
+    "packet_md_path": "orp/packets/pkt-problem857-T2.G3.A1-20260304T160656Z.md",
+    "artifact_root": "orp/artifacts/run-20260304-1606",
+    "extra_paths": [
+      "analysis/ALIGNMENT_LOG.md"
+    ]
+  }
+}

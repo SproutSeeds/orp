@@ -1,0 +1,144 @@
+version: "1"
+
+project:
+  name: sunflower-coda
+  repo_root: .
+  canonical_paths:
+    code: sunflower_lean/
+    analysis: analysis/
+    docs: docs/
+    board_json: analysis/problem857_counting_gateboard.json
+    board_md: docs/PROBLEM857_COUNTING_OPS_BOARD.md
+    scope_config: orchestrator/v2/scopes/problem_857.yaml
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 900
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: problem_scope
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+atomic_board:
+  enabled: true
+  board_path: analysis/problem857_counting_gateboard.json
+  refresh_command: python3 scripts/problem857_ops_board.py refresh --write-md --sync-json
+  ready_command: python3 scripts/problem857_ops_board.py ready
+  set_atom_command_template: python3 scripts/problem857_ops_board.py set-atom {atom_id} --status {status}
+
+gates:
+  - id: board_refresh
+    description: Refresh board snapshot before reading ready/dependency state.
+    phase: scope_lock
+    command: python3 scripts/problem857_ops_board.py refresh --write-md --sync-json
+    pass:
+      exit_codes: [0]
+    evidence:
+      include_stdout: true
+      include_stderr: false
+      paths:
+        - analysis/problem857_counting_gateboard.json
+        - docs/PROBLEM857_COUNTING_OPS_BOARD.md
+    on_fail: stop
+
+  - id: board_ready_queue
+    description: Confirm atomic ready queue can be computed from dependency graph.
+    phase: structure_kernel
+    command: python3 scripts/problem857_ops_board.py ready
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_atoms=
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: spec_faithfulness
+    description: Enforce theorem-cycle semantic completeness contract.
+    phase: quant_assembly
+    command: python3 orchestrator/spec_check.py --run-id {run_id}
+    pass:
+      exit_codes: [0]
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - orchestrator/logs/{run_id}/SPEC_CHECK.json
+    on_fail: mark_blocked
+
+  - id: lean_build_balance
+    description: Verify deterministic Lean build for Balance module.
+    phase: interface_lift
+    command: lake build SunflowerLean.Balance
+    working_dir: sunflower_lean
+    timeout_sec: 1200
+    pass:
+      exit_codes: [0]
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: route_frontier
+    description: Verify strict/loose route status visibility for problem scope.
+    phase: verification
+    command: python3 scripts/frontier_status.py --problem 857
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - strict
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+profiles:
+  sunflower_problem857_discovery:
+    description: Atomic problem-scope discovery loop for Problem 857.
+    mode: discovery
+    packet_kind: problem_scope
+    gate_ids:
+      - board_refresh
+      - board_ready_queue
+      - spec_faithfulness
+      - lean_build_balance
+      - route_frontier
+
+  sunflower_collaborator:
+    description: Optional PR prep flow while preserving same canonical gates.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - spec_faithfulness
+      - lean_build_balance
+      - route_frontier
+
+  sunflower_reviewer:
+    description: Optional artifact triage and validation flow.
+    mode: review
+    packet_kind: verification
+    gate_ids:
+      - board_refresh
+      - route_frontier

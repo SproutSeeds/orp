@@ -8,7 +8,7 @@ ORP is a **template pack**. There is no runtime and nothing to “install” in 
 
 ```sh
 mkdir -p /path/to/your/repo/orp
-cp -R /Users/codymitchell/Documents/code/orp/* /path/to/your/repo/orp/
+cp -R /path/to/orp/* /path/to/your/repo/orp/
 ```
 
 2) Link it from your repo `README.md` (example):
@@ -36,7 +36,7 @@ This project follows ORP: `orp/PROTOCOL.md`.
 
 ```sh
 mkdir -p /path/to/new-project
-cp -R /Users/codymitchell/Documents/code/orp/* /path/to/new-project/
+cp -R /path/to/orp/* /path/to/new-project/
 ```
 
 2) Rename/edit `README.md` and `PROTOCOL.md` for your project.

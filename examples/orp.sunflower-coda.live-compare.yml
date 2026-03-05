@@ -1,0 +1,181 @@
+version: "1"
+
+project:
+  name: sunflower-coda-live-compare
+  repo_root: .
+  canonical_paths:
+    board_857_json: /path/to/sunflower-coda/repo/analysis/problem857_counting_gateboard.json
+    board_20_json: /path/to/sunflower-coda/repo/analysis/problem20_k3_gateboard.json
+    board_367_json: /path/to/sunflower-coda/repo/analysis/problem367_sharp_gateboard.json
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 1200
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: problem_scope
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: p857_board_show
+    description: Problem 857 board show snapshot.
+    phase: verification
+    command: python3 scripts/problem857_ops_board.py show
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - route=counting_uniform
+        - route=container_v2
+        - ticket=T6
+        - ready_atoms=
+
+  - id: p857_board_ready
+    description: Problem 857 ready queue snapshot.
+    phase: verification
+    command: python3 scripts/problem857_ops_board.py ready
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_atoms=
+
+  - id: p857_frontier
+    description: Problem 857 strict/loose route status.
+    phase: verification
+    command: python3 scripts/frontier_status.py --problem 857
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - "== Strict Routes (857) =="
+        - counting_uniform
+        - container
+
+  - id: p20_board_show
+    description: Problem 20 board show snapshot.
+    phase: verification
+    command: python3 scripts/problem20_ops_board.py show
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - route=uniform_prize
+        - route=uniform_prize_final_k3
+        - ticket=T6
+        - ready_atoms=
+
+  - id: p20_board_ready
+    description: Problem 20 ready queue snapshot.
+    phase: verification
+    command: python3 scripts/problem20_ops_board.py ready
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_atoms=
+
+  - id: p20_frontier
+    description: Problem 20 strict/loose route status.
+    phase: verification
+    command: python3 scripts/frontier_status.py --problem 20
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - "== Strict Routes (20) =="
+        - uniform_prize
+
+  - id: p367_board_show
+    description: Problem 367 board show snapshot.
+    phase: verification
+    command: python3 scripts/problem367_ops_board.py show
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - route=sieve_weighted_tail
+        - route=full
+        - ticket=T5
+        - ready_atoms=
+
+  - id: p367_board_ready
+    description: Problem 367 ready queue snapshot.
+    phase: verification
+    command: python3 scripts/problem367_ops_board.py ready --allow-no-go
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - no_go_active=
+        - ready_atoms=
+
+  - id: p367_frontier
+    description: Problem 367 strict/loose route status.
+    phase: verification
+    command: python3 scripts/frontier_status.py --problem 367
+    working_dir: /path/to/sunflower-coda/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - "== Strict Routes (367) =="
+        - sieve_weighted_tail
+        - "full:"
+
+profiles:
+  sunflower_live_compare_857:
+    description: Side-by-side compare profile for Problem 857.
+    mode: discovery
+    packet_kind: problem_scope
+    atomic_board:
+      enabled: true
+      board_path: /path/to/sunflower-coda/repo/analysis/problem857_counting_gateboard.json
+    gate_ids:
+      - p857_board_show
+      - p857_board_ready
+      - p857_frontier
+
+  sunflower_live_compare_20:
+    description: Side-by-side compare profile for Problem 20.
+    mode: discovery
+    packet_kind: problem_scope
+    atomic_board:
+      enabled: true
+      board_path: /path/to/sunflower-coda/repo/analysis/problem20_k3_gateboard.json
+    gate_ids:
+      - p20_board_show
+      - p20_board_ready
+      - p20_frontier
+
+  sunflower_live_compare_367:
+    description: Side-by-side compare profile for Problem 367.
+    mode: discovery
+    packet_kind: problem_scope
+    atomic_board:
+      enabled: true
+      board_path: /path/to/sunflower-coda/repo/analysis/problem367_sharp_gateboard.json
+    gate_ids:
+      - p367_board_show
+      - p367_board_ready
+      - p367_frontier
