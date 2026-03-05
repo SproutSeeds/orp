@@ -6,6 +6,8 @@ Commands:
 - gate run
 - packet emit
 - erdos sync
+- pack list
+- pack install
 - report summary
 
 Design goals:
@@ -593,6 +595,70 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pack_list(args: argparse.Namespace) -> int:
+    _ = args
+    orp_repo_root = Path(__file__).resolve().parent.parent
+    packs_root = orp_repo_root / "packs"
+    if not packs_root.exists():
+        print(f"packs_root={packs_root}")
+        print("packs.count=0")
+        return 0
+
+    count = 0
+    for child in sorted(packs_root.iterdir()):
+        if not child.is_dir():
+            continue
+        meta_path = child / "pack.yml"
+        if not meta_path.exists():
+            continue
+        try:
+            meta = _load_config(meta_path)
+        except Exception:
+            meta = {}
+        pack_id = str(meta.get("pack_id", child.name)) if isinstance(meta, dict) else child.name
+        version = str(meta.get("version", "unknown")) if isinstance(meta, dict) else "unknown"
+        name = str(meta.get("name", "")) if isinstance(meta, dict) else ""
+        print(f"pack.id={pack_id}")
+        print(f"pack.version={version}")
+        print(f"pack.path={child}")
+        if name:
+            print(f"pack.name={name}")
+        print("---")
+        count += 1
+
+    print(f"packs_root={packs_root}")
+    print(f"packs.count={count}")
+    return 0
+
+
+def cmd_pack_install(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "orp-pack-install.py"
+    if not script_path.exists():
+        raise RuntimeError(f"missing pack install script: {script_path}")
+
+    forwarded: list[str] = [
+        "--pack-id",
+        args.pack_id,
+        "--target-repo-root",
+        args.target_repo_root,
+    ]
+    if args.orp_repo_root:
+        forwarded.extend(["--orp-repo-root", args.orp_repo_root])
+    for comp in args.include or []:
+        forwarded.extend(["--include", str(comp)])
+    for raw in args.var or []:
+        forwarded.extend(["--var", str(raw)])
+    if args.report:
+        forwarded.extend(["--report", args.report])
+    if args.strict_deps:
+        forwarded.append("--strict-deps")
+
+    cmd = [sys.executable, str(script_path), *forwarded]
+    proc = subprocess.run(cmd, cwd=str(repo_root))
+    return int(proc.returncode)
+
+
 def cmd_erdos_sync(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     script_path = Path(__file__).resolve().parent.parent / "scripts" / "orp-erdos-problems-sync.py"
@@ -983,6 +1049,59 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additional args forwarded to scripts/orp-erdos-problems-sync.py",
     )
     s_erdos_sync.set_defaults(func=cmd_erdos_sync)
+
+    s_pack = sub.add_parser("pack", help="Profile pack operations")
+    pack_sub = s_pack.add_subparsers(dest="pack_cmd", required=True)
+
+    s_pack_list = pack_sub.add_parser("list", help="List available local ORP packs")
+    s_pack_list.set_defaults(func=cmd_pack_list)
+
+    s_pack_install = pack_sub.add_parser(
+        "install",
+        help="Install/render pack templates into a target repository with dependency audit",
+    )
+    s_pack_install.add_argument(
+        "--pack-id",
+        default="erdos-open-problems",
+        help="Pack id under ORP packs/ (default: erdos-open-problems)",
+    )
+    s_pack_install.add_argument(
+        "--target-repo-root",
+        required=True,
+        help="Target repository root for rendered config files",
+    )
+    s_pack_install.add_argument(
+        "--orp-repo-root",
+        default="",
+        help="Optional ORP repo root override (default: current ORP checkout)",
+    )
+    s_pack_install.add_argument(
+        "--include",
+        action="append",
+        choices=["catalog", "live_compare", "problem857", "governance"],
+        default=[],
+        help=(
+            "Component to install (repeatable). "
+            "Default when omitted: all components."
+        ),
+    )
+    s_pack_install.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        help="Extra template variable KEY=VALUE (repeatable)",
+    )
+    s_pack_install.add_argument(
+        "--report",
+        default="",
+        help="Install report output path (default: <target>/orp.erdos.pack-install-report.md)",
+    )
+    s_pack_install.add_argument(
+        "--strict-deps",
+        action="store_true",
+        help="Exit non-zero if dependency audit finds missing paths",
+    )
+    s_pack_install.set_defaults(func=cmd_pack_install)
 
     s_report = sub.add_parser("report", help="Run report operations")
     report_sub = s_report.add_subparsers(dest="report_cmd", required=True)

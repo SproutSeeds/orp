@@ -48,31 +48,53 @@ working_dir: {{TARGET_REPO_ROOT}}
 
 Render-time values are supplied via `--var KEY=VALUE`.
 
-## Rendering
+## Install flow (fresh ORP -> pack adoption)
 
-Use:
+Recommended via ORP CLI:
+
+```bash
+./scripts/orp pack list
+
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/repo
+```
+
+This installs rendered config files and writes a dependency audit report:
+
+- `/path/to/repo/orp.erdos-catalog-sync.yml`
+- `/path/to/repo/orp.erdos-live-compare.yml`
+- `/path/to/repo/orp.erdos-problem857.yml`
+- `/path/to/repo/orp.erdos-mathlib-pr-governance.yml`
+- `/path/to/repo/orp.erdos.pack-install-report.md`
+
+Public-only setup (no private adapters yet):
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/repo \
+  --include catalog
+```
+
+Strict mode for private adapter readiness:
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/sunflower-coda/repo \
+  --include live_compare \
+  --include problem857 \
+  --include governance \
+  --strict-deps
+```
+
+Manual render path (advanced):
 
 ```bash
 python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --list
-
-python3 scripts/orp-pack-render.py \
-  --pack packs/erdos-open-problems \
-  --template sunflower_live_compare_suite \
-  --var TARGET_REPO_ROOT=/path/to/repo \
-  --out /path/to/repo/orp.erdos-live-compare.yml
-
-python3 scripts/orp-pack-render.py \
-  --pack packs/erdos-open-problems \
-  --template sunflower_mathlib_pr_governance \
-  --var TARGET_REPO_ROOT=/path/to/repo \
-  --out /path/to/repo/orp.erdos-mathlib-pr-governance.yml
-
-python3 scripts/orp-pack-render.py \
-  --pack packs/erdos-open-problems \
-  --template erdos_problems_catalog_sync \
-  --var TARGET_REPO_ROOT=/path/to/repo \
-  --var ORP_REPO_ROOT=/path/to/orp \
-  --out /path/to/repo/orp.erdos-catalog-sync.yml
+python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --template sunflower_live_compare_suite \
+  --var TARGET_REPO_ROOT=/path/to/repo --out /path/to/repo/orp.erdos-live-compare.yml
 ```
 
 Then run ORP with the rendered config:

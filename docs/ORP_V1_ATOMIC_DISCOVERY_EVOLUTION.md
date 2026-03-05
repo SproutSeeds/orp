@@ -163,6 +163,7 @@ Supported commands:
 ./scripts/orp gate run --profile default
 ./scripts/orp packet emit --profile default
 ./scripts/orp report summary --run-id <run_id>
+./scripts/orp pack install --pack-id erdos-open-problems --target-repo-root /path/to/repo
 ./scripts/orp erdos sync
 ```
 

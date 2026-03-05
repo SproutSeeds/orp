@@ -14,3 +14,7 @@ Additional v1 runtime draft examples:
 - `orp.erdos-problems.catalog.yml` — Erdos catalog sync profile (all/open/closed + open-default active set).
 - `packet.problem_scope.example.json` — example `problem_scope` packet with board/ticket/gate/atom context.
 - `reports/` — example one-page run summaries for sunflower live-compare profiles.
+
+Pack install flow can generate these config files automatically:
+
+- `./scripts/orp pack install --pack-id erdos-open-problems --target-repo-root /path/to/repo`

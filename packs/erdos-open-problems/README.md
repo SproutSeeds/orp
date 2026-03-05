@@ -2,6 +2,11 @@
 
 Domain pack for sunflower/Erdos workflows.
 
+This pack is designed to preserve ORP core generality:
+
+- `catalog` works in any repo.
+- `live_compare`, `problem857`, and `governance` are optional adapters that depend on sunflower-coda style scripts/boards.
+
 ## Included templates
 
 - `sunflower_live_compare_suite`
@@ -25,6 +30,47 @@ Domain pack for sunflower/Erdos workflows.
 - `TARGET_REPO_ROOT`
   - Absolute path to the target repo where scripts/boards live.
 
+## Recommended install flow (CLI)
+
+List packs:
+
+```bash
+./scripts/orp pack list
+```
+
+Install all pack components into a target repo and write dependency audit:
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/sunflower-coda/repo
+```
+
+Install public-only component:
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/repo \
+  --include catalog
+```
+
+Enforce strict adapter readiness:
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/sunflower-coda/repo \
+  --include live_compare \
+  --include problem857 \
+  --include governance \
+  --strict-deps
+```
+
+Dependency matrix:
+
+- `docs/SUNFLOWER_ADAPTER_DEPENDENCIES.md`
+
 Optional:
 
 - `ORP_TIMEOUT_SEC` (default `1200`)
@@ -43,7 +89,7 @@ Optional:
 - `ERDOS_TIMEOUT_SEC` (default `90`)
 - `ERDOS_ACTIVE_STATUS` (default `open`)
 
-## Render examples
+## Render examples (manual / advanced)
 
 List templates:
 

@@ -63,6 +63,7 @@ Minimal CLI skeleton:
 ./scripts/orp gate run --profile default
 ./scripts/orp packet emit --profile default
 ./scripts/orp report summary --run-id <run_id>
+./scripts/orp pack list
 ./scripts/orp erdos sync
 ```
 
@@ -85,9 +86,36 @@ ORP supports reusable domain profile packs so core runtime stays general.
 
 - Pack docs: `docs/PROFILE_PACKS.md`
 - Pack metadata schema: `spec/v1/profile-pack.schema.json`
-- Included pack: `packs/erdos-open-problems/`
+- Included pack: `packs/erdos-open-problems/` (857/20/367 + catalog sync + governance profiles)
 
-Render a pack template:
+Install pack configs into a target repo (recommended):
+
+```bash
+./scripts/orp pack list
+
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/repo
+```
+
+This writes rendered configs and a dependency audit report at:
+
+- `/path/to/repo/orp.erdos-catalog-sync.yml`
+- `/path/to/repo/orp.erdos-live-compare.yml`
+- `/path/to/repo/orp.erdos-problem857.yml`
+- `/path/to/repo/orp.erdos-mathlib-pr-governance.yml`
+- `/path/to/repo/orp.erdos.pack-install-report.md`
+
+For public-only adoption (no private sunflower adapters yet):
+
+```bash
+./scripts/orp pack install \
+  --pack-id erdos-open-problems \
+  --target-repo-root /path/to/repo \
+  --include catalog
+```
+
+Manual render path (advanced):
 
 ```bash
 python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --list
