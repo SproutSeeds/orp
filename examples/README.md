@@ -13,3 +13,4 @@ Additional v1 runtime draft examples:
 - `orp.sunflower-coda.pr-governance.yml` — local-first PR governance profile set (pre-open, draft-readiness, full flow).
 - `orp.erdos-problems.catalog.yml` — Erdos catalog sync profile (all/open/closed + open-default active set).
 - `packet.problem_scope.example.json` — example `problem_scope` packet with board/ticket/gate/atom context.
+- `reports/` — example one-page run summaries for sunflower live-compare profiles.

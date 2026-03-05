@@ -162,6 +162,7 @@ Supported commands:
 ./scripts/orp init
 ./scripts/orp gate run --profile default
 ./scripts/orp packet emit --profile default
+./scripts/orp report summary --run-id <run_id>
 ./scripts/orp erdos sync
 ```
 
@@ -179,5 +180,6 @@ Current scope of this runtime:
 
 - sequential gate execution with pass/fail rule checks,
 - captured stdout/stderr logs in `orp/artifacts/<run_id>/`,
+- one-page run summaries (`orp/artifacts/<run_id>/RUN_SUMMARY.md`) via `orp report summary`,
 - run state in `orp/state.json`,
 - packet JSON + markdown emission to `orp/packets/`.

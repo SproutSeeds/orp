@@ -97,6 +97,8 @@ python3 scripts/orp-pack-render.py \
 ```bash
 ./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
+
+./scripts/orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
 ```
 
 PR-governance run examples:

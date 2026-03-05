@@ -6,6 +6,7 @@ Commands:
 - gate run
 - packet emit
 - erdos sync
+- report summary
 
 Design goals:
 - Local-first
@@ -641,6 +642,215 @@ def cmd_erdos_sync(args: argparse.Namespace) -> int:
     return int(proc.returncode)
 
 
+def _resolve_run_json_path(
+    *,
+    repo_root: Path,
+    run_id_arg: str,
+    run_json_arg: str,
+) -> tuple[str, Path]:
+    if run_json_arg:
+        run_json = Path(run_json_arg)
+        if not run_json.is_absolute():
+            run_json = repo_root / run_json
+        run_json = run_json.resolve()
+        if not run_json.exists():
+            raise RuntimeError(f"run json not found: {run_json}")
+        run = _read_json(run_json)
+        run_id = str(run.get("run_id", "")).strip()
+        if not run_id:
+            run_id = run_json.parent.name
+        return run_id, run_json
+
+    state_path = repo_root / "orp" / "state.json"
+    state: dict[str, Any] = {}
+    if state_path.exists():
+        state = _read_json(state_path)
+
+    run_id = run_id_arg.strip()
+    if not run_id:
+        run_id = str(state.get("last_run_id", "")).strip()
+    if not run_id:
+        raise RuntimeError("no run_id found; pass --run-id or --run-json")
+
+    run_json = None
+    runs = state.get("runs")
+    if isinstance(runs, dict):
+        run_ref = runs.get(run_id)
+        if isinstance(run_ref, str) and run_ref:
+            candidate = (repo_root / run_ref).resolve()
+            if candidate.exists():
+                run_json = candidate
+
+    if run_json is None:
+        candidate = (repo_root / "orp" / "artifacts" / run_id / "RUN.json").resolve()
+        if candidate.exists():
+            run_json = candidate
+
+    if run_json is None:
+        raise RuntimeError(f"run json not found for run_id={run_id}")
+    return run_id, run_json
+
+
+def _run_duration_ms_from_record(run: dict[str, Any]) -> int:
+    started = run.get("started_at_utc")
+    ended = run.get("ended_at_utc")
+    duration = _duration_ms(started, ended)
+    if duration > 0:
+        return duration
+    results = run.get("results", [])
+    if not isinstance(results, list):
+        return 0
+    total = 0
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        try:
+            total += int(row.get("duration_ms", 0))
+        except Exception:
+            continue
+    return max(0, total)
+
+
+def _one_line(s: str, max_len: int = 88) -> str:
+    collapsed = re.sub(r"\s+", " ", s).strip()
+    if len(collapsed) <= max_len:
+        return collapsed
+    if max_len <= 3:
+        return collapsed[:max_len]
+    return collapsed[: max_len - 3].rstrip() + "..."
+
+
+def _render_run_summary_md(run: dict[str, Any]) -> str:
+    run_id = str(run.get("run_id", "")).strip()
+    profile = str(run.get("profile", "")).strip()
+    config_path = str(run.get("config_path", "")).strip()
+    started = str(run.get("started_at_utc", "")).strip()
+    ended = str(run.get("ended_at_utc", "")).strip()
+    det_hash = str(run.get("deterministic_input_hash", "")).strip()
+
+    summary = run.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    overall = str(summary.get("overall_result", "INCONCLUSIVE")).strip() or "INCONCLUSIVE"
+    passed = int(summary.get("gates_passed", 0) or 0)
+    failed = int(summary.get("gates_failed", 0) or 0)
+    total = int(summary.get("gates_total", 0) or 0)
+    duration_ms = _run_duration_ms_from_record(run)
+
+    results = run.get("results", [])
+    if not isinstance(results, list):
+        results = []
+
+    lines: list[str] = []
+    lines.append(f"# ORP Run Summary `{run_id}`")
+    lines.append("")
+    lines.append("## Headline")
+    lines.append("")
+    lines.append(f"- overall_result: `{overall}`")
+    lines.append(f"- profile: `{profile}`")
+    lines.append(f"- gates: `{passed} passed / {failed} failed / {total} total`")
+    lines.append(f"- duration_ms: `{duration_ms}`")
+    lines.append(f"- started_at_utc: `{started}`")
+    lines.append(f"- ended_at_utc: `{ended}`")
+    lines.append(f"- config_path: `{config_path}`")
+    lines.append("")
+    lines.append("## What This Report Shows")
+    lines.append("")
+    lines.append("- Which gates ran, in what order, and with what command.")
+    lines.append("- Whether each gate passed or failed, with exit code and timing.")
+    lines.append("- Where to inspect raw evidence (`stdout` / `stderr`) for each gate.")
+    lines.append("- A deterministic input hash so teams can compare runs reliably.")
+    lines.append("")
+    lines.append("## Gate Results")
+    lines.append("")
+    lines.append("| Gate | Status | Exit | Duration ms | Command |")
+    lines.append("|---|---:|---:|---:|---|")
+
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        gate_id = str(row.get("gate_id", ""))
+        status = str(row.get("status", ""))
+        exit_code = str(row.get("exit_code", ""))
+        gate_dur = str(row.get("duration_ms", ""))
+        command = _one_line(str(row.get("command", "")))
+        lines.append(
+            f"| `{gate_id}` | `{status}` | {exit_code} | {gate_dur} | `{command}` |"
+        )
+
+    failing_rows = [
+        row
+        for row in results
+        if isinstance(row, dict) and str(row.get("status", "")).lower() == "fail"
+    ]
+    if failing_rows:
+        lines.append("")
+        lines.append("## Failing Conditions")
+        lines.append("")
+        for row in failing_rows:
+            gate_id = str(row.get("gate_id", ""))
+            lines.append(f"- `{gate_id}`")
+            issues = row.get("rule_issues", [])
+            if isinstance(issues, list) and issues:
+                for issue in issues:
+                    lines.append(f"  - {issue}")
+            else:
+                lines.append("  - no explicit rule issues recorded")
+
+    lines.append("")
+    lines.append("## Evidence Pointers")
+    lines.append("")
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        gate_id = str(row.get("gate_id", ""))
+        stdout_path = str(row.get("stdout_path", "")).strip()
+        stderr_path = str(row.get("stderr_path", "")).strip()
+        lines.append(
+            f"- `{gate_id}`: stdout=`{stdout_path or '(none)'}` stderr=`{stderr_path or '(none)'}`"
+        )
+
+    lines.append("")
+    lines.append("## Reproducibility")
+    lines.append("")
+    lines.append(f"- deterministic_input_hash: `{det_hash}`")
+    lines.append("- rerun with the same profile/config and compare this hash + gate outputs.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def cmd_report_summary(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _ensure_dirs(repo_root)
+
+    run_id, run_json_path = _resolve_run_json_path(
+        repo_root=repo_root,
+        run_id_arg=args.run_id,
+        run_json_arg=args.run_json,
+    )
+    run = _read_json(run_json_path)
+    summary_md = _render_run_summary_md(run)
+
+    if args.out:
+        out_path = Path(args.out)
+        if not out_path.is_absolute():
+            out_path = repo_root / out_path
+        out_path = out_path.resolve()
+    else:
+        out_path = run_json_path.parent / "RUN_SUMMARY.md"
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(summary_md, encoding="utf-8")
+
+    print(f"run_id={run_id}")
+    print(f"run_json={_path_for_state(run_json_path, repo_root)}")
+    print(f"summary_md={_path_for_state(out_path, repo_root)}")
+    if args.print_stdout:
+        print("---")
+        print(summary_md)
+    return 0
+
+
 def _duration_ms(started: Any, ended: Any) -> int:
     try:
         s = dt.datetime.fromisoformat(str(started).replace("Z", "+00:00"))
@@ -773,6 +983,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Additional args forwarded to scripts/orp-erdos-problems-sync.py",
     )
     s_erdos_sync.set_defaults(func=cmd_erdos_sync)
+
+    s_report = sub.add_parser("report", help="Run report operations")
+    report_sub = s_report.add_subparsers(dest="report_cmd", required=True)
+    s_report_summary = report_sub.add_parser(
+        "summary",
+        help="Render one-page markdown summary from RUN.json",
+    )
+    s_report_summary.add_argument(
+        "--run-id",
+        default="",
+        help="Run id (defaults to last run in orp/state.json)",
+    )
+    s_report_summary.add_argument(
+        "--run-json",
+        default="",
+        help="Explicit path to RUN.json (absolute or relative to --repo-root)",
+    )
+    s_report_summary.add_argument(
+        "--out",
+        default="",
+        help="Output markdown path (default: alongside RUN.json as RUN_SUMMARY.md)",
+    )
+    s_report_summary.add_argument(
+        "--print",
+        dest="print_stdout",
+        action="store_true",
+        help="Also print markdown summary to stdout",
+    )
+    s_report_summary.set_defaults(func=cmd_report_summary)
 
     return p
 

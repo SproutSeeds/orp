@@ -81,6 +81,8 @@ Then run ORP with the rendered config:
 ./scripts/orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
 
+./scripts/orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
+
 export ORP_ISSUE_NUMBER=34959
 export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
 export ORP_PR_BODY_FILE=/path/to/repo/analysis/MATHLIB_DRAFT_PR_BODY.md

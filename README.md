@@ -62,8 +62,22 @@ Minimal CLI skeleton:
 ./scripts/orp init
 ./scripts/orp gate run --profile default
 ./scripts/orp packet emit --profile default
+./scripts/orp report summary --run-id <run_id>
 ./scripts/orp erdos sync
 ```
+
+Run summaries are one-page markdown reports generated from `RUN.json` and intended for fast teammate review:
+
+- what ran,
+- what passed/failed,
+- where evidence logs live,
+- and how reproducible the run is.
+
+Sample summaries:
+
+- `examples/reports/sunflower_live_compare_857.RUN_SUMMARY.md`
+- `examples/reports/sunflower_live_compare_20.RUN_SUMMARY.md`
+- `examples/reports/sunflower_live_compare_367.RUN_SUMMARY.md`
 
 ## Optional Profile Packs
 
