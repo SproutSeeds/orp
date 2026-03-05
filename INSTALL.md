@@ -1,6 +1,21 @@
 # Installing ORP into a repo
 
-ORP is a **template pack**. There is no runtime and nothing to “install” in the dependency sense.
+ORP supports both:
+
+- docs-first template adoption (`PROTOCOL.md`, templates), and
+- optional runtime CLI usage (`orp`) for gates/packets/packs.
+
+Optional global CLI install:
+
+```sh
+npm i -g @sproutseeds/orp-cli
+orp -h
+```
+
+CLI prerequisites:
+
+- Python 3 on `PATH`
+- `PyYAML` (`python3 -m pip install pyyaml`)
 
 ## Option A — Add ORP to an existing repo
 

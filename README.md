@@ -29,6 +29,26 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `spec/` — optional v1 runtime draft schemas (packets/config/lifecycle mapping)
 - `packs/` — optional downloadable profile packs (domain templates + metadata)
 
+## Install CLI (npm)
+
+Global install:
+
+```bash
+npm i -g @sproutseeds/orp-cli
+orp -h
+```
+
+Prerequisites:
+
+- Python 3 available on `PATH`
+- `PyYAML` in that Python environment (`python3 -m pip install pyyaml`)
+
+Local repo usage still works:
+
+```bash
+./scripts/orp -h
+```
+
 ## Quick start (existing repo)
 
 1. Copy this folder into your repo (recommended location: `orp/`).

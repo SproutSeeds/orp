@@ -38,6 +38,8 @@ List packs:
 ./scripts/orp pack list
 ```
 
+If ORP is installed globally via npm, use `orp pack list`.
+
 Install all pack components into a target repo and write dependency audit:
 
 ```bash

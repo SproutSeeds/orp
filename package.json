@@ -1,0 +1,48 @@
+{
+  "name": "@sproutseeds/orp-cli",
+  "version": "0.1.0",
+  "description": "ORP CLI (Open Research Protocol): runtime, reports, and problem-pack install/fetch tooling.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SproutSeeds/orp.git"
+  },
+  "homepage": "https://github.com/SproutSeeds/orp#readme",
+  "bugs": {
+    "url": "https://github.com/SproutSeeds/orp/issues"
+  },
+  "bin": {
+    "orp": "bin/orp.js"
+  },
+  "files": [
+    "bin/",
+    "cli/",
+    "cone/",
+    "docs/",
+    "examples/",
+    "modules/",
+    "packs/",
+    "scripts/",
+    "spec/",
+    "templates/",
+    "AGENT_INTEGRATION.md",
+    "INSTALL.md",
+    "LICENSE",
+    "PROTOCOL.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "postinstall": "node scripts/npm-postinstall-check.js",
+    "test": "python3 -m unittest discover -s tests -v"
+  },
+  "keywords": [
+    "cli",
+    "gates",
+    "open-research-protocol",
+    "orp",
+    "research-workflow"
+  ]
+}

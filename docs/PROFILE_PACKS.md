@@ -59,6 +59,8 @@ Recommended via ORP CLI:
   --pack-id erdos-open-problems
 ```
 
+If installed globally via npm, replace `./scripts/orp` with `orp`.
+
 External pack source via CLI-only flow:
 
 ```bash
