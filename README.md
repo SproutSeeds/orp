@@ -49,6 +49,11 @@ Local repo usage still works:
 ./scripts/orp -h
 ```
 
+Release process:
+
+- `docs/NPM_RELEASE_CHECKLIST.md`
+- `.github/workflows/npm-publish.yml` (publishes on `v*` tags)
+
 ## Quick start (existing repo)
 
 1. Copy this folder into your repo (recommended location: `orp/`).
