@@ -7,6 +7,7 @@ Commands:
 - packet emit
 - erdos sync
 - pack list
+- pack fetch
 - pack install
 - report summary
 
@@ -643,6 +644,8 @@ def cmd_pack_install(args: argparse.Namespace) -> int:
         "--target-repo-root",
         args.target_repo_root,
     ]
+    if args.pack_path:
+        forwarded.extend(["--pack-path", args.pack_path])
     if args.orp_repo_root:
         forwarded.extend(["--orp-repo-root", args.orp_repo_root])
     for comp in args.include or []:
@@ -661,6 +664,83 @@ def cmd_pack_install(args: argparse.Namespace) -> int:
     cmd = [sys.executable, str(script_path), *forwarded]
     proc = subprocess.run(cmd, cwd=str(repo_root))
     return int(proc.returncode)
+
+
+def _parse_kv_lines(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        out[k.strip()] = v.strip()
+    return out
+
+
+def cmd_pack_fetch(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    fetch_script = Path(__file__).resolve().parent.parent / "scripts" / "orp-pack-fetch.py"
+    install_script = Path(__file__).resolve().parent.parent / "scripts" / "orp-pack-install.py"
+    if not fetch_script.exists():
+        raise RuntimeError(f"missing pack fetch script: {fetch_script}")
+
+    fetch_cmd: list[str] = [sys.executable, str(fetch_script), "--source", args.source]
+    if args.pack_id:
+        fetch_cmd.extend(["--pack-id", args.pack_id])
+    if args.ref:
+        fetch_cmd.extend(["--ref", args.ref])
+    if args.cache_root:
+        fetch_cmd.extend(["--cache-root", args.cache_root])
+    if args.name:
+        fetch_cmd.extend(["--name", args.name])
+
+    proc = subprocess.run(fetch_cmd, cwd=str(repo_root), capture_output=True, text=True)
+    if proc.stdout:
+        print(proc.stdout, end="")
+    if proc.returncode != 0:
+        if proc.stderr:
+            print(proc.stderr, file=sys.stderr, end="")
+        return int(proc.returncode)
+
+    if not args.install_target:
+        return 0
+    if not install_script.exists():
+        raise RuntimeError(f"missing pack install script: {install_script}")
+
+    kv = _parse_kv_lines(proc.stdout)
+    pack_path = kv.get("pack_path", "").strip()
+    if not pack_path:
+        raise RuntimeError("pack fetch did not return pack_path")
+
+    install_cmd: list[str] = [
+        sys.executable,
+        str(install_script),
+        "--pack-path",
+        pack_path,
+        "--target-repo-root",
+        args.install_target,
+    ]
+    # preserve discovered pack id for reporting consistency when available
+    fetched_pack_id = kv.get("pack_id", "").strip()
+    if fetched_pack_id:
+        install_cmd.extend(["--pack-id", fetched_pack_id])
+    if args.orp_repo_root:
+        install_cmd.extend(["--orp-repo-root", args.orp_repo_root])
+    for comp in args.include or []:
+        install_cmd.extend(["--include", str(comp)])
+    for raw in args.var or []:
+        install_cmd.extend(["--var", str(raw)])
+    if args.report:
+        install_cmd.extend(["--report", args.report])
+    if args.strict_deps:
+        install_cmd.append("--strict-deps")
+    if args.no_bootstrap:
+        install_cmd.append("--no-bootstrap")
+    if args.overwrite_bootstrap:
+        install_cmd.append("--overwrite-bootstrap")
+
+    proc_install = subprocess.run(install_cmd, cwd=str(repo_root))
+    return int(proc_install.returncode)
 
 
 def cmd_erdos_sync(args: argparse.Namespace) -> int:
@@ -1070,6 +1150,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pack id under ORP packs/ (default: erdos-open-problems)",
     )
     s_pack_install.add_argument(
+        "--pack-path",
+        default="",
+        help="Explicit pack root path containing pack.yml (overrides --pack-id lookup)",
+    )
+    s_pack_install.add_argument(
         "--target-repo-root",
         default=".",
         help="Target repository root for rendered config files (default: current directory)",
@@ -1118,6 +1203,64 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_pack_install.set_defaults(bootstrap=True)
     s_pack_install.set_defaults(func=cmd_pack_install)
+
+    s_pack_fetch = pack_sub.add_parser(
+        "fetch",
+        help="Fetch pack repo from git and optionally install into a target repo",
+    )
+    s_pack_fetch.add_argument("--source", required=True, help="Git URL or local git repo path")
+    s_pack_fetch.add_argument(
+        "--pack-id",
+        default="",
+        help="Pack id to select when source repo contains multiple packs",
+    )
+    s_pack_fetch.add_argument("--ref", default="", help="Optional branch/tag/commit checkout")
+    s_pack_fetch.add_argument("--cache-root", default="", help="Local cache root (default: ~/.orp/packs)")
+    s_pack_fetch.add_argument("--name", default="", help="Optional cache directory name override")
+    s_pack_fetch.add_argument(
+        "--install-target",
+        default="",
+        help="If set, install fetched pack into this target repo root",
+    )
+    s_pack_fetch.add_argument(
+        "--orp-repo-root",
+        default="",
+        help="Optional ORP repo root override for install step",
+    )
+    s_pack_fetch.add_argument(
+        "--include",
+        action="append",
+        choices=["catalog", "live_compare", "problem857", "governance"],
+        default=[],
+        help="Install component to include (repeatable, install mode only)",
+    )
+    s_pack_fetch.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        help="Template variable KEY=VALUE (install mode only, repeatable)",
+    )
+    s_pack_fetch.add_argument(
+        "--report",
+        default="",
+        help="Install report output path (install mode only)",
+    )
+    s_pack_fetch.add_argument(
+        "--strict-deps",
+        action="store_true",
+        help="Fail install if dependency audit has missing paths",
+    )
+    s_pack_fetch.add_argument(
+        "--no-bootstrap",
+        action="store_true",
+        help="Disable starter scaffolding during install",
+    )
+    s_pack_fetch.add_argument(
+        "--overwrite-bootstrap",
+        action="store_true",
+        help="Allow overwriting starter scaffold files during install",
+    )
+    s_pack_fetch.set_defaults(func=cmd_pack_fetch)
 
     s_report = sub.add_parser("report", help="Run report operations")
     report_sub = s_report.add_subparsers(dest="report_cmd", required=True)

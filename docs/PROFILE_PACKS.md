@@ -59,6 +59,15 @@ Recommended via ORP CLI:
   --pack-id erdos-open-problems
 ```
 
+External pack source via CLI-only flow:
+
+```bash
+./scripts/orp pack fetch \
+  --source https://github.com/example/orp-packs.git \
+  --pack-id erdos-open-problems \
+  --install-target /path/to/repo
+```
+
 This installs rendered config files and writes a dependency audit report:
 
 - `./orp.erdos-catalog-sync.yml`

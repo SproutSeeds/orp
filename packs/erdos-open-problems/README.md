@@ -45,6 +45,15 @@ Install all pack components into a target repo and write dependency audit:
   --pack-id erdos-open-problems
 ```
 
+Fetch this pack from a remote pack repo via CLI:
+
+```bash
+./scripts/orp pack fetch \
+  --source https://github.com/example/orp-packs.git \
+  --pack-id erdos-open-problems \
+  --install-target .
+```
+
 Install public-only component:
 
 ```bash

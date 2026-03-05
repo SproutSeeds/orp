@@ -803,6 +803,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Pack id under ORP packs/ (default: erdos-open-problems)",
     )
     p.add_argument(
+        "--pack-path",
+        default="",
+        help="Explicit pack root path containing pack.yml (overrides --pack-id lookup)",
+    )
+    p.add_argument(
         "--target-repo-root",
         default=".",
         help="Target repository root where rendered ORP configs are written (default: current directory)",
@@ -859,7 +864,10 @@ def main() -> int:
     target_repo_root = Path(args.target_repo_root).resolve()
     target_repo_root.mkdir(parents=True, exist_ok=True)
 
-    pack_root = orp_repo_root / "packs" / args.pack_id
+    if args.pack_path.strip():
+        pack_root = Path(args.pack_path).resolve()
+    else:
+        pack_root = orp_repo_root / "packs" / args.pack_id
     pack_yml = pack_root / "pack.yml"
     if not pack_yml.exists():
         print(f"error: pack not found: {pack_root}", file=sys.stderr)
@@ -934,6 +942,7 @@ def main() -> int:
 
     print(f"pack_id={pack_id}")
     print(f"pack_version={pack_version}")
+    print(f"pack_root={pack_root}")
     print(f"target_repo_root={target_repo_root}")
     print(f"included_components={','.join(includes)}")
     print(f"bootstrap.enabled={bool(args.bootstrap)}")

@@ -97,6 +97,15 @@ Install pack configs into a target repo (recommended):
   --pack-id erdos-open-problems
 ```
 
+Fetch an external pack repo and install through CLI (no manual clone flow required):
+
+```bash
+./scripts/orp pack fetch \
+  --source https://github.com/example/orp-packs.git \
+  --pack-id erdos-open-problems \
+  --install-target .
+```
+
 This writes rendered configs and a dependency audit report at:
 
 - `./orp.erdos-catalog-sync.yml`
