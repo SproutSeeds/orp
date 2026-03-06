@@ -43,6 +43,26 @@ Prerequisites:
 - Python 3 available on `PATH`
 - `PyYAML` in that Python environment (`python3 -m pip install pyyaml`)
 
+Fresh-directory smoke test:
+
+```bash
+mkdir test-orp && cd test-orp
+npm i -g @sproutseeds/orp-cli
+orp init
+orp gate run --profile default
+orp packet emit --profile default
+orp report summary
+find orp -maxdepth 3 -type f | sort
+```
+
+What this proves:
+
+- the global `orp` binary resolves,
+- the runtime can initialize a repo-local ORP workspace,
+- a gate run writes `RUN.json`,
+- packet emit writes process metadata to `orp/packets/`,
+- and report summary renders a one-page digest from the last run.
+
 Local repo usage still works:
 
 ```bash
@@ -84,13 +104,15 @@ ORP remains docs-first by default. For teams that want local gate execution and 
 Minimal CLI skeleton:
 
 ```bash
-./scripts/orp init
-./scripts/orp gate run --profile default
-./scripts/orp packet emit --profile default
-./scripts/orp report summary --run-id <run_id>
-./scripts/orp pack list
-./scripts/orp erdos sync
+orp init
+orp gate run --profile default
+orp packet emit --profile default
+orp report summary --run-id <run_id>
+orp pack list
+orp erdos sync
 ```
+
+Equivalent local-repo commands are available via `./scripts/orp ...` when developing ORP itself.
 
 Run summaries are one-page markdown reports generated from `RUN.json` and intended for fast teammate review:
 
@@ -116,16 +138,16 @@ ORP supports reusable domain profile packs so core runtime stays general.
 Install pack configs into a target repo (recommended):
 
 ```bash
-./scripts/orp pack list
+orp pack list
 
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems
 ```
 
 Fetch an external pack repo and install through CLI (no manual clone flow required):
 
 ```bash
-./scripts/orp pack fetch \
+orp pack fetch \
   --source https://github.com/example/orp-packs.git \
   --pack-id erdos-open-problems \
   --install-target .
@@ -143,10 +165,25 @@ By default, install includes starter scaffolding for Problems 857/20/367 so `liv
 For public-only adoption (no private sunflower adapters yet):
 
 ```bash
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems \
   --include catalog
 ```
+
+Clean-room public pack cycle:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include catalog
+
+orp --config orp.erdos-catalog-sync.yml \
+  gate run --profile erdos_catalog_sync_active
+
+orp report summary
+```
+
+This is the simplest end-to-end pack workflow currently validated against the published npm package.
 
 Manual render path (advanced):
 

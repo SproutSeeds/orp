@@ -17,6 +17,38 @@ CLI prerequisites:
 - Python 3 on `PATH`
 - `PyYAML` (`python3 -m pip install pyyaml`)
 
+## Option 0 — Smoke-test ORP in a fresh directory
+
+This is the fastest way to verify the published CLI before integrating ORP into a real repo.
+
+```sh
+mkdir test-orp && cd test-orp
+npm i -g @sproutseeds/orp-cli
+orp init
+orp gate run --profile default
+orp packet emit --profile default
+orp report summary
+find orp -maxdepth 3 -type f | sort
+```
+
+Expected outcomes:
+
+- `orp.yml` is created in the working directory
+- `orp/artifacts/<run_id>/RUN.json` is written after `gate run`
+- `orp/packets/*.json` and `orp/packets/*.md` are written after `packet emit`
+- `orp/artifacts/<run_id>/RUN_SUMMARY.md` is written after `report summary`
+
+Then validate a real public pack flow:
+
+```sh
+orp pack list
+orp pack install --pack-id erdos-open-problems --include catalog
+orp --config orp.erdos-catalog-sync.yml gate run --profile erdos_catalog_sync_active
+orp report summary
+```
+
+This exercises the published pack install path plus a real pack-backed gate run.
+
 ## Option A — Add ORP to an existing repo
 
 1) Copy the folder into your repo (recommended: `orp/`):
@@ -70,6 +102,8 @@ If you want a guided copy:
 ```sh
 ./scripts/orp-init.sh /path/to/your/repo/orp
 ```
+
+If you are evaluating ORP for the first time, prefer Option 0 before copying files into a larger repo.
 
 ## Important note: “activation”
 

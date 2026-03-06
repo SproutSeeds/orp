@@ -781,8 +781,9 @@ def _write_report(
     lines.append("")
     lines.append("## Next Steps")
     lines.append("")
-    lines.append("- Run selected ORP profiles with `./scripts/orp --config <rendered-config> gate run --profile <profile>`.")
-    lines.append("- Generate one-page run digest with `./scripts/orp report summary --run-id <run_id>`.")
+    lines.append("- Run selected ORP profiles with `orp --config <rendered-config> gate run --profile <profile>`.")
+    lines.append("- If developing ORP locally, the equivalent command is `./scripts/orp --config <rendered-config> gate run --profile <profile>`.")
+    lines.append("- Generate one-page run digest with `orp report summary --run-id <run_id>`.")
     lines.append("- Keep ORP core generic; treat this pack as optional domain wiring.")
     lines.append("")
 
@@ -895,7 +896,7 @@ def main() -> int:
         internal_vars: list[str] = []
         if args.bootstrap and key == "problem857":
             internal_vars.append(
-                "PROBLEM857_LEAN_BUILD_COMMAND=python3 scripts/orp-lean-build-stub.py SunflowerLean.Balance"
+                "PROBLEM857_LEAN_BUILD_COMMAND=python3 ../scripts/orp-lean-build-stub.py SunflowerLean.Balance"
             )
         out_path = _render_component(
             orp_repo_root=orp_repo_root,

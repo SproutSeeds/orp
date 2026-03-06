@@ -53,18 +53,18 @@ Render-time values are supplied via `--var KEY=VALUE`.
 Recommended via ORP CLI:
 
 ```bash
-./scripts/orp pack list
+orp pack list
 
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems
 ```
 
-If installed globally via npm, replace `./scripts/orp` with `orp`.
+If developing ORP locally, the equivalent command is `./scripts/orp`.
 
 External pack source via CLI-only flow:
 
 ```bash
-./scripts/orp pack fetch \
+orp pack fetch \
   --source https://github.com/example/orp-packs.git \
   --pack-id erdos-open-problems \
   --install-target /path/to/repo
@@ -86,10 +86,25 @@ Default install behavior is starter-friendly:
 Public-only setup (no private adapters yet):
 
 ```bash
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems \
   --include catalog
 ```
+
+Clean-room public pack cycle:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include catalog
+
+orp --config orp.erdos-catalog-sync.yml \
+  gate run --profile erdos_catalog_sync_active
+
+orp report summary
+```
+
+This path has been validated against the published npm package in a fresh directory and is the recommended first pack workflow.
 
 Strict mode for private adapter readiness:
 
@@ -115,23 +130,23 @@ python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --template s
 Then run ORP with the rendered config:
 
 ```bash
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-live-compare.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
 
-./scripts/orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
+orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
 
 export ORP_ISSUE_NUMBER=34959
 export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
 export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_full_flow
 
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-catalog-sync.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-catalog-sync.yml \
   gate run --profile erdos_catalog_sync_active
 
-./scripts/orp erdos sync --problem-id 857 --problem-id 20
+orp erdos sync --problem-id 857 --problem-id 20
 ```
 
 ## Publishing model

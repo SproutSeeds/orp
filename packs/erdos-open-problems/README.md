@@ -43,14 +43,16 @@ If ORP is installed globally via npm, use `orp pack list`.
 Install all pack components into a target repo and write dependency audit:
 
 ```bash
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems
 ```
+
+If developing ORP locally, the equivalent command is `./scripts/orp pack install ...`.
 
 Fetch this pack from a remote pack repo via CLI:
 
 ```bash
-./scripts/orp pack fetch \
+orp pack fetch \
   --source https://github.com/example/orp-packs.git \
   --pack-id erdos-open-problems \
   --install-target .
@@ -59,15 +61,30 @@ Fetch this pack from a remote pack repo via CLI:
 Install public-only component:
 
 ```bash
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems \
   --include catalog
 ```
 
+Clean-room public catalog cycle:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include catalog
+
+orp --config orp.erdos-catalog-sync.yml \
+  gate run --profile erdos_catalog_sync_active
+
+orp report summary
+```
+
+This is the simplest pack-backed research cycle validated from the published npm package in a fresh directory.
+
 Enforce strict adapter readiness:
 
 ```bash
-./scripts/orp pack install \
+orp pack install \
   --pack-id erdos-open-problems \
   --target-repo-root /path/to/sunflower-coda/repo \
   --include live_compare \
@@ -153,10 +170,10 @@ python3 scripts/orp-pack-render.py \
 ## Run with ORP
 
 ```bash
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-live-compare.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
 
-./scripts/orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
+orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
 ```
 
 PR-governance run examples:
@@ -167,24 +184,24 @@ export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
 export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/sunflower-coda/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_pre_open
 
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_draft_readiness
 ```
 
 Catalog sync run (open-default active set):
 
 ```bash
-./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-catalog-sync.yml \
+orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-catalog-sync.yml \
   gate run --profile erdos_catalog_sync_active
 ```
 
 Look up specific problem links/status:
 
 ```bash
-./scripts/orp erdos sync \
+orp erdos sync \
   --problem-id 857 \
   --problem-id 20 \
   --out-problem-dir /path/to/sunflower-coda/repo/analysis/erdos_problems/selected

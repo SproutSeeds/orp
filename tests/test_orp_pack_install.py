@@ -103,6 +103,49 @@ class OrpPackInstallTests(unittest.TestCase):
             run_json = target / "orp" / "artifacts" / run_id / "RUN.json"
             self.assertTrue(run_json.exists(), msg=f"missing run json: {run_json}")
 
+    def test_problem857_bootstrap_is_install_and_go(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td)
+            install = _run(
+                [
+                    "--target-repo-root",
+                    str(target),
+                    "--include",
+                    "problem857",
+                ]
+            )
+            self.assertEqual(install.returncode, 0, msg=install.stderr)
+            self.assertIn("deps.missing_total=0", install.stdout)
+
+            cfg = target / "orp.erdos-problem857.yml"
+            self.assertTrue(cfg.exists(), msg=f"missing rendered config: {cfg}")
+
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(target),
+                    "--config",
+                    str(cfg),
+                    "gate",
+                    "run",
+                    "--profile",
+                    "sunflower_problem857_discovery",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(run.returncode, 0, msg=run.stderr + "\n" + run.stdout)
+            self.assertIn("overall=PASS", run.stdout)
+
+            report = target / "orp.erdos.pack-install-report.md"
+            self.assertTrue(report.exists(), msg=f"missing report: {report}")
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("`orp --config <rendered-config> gate run --profile <profile>`", report_text)
+            self.assertIn("`./scripts/orp --config <rendered-config> gate run --profile <profile>`", report_text)
+
 
 if __name__ == "__main__":
     unittest.main()
