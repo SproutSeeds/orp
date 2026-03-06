@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Package version to publish (must match package.json)"
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -31,15 +36,28 @@ jobs:
       - name: Install Python runtime dependency
         run: python3 -m pip install --upgrade pyyaml
 
-      - name: Validate package tag/version match
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Validate requested release version
+        id: release_meta
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.release_version }}
         run: |
+          PKG_NAME="$(node -p "require('./package.json').name")"
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            EXPECTED_VERSION="${GITHUB_REF_NAME#v}"
+            echo "release_source=tag" >> "$GITHUB_OUTPUT"
+          else
+            EXPECTED_VERSION="$REQUESTED_VERSION"
+            echo "release_source=workflow_dispatch" >> "$GITHUB_OUTPUT"
+          fi
+          echo "package_name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "package_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "expected_version=$EXPECTED_VERSION" >> "$GITHUB_OUTPUT"
+          echo "package_name=$PKG_NAME"
           echo "package_version=$PKG_VERSION"
-          echo "tag_version=$TAG_VERSION"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "error: package.json version does not match tag." >&2
+          echo "expected_version=$EXPECTED_VERSION"
+          if [ "$PKG_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "error: package.json version does not match requested release version." >&2
             exit 1
           fi
 
@@ -49,8 +67,25 @@ jobs:
       - name: Verify npm tarball
         run: npm pack --dry-run --cache /tmp/orp-npm-cache
 
+      - name: Check whether npm version already exists
+        id: npm_lookup
+        run: |
+          if npm view "${{ steps.release_meta.outputs.package_name }}@${{ steps.release_meta.outputs.package_version }}" version >/tmp/orp-npm-view.txt 2>/dev/null; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "existing_version=$(tr -d '\n' </tmp/orp-npm-view.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Note existing npm version
+        if: steps.npm_lookup.outputs.already_published == 'true'
+        run: |
+          echo "npm version already published:"
+          echo "${{ steps.release_meta.outputs.package_name }}@${{ steps.npm_lookup.outputs.existing_version }}"
+          echo "Skipping npm publish while keeping release metadata validation green."
+
       - name: Publish package
+        if: steps.npm_lookup.outputs.already_published != 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-

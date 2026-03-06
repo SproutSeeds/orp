@@ -121,7 +121,7 @@ gates:
       bash scripts/mathlib-naturality-snippet.sh
       --issue "${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}"
       --branch "${ORP_BRANCH_NAME:-issue-${ORP_ISSUE_NUMBER:?set ORP_ISSUE_NUMBER}}"
-      --module "${ORP_NATURALITY_MODULE:-TODO}"
+      --module "${ORP_NATURALITY_MODULE:?set ORP_NATURALITY_MODULE}"
     working_dir: {{TARGET_REPO_ROOT}}
     pass:
       exit_codes: [0]

@@ -93,6 +93,7 @@ Optional:
 - `UPSTREAM_SUBMISSION_MODE` (default `hold`)
 - `MAX_PRS_PER_SESSION` (default `2`)
 - `REQUIRE_EXPLICIT_APPROVAL` (default `True`)
+- `ORP_NATURALITY_MODULE` (required for governance profiles; no default)
 - `ORP_REPO_ROOT` (default `.`)
 - `ERDOS_SOURCE_URL` (default `https://erdosproblems.com/range/1-end`)
 - `ERDOS_DATA_SUBDIR` (default `analysis/erdos_problems`)
@@ -163,6 +164,7 @@ PR-governance run examples:
 ```bash
 export ORP_ISSUE_NUMBER=34959
 export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
+export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/sunflower-coda/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
 ./scripts/orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \

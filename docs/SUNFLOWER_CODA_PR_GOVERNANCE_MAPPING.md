@@ -68,6 +68,6 @@ Profiles:
 - The same runtime can execute different packs for different ecosystems.
 - Runtime inputs are parameterized:
   - `TARGET_REPO_ROOT`, `MATHLIB_REPO_ROOT`, policy defaults
-  - per-run env (`ORP_ISSUE_NUMBER`, `ORP_BRANCH_NAME`, `ORP_PR_BODY_FILE`, `ORP_READY_NOTE`)
+  - per-run env (`ORP_ISSUE_NUMBER`, `ORP_BRANCH_NAME`, `ORP_NATURALITY_MODULE`, `ORP_PR_BODY_FILE`, `ORP_READY_NOTE`)
 
 This keeps ORP broadly reusable while preserving high-rigor local gate behavior for your active workflow.

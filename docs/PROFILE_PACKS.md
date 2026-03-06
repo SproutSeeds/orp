@@ -122,6 +122,7 @@ Then run ORP with the rendered config:
 
 export ORP_ISSUE_NUMBER=34959
 export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
+export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
 ./scripts/orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-mathlib-pr-governance.yml \

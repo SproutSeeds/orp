@@ -22,6 +22,7 @@ Use this checklist to publish professional, versioned ORP CLI releases.
    - `git push origin v0.1.1`
 5. Watch workflow:
    - `.github/workflows/npm-publish.yml`
+   - tag push is the normal publish trigger
 6. Verify npm install:
    - `npm i -g @sproutseeds/orp-cli`
    - `orp -h`
@@ -36,6 +37,8 @@ Tag version must match `package.json` exactly.
 
 The publish workflow hard-fails if these differ.
 
+Manual workflow dispatch is available as a recovery path, but it still requires the same exact version string.
+
 ## Manual publish fallback
 
 If automation is temporarily unavailable:
@@ -44,5 +47,9 @@ If automation is temporarily unavailable:
 2. Run release validations above.
 3. Publish:
    - `npm publish --access public`
-4. Add corresponding Git tag and release notes.
+4. Create and push the matching tag:
+   - `git tag v0.1.1`
+   - `git push origin v0.1.1`
+5. Add release notes.
 
+The tag-triggered workflow will still validate the version and will skip `npm publish` if that exact npm version already exists.

@@ -23,6 +23,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -45,6 +46,29 @@ def _read_text(path: Path) -> str:
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+
+
+def _tool_version() -> str:
+    env_version = os.environ.get("ORP_VERSION", "").strip()
+    if env_version:
+        return env_version
+
+    package_json = Path(__file__).resolve().parent.parent / "package.json"
+    if not package_json.exists():
+        return "unknown"
+
+    try:
+        payload = json.loads(package_json.read_text(encoding="utf-8"))
+    except Exception:
+        return "unknown"
+
+    version = payload.get("version")
+    if isinstance(version, str) and version.strip():
+        return version.strip()
+    return "unknown"
+
+
+ORP_TOOL_VERSION = _tool_version()
 
 
 def _path_for_state(path: Path, repo_root: Path) -> str:
@@ -555,7 +579,7 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
         },
         "run": {
             "run_id": run_id,
-            "tool": {"name": "orp", "version": "0.1.0"},
+            "tool": {"name": "orp", "version": ORP_TOOL_VERSION},
             "deterministic_input_hash": run.get("deterministic_input_hash", ""),
             "started_at_utc": run.get("started_at_utc", now),
             "ended_at_utc": run.get("ended_at_utc", now),
