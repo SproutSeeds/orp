@@ -164,6 +164,10 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
     if isinstance(live, dict):
         # Some boards store this as "routes", others as "route_status".
         route_rows = live.get("route_status", live.get("routes", []))
+    if not route_rows and isinstance(board, dict):
+        direct_rows = board.get("route_status", [])
+        if isinstance(direct_rows, list):
+            route_rows = direct_rows
     if isinstance(route_rows, list):
         for row in route_rows:
             if not isinstance(row, dict):

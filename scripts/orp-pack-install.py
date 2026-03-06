@@ -254,11 +254,35 @@ def _save_board(root: Path, problem: int, board: dict[str, Any]) -> None:
     path.write_text(json.dumps(board, indent=2) + "\\n", encoding="utf-8")
 
 
+def _atoms(board: dict[str, Any]) -> dict[str, Any]:
+    atoms = board.get("atoms", {})
+    if isinstance(atoms, dict):
+        return atoms
+    return {}
+
+
+def _ready_atom_ids(board: dict[str, Any]) -> list[str]:
+    ready_ids: list[str] = []
+    for atom_id, payload in _atoms(board).items():
+        if not isinstance(payload, dict):
+            continue
+        status = str(payload.get("status", "")).strip().lower()
+        if status == "ready":
+            ready_ids.append(str(atom_id))
+    return sorted(ready_ids)
+
+
+def _sync_ready_atoms(board: dict[str, Any]) -> None:
+    board["ready_atoms"] = len(_ready_atom_ids(board))
+
+
 def _write_board_md(root: Path, problem: int, board: dict[str, Any]) -> None:
+    _sync_ready_atoms(board)
     lines = []
     lines.append(f"# Problem {problem} Ops Board")
     lines.append("")
     lines.append(f"- updated_utc: `{board.get('updated_utc', '')}`")
+    lines.append(f"- ready_atoms: `{int(board.get('ready_atoms', 0))}`")
     lines.append("")
     lines.append("## Routes")
     lines.append("")
@@ -292,12 +316,23 @@ def _write_board_md(root: Path, problem: int, board: dict[str, Any]) -> None:
             )
         )
 
+    atoms = _atoms(board)
+    if atoms:
+        lines.append("")
+        lines.append("## Atom States")
+        lines.append("")
+        for atom_id in sorted(atoms):
+            payload = atoms.get(atom_id, {})
+            status = payload.get("status", "") if isinstance(payload, dict) else ""
+            lines.append(f"- atom={atom_id} status={status}")
+
     out_path = _board_md_path(root, problem)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 
 
 def _print_show(board: dict[str, Any]) -> None:
+    _sync_ready_atoms(board)
     print(f"updated_utc={board.get('updated_utc', '')}")
     for row in board.get("route_status", []):
         if not isinstance(row, dict):
@@ -325,6 +360,11 @@ def _print_show(board: dict[str, Any]) -> None:
                 at=row.get("atoms_total", 0),
             )
         )
+    atoms = _atoms(board)
+    for atom_id in sorted(atoms):
+        payload = atoms.get(atom_id, {})
+        status = payload.get("status", "") if isinstance(payload, dict) else ""
+        print(f"atom={atom_id} status={status}")
     print(f"ready_atoms={int(board.get('ready_atoms', 0))}")
 
 
@@ -356,17 +396,21 @@ def main() -> int:
         return 0
 
     if args.cmd == "ready":
+        _sync_ready_atoms(board)
         if args.problem == 367:
             no_go = board.get("no_go_active", [])
             if isinstance(no_go, list):
                 print("no_go_active=" + ",".join(str(x) for x in no_go))
             else:
                 print("no_go_active=")
+        for atom_id in _ready_atom_ids(board):
+            print(f"{atom_id} ticket=starter gate=ready deps=root")
         print(f"ready_atoms={int(board.get('ready_atoms', 0))}")
         return 0
 
     if args.cmd == "refresh":
         board["updated_utc"] = _now_utc()
+        _sync_ready_atoms(board)
         _save_board(root, args.problem, board)
         if args.write_md:
             _write_board_md(root, args.problem, board)
@@ -381,6 +425,8 @@ def main() -> int:
             atoms = {}
             board["atoms"] = atoms
         atoms[args.atom_id] = {"status": args.status}
+        board["updated_utc"] = _now_utc()
+        _sync_ready_atoms(board)
         _save_board(root, args.problem, board)
         print(f"atom_id={args.atom_id}")
         print(f"atom_status={args.status}")
