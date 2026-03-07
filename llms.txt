@@ -30,6 +30,7 @@ ORP (Open Research Protocol) is a docs-first, local-first, agent-friendly protoc
 - `orp/artifacts/<run_id>/RUN_SUMMARY.md`
 - `orp/packets/<packet_id>.json`
 - `orp/packets/<packet_id>.md`
+- `RUN.json.epistemic_status` and packet `evidence_status` explicitly mark starter/stub/evidence boundaries.
 
 ## Schemas
 

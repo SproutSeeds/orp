@@ -35,6 +35,7 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 - Write the one-page digest:
   - `orp report summary --run-id <run_id> --json`
 - Share the generated `RUN_SUMMARY.md` with humans when a fast review artifact is useful.
+- Read `RUN.json.epistemic_status` and packet `evidence_status` before making any claim about what counts as evidence versus starter scaffolding.
 
 ## 6. Checkpoint
 

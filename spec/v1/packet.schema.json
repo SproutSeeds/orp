@@ -68,6 +68,9 @@
     "summary": {
       "$ref": "#/$defs/summary"
     },
+    "evidence_status": {
+      "$ref": "#/$defs/evidence_status"
+    },
     "artifacts": {
       "$ref": "#/$defs/artifacts"
     }
@@ -147,10 +150,14 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "present",
             "branch",
             "commit"
           ],
           "properties": {
+            "present": {
+              "type": "boolean"
+            },
             "remote": {
               "type": "string"
             },
@@ -316,6 +323,12 @@
         "board_snapshot_path": {
           "type": "string"
         },
+        "starter_scaffold": {
+          "type": "boolean"
+        },
+        "starter_note": {
+          "type": "string"
+        },
         "route_status": {
           "type": "object",
           "additionalProperties": {
@@ -405,6 +418,18 @@
           "items": {
             "type": "string"
           }
+        },
+        "evidence_status": {
+          "type": "string",
+          "enum": [
+            "process_only",
+            "starter_scaffold",
+            "starter_stub",
+            "evidence"
+          ]
+        },
+        "evidence_note": {
+          "type": "string"
         }
       }
     },
@@ -440,6 +465,60 @@
         },
         "note": {
           "type": "string"
+        }
+      }
+    },
+    "evidence_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall",
+        "starter_scaffold",
+        "strongest_evidence_paths",
+        "notes"
+      ],
+      "properties": {
+        "overall": {
+          "type": "string"
+        },
+        "starter_scaffold": {
+          "type": "boolean"
+        },
+        "stub_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "starter_scaffold_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "process_only_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "strongest_evidence_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

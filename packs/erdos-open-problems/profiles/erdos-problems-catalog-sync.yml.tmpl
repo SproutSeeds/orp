@@ -20,6 +20,15 @@ packet:
   write_markdown: true
   deterministic_mode: true
 
+epistemic_status:
+  overall: public_data_sync
+  starter_scaffold: false
+  strongest_evidence_paths:
+    - {{TARGET_REPO_ROOT}}/{{ERDOS_DATA_SUBDIR}}/erdos_problems.active.json
+    - {{TARGET_REPO_ROOT}}/{{ERDOS_OPEN_LIST_FILE}}
+  notes:
+    - This profile writes public Erdos catalog snapshots that are useful evidence inputs for later workflows.
+
 lifecycle:
   claim_status_map:
     Draft: draft
@@ -71,6 +80,8 @@ gates:
     evidence:
       include_stdout: true
       include_stderr: true
+      status: evidence
+      note: Catalog sync writes public data snapshots that can be cited as evidence inputs.
       paths:
         - {{TARGET_REPO_ROOT}}/{{ERDOS_DATA_SUBDIR}}/erdos_problems.all.json
         - {{TARGET_REPO_ROOT}}/{{ERDOS_DATA_SUBDIR}}/erdos_problems.open.json

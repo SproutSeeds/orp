@@ -41,6 +41,16 @@ def _write_run_json(repo_root: Path, run_id: str, *, fail: bool) -> Path:
             "gates_failed": 1 if fail else 0,
             "gates_total": 1,
         },
+        "epistemic_status": {
+            "overall": "starter_public_scaffold" if fail else "public_data_sync",
+            "starter_scaffold": fail,
+            "stub_gates": ["gate_a"] if fail else [],
+            "starter_scaffold_gates": [] if fail else [],
+            "evidence_gates": [] if fail else ["gate_a"],
+            "process_only_gates": [] if fail else [],
+            "strongest_evidence_paths": ["analysis/erdos_problems/selected/erdos_problem.857.json"],
+            "notes": ["starter stub" if fail else "public evidence snapshot"],
+        },
     }
     run_json = run_dir / "RUN.json"
     run_json.write_text(json.dumps(run_payload, indent=2) + "\n", encoding="utf-8")
@@ -106,8 +116,10 @@ class OrpReportSummaryTests(unittest.TestCase):
             self.assertIn("overall_result: `FAIL`", text)
             self.assertIn("## Failing Conditions", text)
             self.assertIn("missing required substring: ready_atoms=", text)
+            self.assertIn("## Epistemic Status", text)
+            self.assertIn("overall: `starter_public_scaffold`", text)
+            self.assertIn("stub_gates: `gate_a`", text)
 
 
 if __name__ == "__main__":
     unittest.main()
-

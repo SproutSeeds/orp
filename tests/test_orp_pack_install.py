@@ -120,6 +120,10 @@ class OrpPackInstallTests(unittest.TestCase):
 
             cfg = target / "orp.erdos-problem857.yml"
             self.assertTrue(cfg.exists(), msg=f"missing rendered config: {cfg}")
+            cfg_text = cfg.read_text(encoding="utf-8")
+            self.assertIn("epistemic_status:", cfg_text)
+            self.assertIn("overall: starter_public_scaffold", cfg_text)
+            self.assertIn("status: starter_stub", cfg_text)
 
             run = subprocess.run(
                 [

@@ -48,6 +48,11 @@ class OrpAboutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             config = {
+                "epistemic_status": {
+                    "overall": "starter_scaffold",
+                    "starter_scaffold": True,
+                    "notes": ["starter lane"],
+                },
                 "profiles": {
                     "default": {
                         "packet_kind": "problem_scope",
@@ -62,6 +67,11 @@ class OrpAboutTests(unittest.TestCase):
                         "pass": {
                             "exit_codes": [0],
                             "stdout_must_contain": ["ORP_SMOKE"],
+                        },
+                        "evidence": {
+                            "status": "starter_stub",
+                            "note": "stub gate",
+                            "paths": ["analysis/stub.txt"],
                         },
                     }
                 ],
@@ -97,6 +107,17 @@ class OrpAboutTests(unittest.TestCase):
             self.assertEqual(payload["gates_failed"], 0)
             self.assertEqual(payload["gates_total"], 1)
             self.assertEqual(payload["run_record"], "orp/artifacts/run-json-gate/RUN.json")
+
+            run_record = json.loads((root / payload["run_record"]).read_text(encoding="utf-8"))
+            self.assertEqual(run_record["results"][0]["evidence_status"], "starter_stub")
+            self.assertEqual(run_record["results"][0]["evidence_note"], "stub gate")
+            self.assertEqual(
+                run_record["results"][0]["evidence_paths"],
+                ["analysis/stub.txt"],
+            )
+            self.assertEqual(run_record["epistemic_status"]["overall"], "starter_scaffold")
+            self.assertTrue(run_record["epistemic_status"]["starter_scaffold"])
+            self.assertEqual(run_record["epistemic_status"]["stub_gates"], ["smoke"])
 
 
 if __name__ == "__main__":

@@ -119,6 +119,7 @@ def _ensure_dirs(repo_root: Path) -> None:
                 "last_run_id": "",
                 "last_packet_id": "",
                 "runs": {},
+                "last_erdos_sync": {},
             },
         )
 
@@ -134,6 +135,32 @@ def _sha256_text(text: str) -> str:
     h = hashlib.sha256()
     h.update(text.encode("utf-8"))
     return "sha256:" + h.hexdigest()
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        text = str(raw).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _resolve_config_paths(raw_paths: Any, repo_root: Path, vars_map: dict[str, str]) -> list[str]:
+    out: list[str] = []
+    if not isinstance(raw_paths, list):
+        return out
+    for raw in raw_paths:
+        if not isinstance(raw, str):
+            continue
+        replaced = _replace_vars(raw, vars_map)
+        path = Path(replaced)
+        full = path if path.is_absolute() else repo_root / path
+        out.append(_path_for_state(full, repo_root))
+    return _unique_strings(out)
 
 
 def _eval_rule(text: str, must_contain: list[str] | None, must_not_contain: list[str] | None) -> tuple[bool, list[str]]:
@@ -241,6 +268,119 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
         "ready_queue_size": ready_queue_size,
         "board_snapshot_path": board_path,
         "route_status": route_status,
+        "starter_scaffold": bool(board.get("starter_scaffold", False)),
+        "starter_note": str(board.get("starter_note", "")),
+    }
+
+
+def _config_epistemic_status(
+    config: dict[str, Any], repo_root: Path, vars_map: dict[str, str]
+) -> dict[str, Any]:
+    raw = config.get("epistemic_status")
+    if not isinstance(raw, dict):
+        return {
+            "overall": "",
+            "starter_scaffold": False,
+            "strongest_evidence_paths": [],
+            "notes": [],
+        }
+    notes = [str(x) for x in raw.get("notes", []) if isinstance(x, str)]
+    return {
+        "overall": str(raw.get("overall", "")).strip(),
+        "starter_scaffold": bool(raw.get("starter_scaffold", False)),
+        "strongest_evidence_paths": _resolve_config_paths(
+            raw.get("strongest_evidence_paths", []), repo_root, vars_map
+        ),
+        "notes": notes,
+    }
+
+
+def _last_erdos_sync_evidence_paths(state: dict[str, Any], repo_root: Path) -> list[str]:
+    raw = state.get("last_erdos_sync")
+    if not isinstance(raw, dict):
+        return []
+
+    paths: list[str] = []
+    for key in ["out_all", "out_open", "out_closed", "out_active", "out_open_list"]:
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            path = Path(value.strip())
+            full = path if path.is_absolute() else repo_root / path
+            paths.append(_path_for_state(full, repo_root))
+
+    selected = raw.get("selected", [])
+    if isinstance(selected, list):
+        for row in selected:
+            if not isinstance(row, dict):
+                continue
+            out_value = row.get("out")
+            if isinstance(out_value, str) and out_value.strip():
+                path = Path(out_value.strip())
+                full = path if path.is_absolute() else repo_root / path
+                paths.append(_path_for_state(full, repo_root))
+    return _unique_strings(paths)
+
+
+def _derive_epistemic_status(
+    config: dict[str, Any],
+    run_results: list[dict[str, Any]],
+    state: dict[str, Any],
+    repo_root: Path,
+    vars_map: dict[str, str],
+) -> dict[str, Any]:
+    declared = _config_epistemic_status(config, repo_root, vars_map)
+    stub_gates: list[str] = []
+    starter_gates: list[str] = []
+    evidence_gates: list[str] = []
+    process_only_gates: list[str] = []
+    notes = list(declared.get("notes", []))
+    strongest_paths = list(declared.get("strongest_evidence_paths", []))
+
+    for row in run_results:
+        if not isinstance(row, dict):
+            continue
+        gate_id = str(row.get("gate_id", "")).strip()
+        evidence_status = str(row.get("evidence_status", "")).strip()
+        if evidence_status == "starter_stub":
+            stub_gates.append(gate_id)
+        elif evidence_status == "starter_scaffold":
+            starter_gates.append(gate_id)
+        elif evidence_status == "evidence":
+            evidence_gates.append(gate_id)
+            strongest_paths.extend(
+                [str(x) for x in row.get("evidence_paths", []) if isinstance(x, str)]
+            )
+        else:
+            process_only_gates.append(gate_id)
+
+        note = str(row.get("evidence_note", "")).strip()
+        if note:
+            notes.append(note)
+
+    strongest_paths.extend(_last_erdos_sync_evidence_paths(state, repo_root))
+    strongest_paths = _unique_strings(strongest_paths)
+    notes = _unique_strings(notes)
+
+    declared_overall = str(declared.get("overall", "")).strip()
+    if declared_overall:
+        overall = declared_overall
+    elif stub_gates or starter_gates:
+        overall = "starter_scaffold"
+    elif strongest_paths:
+        overall = "evidence_backed"
+    else:
+        overall = "process_only"
+
+    starter_scaffold = bool(declared.get("starter_scaffold", False) or stub_gates or starter_gates)
+    return {
+        "overall": overall,
+        "starter_scaffold": starter_scaffold,
+        "stub_gates": _unique_strings(stub_gates),
+        "starter_scaffold_gates": _unique_strings(starter_gates),
+        "evidence_gates": _unique_strings(evidence_gates),
+        "process_only_gates": _unique_strings(process_only_gates),
+        "strongest_evidence_paths": strongest_paths,
+        "notes": notes,
     }
 
 
@@ -491,6 +631,7 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
         stderr_path.write_text(err, encoding="utf-8")
 
         pass_cfg = gate.get("pass", {})
+        evidence_cfg = gate.get("evidence", {}) if isinstance(gate.get("evidence"), dict) else {}
         exit_codes = pass_cfg.get("exit_codes", [0]) if isinstance(pass_cfg, dict) else [0]
         if not isinstance(exit_codes, list):
             exit_codes = [0]
@@ -528,6 +669,22 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
         if exec_status != "ok":
             issues.append(exec_status)
 
+        evidence_paths = _resolve_config_paths(
+            evidence_cfg.get("paths", []) if isinstance(evidence_cfg, dict) else [],
+            repo_root,
+            vars_map,
+        )
+        evidence_status = (
+            str(evidence_cfg.get("status", "")).strip()
+            if isinstance(evidence_cfg, dict)
+            else ""
+        ) or "process_only"
+        evidence_note = (
+            str(evidence_cfg.get("note", "")).strip()
+            if isinstance(evidence_cfg, dict)
+            else ""
+        )
+
         run_results.append(
             {
                 "gate_id": gate_id,
@@ -539,7 +696,9 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
                 "stdout_path": str(stdout_path.relative_to(repo_root)),
                 "stderr_path": str(stderr_path.relative_to(repo_root)),
                 "rule_issues": issues,
-                "evidence_paths": gate.get("evidence", {}).get("paths", []) if isinstance(gate.get("evidence"), dict) else [],
+                "evidence_paths": evidence_paths,
+                "evidence_status": evidence_status,
+                "evidence_note": evidence_note,
             }
         )
 
@@ -570,11 +729,19 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
         },
     }
 
+    state_path = repo_root / "orp" / "state.json"
+    state = _read_json(state_path)
+    run_record["epistemic_status"] = _derive_epistemic_status(
+        config=config,
+        run_results=run_results,
+        state=state,
+        repo_root=repo_root,
+        vars_map=vars_map,
+    )
+
     run_json_path = run_artifacts / "RUN.json"
     _write_json(run_json_path, run_record)
 
-    state_path = repo_root / "orp" / "state.json"
-    state = _read_json(state_path)
     runs = state.setdefault("runs", {})
     if isinstance(runs, dict):
         runs[run_id] = str(run_json_path.relative_to(repo_root))
@@ -644,6 +811,17 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
     git_remote = ""
     git_branch = ""
     git_commit = ""
+    git_present = False
+    try:
+        inside = subprocess.check_output(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(repo_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        git_present = inside == "true"
+    except Exception:
+        git_present = False
     try:
         git_remote = subprocess.check_output(
             ["git", "remote", "get-url", "origin"],
@@ -673,6 +851,15 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
         pass
 
     atomic_context = _collect_atomic_context(effective_config, repo_root, run=run)
+    epistemic_status = run.get("epistemic_status")
+    if not isinstance(epistemic_status, dict):
+        epistemic_status = _derive_epistemic_status(
+            config=effective_config,
+            run_results=run.get("results", []) if isinstance(run.get("results"), list) else [],
+            state=state,
+            repo_root=repo_root,
+            vars_map={"run_id": run_id},
+        )
 
     packet = {
         "schema_version": "1.0.0",
@@ -681,12 +868,13 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
         "created_at_utc": now,
         "protocol_boundary": {
             "process_only": True,
-            "evidence_paths": [],
+            "evidence_paths": epistemic_status.get("strongest_evidence_paths", []),
             "note": "Packet is process metadata. Evidence remains in canonical artifact paths.",
         },
         "repo": {
             "root_path": str(repo_root),
             "git": {
+                "present": git_present,
                 "remote": git_remote,
                 "branch": git_branch,
                 "commit": git_commit,
@@ -707,6 +895,7 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
         },
         "gates": run.get("results", []),
         "summary": run.get("summary", {"overall_result": "INCONCLUSIVE", "gates_passed": 0, "gates_failed": 0, "gates_total": 0}),
+        "evidence_status": epistemic_status,
         "artifacts": {
             "packet_json_path": f"orp/packets/{packet_id}.json",
             "packet_md_path": f"orp/packets/{packet_id}.md",
@@ -1075,6 +1264,7 @@ def cmd_pack_fetch(args: argparse.Namespace) -> int:
 
 def cmd_erdos_sync(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
+    _ensure_dirs(repo_root)
     script_path = Path(__file__).resolve().parent.parent / "scripts" / "orp-erdos-problems-sync.py"
     if not script_path.exists():
         raise RuntimeError(f"missing sync script: {script_path}")
@@ -1119,8 +1309,15 @@ def cmd_erdos_sync(args: argparse.Namespace) -> int:
 
     cmd = [sys.executable, str(script_path), *forwarded]
     proc = subprocess.run(cmd, cwd=str(repo_root), capture_output=True, text=True)
+    result = _parse_erdos_sync_output(proc.stdout)
+    if proc.returncode == 0:
+        state_path = repo_root / "orp" / "state.json"
+        state = _read_json(state_path)
+        result["synced_at_utc"] = _now_utc()
+        state["last_erdos_sync"] = result
+        _write_json(state_path, state)
+
     if args.json_output:
-        result = _parse_erdos_sync_output(proc.stdout)
         result["ok"] = proc.returncode == 0
         result["returncode"] = int(proc.returncode)
         if proc.stderr.strip():
@@ -1286,6 +1483,42 @@ def _render_run_summary_md(run: dict[str, Any]) -> str:
             else:
                 lines.append("  - no explicit rule issues recorded")
 
+    epistemic = run.get("epistemic_status", {})
+    if isinstance(epistemic, dict) and epistemic:
+        lines.append("")
+        lines.append("## Epistemic Status")
+        lines.append("")
+        lines.append(f"- overall: `{str(epistemic.get('overall', '')).strip()}`")
+        lines.append(f"- starter_scaffold: `{str(bool(epistemic.get('starter_scaffold', False))).lower()}`")
+
+        stub_gates = [str(x) for x in epistemic.get("stub_gates", []) if isinstance(x, str)]
+        starter_gates = [
+            str(x) for x in epistemic.get("starter_scaffold_gates", []) if isinstance(x, str)
+        ]
+        evidence_gates = [str(x) for x in epistemic.get("evidence_gates", []) if isinstance(x, str)]
+        strongest_paths = [
+            str(x) for x in epistemic.get("strongest_evidence_paths", []) if isinstance(x, str)
+        ]
+        notes = [str(x) for x in epistemic.get("notes", []) if isinstance(x, str)]
+
+        lines.append(
+            f"- stub_gates: `{', '.join(stub_gates) if stub_gates else '(none)'}`"
+        )
+        lines.append(
+            f"- starter_scaffold_gates: `{', '.join(starter_gates) if starter_gates else '(none)'}`"
+        )
+        lines.append(
+            f"- evidence_gates: `{', '.join(evidence_gates) if evidence_gates else '(none)'}`"
+        )
+        if strongest_paths:
+            lines.append("- strongest_evidence_paths:")
+            for path in strongest_paths:
+                lines.append(f"  - `{path}`")
+        if notes:
+            lines.append("- notes:")
+            for note in notes:
+                lines.append(f"  - {note}")
+
     lines.append("")
     lines.append("## Evidence Pointers")
     lines.append("")
@@ -1389,6 +1622,33 @@ def _render_packet_md(packet: dict[str, Any]) -> str:
         lines.append(f"- Board: `{atomic.get('board_id', '')}`")
         lines.append(f"- Problem: `{atomic.get('problem_id', '')}`")
         lines.append(f"- Snapshot: `{atomic.get('board_snapshot_path', '')}`")
+        if atomic.get("starter_scaffold"):
+            lines.append(f"- Starter scaffold: `true`")
+        starter_note = str(atomic.get("starter_note", "")).strip()
+        if starter_note:
+            lines.append(f"- Starter note: `{starter_note}`")
+
+    evidence_status = packet.get("evidence_status")
+    if isinstance(evidence_status, dict):
+        lines.append("")
+        lines.append("## Evidence Status")
+        lines.append("")
+        lines.append(f"- Overall: `{evidence_status.get('overall', '')}`")
+        lines.append(
+            f"- Starter scaffold: `{str(bool(evidence_status.get('starter_scaffold', False))).lower()}`"
+        )
+        strongest_paths = [
+            str(x)
+            for x in evidence_status.get("strongest_evidence_paths", [])
+            if isinstance(x, str)
+        ]
+        if strongest_paths:
+            lines.append("- Strongest evidence paths:")
+            for path in strongest_paths:
+                lines.append(f"  - `{path}`")
+        stub_gates = [str(x) for x in evidence_status.get("stub_gates", []) if isinstance(x, str)]
+        if stub_gates:
+            lines.append(f"- Stub gates: `{', '.join(stub_gates)}`")
 
     lines.append("")
     lines.append("## Boundary")

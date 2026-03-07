@@ -26,6 +26,9 @@
     "packet": {
       "$ref": "#/$defs/packet"
     },
+    "epistemic_status": {
+      "$ref": "#/$defs/epistemic_status"
+    },
     "lifecycle": {
       "$ref": "#/$defs/lifecycle"
     },
@@ -292,7 +295,43 @@
         "include_stderr": {
           "type": "boolean"
         },
+        "status": {
+          "type": "string",
+          "enum": [
+            "process_only",
+            "starter_scaffold",
+            "starter_stub",
+            "evidence"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
         "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "epistemic_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "overall": {
+          "type": "string"
+        },
+        "starter_scaffold": {
+          "type": "boolean"
+        },
+        "strongest_evidence_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
           "type": "array",
           "items": {
             "type": "string"
