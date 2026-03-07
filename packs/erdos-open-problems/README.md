@@ -100,6 +100,27 @@ orp report summary
 
 In this public lane, `spec_faithfulness` is no longer a stub. It validates that the synced `erdos_problem.857.json` payload, the installed scope YAML, and the starter board all target the same problem.
 
+Empty repo to real updated Problem 857 workspace:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include problem857 \
+  --var PROBLEM857_SOURCE_MODE=public_repo \
+  --var PROBLEM857_PUBLIC_REPO_URL=https://github.com/SproutSeeds/sunflower-lean
+
+orp erdos sync \
+  --problem-id 857 \
+  --out-problem-dir analysis/erdos_problems/selected
+
+orp --config orp.erdos-problem857.yml \
+  gate run --profile sunflower_problem857_discovery
+
+orp report summary
+```
+
+This mode syncs the real public `sunflower-lean` repo into `sunflower_lean/` instead of writing starter-only 857 scaffolding. ORP then generates the 857 bridge files it owns (`analysis/`, `docs/`, `scripts/`, and `orchestrator/`) so the public consistency check and frontier loop do not depend on private repo structure.
+
 Enforce strict adapter readiness:
 
 ```bash
@@ -121,6 +142,9 @@ Optional:
 
 - `ORP_TIMEOUT_SEC` (default `1200`)
 - `PROBLEM857_LEAN_BUILD_COMMAND` (default `lake build SunflowerLean.Balance`)
+- `PROBLEM857_SOURCE_MODE` (default `starter`; use `public_repo` to sync the public `sunflower-lean` repo plus ORP bridge files)
+- `PROBLEM857_PUBLIC_REPO_URL` (default `https://github.com/SproutSeeds/sunflower-lean`)
+- `PROBLEM857_PUBLIC_REPO_REF` (default `main`)
 - `MATHLIB_REPO_ROOT` (default `$HOME/Documents/code/mathlib4`)
 - `MATHLIB_GITHUB_REPO` (default `leanprover-community/mathlib4`)
 - `MATHLIB_GITHUB_AUTHOR` (default `SproutSeeds`)

@@ -14,8 +14,11 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any
 
 import yaml
@@ -54,11 +57,10 @@ PACK_SPECS: dict[str, dict[str, Any]] = {
                     "analysis/problem857_counting_gateboard.json",
                     "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
                     "orchestrator/v2/scopes/problem_857.yaml",
-                    "orchestrator/spec_check.py",
+                    "orchestrator/problem857_public_spec_check.py",
                     "scripts/problem857_ops_board.py",
                     "scripts/frontier_status.py",
-                    "scripts/orp-lean-build-stub.py",
-                    "sunflower_lean/lakefile.lean",
+                    "sunflower_lean",
                 ],
             },
             "governance": {
@@ -182,6 +184,7 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 BOARD_PATHS = {
@@ -319,6 +322,11 @@ def _write_board_md(root: Path, problem: int, board: dict[str, Any]) -> None:
     lines.append("")
     lines.append(f"- updated_utc: `{board.get('updated_utc', '')}`")
     lines.append(f"- ready_atoms: `{int(board.get('ready_atoms', 0))}`")
+    public_repo = board.get("public_repo", {})
+    if isinstance(public_repo, dict) and public_repo:
+        lines.append(f"- public_repo_url: `{public_repo.get('url', '')}`")
+        lines.append(f"- public_repo_ref: `{public_repo.get('ref', '')}`")
+        lines.append(f"- public_repo_sync_root: `{public_repo.get('sync_root', '')}`")
     lines.append("")
     lines.append("## Routes")
     lines.append("")
@@ -433,6 +441,7 @@ def main() -> int:
 
     if args.cmd == "ready":
         _sync_ready_atoms(board)
+        atoms = _atoms(board)
         if args.problem == 367:
             no_go = board.get("no_go_active", [])
             if isinstance(no_go, list):
@@ -440,7 +449,25 @@ def main() -> int:
             else:
                 print("no_go_active=")
         for atom_id in _ready_atom_ids(board):
-            print(f"{atom_id} ticket=starter gate=ready deps=root")
+            payload = atoms.get(atom_id, {})
+            ticket = "starter"
+            gate = "ready"
+            deps = "root"
+            if isinstance(payload, dict):
+                raw_ticket = str(payload.get("ticket_id", "")).strip()
+                raw_gate = str(payload.get("gate_id", "")).strip()
+                raw_deps = payload.get("deps", "root")
+                if raw_ticket:
+                    ticket = raw_ticket
+                if raw_gate:
+                    gate = raw_gate
+                if isinstance(raw_deps, list):
+                    deps_items = [str(x).strip() for x in raw_deps if str(x).strip()]
+                    deps = ",".join(deps_items) if deps_items else "root"
+                else:
+                    deps_text = str(raw_deps).strip()
+                    deps = deps_text or "root"
+            print(f"ready={atom_id} ticket={ticket} gate={gate} deps={deps}")
         print(f"ready_atoms={int(board.get('ready_atoms', 0))}")
         return 0
 
@@ -481,6 +508,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 BOARD_PATHS = {
@@ -576,6 +604,7 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -702,12 +731,37 @@ def _first_existing(paths: list[Path]) -> Path | None:
     return None
 
 
+def _problem_id_from_value(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text:
+        return 0
+    try:
+        return int(text)
+    except Exception:
+        match = re.search(r"(\\d+)", text)
+        if match:
+            return int(match.group(1))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate public Problem 857 scope consistency against synced Erdos data"
     )
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--problem-id", type=int, default=PROBLEM_ID)
+    parser.add_argument(
+        "--scope-mode",
+        default="starter",
+        help="Scope schema mode to validate (starter|public_repo).",
+    )
+    parser.add_argument(
+        "--expect-starter-scaffold",
+        default="true",
+        help="Whether the board is expected to be marked starter_scaffold (true|false).",
+    )
     parser.add_argument(
         "--selected-problem",
         action="append",
@@ -717,6 +771,15 @@ def main() -> int:
     parser.add_argument("--scope", default=DEFAULT_SCOPE, help="Scope YAML path.")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="Board JSON path.")
     args = parser.parse_args()
+    scope_mode = str(args.scope_mode).strip().lower()
+    if scope_mode not in {"starter", "public_repo"}:
+        raise RuntimeError(f"unsupported --scope-mode: {scope_mode}")
+    expected_starter_scaffold = str(args.expect_starter_scaffold).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     checks: list[dict[str, Any]] = []
     selected_candidates = _candidate_paths(
@@ -766,7 +829,7 @@ def main() -> int:
         else {}
     )
 
-    public_problem_id = int(problem_payload.get("problem_id", 0) or 0)
+    public_problem_id = _problem_id_from_value(problem_payload.get("problem_id", 0))
     _add_check(
         checks,
         check_id="selected_problem_id_matches",
@@ -841,7 +904,7 @@ def main() -> int:
                 path=scope_path,
             )
 
-    scope_problem_id = int(scope_payload.get("problem_id", 0) or 0)
+    scope_problem_id = _problem_id_from_value(scope_payload.get("problem_id", 0))
     _add_check(
         checks,
         check_id="scope_problem_id_matches",
@@ -851,26 +914,59 @@ def main() -> int:
         expected=int(args.problem_id),
         actual=scope_problem_id,
     )
-    scope_status = str(scope_payload.get("status", "")).strip()
-    _add_check(
-        checks,
-        check_id="scope_status_matches_public_status",
-        ok=bool(scope_status) and bool(public_status) and scope_status == public_status,
-        detail="scope status matches public selected problem status",
-        path=scope_path,
-        expected=public_status or "(non-empty public status)",
-        actual=scope_status,
-    )
-    scope_name = str(scope_payload.get("name", "")).strip()
-    _add_check(
-        checks,
-        check_id="scope_name_mentions_problem",
-        ok=str(args.problem_id) in scope_name,
-        detail="scope name mentions the workflow problem id",
-        path=scope_path,
-        expected=f"contains {args.problem_id}",
-        actual=scope_name,
-    )
+    if scope_mode == "starter":
+        scope_status = str(scope_payload.get("status", "")).strip()
+        _add_check(
+            checks,
+            check_id="scope_status_matches_public_status",
+            ok=bool(scope_status) and bool(public_status) and scope_status == public_status,
+            detail="scope status matches public selected problem status",
+            path=scope_path,
+            expected=public_status or "(non-empty public status)",
+            actual=scope_status,
+        )
+        scope_name = str(scope_payload.get("name", "")).strip()
+        _add_check(
+            checks,
+            check_id="scope_name_mentions_problem",
+            ok=str(args.problem_id) in scope_name,
+            detail="scope name mentions the workflow problem id",
+            path=scope_path,
+            expected=f"contains {args.problem_id}",
+            actual=scope_name,
+        )
+    else:
+        scope_display_name = str(scope_payload.get("display_name", scope_payload.get("name", ""))).strip()
+        _add_check(
+            checks,
+            check_id="scope_display_name_mentions_problem",
+            ok=str(args.problem_id) in scope_display_name,
+            detail="public scope display name mentions the workflow problem id",
+            path=scope_path,
+            expected=f"contains {args.problem_id}",
+            actual=scope_display_name,
+        )
+        lean_files = scope_payload.get("lean_files", [])
+        _add_check(
+            checks,
+            check_id="scope_lean_files_present",
+            ok=isinstance(lean_files, list) and len(lean_files) > 0,
+            detail="public scope lists Lean files for the problem workspace",
+            path=scope_path,
+            expected="non-empty list",
+            actual=f"{len(lean_files) if isinstance(lean_files, list) else 0} files",
+        )
+        north_star = str(scope_payload.get("north_star_lane", "")).strip()
+        reduction_route = str(scope_payload.get("reduction_route", "")).strip()
+        _add_check(
+            checks,
+            check_id="scope_routes_present",
+            ok=bool(north_star or reduction_route),
+            detail="public scope records an active route or north-star lane",
+            path=scope_path,
+            expected="north_star_lane or reduction_route",
+            actual={"north_star_lane": north_star, "reduction_route": reduction_route},
+        )
 
     board_payload: dict[str, Any] = {}
     if not board_path.exists():
@@ -901,31 +997,34 @@ def main() -> int:
                 path=board_path,
             )
 
-    board_problem_id = int(board_payload.get("problem_id", 0) or 0)
+    board_problem_id = _problem_id_from_value(board_payload.get("problem_id", 0))
     _add_check(
         checks,
         check_id="board_problem_id_matches",
         ok=board_problem_id == int(args.problem_id),
-        detail="starter board problem id matches workflow problem id",
+        detail="board problem id matches workflow problem id",
         path=board_path,
         expected=int(args.problem_id),
         actual=board_problem_id,
     )
     _add_check(
         checks,
-        check_id="board_marked_starter_scaffold",
-        ok=bool(board_payload.get("starter_scaffold", False)),
-        detail="starter board explicitly marks itself as starter scaffolding",
+        check_id="board_starter_scaffold_matches_mode",
+        ok=bool(board_payload.get("starter_scaffold", False)) == expected_starter_scaffold,
+        detail="board starter_scaffold flag matches the expected workflow mode",
         path=board_path,
-        expected=True,
+        expected=expected_starter_scaffold,
         actual=bool(board_payload.get("starter_scaffold", False)),
     )
-    route_status = board_payload.get("route_status", [])
+    live_payload = board_payload.get("live_snapshot", board_payload.get("live", {}))
+    if not isinstance(live_payload, dict):
+        live_payload = {}
+    route_status = board_payload.get("route_status", live_payload.get("routes", []))
     _add_check(
         checks,
         check_id="board_route_status_present",
         ok=isinstance(route_status, list) and len(route_status) > 0,
-        detail="starter board includes route status rows",
+        detail="board includes route status rows",
         path=board_path,
         expected="non-empty list",
         actual=f"{len(route_status) if isinstance(route_status, list) else 0} rows",
@@ -940,12 +1039,13 @@ def main() -> int:
         "checker": "problem857_public_spec_check",
         "run_id": args.run_id,
         "problem_id": int(args.problem_id),
+        "scope_mode": scope_mode,
         "checked_at_utc": _now_utc(),
         "note": (
             "Validates that the synced public Problem 857 payload, installed scope, "
-            "and starter board agree on the target problem."
+            "and board agree on the target problem."
         ),
-        "starter_scaffold": True,
+        "starter_scaffold": bool(board_payload.get("starter_scaffold", False)),
         "selected_problem_path": _rel(selected_path) if selected_path is not None else "",
         "scope_path": _rel(scope_path),
         "board_path": _rel(board_path),
@@ -1026,6 +1126,82 @@ STARTER_EXTERNAL_PR_BODY = """# Draft PR Body
 - TODO: note any overlap checks, issue references, or reviewer context.
 """
 
+PROBLEM857_PUBLIC_WORKSPACE_PATHS = [
+    "analysis/problem857_counting_gateboard.json",
+    "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
+    "scripts/problem857_ops_board.py",
+    "scripts/frontier_status.py",
+    "orchestrator/reduction_graph.yaml",
+    "orchestrator/v2",
+    "sunflower_lean",
+]
+
+PROBLEM857_PUBLIC_SYNC_IGNORES = {
+    ".git",
+    ".lake",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+}
+
+PROBLEM857_PUBLIC_LEAN_REPO_MARKERS = [
+    "SunflowerLean.lean",
+    "SunflowerLean/Balance.lean",
+    "lakefile.toml",
+    "lean-toolchain",
+]
+
+PROBLEM857_PUBLIC_LEAN_COPY_PREFIX = Path("sunflower_lean")
+
+PROBLEM857_PUBLIC_LEAN_SCOPE_FILES = [
+    "SunflowerLean/Balance.lean",
+    "SunflowerLean/BalanceCore.lean",
+    "SunflowerLean/BalanceCasesA.lean",
+    "SunflowerLean/BalanceCasesB.lean",
+    "SunflowerLean/BalanceCandidatesA.lean",
+    "SunflowerLean/BalanceCandidatesB.lean",
+    "SunflowerLean/Container.lean",
+    "SunflowerLean/LocalTuran.lean",
+    "SunflowerLean/Obstruction.lean",
+    "SunflowerLean/SATBridge.lean",
+    "SunflowerLean/UnionBounds.lean",
+]
+
+PROBLEM857_PUBLIC_ROUTE_GROUPS = [
+    {
+        "route": "balance_core",
+        "ticket": "P857_BALANCE_CORE",
+        "leaf": "SunflowerLean.Balance",
+        "files": [
+            "SunflowerLean/Balance.lean",
+            "SunflowerLean/BalanceCore.lean",
+            "SunflowerLean/LocalTuran.lean",
+            "SunflowerLean/UnionBounds.lean",
+        ],
+    },
+    {
+        "route": "balance_cases",
+        "ticket": "P857_BALANCE_CASES",
+        "leaf": "SunflowerLean.BalanceCases",
+        "files": [
+            "SunflowerLean/BalanceCasesA.lean",
+            "SunflowerLean/BalanceCasesB.lean",
+            "SunflowerLean/BalanceCandidatesA.lean",
+            "SunflowerLean/BalanceCandidatesB.lean",
+        ],
+    },
+    {
+        "route": "support_modules",
+        "ticket": "P857_SUPPORT",
+        "leaf": "SunflowerLean.Support",
+        "files": [
+            "SunflowerLean/Container.lean",
+            "SunflowerLean/Obstruction.lean",
+            "SunflowerLean/SATBridge.lean",
+        ],
+    },
+]
+
 
 def _now_utc() -> str:
     return (
@@ -1082,14 +1258,346 @@ def _write_json(path: Path, payload: dict[str, Any], *, overwrite: bool) -> bool
     return True
 
 
-def _install_starter_adapters(
-    *,
-    pack_id: str,
+def _vars_defaults(pack_meta: dict[str, Any]) -> dict[str, str]:
+    raw = pack_meta.get("variables", {})
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, meta in raw.items():
+        if not isinstance(key, str) or not isinstance(meta, dict):
+            continue
+        default = meta.get("default")
+        if isinstance(default, str):
+            out[key] = default
+    return out
+
+
+def _vars_map(pack_meta: dict[str, Any], extra_vars: list[str]) -> dict[str, str]:
+    out = _vars_defaults(pack_meta)
+    for raw in extra_vars:
+        validated = _validate_var(raw)
+        key, value = validated.split("=", 1)
+        out[key] = value
+    return out
+
+
+def _problem857_source_mode(vars_map: dict[str, str]) -> str:
+    mode = vars_map.get("PROBLEM857_SOURCE_MODE", "starter").strip().lower()
+    if mode not in {"starter", "public_repo"}:
+        raise RuntimeError(f"unsupported PROBLEM857_SOURCE_MODE: {mode}")
+    return mode
+
+
+def _run_checked(cmd: list[str], *, cwd: Path | None = None) -> None:
+    proc = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd is not None else None,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        msg = (proc.stderr or proc.stdout or "command failed").strip()
+        raise RuntimeError(f"{' '.join(cmd)}: {msg}")
+
+
+def _copy_repo_path(src_root: Path, dst_root: Path, rel: str, *, overwrite: bool) -> list[str]:
+    src = src_root / rel
+    if not src.exists():
+        raise RuntimeError(f"missing public Problem 857 sync path in source repo: {rel}")
+
+    created: list[str] = []
+    dst = dst_root / rel
+
+    if src.is_dir():
+        for child in sorted(src.rglob("*")):
+            parts = set(child.relative_to(src).parts)
+            if parts & PROBLEM857_PUBLIC_SYNC_IGNORES:
+                continue
+            if child.is_dir():
+                continue
+            rel_child = child.relative_to(src_root)
+            target = dst_root / rel_child
+            if target.exists() and not overwrite:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, target)
+            created.append(str(rel_child))
+        return created
+
+    if dst.exists() and not overwrite:
+        return created
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    created.append(rel)
+    return created
+
+
+def _copy_repo_tree(
+    src_root: Path,
     target_repo_root: Path,
-    includes: list[str],
+    dst_prefix: Path,
+    *,
     overwrite: bool,
 ) -> list[str]:
     created: list[str] = []
+    for child in sorted(src_root.rglob("*")):
+        rel_child = child.relative_to(src_root)
+        parts = set(rel_child.parts)
+        if parts & PROBLEM857_PUBLIC_SYNC_IGNORES:
+            continue
+        if child.is_dir():
+            continue
+        out_rel = dst_prefix / rel_child
+        target = target_repo_root / out_rel
+        if target.exists() and not overwrite:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(child, target)
+        created.append(out_rel.as_posix())
+    return created
+
+
+def _has_problem857_public_workspace_shape(repo_path: Path) -> bool:
+    return (repo_path / "analysis/problem857_counting_gateboard.json").exists()
+
+
+def _has_problem857_public_lean_shape(repo_path: Path) -> bool:
+    return all((repo_path / rel).exists() for rel in PROBLEM857_PUBLIC_LEAN_REPO_MARKERS)
+
+
+def _problem857_public_sync_note(source: str, ref: str) -> str:
+    clean_ref = ref.strip() or "HEAD"
+    return (
+        "ORP-generated public bridge over synced sunflower-lean repository "
+        f"({source}@{clean_ref}); board routes summarize public module inventory, not proof completion."
+    )
+
+
+def _problem857_public_scope_text(source_repo_url: str, ref: str, repo_path: Path) -> str:
+    lean_files = [
+        f"sunflower_lean/{rel}"
+        for rel in PROBLEM857_PUBLIC_LEAN_SCOPE_FILES
+        if (repo_path / rel).exists()
+    ]
+    if not lean_files:
+        lean_files = ["sunflower_lean/SunflowerLean/Balance.lean"]
+    lines = [
+        "problem_id: 857",
+        'display_name: "Sunflower Problem 857 Public Lean Scope"',
+        "source_mode: public_repo",
+        f"public_repo_url: {json.dumps(source_repo_url)}",
+        f"public_repo_ref: {json.dumps(ref.strip() or 'main')}",
+        "lean_root: sunflower_lean",
+        "lean_entrypoint: sunflower_lean/SunflowerLean/Balance.lean",
+        "north_star_lane: balance_core",
+        "reduction_route: balance_core",
+        "lean_files:",
+    ]
+    for rel in lean_files:
+        lines.append(f"  - {rel}")
+    lines.extend(
+        [
+            "notes:",
+            '  - "ORP-generated scope over the synced public sunflower-lean repo."',
+            '  - "These files are public evidence inputs; ORP board/frontier files are derived process views."',
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _problem857_public_reduction_graph_text(source_repo_url: str, ref: str, repo_path: Path) -> str:
+    lines = [
+        "problem_id: 857",
+        "source_mode: public_repo",
+        f"public_repo_url: {json.dumps(source_repo_url)}",
+        f"public_repo_ref: {json.dumps(ref.strip() or 'main')}",
+        "routes:",
+    ]
+    for group in PROBLEM857_PUBLIC_ROUTE_GROUPS:
+        files = [rel for rel in group["files"] if (repo_path / rel).exists()]
+        lines.append(f"  {group['route']}:")
+        lines.append(f"    ticket: {group['ticket']}")
+        lines.append(f"    leaf: {group['leaf']}")
+        lines.append("    lean_files:")
+        for rel in files:
+            lines.append(f"      - sunflower_lean/{rel}")
+    return "\n".join(lines) + "\n"
+
+
+def _problem857_public_board_payload(source_repo_url: str, ref: str, repo_path: Path) -> dict[str, Any]:
+    route_status: list[dict[str, Any]] = []
+    tickets: list[dict[str, Any]] = []
+    for group in PROBLEM857_PUBLIC_ROUTE_GROUPS:
+        existing = [rel for rel in group["files"] if (repo_path / rel).exists()]
+        total = len(group["files"])
+        done = len(existing)
+        route_status.append(
+            {
+                "route": group["route"],
+                "loose_done": done,
+                "loose_total": total,
+                "strict_done": done,
+                "strict_total": total,
+            }
+        )
+        tickets.append(
+            {
+                "ticket": group["ticket"],
+                "leaf": group["leaf"],
+                "leaf_strict": "synced" if done == total else "partial",
+                "gates_done": done,
+                "gates_total": total,
+                "atoms_done": done,
+                "atoms_total": total,
+            }
+        )
+    payload = {
+        "board_id": "problem857_public_repo_board",
+        "problem_id": 857,
+        "updated_utc": _now_utc(),
+        "starter_scaffold": False,
+        "starter_note": _problem857_public_sync_note(source_repo_url, ref),
+        "public_repo": {
+            "url": source_repo_url,
+            "ref": ref.strip() or "main",
+            "sync_root": "sunflower_lean",
+            "entrypoint": "sunflower_lean/SunflowerLean/Balance.lean",
+        },
+        "route_status": route_status,
+        "tickets": tickets,
+        "atoms": {
+            "A_public_balance_build": {
+                "status": "ready",
+                "ticket_id": "P857_BALANCE_CORE",
+                "gate_id": "lean_build_balance",
+                "deps": ["spec_faithfulness"],
+            }
+        },
+        "ready_atoms": 1,
+        "no_go_active": [],
+    }
+    return payload
+
+
+def _problem857_public_board_markdown(board: dict[str, Any]) -> str:
+    lines = [
+        "# Problem 857 Ops Board",
+        "",
+        f"- updated_utc: `{board.get('updated_utc', '')}`",
+        f"- ready_atoms: `{int(board.get('ready_atoms', 0) or 0)}`",
+    ]
+    public_repo = board.get("public_repo", {})
+    if isinstance(public_repo, dict):
+        lines.append(f"- public_repo_url: `{public_repo.get('url', '')}`")
+        lines.append(f"- public_repo_ref: `{public_repo.get('ref', '')}`")
+    lines.extend(["", "## Routes", ""])
+    for row in board.get("route_status", []):
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            "- route={route} loose={ld}/{lt} strict={sd}/{st}".format(
+                route=row.get("route", ""),
+                ld=row.get("loose_done", 0),
+                lt=row.get("loose_total", 0),
+                sd=row.get("strict_done", 0),
+                st=row.get("strict_total", 0),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Note",
+            "",
+            "- This board is ORP-derived from the synced public sunflower-lean repo.",
+            "- It tracks public module inventory for the Problem 857 workflow, not proof completion.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _sync_problem857_public_lean_repo(
+    *,
+    target_repo_root: Path,
+    repo_path: Path,
+    source: str,
+    ref: str,
+    overwrite: bool,
+) -> list[str]:
+    created = _copy_repo_tree(
+        repo_path,
+        target_repo_root,
+        PROBLEM857_PUBLIC_LEAN_COPY_PREFIX,
+        overwrite=overwrite,
+    )
+    board_payload = _problem857_public_board_payload(source, ref, repo_path)
+    board_path = target_repo_root / "analysis/problem857_counting_gateboard.json"
+    if _write_json(board_path, board_payload, overwrite=overwrite):
+        created.append(str(board_path.relative_to(target_repo_root)))
+    board_md_path = target_repo_root / "docs/PROBLEM857_COUNTING_OPS_BOARD.md"
+    if _write_text(board_md_path, _problem857_public_board_markdown(board_payload), overwrite=overwrite):
+        created.append(str(board_md_path.relative_to(target_repo_root)))
+    reduction_graph_path = target_repo_root / "orchestrator/reduction_graph.yaml"
+    if _write_text(
+        reduction_graph_path,
+        _problem857_public_reduction_graph_text(source, ref, repo_path),
+        overwrite=overwrite,
+    ):
+        created.append(str(reduction_graph_path.relative_to(target_repo_root)))
+    scope_path = target_repo_root / "orchestrator/v2/scopes/problem_857.yaml"
+    if _write_text(scope_path, _problem857_public_scope_text(source, ref, repo_path), overwrite=overwrite):
+        created.append(str(scope_path.relative_to(target_repo_root)))
+    return sorted(set(created))
+
+
+def _sync_problem857_public_repo(
+    *,
+    target_repo_root: Path,
+    source: str,
+    ref: str,
+    overwrite: bool,
+) -> list[str]:
+    created: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="orp-problem857-public-") as td:
+        repo_path = Path(td) / "repo"
+        _run_checked(["git", "clone", source, str(repo_path)])
+        if ref.strip():
+            _run_checked(["git", "-C", str(repo_path), "checkout", ref.strip()])
+        if _has_problem857_public_workspace_shape(repo_path):
+            for rel in PROBLEM857_PUBLIC_WORKSPACE_PATHS:
+                created.extend(_copy_repo_path(repo_path, target_repo_root, rel, overwrite=overwrite))
+        elif _has_problem857_public_lean_shape(repo_path):
+            created.extend(
+                _sync_problem857_public_lean_repo(
+                    target_repo_root=target_repo_root,
+                    repo_path=repo_path,
+                    source=source,
+                    ref=ref,
+                    overwrite=overwrite,
+                )
+            )
+        else:
+            raise RuntimeError(
+                "public Problem 857 repo did not match a supported shape; expected either "
+                "a workspace repo with analysis/docs/scripts/orchestrator paths or a public "
+                "sunflower-lean repo with SunflowerLean/Balance.lean and lakefile.toml"
+            )
+    return sorted(set(created))
+
+
+def _install_starter_adapters(
+    *,
+    pack_id: str,
+    pack_meta: dict[str, Any],
+    target_repo_root: Path,
+    includes: list[str],
+    extra_vars: list[str],
+    overwrite: bool,
+) -> list[str]:
+    created: list[str] = []
+    vars_map = _vars_map(pack_meta, extra_vars)
+    problem857_source_mode = _problem857_source_mode(vars_map)
+    public_repo_requested = "problem857" in includes and problem857_source_mode == "public_repo"
 
     if pack_id == "external-pr-governance":
         if "governance" not in includes:
@@ -1099,18 +1607,40 @@ def _install_starter_adapters(
             created.append(str(draft_body.relative_to(target_repo_root)))
         return created
 
-    needs_atomic = any(x in includes for x in ["live_compare", "problem857"])
+    if public_repo_requested:
+        source = vars_map.get("PROBLEM857_PUBLIC_REPO_URL", "").strip()
+        ref = vars_map.get("PROBLEM857_PUBLIC_REPO_REF", "").strip()
+        if not source:
+            raise RuntimeError("PROBLEM857_PUBLIC_REPO_URL cannot be empty in public_repo mode")
+        created.extend(
+            _sync_problem857_public_repo(
+                target_repo_root=target_repo_root,
+                source=source,
+                ref=ref,
+                overwrite=overwrite,
+            )
+        )
+
+    needs_atomic = "live_compare" in includes or "problem857" in includes
     if not needs_atomic:
-        return created
+        return sorted(set(created))
 
     # Shared starter runtime and wrappers for 857/20/367.
-    files: list[tuple[Path, str]] = [
-        (target_repo_root / "scripts/orp_atomic_board_runtime.py", STARTER_RUNTIME),
-        (target_repo_root / "scripts/frontier_status.py", STARTER_FRONTIER),
-        (target_repo_root / "scripts/problem857_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "857")),
-        (target_repo_root / "scripts/problem20_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "20")),
-        (target_repo_root / "scripts/problem367_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "367")),
-    ]
+    files: list[tuple[Path, str]] = [(target_repo_root / "scripts/orp_atomic_board_runtime.py", STARTER_RUNTIME)]
+    if "live_compare" in includes or "problem857" in includes:
+        files.extend(
+            [
+                (target_repo_root / "scripts/frontier_status.py", STARTER_FRONTIER),
+                (target_repo_root / "scripts/problem857_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "857")),
+            ]
+        )
+    if "live_compare" in includes:
+        files.extend(
+            [
+                (target_repo_root / "scripts/problem20_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "20")),
+                (target_repo_root / "scripts/problem367_ops_board.py", STARTER_WRAPPER.replace("{PROBLEM}", "367")),
+            ]
+        )
     for path, text in files:
         if _write_text(path, text, overwrite=overwrite):
             created.append(str(path.relative_to(target_repo_root)))
@@ -1118,6 +1648,10 @@ def _install_starter_adapters(
     # Seed board JSON + markdown so live_compare is runnable immediately.
     stamped = _now_utc()
     for problem, seed in BOARD_SEEDS.items():
+        if problem == 857 and public_repo_requested:
+            continue
+        if problem in {20, 367} and "live_compare" not in includes:
+            continue
         payload = json.loads(json.dumps(seed))
         payload["updated_utc"] = stamped
         board_path = target_repo_root / BOARD_PATHS[problem]
@@ -1133,9 +1667,9 @@ def _install_starter_adapters(
         if _write_text(md_path, md, overwrite=overwrite):
             created.append(str(md_path.relative_to(target_repo_root)))
 
-    if "problem857" in includes:
+    if "problem857" in includes and problem857_source_mode != "public_repo":
         extra_files: list[tuple[Path, str]] = [
-            (target_repo_root / "orchestrator/spec_check.py", STARTER_SPEC_CHECK),
+            (target_repo_root / "orchestrator/problem857_public_spec_check.py", STARTER_SPEC_CHECK),
             (target_repo_root / "scripts/orp-lean-build-stub.py", STARTER_LEAN_STUB),
             (target_repo_root / "orchestrator/v2/scopes/problem_857.yaml", STARTER_PROBLEM857_SCOPE),
             (target_repo_root / "sunflower_lean/lakefile.lean", STARTER_LAKEFILE),
@@ -1144,7 +1678,12 @@ def _install_starter_adapters(
             if _write_text(path, text, overwrite=overwrite):
                 created.append(str(path.relative_to(target_repo_root)))
 
-    return created
+    if "problem857" in includes and problem857_source_mode == "public_repo":
+        checker_path = target_repo_root / "orchestrator/problem857_public_spec_check.py"
+        if _write_text(checker_path, STARTER_SPEC_CHECK, overwrite=overwrite):
+            created.append(str(checker_path.relative_to(target_repo_root)))
+
+    return sorted(set(created))
 
 
 def _render_component(
@@ -1156,6 +1695,7 @@ def _render_component(
     component_key: str,
     extra_vars: list[str],
     internal_vars: list[str],
+    template_id_override: str = "",
 ) -> Path:
     comp = components[component_key]
     out_path = target_repo_root / str(comp["output_name"])
@@ -1169,7 +1709,7 @@ def _render_component(
         "--pack",
         str(pack_root),
         "--template",
-        str(comp["template_id"]),
+        template_id_override or str(comp["template_id"]),
         "--var",
         f"TARGET_REPO_ROOT={target_repo_root}",
         "--var",
@@ -1282,6 +1822,9 @@ def _write_report(
         lines.append(
             "- Sync public Problem 857 data first with `orp erdos sync --problem-id 857 --out-problem-dir analysis/erdos_problems/selected`."
         )
+        lines.append(
+            "- For a real host workspace instead of starter scaffolding, install with `--var PROBLEM857_SOURCE_MODE=public_repo` (and optionally `--var PROBLEM857_PUBLIC_REPO_URL=<git-url>`)."
+        )
     if pack_id == "external-pr-governance":
         lines.append(
             "- Replace the placeholder commands and repo metadata in the rendered configs before treating any governance run as meaningful."
@@ -1393,6 +1936,8 @@ def main() -> int:
     pack_version = str(pack_meta.get("version", "unknown"))
     generated_at_utc = _now_utc()
     components = _pack_components(pack_id)
+    effective_vars = _vars_map(pack_meta, list(args.var or []))
+    problem857_source_mode = _problem857_source_mode(effective_vars)
 
     includes = list(args.include or [])
     if not includes:
@@ -1415,18 +1960,24 @@ def main() -> int:
     if args.bootstrap:
         bootstrap_created = _install_starter_adapters(
             pack_id=pack_id,
+            pack_meta=pack_meta,
             target_repo_root=target_repo_root,
             includes=includes,
+            extra_vars=list(args.var or []),
             overwrite=bool(args.overwrite_bootstrap),
         )
 
     rendered: dict[str, Path] = {}
     for key in includes:
         internal_vars: list[str] = []
-        if args.bootstrap and key == "problem857":
-            internal_vars.append(
-                "PROBLEM857_LEAN_BUILD_COMMAND=python3 ../scripts/orp-lean-build-stub.py SunflowerLean.Balance"
-            )
+        template_id_override = ""
+        if key == "problem857":
+            if problem857_source_mode == "public_repo":
+                template_id_override = "sunflower_problem857_discovery_public_repo"
+            elif args.bootstrap:
+                internal_vars.append(
+                    "PROBLEM857_LEAN_BUILD_COMMAND=python3 ../scripts/orp-lean-build-stub.py SunflowerLean.Balance"
+                )
         out_path = _render_component(
             orp_repo_root=orp_repo_root,
             pack_root=pack_root,
@@ -1435,6 +1986,7 @@ def main() -> int:
             component_key=key,
             extra_vars=list(args.var or []),
             internal_vars=internal_vars,
+            template_id_override=template_id_override,
         )
         rendered[key] = out_path
 
@@ -1480,6 +2032,11 @@ def main() -> int:
     print(f"included_components={','.join(includes)}")
     print(f"bootstrap.enabled={bool(args.bootstrap)}")
     print(f"bootstrap.created={len(bootstrap_created)}")
+    if "problem857" in includes:
+        print(f"problem857.source_mode={problem857_source_mode}")
+        if problem857_source_mode == "public_repo":
+            print(f"problem857.public_repo_url={effective_vars.get('PROBLEM857_PUBLIC_REPO_URL', '')}")
+            print(f"problem857.public_repo_ref={effective_vars.get('PROBLEM857_PUBLIC_REPO_REF', '')}")
     for key, out_path in rendered.items():
         print(f"rendered.{key}={out_path}")
     print(f"deps.missing_total={total_missing}")

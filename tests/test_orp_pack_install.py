@@ -75,6 +75,44 @@ def _write_selected_problem_payload(target: Path, *, problem_id: int = 857, stat
     return out_path
 
 
+def _git(cmd: list[str], cwd: Path) -> None:
+    proc = subprocess.run(["git", *cmd], cwd=str(cwd), capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise AssertionError(proc.stderr + "\n" + proc.stdout)
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _make_fake_problem857_public_repo(root: Path) -> None:
+    _write(root / "README.md", "# sunflower-lean test repo\n")
+    _write(root / "AI_DISCLOSURE.md", "AI-assisted drafting; verified claims require local checks.\n")
+    _write(root / "lean-toolchain", "leanprover/lean4:stable\n")
+    _write(root / "lake-manifest.json", "{\n  \"version\": 7\n}\n")
+    _write(root / "lakefile.toml", 'name = "SunflowerLean"\n')
+    _write(root / "SunflowerLean.lean", "import SunflowerLean.Balance\n")
+    _write(root / "lean-examples" / "Basic.lean", "def demo : Nat := 1\n")
+    _write(root / "SunflowerLean" / "Balance.lean", "theorem placeholder : True := by trivial\n")
+    _write(root / "SunflowerLean" / "BalanceCore.lean", "def balanceCore : Nat := 0\n")
+    _write(root / "SunflowerLean" / "BalanceCasesA.lean", "def balanceCaseA : Nat := 0\n")
+    _write(root / "SunflowerLean" / "BalanceCasesB.lean", "def balanceCaseB : Nat := 0\n")
+    _write(root / "SunflowerLean" / "BalanceCandidatesA.lean", "def balanceCandidateA : Nat := 0\n")
+    _write(root / "SunflowerLean" / "BalanceCandidatesB.lean", "def balanceCandidateB : Nat := 0\n")
+    _write(root / "SunflowerLean" / "Container.lean", "def containerLemma : Nat := 0\n")
+    _write(root / "SunflowerLean" / "LocalTuran.lean", "def localTuran : Nat := 0\n")
+    _write(root / "SunflowerLean" / "Obstruction.lean", "def obstruction : Nat := 0\n")
+    _write(root / "SunflowerLean" / "SATBridge.lean", "def satBridge : Nat := 0\n")
+    _write(root / "SunflowerLean" / "UnionBounds.lean", "def unionBounds : Nat := 0\n")
+
+    _git(["init", "-b", "main"], cwd=root)
+    _git(["config", "user.name", "ORP Test"], cwd=root)
+    _git(["config", "user.email", "orp@example.com"], cwd=root)
+    _git(["add", "-A"], cwd=root)
+    _git(["commit", "-m", "seed public problem857 repo"], cwd=root)
+
+
 class OrpPackInstallTests(unittest.TestCase):
     def test_catalog_install_renders_config_and_report(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -259,7 +297,7 @@ class OrpPackInstallTests(unittest.TestCase):
             spec = subprocess.run(
                 [
                     sys.executable,
-                    str(target / "orchestrator" / "spec_check.py"),
+                    str(target / "orchestrator" / "problem857_public_spec_check.py"),
                     "--run-id",
                     "run-missing-public-problem",
                 ],
@@ -275,6 +313,104 @@ class OrpPackInstallTests(unittest.TestCase):
             payload = json.loads(spec_json.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "FAIL")
             self.assertGreater(payload["summary"]["failed"], 0)
+
+    def test_problem857_public_repo_bootstrap_syncs_public_lean_repo_and_generates_bridge_files(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / "public-problem857"
+            target = Path(td) / "target"
+            source.mkdir(parents=True, exist_ok=True)
+            _make_fake_problem857_public_repo(source)
+
+            install = _run(
+                [
+                    "--target-repo-root",
+                    str(target),
+                    "--include",
+                    "problem857",
+                    "--var",
+                    "PROBLEM857_SOURCE_MODE=public_repo",
+                    "--var",
+                    f"PROBLEM857_PUBLIC_REPO_URL={source}",
+                    "--var",
+                    "PROBLEM857_PUBLIC_REPO_REF=main",
+                    "--var",
+                    "PROBLEM857_LEAN_BUILD_COMMAND=python3 -c \"print('lean_build=PASS')\"",
+                ]
+            )
+            self.assertEqual(install.returncode, 0, msg=install.stderr + "\n" + install.stdout)
+            self.assertIn("problem857.source_mode=public_repo", install.stdout)
+            self.assertIn("deps.missing_total=0", install.stdout)
+
+            cfg = target / "orp.erdos-problem857.yml"
+            self.assertTrue(cfg.exists(), msg=f"missing rendered config: {cfg}")
+            cfg_text = cfg.read_text(encoding="utf-8")
+            self.assertIn("synced public sunflower-lean repo plus ORP-generated bridge files", cfg_text)
+            self.assertIn("status: evidence", cfg_text)
+            self.assertIn("python3 orchestrator/problem857_public_spec_check.py", cfg_text)
+
+            self.assertTrue((target / "scripts" / "problem857_ops_board.py").exists())
+            self.assertTrue((target / "scripts" / "frontier_status.py").exists())
+            self.assertTrue((target / "orchestrator" / "reduction_graph.yaml").exists())
+            self.assertTrue((target / "orchestrator" / "v2" / "scopes" / "problem_857.yaml").exists())
+            self.assertTrue((target / "sunflower_lean" / "lakefile.toml").exists())
+            self.assertTrue((target / "sunflower_lean" / "SunflowerLean" / "Balance.lean").exists())
+            self.assertTrue((target / "orchestrator" / "problem857_public_spec_check.py").exists())
+            self.assertFalse((target / "scripts" / "orp-lean-build-stub.py").exists())
+
+            _write_selected_problem_payload(target)
+
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(target),
+                    "--config",
+                    str(cfg),
+                    "gate",
+                    "run",
+                    "--profile",
+                    "sunflower_problem857_discovery",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(run.returncode, 0, msg=run.stderr + "\n" + run.stdout)
+            self.assertIn("overall=PASS", run.stdout)
+
+            m = re.search(r"run_id=([A-Za-z0-9\\-]+)", run.stdout)
+            self.assertIsNotNone(m, msg=f"missing run_id in stdout: {run.stdout}")
+            run_id = str(m.group(1))
+            run_json = target / "orp" / "artifacts" / run_id / "RUN.json"
+            run_payload = json.loads(run_json.read_text(encoding="utf-8"))
+            self.assertEqual(run_payload["epistemic_status"]["overall"], "evidence_backed")
+            self.assertFalse(run_payload["epistemic_status"]["starter_scaffold"])
+            self.assertIn("spec_faithfulness", run_payload["epistemic_status"]["evidence_gates"])
+            self.assertIn("lean_build_balance", run_payload["epistemic_status"]["evidence_gates"])
+            self.assertEqual(run_payload["epistemic_status"]["stub_gates"], [])
+            self.assertEqual(run_payload["epistemic_status"]["starter_scaffold_gates"], [])
+
+            packet = _run_cli(
+                target,
+                "orp.erdos-problem857.yml",
+                ["packet", "emit", "--profile", "sunflower_problem857_discovery", "--run-id", run_id],
+            )
+            self.assertEqual(packet.returncode, 0, msg=packet.stderr + "\n" + packet.stdout)
+            packet_json = target / "orp" / "packets" / f"pkt-problem_scope-{run_id}.json"
+            packet_payload = json.loads(packet_json.read_text(encoding="utf-8"))
+            self.assertFalse(packet_payload["atomic_context"]["starter_scaffold"])
+            self.assertEqual(
+                packet_payload["atomic_context"]["route_status"]["balance_core"],
+                {
+                    "done": 4,
+                    "total": 4,
+                    "strict_done": 4,
+                    "strict_total": 4,
+                },
+            )
+            self.assertEqual(packet_payload["atomic_context"]["atom_id"], "A_public_balance_build")
+            self.assertEqual(packet_payload["evidence_status"]["overall"], "evidence_backed")
 
     def test_external_governance_install_renders_install_and_adapt_configs(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -30,8 +30,12 @@ Required in target repo:
 - all `live_compare` dependencies relevant to Problem 857
 - `docs/PROBLEM857_COUNTING_OPS_BOARD.md`
 - `orchestrator/v2/scopes/problem_857.yaml`
-- `orchestrator/spec_check.py`
-- `sunflower_lean/lakefile.lean`
+- `orchestrator/problem857_public_spec_check.py`
+- `sunflower_lean/`
+
+In `PROBLEM857_SOURCE_MODE=public_repo`, ORP can satisfy these by syncing the public
+`sunflower-lean` repo into `sunflower_lean/` and generating the missing ORP bridge
+files itself.
 
 ### `governance` (mathlib collaboration)
 
@@ -55,4 +59,5 @@ Required in target repo:
 
 - Use `catalog` for immediate public adoption.
 - Add `live_compare` once board scripts/data exist in target repo.
-- Add `problem857` and `governance` when those private/workflow dependencies are available.
+- Add `problem857` in `public_repo` mode for public `sunflower-lean` adoption, or use starter/private adapters when you need richer host-repo workflow state.
+- Add `governance` when those private/workflow dependencies are available.

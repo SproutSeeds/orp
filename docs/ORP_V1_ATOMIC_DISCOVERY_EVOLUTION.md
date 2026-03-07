@@ -116,7 +116,7 @@ The example profile (`examples/orp.sunflower-coda.atomic.yml`) treats existing b
 
 - board refresh gate (`problem857_ops_board.py refresh`)
 - ready-queue gate (`problem857_ops_board.py ready`)
-- spec-faithfulness gate (`orchestrator/spec_check.py`)
+- spec-faithfulness gate (`orchestrator/problem857_public_spec_check.py`)
 - Lean build gate (`lake build SunflowerLean.Balance`)
 - frontier/route gate (`scripts/frontier_status.py --problem 857`)
 

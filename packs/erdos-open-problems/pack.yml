@@ -1,7 +1,7 @@
 schema_version: "1.0.0"
 pack_id: erdos-open-problems
 name: Erdos Open Problems Pack
-version: "0.1.2"
+version: "0.1.3"
 description: >
   ORP profile templates for sunflower/Erdos open-problem workflows, including
   live gate compare profiles for Problems 857, 20, and 367 plus mathlib PR
@@ -21,6 +21,18 @@ variables:
     description: Command used by Problem 857 discovery profile for Lean build gate.
     required: false
     default: "lake build SunflowerLean.Balance"
+  PROBLEM857_SOURCE_MODE:
+    description: Problem 857 bootstrap mode (starter|public_repo).
+    required: false
+    default: "starter"
+  PROBLEM857_PUBLIC_REPO_URL:
+    description: Public git repo used to sync the real Problem 857 workspace surface.
+    required: false
+    default: "https://github.com/SproutSeeds/sunflower-lean"
+  PROBLEM857_PUBLIC_REPO_REF:
+    description: Branch, tag, or commit to checkout when PROBLEM857_SOURCE_MODE=public_repo.
+    required: false
+    default: "main"
   MATHLIB_REPO_ROOT:
     description: Path to local mathlib checkout used by local/tighten/ready gates.
     required: false
@@ -91,6 +103,13 @@ templates:
   sunflower_problem857_discovery:
     path: profiles/sunflower-problem857-discovery.yml.tmpl
     description: Discovery-first atomic profile for Problem 857.
+    output_hint: orp.erdos-problem857.yml
+    default_profiles:
+      - sunflower_problem857_discovery
+
+  sunflower_problem857_discovery_public_repo:
+    path: profiles/sunflower-problem857-discovery-public-repo.yml.tmpl
+    description: Discovery-first atomic profile for Problem 857 against a synced public repo workspace.
     output_hint: orp.erdos-problem857.yml
     default_profiles:
       - sunflower_problem857_discovery

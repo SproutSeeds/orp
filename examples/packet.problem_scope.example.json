@@ -81,7 +81,7 @@
     {
       "gate_id": "spec_faithfulness",
       "phase": "quant_assembly",
-      "command": "python3 orchestrator/spec_check.py --run-id run-20260304-1606",
+      "command": "python3 orchestrator/problem857_public_spec_check.py --run-id run-20260304-1606 --expect-starter-scaffold true",
       "status": "pass",
       "exit_code": 0,
       "duration_ms": 190,

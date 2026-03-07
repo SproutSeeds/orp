@@ -78,7 +78,7 @@ gates:
   - id: spec_faithfulness
     description: Enforce theorem-cycle semantic completeness contract.
     phase: quant_assembly
-    command: python3 orchestrator/spec_check.py --run-id {run_id}
+    command: python3 orchestrator/problem857_public_spec_check.py --run-id {run_id} --expect-starter-scaffold true
     pass:
       exit_codes: [0]
     evidence:

@@ -194,7 +194,11 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
         return None
 
     route_status: dict[str, Any] = {}
-    live = board.get("live_snapshot", {}) if isinstance(board, dict) else {}
+    live = {}
+    if isinstance(board, dict):
+        candidate_live = board.get("live_snapshot", board.get("live", {}))
+        if isinstance(candidate_live, dict):
+            live = candidate_live
     route_rows = []
     if isinstance(live, dict):
         # Some boards store this as "routes", others as "route_status".
@@ -245,7 +249,7 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
                 if m_count:
                     ready_queue_size = int(m_count.group(1))
                 m_row = re.search(
-                    r"^(?P<atom>\S+).*ticket=(?P<ticket>\S+)\s+gate=(?P<gate>\S+).*deps=(?P<deps>\S+)",
+                    r"^(?:atom|ready)=(?P<atom>\S+).*ticket=(?P<ticket>\S+)\s+gate=(?P<gate>\S+).*deps=(?P<deps>\S+)",
                     content,
                     flags=re.MULTILINE,
                 )

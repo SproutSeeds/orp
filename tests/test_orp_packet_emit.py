@@ -139,7 +139,7 @@ class OrpPacketEmitTests(unittest.TestCase):
                     {
                         "gate_id": "spec_faithfulness",
                         "phase": "verification",
-                        "command": "python3 orchestrator/spec_check.py --run-id run-20260306-160000",
+                        "command": "python3 orchestrator/problem857_public_spec_check.py --run-id run-20260306-160000",
                         "status": "pass",
                         "exit_code": 0,
                         "duration_ms": 5,
@@ -229,6 +229,123 @@ class OrpPacketEmitTests(unittest.TestCase):
                 packet["protocol_boundary"]["evidence_paths"],
             )
             self.assertEqual(packet["gates"][0]["evidence_status"], "evidence")
+
+    def test_packet_emit_collects_atomic_context_from_public_live_board_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_id = "run-20260307-151500"
+
+            config = {
+                "epistemic_status": {
+                    "notes": ["public repo workspace"],
+                    "strongest_evidence_paths": ["analysis/erdos_problems/selected/erdos_problem.857.json"],
+                },
+                "atomic_board": {
+                    "enabled": True,
+                    "board_path": "analysis/problem857_counting_gateboard.json",
+                },
+                "profiles": {
+                    "default": {
+                        "packet_kind": "problem_scope",
+                        "gate_ids": [],
+                    }
+                },
+                "gates": [],
+            }
+            (root / "orp.sample.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+            board_path = root / "analysis" / "problem857_counting_gateboard.json"
+            board_path.parent.mkdir(parents=True, exist_ok=True)
+            board_payload = {
+                "board_id": "problem857_counting_gateboard",
+                "problem_id": 857,
+                "live": {
+                    "routes": [
+                        {
+                            "route": "container_v2",
+                            "loose_done": 6,
+                            "loose_total": 7,
+                            "strict_done": 5,
+                            "strict_total": 7,
+                        }
+                    ]
+                },
+            }
+            board_path.write_text(json.dumps(board_payload, indent=2) + "\n", encoding="utf-8")
+
+            run_dir = root / "orp" / "artifacts" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "board_ready.stdout.log").write_text(
+                "ready_atoms=1\nready=A_real ticket=T1 gate=ScopeLock deps=root\n",
+                encoding="utf-8",
+            )
+            run_payload = {
+                "run_id": run_id,
+                "config_path": "orp.sample.json",
+                "profile": "default",
+                "started_at_utc": "2026-03-07T15:15:00Z",
+                "ended_at_utc": "2026-03-07T15:15:03Z",
+                "deterministic_input_hash": "sha256:test-hash",
+                "results": [
+                    {
+                        "gate_id": "board_ready_queue",
+                        "phase": "structure_kernel",
+                        "command": "python3 scripts/problem857_ops_board.py ready",
+                        "status": "pass",
+                        "exit_code": 0,
+                        "duration_ms": 5,
+                        "stdout_path": f"orp/artifacts/{run_id}/board_ready.stdout.log",
+                        "stderr_path": f"orp/artifacts/{run_id}/board_ready.stderr.log",
+                        "rule_issues": [],
+                        "evidence_paths": [],
+                        "evidence_status": "process_only",
+                        "evidence_note": "",
+                    }
+                ],
+                "summary": {
+                    "overall_result": "PASS",
+                    "gates_passed": 1,
+                    "gates_failed": 0,
+                    "gates_total": 1,
+                },
+            }
+            (run_dir / "RUN.json").write_text(json.dumps(run_payload, indent=2) + "\n", encoding="utf-8")
+
+            state_path = root / "orp" / "state.json"
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(
+                json.dumps(
+                    {
+                        "last_run_id": run_id,
+                        "last_packet_id": "",
+                        "runs": {run_id: f"orp/artifacts/{run_id}/RUN.json"},
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            proc = _run_cli(root, ["packet", "emit", "--profile", "default", "--run-id", run_id])
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            packet_json = root / "orp" / "packets" / f"pkt-problem_scope-{run_id}.json"
+            packet = json.loads(packet_json.read_text(encoding="utf-8"))
+            atomic = packet.get("atomic_context", {})
+            self.assertEqual(atomic.get("atom_id"), "A_real")
+            self.assertEqual(atomic.get("ticket_id"), "T1")
+            self.assertEqual(atomic.get("gate_id"), "ScopeLock")
+            self.assertEqual(atomic.get("ready_queue_size"), 1)
+            self.assertEqual(
+                atomic.get("route_status", {}).get("container_v2"),
+                {
+                    "done": 6,
+                    "total": 7,
+                    "strict_done": 5,
+                    "strict_total": 7,
+                },
+            )
+            self.assertFalse(atomic.get("starter_scaffold"))
 
 
 if __name__ == "__main__":

@@ -194,6 +194,18 @@ This writes rendered configs and a dependency audit report at:
 
 By default, install includes starter scaffolding for Problems 857/20/367 so `live_compare` runs are install-and-go in a fresh repo.
 
+If you want the Problem 857 lane to pull the real public `sunflower-lean` repo into an empty repo instead of writing starter-only 857 files, use:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include problem857 \
+  --var PROBLEM857_SOURCE_MODE=public_repo \
+  --var PROBLEM857_PUBLIC_REPO_URL=https://github.com/SproutSeeds/sunflower-lean
+```
+
+This syncs the public Lean repo into `sunflower_lean/` and generates the ORP-owned 857 bridge files (`analysis/`, `docs/`, `scripts/`, and `orchestrator/`) on top of it.
+
 For public-only adoption (no private sunflower adapters yet):
 
 ```bash

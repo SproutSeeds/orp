@@ -125,6 +125,18 @@ orp report summary
 
 This lane remains starter-heavy overall, but `spec_faithfulness` now performs a real public consistency check against the synced Problem 857 payload.
 
+If you want a fresh repo to pull the real public `sunflower-lean` repo instead of starter-only 857 scaffolding, install with:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include problem857 \
+  --var PROBLEM857_SOURCE_MODE=public_repo \
+  --var PROBLEM857_PUBLIC_REPO_URL=https://github.com/SproutSeeds/sunflower-lean
+```
+
+This syncs the public Lean repo into `sunflower_lean/` and generates the ORP-owned 857 bridge files that the discovery workflow needs.
+
 Strict mode for private adapter readiness:
 
 ```bash
