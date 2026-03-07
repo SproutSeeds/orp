@@ -588,6 +588,172 @@ class OrpPackInstallTests(unittest.TestCase):
                 "external-pr-feedback-hardening:external_feedback_hardening",
             )
 
+    def test_issue_smashers_install_renders_workspace_and_feedback_configs(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td)
+            proc = _run(
+                [
+                    "--pack-id",
+                    "issue-smashers",
+                    "--target-repo-root",
+                    str(target),
+                ]
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            self.assertIn("deps.missing_total=0", proc.stdout)
+
+            workspace_cfg = target / "orp.issue-smashers.yml"
+            feedback_cfg = target / "orp.issue-smashers-feedback-hardening.yml"
+            report = target / "orp.issue-smashers.pack-install-report.md"
+            workspace_root = target / "issue-smashers"
+            rules = workspace_root / "WORKSPACE_RULES.md"
+            setup = workspace_root / "setup-issue-smashers.sh"
+            watchlist = workspace_root / "analysis" / "ISSUE_SMASHERS_WATCHLIST.json"
+            status = workspace_root / "analysis" / "ISSUE_SMASHERS_STATUS.md"
+            pr_body = workspace_root / "analysis" / "PR_DRAFT_BODY.md"
+
+            self.assertTrue(workspace_cfg.exists(), msg=f"missing rendered config: {workspace_cfg}")
+            self.assertTrue(feedback_cfg.exists(), msg=f"missing rendered config: {feedback_cfg}")
+            self.assertTrue(report.exists(), msg=f"missing report: {report}")
+            self.assertTrue((workspace_root / "README.md").exists(), msg="missing workspace README")
+            self.assertTrue(rules.exists(), msg="missing workspace rules")
+            self.assertTrue(setup.exists(), msg="missing setup script")
+            self.assertTrue(watchlist.exists(), msg="missing watchlist")
+            self.assertTrue(status.exists(), msg="missing status board")
+            self.assertTrue(pr_body.exists(), msg="missing starter pr body")
+            self.assertTrue((workspace_root / "repos" / ".gitkeep").exists(), msg="missing repos placeholder")
+            self.assertTrue(
+                (workspace_root / "worktrees" / ".gitkeep").exists(),
+                msg="missing worktrees placeholder",
+            )
+
+            workspace_text = workspace_cfg.read_text(encoding="utf-8")
+            self.assertIn("issue_smashers_full_flow:", workspace_text)
+            self.assertIn("configure WATCH_SELECT_COMMAND", workspace_text)
+            self.assertIn("issue-smashers/analysis/PR_DRAFT_BODY.md", workspace_text)
+
+            feedback_text = feedback_cfg.read_text(encoding="utf-8")
+            self.assertIn("default_kind: verification", feedback_text)
+            self.assertIn("issue_smashers_feedback_hardening", feedback_text)
+
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("plain workspace scaffold", report_text)
+            self.assertIn("issue_smashers_full_flow", report_text)
+
+    def test_issue_smashers_full_flow_and_feedback_profiles_run_with_adapter_vars(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td)
+            install = _run(
+                [
+                    "--pack-id",
+                    "issue-smashers",
+                    "--target-repo-root",
+                    str(target),
+                    "--include",
+                    "workspace",
+                    "--include",
+                    "feedback_hardening",
+                    "--var",
+                    "TARGET_GITHUB_REPO=owner/repo",
+                    "--var",
+                    "TARGET_GITHUB_AUTHOR=tester",
+                    "--var",
+                    "WATCH_SELECT_COMMAND=printf 'selection=PASS\\n'",
+                    "--var",
+                    "VIABILITY_COMMAND=printf 'decision=PASS\\n'",
+                    "--var",
+                    "OVERLAP_COMMAND=printf 'overlap=PASS\\n'",
+                    "--var",
+                    "LOCAL_GATE_COMMAND=printf 'gate=PASS\\n'",
+                    "--var",
+                    "READY_TO_DRAFT_COMMAND=printf 'ready_to_draft=PASS\\n'",
+                    "--var",
+                    "PR_BODY_PREFLIGHT_COMMAND=printf 'gate=PASS\\n'",
+                    "--var",
+                    "DRAFT_PR_TRANSITION_COMMAND=printf 'draft_pr=PASS\\n'",
+                    "--var",
+                    "DRAFT_CI_COMMAND=printf 'draft_ci=PASS\\n'",
+                    "--var",
+                    "READY_FOR_REVIEW_COMMAND=printf 'ready_for_review=PASS\\n'",
+                    "--var",
+                    "FEEDBACK_RECORD_COMMAND=printf 'feedback_recorded=PASS\\n'",
+                    "--var",
+                    "GUARD_VALIDATION_COMMAND=printf 'guard_validation=PASS\\n'",
+                    "--var",
+                    "DOC_SYNC_COMMAND=printf 'docs_sync=PASS\\n'",
+                ]
+            )
+            self.assertEqual(install.returncode, 0, msg=install.stderr + "\n" + install.stdout)
+
+            run_workspace = _run_cli(
+                target,
+                "orp.issue-smashers.yml",
+                ["gate", "run", "--profile", "issue_smashers_full_flow"],
+            )
+            self.assertEqual(run_workspace.returncode, 0, msg=run_workspace.stderr + "\n" + run_workspace.stdout)
+            self.assertIn("overall=PASS", run_workspace.stdout)
+            m_workspace = re.search(r"run_id=([A-Za-z0-9\\-]+)", run_workspace.stdout)
+            self.assertIsNotNone(m_workspace, msg=run_workspace.stdout)
+            workspace_run_id = str(m_workspace.group(1))
+
+            emit_workspace = _run_cli(
+                target,
+                "orp.issue-smashers.yml",
+                ["packet", "emit", "--profile", "issue_smashers_full_flow", "--run-id", workspace_run_id],
+            )
+            self.assertEqual(
+                emit_workspace.returncode,
+                0,
+                msg=emit_workspace.stderr + "\n" + emit_workspace.stdout,
+            )
+            workspace_packet = json.loads(
+                (target / "orp" / "packets" / f"pkt-pr-{workspace_run_id}.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(workspace_packet["kind"], "pr")
+            self.assertEqual(
+                workspace_packet["claim_context"]["claim_id"],
+                "issue-smashers:issue_smashers_full_flow",
+            )
+            workspace_artifacts = set(workspace_packet["claim_context"]["canonical_artifacts"])
+            self.assertIn("issue-smashers/analysis/PR_DRAFT_BODY.md", workspace_artifacts)
+            self.assertIn("issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md", workspace_artifacts)
+            self.assertIn("issue-smashers/analysis/ISSUE_SMASHERS_WATCHLIST.json", workspace_artifacts)
+
+            run_feedback = _run_cli(
+                target,
+                "orp.issue-smashers-feedback-hardening.yml",
+                ["gate", "run", "--profile", "issue_smashers_feedback_hardening"],
+            )
+            self.assertEqual(run_feedback.returncode, 0, msg=run_feedback.stderr + "\n" + run_feedback.stdout)
+            self.assertIn("overall=PASS", run_feedback.stdout)
+            m_feedback = re.search(r"run_id=([A-Za-z0-9\\-]+)", run_feedback.stdout)
+            self.assertIsNotNone(m_feedback, msg=run_feedback.stdout)
+            feedback_run_id = str(m_feedback.group(1))
+
+            emit_feedback = _run_cli(
+                target,
+                "orp.issue-smashers-feedback-hardening.yml",
+                ["packet", "emit", "--profile", "issue_smashers_feedback_hardening", "--run-id", feedback_run_id],
+            )
+            self.assertEqual(
+                emit_feedback.returncode,
+                0,
+                msg=emit_feedback.stderr + "\n" + emit_feedback.stdout,
+            )
+            feedback_packet = json.loads(
+                (target / "orp" / "packets" / f"pkt-verification-{feedback_run_id}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(feedback_packet["kind"], "verification")
+            self.assertEqual(
+                feedback_packet["claim_context"]["claim_id"],
+                "issue-smashers-feedback-hardening:issue_smashers_feedback_hardening",
+            )
+            feedback_artifacts = set(feedback_packet["claim_context"]["canonical_artifacts"])
+            self.assertIn("issue-smashers/WORKSPACE_RULES.md", feedback_artifacts)
+            self.assertIn("issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md", feedback_artifacts)
+
     def test_cli_pack_install_json_is_machine_readable(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             target = Path(td)

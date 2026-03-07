@@ -77,6 +77,29 @@ This installs rendered config files and writes a dependency audit report:
 - `./orp.erdos-problem857.yml`
 - `./orp.erdos.pack-install-report.md`
 
+Issue Smashers workspace install:
+
+```bash
+orp pack install \
+  --pack-id issue-smashers
+```
+
+This writes:
+
+- `./orp.issue-smashers.yml`
+- `./orp.issue-smashers-feedback-hardening.yml`
+- `./orp.issue-smashers.pack-install-report.md`
+- `./issue-smashers/README.md`
+- `./issue-smashers/WORKSPACE_RULES.md`
+- `./issue-smashers/setup-issue-smashers.sh`
+- `./issue-smashers/analysis/ISSUE_SMASHERS_WATCHLIST.json`
+- `./issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md`
+- `./issue-smashers/analysis/PR_DRAFT_BODY.md`
+
+Use this pack when you want the generic external contribution lifecycle plus a
+standard workspace convention for multi-repo issue work. It does not clone repos
+automatically and it keeps command hooks install-and-adapt by default.
+
 Default install behavior is starter-friendly:
 
 - includes `catalog`, `live_compare`, and `problem857`,

@@ -1,0 +1,178 @@
+schema_version: "1.0.0"
+pack_id: issue-smashers
+name: Issue Smashers Pack
+version: "0.1.0"
+description: >
+  Opinionated ORP workspace pack for organized multi-repo external contribution
+  work, combining an issue-smashers directory convention with reusable PR
+  governance and feedback-hardening profiles.
+orp_version_min: "0.3.0"
+
+variables:
+  TARGET_REPO_ROOT:
+    description: Absolute path to the install target that will contain the issue-smashers workspace.
+    required: true
+  ISSUE_SMASHERS_ROOT:
+    description: Workspace root relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers"
+  ISSUE_SMASHERS_REPOS_DIR:
+    description: Base clone directory relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/repos"
+  ISSUE_SMASHERS_WORKTREES_DIR:
+    description: Active issue worktree directory relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/worktrees"
+  ISSUE_SMASHERS_SCRATCH_DIR:
+    description: Disposable scratch directory relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/scratch"
+  ISSUE_SMASHERS_ARCHIVE_DIR:
+    description: Optional archive directory relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/archive"
+  WATCHLIST_FILE:
+    description: Watchlist JSON path relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/analysis/ISSUE_SMASHERS_WATCHLIST.json"
+  STATUS_FILE:
+    description: Human-readable status board path relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md"
+  WORKSPACE_RULES_FILE:
+    description: Workspace rules document path relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/WORKSPACE_RULES.md"
+  DEFAULT_PR_BODY_FILE:
+    description: Default PR body file path relative to TARGET_REPO_ROOT.
+    required: false
+    default: "issue-smashers/analysis/PR_DRAFT_BODY.md"
+  TARGET_GITHUB_REPO:
+    description: GitHub repo receiving the contribution, for example leanprover-community/mathlib4.
+    required: false
+    default: "owner/repo"
+  TARGET_GITHUB_AUTHOR:
+    description: GitHub login used for coordination and overlap checks.
+    required: false
+    default: "your-login"
+  ORP_TIMEOUT_SEC:
+    description: Default gate timeout in seconds.
+    required: false
+    default: "1200"
+  WATCH_SELECT_COMMAND:
+    description: Command that selects a contribution target and records why it is worth pursuing.
+    required: false
+    default: "printf 'configure WATCH_SELECT_COMMAND\\n' >&2; exit 2"
+  WATCH_SELECT_PASS_TOKEN:
+    description: Stdout token indicating the watch/select gate passed.
+    required: false
+    default: "selection=PASS"
+  VIABILITY_COMMAND:
+    description: Command that decides whether starting work is etiquette-safe.
+    required: false
+    default: "printf 'configure VIABILITY_COMMAND\\n' >&2; exit 2"
+  VIABILITY_PASS_TOKEN:
+    description: Stdout token indicating the viability gate passed.
+    required: false
+    default: "decision=PASS"
+  OVERLAP_COMMAND:
+    description: Command that checks external overlap or confirms coordination is clear.
+    required: false
+    default: "printf 'configure OVERLAP_COMMAND\\n' >&2; exit 2"
+  OVERLAP_PASS_TOKEN:
+    description: Stdout token indicating the overlap gate passed.
+    required: false
+    default: "overlap=PASS"
+  LOCAL_GATE_COMMAND:
+    description: Command that performs the local-first verification gate.
+    required: false
+    default: "printf 'configure LOCAL_GATE_COMMAND\\n' >&2; exit 2"
+  LOCAL_GATE_PASS_TOKEN:
+    description: Stdout token indicating the local gate passed.
+    required: false
+    default: "gate=PASS"
+  READY_TO_DRAFT_COMMAND:
+    description: Command that freezes the branch as ready to open or update a draft PR on the same HEAD.
+    required: false
+    default: "printf 'configure READY_TO_DRAFT_COMMAND\\n' >&2; exit 2"
+  READY_TO_DRAFT_PASS_TOKEN:
+    description: Stdout token indicating the ready-to-draft gate passed.
+    required: false
+    default: "ready_to_draft=PASS"
+  PR_BODY_PREFLIGHT_COMMAND:
+    description: Command that validates portable public PR text.
+    required: false
+    default: "printf 'configure PR_BODY_PREFLIGHT_COMMAND\\n' >&2; exit 2"
+  PR_BODY_PASS_TOKEN:
+    description: Stdout token indicating PR body preflight passed.
+    required: false
+    default: "gate=PASS"
+  DRAFT_PR_TRANSITION_COMMAND:
+    description: Command that opens or updates the draft PR and refuses if ready markers no longer match the current HEAD.
+    required: false
+    default: "printf 'configure DRAFT_PR_TRANSITION_COMMAND\\n' >&2; exit 2"
+  DRAFT_PR_TRANSITION_PASS_TOKEN:
+    description: Stdout token indicating the draft PR open/update transition passed.
+    required: false
+    default: "draft_pr=PASS"
+  DRAFT_CI_COMMAND:
+    description: Command that checks draft CI or draft lifecycle readiness.
+    required: false
+    default: "printf 'configure DRAFT_CI_COMMAND\\n' >&2; exit 2"
+  DRAFT_CI_PASS_TOKEN:
+    description: Stdout token indicating draft CI is green or otherwise acceptable.
+    required: false
+    default: "draft_ci=PASS"
+  READY_FOR_REVIEW_COMMAND:
+    description: Command that decides whether the PR can be promoted from draft to ready.
+    required: false
+    default: "printf 'configure READY_FOR_REVIEW_COMMAND\\n' >&2; exit 2"
+  READY_FOR_REVIEW_PASS_TOKEN:
+    description: Stdout token indicating ready-for-review conditions are satisfied.
+    required: false
+    default: "ready_for_review=PASS"
+  FEEDBACK_RECORD_COMMAND:
+    description: Command that records what maintainer feedback slipped and why.
+    required: false
+    default: "printf 'configure FEEDBACK_RECORD_COMMAND\\n' >&2; exit 2"
+  FEEDBACK_RECORD_PASS_TOKEN:
+    description: Stdout token indicating maintainer-feedback recording passed.
+    required: false
+    default: "feedback_recorded=PASS"
+  GUARD_VALIDATION_COMMAND:
+    description: Command that validates the new or updated guard with PASS and FAIL coverage.
+    required: false
+    default: "printf 'configure GUARD_VALIDATION_COMMAND\\n' >&2; exit 2"
+  GUARD_VALIDATION_PASS_TOKEN:
+    description: Stdout token indicating guard validation passed.
+    required: false
+    default: "guard_validation=PASS"
+  DOC_SYNC_COMMAND:
+    description: Command that confirms docs, templates, and agent instructions were updated with the guard.
+    required: false
+    default: "printf 'configure DOC_SYNC_COMMAND\\n' >&2; exit 2"
+  DOC_SYNC_PASS_TOKEN:
+    description: Stdout token indicating governance docs were synced.
+    required: false
+    default: "docs_sync=PASS"
+
+templates:
+  issue_smashers_workspace:
+    path: profiles/issue-smashers.yml.tmpl
+    description: Opinionated issue-smashers workspace and external contribution governance profiles.
+    output_hint: orp.issue-smashers.yml
+    default_profiles:
+      - issue_smashers_watch_select
+      - issue_smashers_pre_open
+      - issue_smashers_local_readiness
+      - issue_smashers_draft_transition
+      - issue_smashers_draft_lifecycle
+      - issue_smashers_full_flow
+
+  issue_smashers_feedback_hardening:
+    path: profiles/issue-smashers-feedback-hardening.yml.tmpl
+    description: Issue-smashers maintainer-feedback hardening profile.
+    output_hint: orp.issue-smashers-feedback-hardening.yml
+    default_profiles:
+      - issue_smashers_feedback_hardening

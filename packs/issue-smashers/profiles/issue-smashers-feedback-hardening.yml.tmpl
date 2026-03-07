@@ -1,0 +1,102 @@
+version: "1"
+
+project:
+  name: issue-smashers-feedback-hardening
+  repo_root: .
+  canonical_paths:
+    workspace_root: {{TARGET_REPO_ROOT}}/{{ISSUE_SMASHERS_ROOT}}
+    watchlist_json: {{TARGET_REPO_ROOT}}/{{WATCHLIST_FILE}}
+    status_md: {{TARGET_REPO_ROOT}}/{{STATUS_FILE}}
+    workspace_rules_md: {{TARGET_REPO_ROOT}}/{{WORKSPACE_RULES_FILE}}
+    default_pr_body_file: {{TARGET_REPO_ROOT}}/{{DEFAULT_PR_BODY_FILE}}
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: {{ORP_TIMEOUT_SEC}}
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: verification
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: feedback_record
+    description: Record what slipped, why it slipped, and how the workspace should prevent it next time.
+    phase: verification
+    command: >
+      {{FEEDBACK_RECORD_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}/{{ISSUE_SMASHERS_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{FEEDBACK_RECORD_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - {{TARGET_REPO_ROOT}}/{{WATCHLIST_FILE}}
+        - {{TARGET_REPO_ROOT}}/{{STATUS_FILE}}
+    on_fail: mark_blocked
+
+  - id: guard_validation
+    description: Validate the new or updated guard with explicit PASS and FAIL coverage.
+    phase: verification
+    command: >
+      {{GUARD_VALIDATION_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}/{{ISSUE_SMASHERS_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{GUARD_VALIDATION_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: docs_sync
+    description: Confirm workspace docs and operator notes were updated in the same pass.
+    phase: verification
+    command: >
+      {{DOC_SYNC_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}/{{ISSUE_SMASHERS_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{DOC_SYNC_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - {{TARGET_REPO_ROOT}}/{{WORKSPACE_RULES_FILE}}
+        - {{TARGET_REPO_ROOT}}/{{STATUS_FILE}}
+    on_fail: mark_blocked
+
+profiles:
+  issue_smashers_feedback_hardening:
+    description: Convert maintainer feedback into a reusable issue-smashers guard plus synced docs.
+    mode: collaboration
+    packet_kind: verification
+    gate_ids:
+      - feedback_record
+      - guard_validation
+      - docs_sync

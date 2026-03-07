@@ -1,0 +1,24 @@
+workspace:
+  root: issue-smashers
+  analysis_dir: issue-smashers/analysis
+  repos_dir: issue-smashers/repos
+  worktrees_dir: issue-smashers/worktrees
+  scratch_dir: issue-smashers/scratch
+  archive_dir: issue-smashers/archive
+
+watch_targets:
+  - repo: leanprover-community/mathlib4
+    issue: "5617"
+    lane: mathlib4/issue-5617
+    state: watch
+  - repo: google-deepmind/formal-conjectures
+    issue: "erdos-857"
+    lane: formal-conjectures/erdos-857
+    state: backlog
+
+policy:
+  workspace_git_repo: false
+  one_worktree_per_issue: true
+  fork_remote_name: origin
+  upstream_remote_name: upstream
+  process_only: true

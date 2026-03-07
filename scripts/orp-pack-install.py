@@ -103,6 +103,34 @@ PACK_SPECS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "issue-smashers": {
+        "default_includes": ["workspace", "feedback_hardening"],
+        "report_name": "orp.issue-smashers.pack-install-report.md",
+        "components": {
+            "workspace": {
+                "template_id": "issue_smashers_workspace",
+                "output_name": "orp.issue-smashers.yml",
+                "description": "Opinionated issue-smashers workspace and external contribution governance profiles.",
+                "required_paths": [
+                    "issue-smashers/README.md",
+                    "issue-smashers/WORKSPACE_RULES.md",
+                    "issue-smashers/setup-issue-smashers.sh",
+                    "issue-smashers/analysis/ISSUE_SMASHERS_WATCHLIST.json",
+                    "issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md",
+                    "issue-smashers/analysis/PR_DRAFT_BODY.md",
+                ],
+            },
+            "feedback_hardening": {
+                "template_id": "issue_smashers_feedback_hardening",
+                "output_name": "orp.issue-smashers-feedback-hardening.yml",
+                "description": "Issue-smashers feedback hardening profile.",
+                "required_paths": [
+                    "issue-smashers/WORKSPACE_RULES.md",
+                    "issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md",
+                ],
+            },
+        },
+    },
 }
 
 BOARD_PATHS = {
@@ -1126,6 +1154,26 @@ STARTER_EXTERNAL_PR_BODY = """# Draft PR Body
 - TODO: note any overlap checks, issue references, or reviewer context.
 """
 
+STARTER_ISSUE_SMASHERS_SETUP = """#!/usr/bin/env bash
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+mkdir -p \
+  "$ROOT/analysis" \
+  "$ROOT/repos" \
+  "$ROOT/worktrees" \
+  "$ROOT/scratch" \
+  "$ROOT/archive"
+
+printf 'workspace_root=%s\\n' "$ROOT"
+printf 'ensured=analysis\\n'
+printf 'ensured=repos\\n'
+printf 'ensured=worktrees\\n'
+printf 'ensured=scratch\\n'
+printf 'ensured=archive\\n'
+"""
+
 PROBLEM857_PUBLIC_WORKSPACE_PATHS = [
     "analysis/problem857_counting_gateboard.json",
     "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
@@ -1286,6 +1334,97 @@ def _problem857_source_mode(vars_map: dict[str, str]) -> str:
     if mode not in {"starter", "public_repo"}:
         raise RuntimeError(f"unsupported PROBLEM857_SOURCE_MODE: {mode}")
     return mode
+
+
+def _issue_smashers_workspace_readme(
+    *,
+    workspace_root_rel: str,
+    repos_rel: str,
+    worktrees_rel: str,
+    scratch_rel: str,
+    archive_rel: str,
+    watchlist_rel: str,
+    status_rel: str,
+    pr_body_rel: str,
+) -> str:
+    return (
+        "# Issue Smashers Workspace\n\n"
+        "This directory is the operator-facing workspace scaffold installed by the ORP "
+        "`issue-smashers` pack.\n\n"
+        "## Layout\n\n"
+        f"- `{repos_rel}` - base clones for target projects\n"
+        f"- `{worktrees_rel}` - one active worktree per issue lane\n"
+        f"- `{scratch_rel}` - disposable notes and experiments\n"
+        f"- `{archive_rel}` - optional non-canonical archive space\n"
+        f"- `{watchlist_rel}` - machine-readable watchlist\n"
+        f"- `{status_rel}` - human-readable lane/status board\n"
+        f"- `{pr_body_rel}` - default public PR draft body\n\n"
+        "## Usage\n\n"
+        "1. Keep ORP outside this workspace as the protocol/runtime.\n"
+        "2. Put base clones under `repos/`.\n"
+        "3. Put one active lane per issue under `worktrees/`.\n"
+        "4. Use the rendered ORP configs at the install target root to run governance.\n"
+        "5. Treat this workspace as process-only; it coordinates contribution work but is not evidence.\n\n"
+        "## First step\n\n"
+        "Run `bash setup-issue-smashers.sh` inside this directory if you want to re-ensure the "
+        "workspace folders exist.\n"
+    )
+
+
+def _issue_smashers_workspace_rules(
+    *,
+    workspace_root_rel: str,
+    repos_rel: str,
+    worktrees_rel: str,
+    scratch_rel: str,
+    archive_rel: str,
+) -> str:
+    return (
+        "# Issue Smashers Workspace Rules\n\n"
+        f"- workspace root: `{workspace_root_rel}`\n"
+        f"- base clones live under `{repos_rel}`\n"
+        f"- active issue work lives under `{worktrees_rel}`\n"
+        f"- scratch space lives under `{scratch_rel}` and is disposable\n"
+        f"- archive space lives under `{archive_rel}` and is optional\n\n"
+        "## Rules\n\n"
+        "1. `issue-smashers/` is a plain directory, not the ORP source repo.\n"
+        "2. Base clones live under `repos/`.\n"
+        "3. Active issue work lives under `worktrees/`.\n"
+        "4. One worktree per issue lane.\n"
+        "5. `scratch/` is disposable.\n"
+        "6. `archive/` is non-canonical and optional.\n"
+        "7. `origin` should point at the operator fork when host repo policy allows it.\n"
+        "8. `upstream` should point at the canonical target repo.\n"
+        "9. ORP stays outside the workspace as the protocol/runtime.\n"
+    )
+
+
+def _issue_smashers_status_markdown(
+    *,
+    watchlist_rel: str,
+    pr_body_rel: str,
+) -> str:
+    return (
+        "# Issue Smashers Status\n\n"
+        "- active_lanes: `0`\n"
+        f"- watchlist_json: `{watchlist_rel}`\n"
+        f"- default_pr_body: `{pr_body_rel}`\n\n"
+        "## Queue\n\n"
+        "- none yet\n"
+    )
+
+
+def _issue_smashers_watchlist_payload(*, workspace_root_rel: str) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "generated_at_utc": _now_utc(),
+        "workspace_root": workspace_root_rel,
+        "lanes": [],
+        "notes": [
+            "Issue Smashers watchlist is process-only.",
+            "Keep one active worktree per issue lane.",
+        ],
+    }
 
 
 def _run_checked(cmd: list[str], *, cwd: Path | None = None) -> None:
@@ -1607,6 +1746,71 @@ def _install_starter_adapters(
             created.append(str(draft_body.relative_to(target_repo_root)))
         return created
 
+    if pack_id == "issue-smashers":
+        workspace_root_rel = vars_map.get("ISSUE_SMASHERS_ROOT", "issue-smashers").strip() or "issue-smashers"
+        repos_rel = vars_map.get("ISSUE_SMASHERS_REPOS_DIR", f"{workspace_root_rel}/repos").strip() or f"{workspace_root_rel}/repos"
+        worktrees_rel = vars_map.get(
+            "ISSUE_SMASHERS_WORKTREES_DIR", f"{workspace_root_rel}/worktrees"
+        ).strip() or f"{workspace_root_rel}/worktrees"
+        scratch_rel = vars_map.get("ISSUE_SMASHERS_SCRATCH_DIR", f"{workspace_root_rel}/scratch").strip() or f"{workspace_root_rel}/scratch"
+        archive_rel = vars_map.get("ISSUE_SMASHERS_ARCHIVE_DIR", f"{workspace_root_rel}/archive").strip() or f"{workspace_root_rel}/archive"
+        watchlist_rel = vars_map.get(
+            "WATCHLIST_FILE", f"{workspace_root_rel}/analysis/ISSUE_SMASHERS_WATCHLIST.json"
+        ).strip() or f"{workspace_root_rel}/analysis/ISSUE_SMASHERS_WATCHLIST.json"
+        status_rel = vars_map.get(
+            "STATUS_FILE", f"{workspace_root_rel}/analysis/ISSUE_SMASHERS_STATUS.md"
+        ).strip() or f"{workspace_root_rel}/analysis/ISSUE_SMASHERS_STATUS.md"
+        rules_rel = vars_map.get("WORKSPACE_RULES_FILE", f"{workspace_root_rel}/WORKSPACE_RULES.md").strip() or f"{workspace_root_rel}/WORKSPACE_RULES.md"
+        pr_body_rel = vars_map.get(
+            "DEFAULT_PR_BODY_FILE", f"{workspace_root_rel}/analysis/PR_DRAFT_BODY.md"
+        ).strip() or f"{workspace_root_rel}/analysis/PR_DRAFT_BODY.md"
+
+        workspace_files: list[tuple[Path, str]] = [
+            (
+                target_repo_root / workspace_root_rel / "README.md",
+                _issue_smashers_workspace_readme(
+                    workspace_root_rel=workspace_root_rel,
+                    repos_rel=repos_rel,
+                    worktrees_rel=worktrees_rel,
+                    scratch_rel=scratch_rel,
+                    archive_rel=archive_rel,
+                    watchlist_rel=watchlist_rel,
+                    status_rel=status_rel,
+                    pr_body_rel=pr_body_rel,
+                ),
+            ),
+            (
+                target_repo_root / rules_rel,
+                _issue_smashers_workspace_rules(
+                    workspace_root_rel=workspace_root_rel,
+                    repos_rel=repos_rel,
+                    worktrees_rel=worktrees_rel,
+                    scratch_rel=scratch_rel,
+                    archive_rel=archive_rel,
+                ),
+            ),
+            (target_repo_root / workspace_root_rel / "setup-issue-smashers.sh", STARTER_ISSUE_SMASHERS_SETUP),
+            (target_repo_root / status_rel, _issue_smashers_status_markdown(watchlist_rel=watchlist_rel, pr_body_rel=pr_body_rel)),
+            (target_repo_root / pr_body_rel, STARTER_EXTERNAL_PR_BODY),
+        ]
+        for path, text in workspace_files:
+            if _write_text(path, text, overwrite=overwrite):
+                created.append(str(path.relative_to(target_repo_root)))
+
+        watchlist_path = target_repo_root / watchlist_rel
+        if _write_json(
+            watchlist_path,
+            _issue_smashers_watchlist_payload(workspace_root_rel=workspace_root_rel),
+            overwrite=overwrite,
+        ):
+            created.append(str(watchlist_path.relative_to(target_repo_root)))
+
+        for rel in [repos_rel, worktrees_rel, scratch_rel, archive_rel]:
+            placeholder = target_repo_root / rel / ".gitkeep"
+            if _write_text(placeholder, "", overwrite=overwrite):
+                created.append(str(placeholder.relative_to(target_repo_root)))
+        return sorted(set(created))
+
     if public_repo_requested:
         source = vars_map.get("PROBLEM857_PUBLIC_REPO_URL", "").strip()
         ref = vars_map.get("PROBLEM857_PUBLIC_REPO_REF", "").strip()
@@ -1837,6 +2041,19 @@ def _write_report(
             lines.append(
                 "- Use `external_feedback_hardening` when maintainer feedback reveals a missed check that should become a reusable guard."
             )
+    if pack_id == "issue-smashers":
+        lines.append(
+            "- Treat `issue-smashers/` as a plain workspace scaffold, not as a replacement for ORP core or as a monorepo of cloned projects."
+        )
+        lines.append(
+            "- Replace the placeholder commands in the rendered configs before treating any governance run as meaningful."
+        )
+        lines.append(
+            "- Use `issue_smashers_full_flow` for the main lifecycle and `issue_smashers_feedback_hardening` when maintainer feedback should become a reusable guard."
+        )
+        lines.append(
+            "- Keep base clones in `issue-smashers/repos/` and one active worktree per issue lane in `issue-smashers/worktrees/`."
+        )
     lines.append("- Run selected ORP profiles with `orp --config <rendered-config> gate run --profile <profile>`.")
     lines.append("- If developing ORP locally, the equivalent command is `./scripts/orp --config <rendered-config> gate run --profile <profile>`.")
     lines.append("- Emit process packets with `orp --config <rendered-config> packet emit --profile <profile> --run-id <run_id>`.")
@@ -1878,7 +2095,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Component to install (repeatable). "
             "Valid values depend on the selected pack. "
             "Examples: erdos-open-problems -> catalog/live_compare/problem857/governance; "
-            "external-pr-governance -> governance/feedback_hardening."
+            "external-pr-governance -> governance/feedback_hardening; "
+            "issue-smashers -> workspace/feedback_hardening."
         ),
     )
     p.add_argument(

@@ -166,6 +166,7 @@ ORP supports reusable domain profile packs so core runtime stays general.
 - Pack metadata schema: `spec/v1/profile-pack.schema.json`
 - Included pack: `packs/erdos-open-problems/` (857/20/367 + catalog sync + governance profiles)
 - Included pack: `packs/external-pr-governance/` (generic external OSS contribution workflow pack)
+- Included pack: `packs/issue-smashers/` (opinionated external contribution workspace pack built on the same governance ideas)
 
 Install pack configs into a target repo (recommended):
 
@@ -191,6 +192,26 @@ This writes rendered configs and a dependency audit report at:
 - `./orp.erdos-live-compare.yml`
 - `./orp.erdos-problem857.yml`
 - `./orp.erdos.pack-install-report.md`
+
+Install the Issue Smashers workspace pack:
+
+```bash
+orp pack install \
+  --pack-id issue-smashers
+```
+
+This writes:
+
+- `./orp.issue-smashers.yml`
+- `./orp.issue-smashers-feedback-hardening.yml`
+- `./orp.issue-smashers.pack-install-report.md`
+- `./issue-smashers/` workspace scaffold
+
+The pack is intentionally install-and-adapt:
+
+- it creates the workspace layout and starter docs
+- it does not auto-clone target repos
+- it keeps governance commands as explicit placeholders until you wire in a repo adapter
 
 By default, install includes starter scaffolding for Problems 857/20/367 so `live_compare` runs are install-and-go in a fresh repo.
 
