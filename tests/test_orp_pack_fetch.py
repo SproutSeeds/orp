@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -71,7 +72,45 @@ class OrpPackFetchTests(unittest.TestCase):
             self.assertTrue((target / "orp.erdos-catalog-sync.yml").exists())
             self.assertTrue((target / "orp.erdos.pack-install-report.md").exists())
 
+    def test_cli_fetch_json_with_install_target_is_machine_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            cache = tmp / "cache"
+            target = tmp / "target"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(REPO_ROOT),
+                    "pack",
+                    "fetch",
+                    "--source",
+                    str(REPO_ROOT),
+                    "--pack-id",
+                    "erdos-open-problems",
+                    "--cache-root",
+                    str(cache),
+                    "--install-target",
+                    str(target),
+                    "--include",
+                    "catalog",
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["returncode"], 0)
+            self.assertEqual(payload["fetch"]["pack_id"], "erdos-open-problems")
+            self.assertEqual(payload["install"]["included_components"], ["catalog"])
+            self.assertEqual(payload["install"]["deps"]["missing_total"], 0)
+            self.assertTrue((target / "orp.erdos-catalog-sync.yml").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
-

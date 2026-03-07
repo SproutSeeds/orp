@@ -10,12 +10,20 @@ Optional global CLI install:
 ```sh
 npm i -g @sproutseeds/orp-cli
 orp -h
+orp about --json
 ```
 
 CLI prerequisites:
 
 - Python 3 on `PATH`
 - `PyYAML` (`python3 -m pip install pyyaml`)
+
+Agent-friendly discovery surfaces:
+
+- `llms.txt` for quick repo/package discovery
+- `orp about --json` for machine-readable capabilities, schemas, artifacts, and bundled packs
+- `docs/AGENT_LOOP.md` for the intended agent operating rhythm
+- `orp pack list --json` for machine-readable bundled pack inventory
 
 ## Option 0 — Smoke-test ORP in a fresh directory
 

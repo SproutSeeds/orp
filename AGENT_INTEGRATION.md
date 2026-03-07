@@ -6,6 +6,15 @@ integrate ORP by adding an **ORP section** to that file.
 This makes ORP the agent’s default operating mode: explicit claim levels, reproducible verification, first-class failed paths,
 and dispute resolution by verification/downgrade (not debate).
 
+## Agent discovery surfaces
+
+Before deeper work, agents can discover ORP through three lightweight entry points:
+
+- `llms.txt` — concise repo/package map for agents that scan docs before acting.
+- `orp about --json` — machine-readable tool metadata, stable artifact paths, schemas, and available packs.
+- `orp pack list --json` — machine-readable inventory of bundled packs.
+- `docs/AGENT_LOOP.md` — canonical ORP operating rhythm for agent-led workflows.
+
 ## What to add to your agent’s instruction file
 
 Copy/paste this section into your agent’s main instruction Markdown file:

@@ -1,6 +1,6 @@
 # ORP — Open Research Protocol (template pack)
 
-ORP is a **project-agnostic, docs-first protocol** for doing research (or research-like engineering) with:
+ORP is a **project-agnostic, docs-first, agent-friendly protocol** for doing research (or research-like engineering) with:
 
 - explicit claim levels,
 - reproducible verification hooks,
@@ -17,8 +17,10 @@ verification remains independent of framing. See `modules/instruments/README.md`
 ## What’s in this folder
 
 - `AGENT_INTEGRATION.md` — optional: integrate ORP into an AI agent’s primary instruction file
+- `llms.txt` — concise discovery guide for LLM and agentic systems
 - `PROTOCOL.md` — the protocol to copy into a project
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
+- `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
 - `templates/` — claim, verification, failure, and issue templates
 - `examples/` — minimal examples (illustrative, not exhaustive)
 - `scripts/` — optional helper scripts (no dependencies beyond standard shell tools)
@@ -68,6 +70,32 @@ Local repo usage still works:
 ```bash
 ./scripts/orp -h
 ```
+
+Agent-first discovery surfaces:
+
+```bash
+orp about --json
+orp erdos sync --json
+orp pack list --json
+orp pack install --pack-id erdos-open-problems --json
+orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json
+orp gate run --profile default --json
+orp packet emit --profile default --json
+orp report summary --json
+```
+
+These surfaces are meant to help automated systems discover ORP quickly:
+
+- `llms.txt` gives a concise repo/package map for agents that scan documentation.
+- `docs/AGENT_LOOP.md` gives agents one intended operating rhythm instead of leaving them to invent one.
+- `orp about --json` returns machine-readable capability, artifact, schema, and pack metadata.
+- Core runtime and pack commands can emit JSON so agents do not need to scrape human text.
+- Stable artifact paths make it easy to follow outputs across runs:
+  - `orp/state.json`
+  - `orp/artifacts/<run_id>/RUN.json`
+  - `orp/artifacts/<run_id>/RUN_SUMMARY.md`
+  - `orp/packets/<packet_id>.json`
+  - `orp/packets/<packet_id>.md`
 
 Release process:
 

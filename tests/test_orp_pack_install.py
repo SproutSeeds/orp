@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -145,6 +146,37 @@ class OrpPackInstallTests(unittest.TestCase):
             report_text = report.read_text(encoding="utf-8")
             self.assertIn("`orp --config <rendered-config> gate run --profile <profile>`", report_text)
             self.assertIn("`./scripts/orp --config <rendered-config> gate run --profile <profile>`", report_text)
+
+    def test_cli_pack_install_json_is_machine_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(REPO_ROOT),
+                    "pack",
+                    "install",
+                    "--target-repo-root",
+                    str(target),
+                    "--include",
+                    "catalog",
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["returncode"], 0)
+            self.assertEqual(payload["pack_id"], "erdos-open-problems")
+            self.assertEqual(payload["included_components"], ["catalog"])
+            self.assertEqual(payload["deps"]["missing_total"], 0)
+            self.assertIn("catalog", payload["rendered"])
 
 
 if __name__ == "__main__":

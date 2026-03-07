@@ -48,6 +48,10 @@ def _write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
+def _print_json(data: Any) -> None:
+    print(json.dumps(data, indent=2, sort_keys=False))
+
+
 def _tool_version() -> str:
     env_version = os.environ.get("ORP_VERSION", "").strip()
     if env_version:
@@ -69,6 +73,10 @@ def _tool_version() -> str:
 
 
 ORP_TOOL_VERSION = _tool_version()
+
+
+def _orp_repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
 
 
 def _path_for_state(path: Path, repo_root: Path) -> str:
@@ -236,11 +244,93 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
     }
 
 
+def _discover_packs() -> tuple[Path, list[dict[str, str]]]:
+    packs_root = _orp_repo_root() / "packs"
+    packs: list[dict[str, str]] = []
+    if not packs_root.exists():
+        return packs_root, packs
+
+    for child in sorted(packs_root.iterdir()):
+        if not child.is_dir():
+            continue
+        meta_path = child / "pack.yml"
+        if not meta_path.exists():
+            continue
+        try:
+            meta = _load_config(meta_path)
+        except Exception:
+            meta = {}
+        pack_id = str(meta.get("pack_id", child.name)) if isinstance(meta, dict) else child.name
+        version = str(meta.get("version", "unknown")) if isinstance(meta, dict) else "unknown"
+        name = str(meta.get("name", "")) if isinstance(meta, dict) else ""
+        packs.append(
+            {
+                "id": pack_id,
+                "version": version,
+                "name": name,
+                "path": str(child),
+            }
+        )
+    return packs_root, packs
+
+
+def _about_payload() -> dict[str, Any]:
+    _, packs = _discover_packs()
+    return {
+        "tool": {
+            "name": "orp",
+            "package": "@sproutseeds/orp-cli",
+            "version": ORP_TOOL_VERSION,
+            "description": "Open Research Protocol CLI for agent-friendly research workflows.",
+            "agent_friendly": True,
+        },
+        "discovery": {
+            "llms_txt": "llms.txt",
+            "readme": "README.md",
+            "protocol": "PROTOCOL.md",
+            "install": "INSTALL.md",
+            "agent_integration": "AGENT_INTEGRATION.md",
+            "agent_loop": "docs/AGENT_LOOP.md",
+            "profile_packs": "docs/PROFILE_PACKS.md",
+        },
+        "artifacts": {
+            "state_json": "orp/state.json",
+            "run_json": "orp/artifacts/<run_id>/RUN.json",
+            "run_summary_md": "orp/artifacts/<run_id>/RUN_SUMMARY.md",
+            "packet_json": "orp/packets/<packet_id>.json",
+            "packet_md": "orp/packets/<packet_id>.md",
+        },
+        "schemas": {
+            "config": "spec/v1/orp.config.schema.json",
+            "packet": "spec/v1/packet.schema.json",
+            "profile_pack": "spec/v1/profile-pack.schema.json",
+        },
+        "commands": [
+            {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "init", "path": ["init"], "json_output": True},
+            {"name": "gate_run", "path": ["gate", "run"], "json_output": True},
+            {"name": "packet_emit", "path": ["packet", "emit"], "json_output": True},
+            {"name": "erdos_sync", "path": ["erdos", "sync"], "json_output": True},
+            {"name": "pack_list", "path": ["pack", "list"], "json_output": True},
+            {"name": "pack_install", "path": ["pack", "install"], "json_output": True},
+            {"name": "pack_fetch", "path": ["pack", "fetch"], "json_output": True},
+            {"name": "report_summary", "path": ["report", "summary"], "json_output": True},
+        ],
+        "notes": [
+            "ORP files are process-only and are not evidence.",
+            "Canonical evidence lives in repo artifact paths outside ORP docs.",
+            "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
+        ],
+        "packs": packs,
+    }
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     _ensure_dirs(repo_root)
 
     config_path = repo_root / args.config
+    config_action = "kept"
     if not config_path.exists():
         starter = (
             'version: "1"\n'
@@ -280,11 +370,21 @@ def cmd_init(args: argparse.Namespace) -> int:
             "      - smoke\n"
         )
         config_path.write_text(starter, encoding="utf-8")
-        print(f"created {config_path}")
-    else:
-        print(f"kept existing {config_path}")
+        config_action = "created"
 
-    print(f"initialized ORP runtime dirs under {repo_root / 'orp'}")
+    result = {
+        "config_action": config_action,
+        "config_path": str(config_path),
+        "runtime_root": str(repo_root / "orp"),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        if config_action == "created":
+            print(f"created {config_path}")
+        else:
+            print(f"kept existing {config_path}")
+        print(f"initialized ORP runtime dirs under {repo_root / 'orp'}")
     return 0
 
 
@@ -481,9 +581,20 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
     state["last_run_id"] = run_id
     _write_json(state_path, state)
 
-    print(f"run_id={run_id}")
-    print(f"overall={overall} passed={gates_passed} failed={gates_failed} total={gates_total}")
-    print(f"run_record={run_json_path.relative_to(repo_root)}")
+    result = {
+        "run_id": run_id,
+        "overall": overall,
+        "gates_passed": gates_passed,
+        "gates_failed": gates_failed,
+        "gates_total": gates_total,
+        "run_record": str(run_json_path.relative_to(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"run_id={run_id}")
+        print(f"overall={overall} passed={gates_passed} failed={gates_failed} total={gates_total}")
+        print(f"run_record={run_json_path.relative_to(repo_root)}")
     return 0 if overall == "PASS" else 1
 
 
@@ -618,45 +729,80 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
     state["last_packet_id"] = packet_id
     _write_json(repo_root / "orp" / "state.json", state)
 
-    print(f"packet_id={packet_id}")
-    print(f"packet_json={packet_json_path.relative_to(repo_root)}")
-    print(f"packet_md={packet_md_path.relative_to(repo_root)}")
+    result = {
+        "packet_id": packet_id,
+        "packet_json": str(packet_json_path.relative_to(repo_root)),
+        "packet_md": str(packet_md_path.relative_to(repo_root)),
+        "packet_kind": kind,
+        "run_id": run_id,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"packet_id={packet_id}")
+        print(f"packet_json={packet_json_path.relative_to(repo_root)}")
+        print(f"packet_md={packet_md_path.relative_to(repo_root)}")
     return 0
 
 
 def cmd_pack_list(args: argparse.Namespace) -> int:
-    _ = args
-    orp_repo_root = Path(__file__).resolve().parent.parent
-    packs_root = orp_repo_root / "packs"
-    if not packs_root.exists():
+    packs_root, packs = _discover_packs()
+    if args.json_output:
+        _print_json(
+            {
+                "packs_root": str(packs_root),
+                "packs_count": len(packs),
+                "packs": packs,
+            }
+        )
+        return 0
+
+    if not packs:
         print(f"packs_root={packs_root}")
         print("packs.count=0")
         return 0
 
-    count = 0
-    for child in sorted(packs_root.iterdir()):
-        if not child.is_dir():
-            continue
-        meta_path = child / "pack.yml"
-        if not meta_path.exists():
-            continue
-        try:
-            meta = _load_config(meta_path)
-        except Exception:
-            meta = {}
-        pack_id = str(meta.get("pack_id", child.name)) if isinstance(meta, dict) else child.name
-        version = str(meta.get("version", "unknown")) if isinstance(meta, dict) else "unknown"
-        name = str(meta.get("name", "")) if isinstance(meta, dict) else ""
+    for pack in packs:
+        pack_id = pack.get("id", "")
+        version = pack.get("version", "unknown")
+        name = pack.get("name", "")
+        path = pack.get("path", "")
         print(f"pack.id={pack_id}")
         print(f"pack.version={version}")
-        print(f"pack.path={child}")
+        print(f"pack.path={path}")
         if name:
             print(f"pack.name={name}")
         print("---")
-        count += 1
 
     print(f"packs_root={packs_root}")
-    print(f"packs.count={count}")
+    print(f"packs.count={len(packs)}")
+    return 0
+
+
+def cmd_about(args: argparse.Namespace) -> int:
+    payload = _about_payload()
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(f"tool.name={payload['tool']['name']}")
+    print(f"tool.package={payload['tool']['package']}")
+    print(f"tool.version={payload['tool']['version']}")
+    print(f"tool.agent_friendly={str(payload['tool']['agent_friendly']).lower()}")
+    print(f"discovery.llms_txt={payload['discovery']['llms_txt']}")
+    print(f"discovery.agent_integration={payload['discovery']['agent_integration']}")
+    print(f"discovery.protocol={payload['discovery']['protocol']}")
+    print(f"artifact.run_json={payload['artifacts']['run_json']}")
+    print(f"artifact.packet_json={payload['artifacts']['packet_json']}")
+    print(f"schema.config={payload['schemas']['config']}")
+    print(f"schema.packet={payload['schemas']['packet']}")
+    print(f"schema.profile_pack={payload['schemas']['profile_pack']}")
+    print(f"packs.count={len(payload['packs'])}")
+    for pack in payload["packs"]:
+        if not isinstance(pack, dict):
+            continue
+        print(f"pack.id={pack.get('id', '')}")
+        print(f"pack.version={pack.get('version', '')}")
     return 0
 
 
@@ -690,7 +836,16 @@ def cmd_pack_install(args: argparse.Namespace) -> int:
         forwarded.append("--overwrite-bootstrap")
 
     cmd = [sys.executable, str(script_path), *forwarded]
-    proc = subprocess.run(cmd, cwd=str(repo_root))
+    proc = subprocess.run(cmd, cwd=str(repo_root), capture_output=True, text=True)
+    if args.json_output:
+        result = _parse_pack_install_output(proc.stdout)
+        result["ok"] = proc.returncode == 0
+        result["returncode"] = int(proc.returncode)
+        if proc.stderr.strip():
+            result["stderr"] = proc.stderr.strip()
+        _print_json(result)
+    else:
+        _emit_subprocess_result(proc)
     return int(proc.returncode)
 
 
@@ -703,6 +858,121 @@ def _parse_kv_lines(text: str) -> dict[str, str]:
         k, v = line.split("=", 1)
         out[k.strip()] = v.strip()
     return out
+
+
+def _coerce_scalar(value: str) -> Any:
+    text = value.strip()
+    if text == "":
+        return ""
+    lower = text.lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if re.fullmatch(r"-?\d+", text):
+        try:
+            return int(text)
+        except Exception:
+            return text
+    return text
+
+
+def _insert_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) -> None:
+    parts = [part for part in dotted_key.split(".") if part]
+    if not parts:
+        return
+
+    cur: dict[str, Any] = target
+    for part in parts[:-1]:
+        existing = cur.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            cur[part] = existing
+        cur = existing
+
+    leaf = parts[-1]
+    existing = cur.get(leaf)
+    if existing is None:
+        cur[leaf] = value
+        return
+    if isinstance(existing, list):
+        existing.append(value)
+        return
+    cur[leaf] = [existing, value]
+
+
+def _parse_kv_tree(text: str) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        _insert_dotted_value(out, key.strip(), _coerce_scalar(value))
+    return out
+
+
+def _split_csv_value(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    if not isinstance(value, str):
+        return []
+    text = value.strip()
+    if not text:
+        return []
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def _parse_pack_install_output(text: str) -> dict[str, Any]:
+    payload = _parse_kv_tree(text)
+    payload["included_components"] = _split_csv_value(payload.get("included_components", ""))
+    return payload
+
+
+def _parse_erdos_sync_output(text: str) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    selected_rows: list[dict[str, Any]] = []
+    current_selected: dict[str, Any] | None = None
+
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        coerced = _coerce_scalar(value)
+
+        if key == "selected.count":
+            payload["selected_count"] = coerced
+            continue
+        if key == "selected.missing":
+            payload["selected_missing"] = _split_csv_value(coerced)
+            continue
+        if key.startswith("selected."):
+            field = key.split(".", 1)[1]
+            if field == "problem_id":
+                if current_selected:
+                    selected_rows.append(current_selected)
+                current_selected = {}
+            if current_selected is None:
+                current_selected = {}
+            current_selected[field] = coerced
+            continue
+
+        _insert_dotted_value(payload, key, coerced)
+
+    if current_selected:
+        selected_rows.append(current_selected)
+    if selected_rows:
+        payload["selected"] = selected_rows
+    return payload
+
+
+def _emit_subprocess_result(proc: subprocess.CompletedProcess[str]) -> None:
+    if proc.stdout:
+        print(proc.stdout, end="")
+    if proc.stderr:
+        print(proc.stderr, file=sys.stderr, end="")
 
 
 def cmd_pack_fetch(args: argparse.Namespace) -> int:
@@ -723,14 +993,31 @@ def cmd_pack_fetch(args: argparse.Namespace) -> int:
         fetch_cmd.extend(["--name", args.name])
 
     proc = subprocess.run(fetch_cmd, cwd=str(repo_root), capture_output=True, text=True)
-    if proc.stdout:
-        print(proc.stdout, end="")
+    fetch_payload = _parse_kv_tree(proc.stdout)
     if proc.returncode != 0:
-        if proc.stderr:
-            print(proc.stderr, file=sys.stderr, end="")
+        if args.json_output:
+            result: dict[str, Any] = {
+                "ok": False,
+                "returncode": int(proc.returncode),
+                "fetch": fetch_payload,
+            }
+            if proc.stderr.strip():
+                result["stderr"] = proc.stderr.strip()
+            _print_json(result)
+        else:
+            _emit_subprocess_result(proc)
         return int(proc.returncode)
 
     if not args.install_target:
+        if args.json_output:
+            result = {
+                "ok": True,
+                "returncode": 0,
+                "fetch": fetch_payload,
+            }
+            _print_json(result)
+        else:
+            _emit_subprocess_result(proc)
         return 0
     if not install_script.exists():
         raise RuntimeError(f"missing pack install script: {install_script}")
@@ -767,7 +1054,22 @@ def cmd_pack_fetch(args: argparse.Namespace) -> int:
     if args.overwrite_bootstrap:
         install_cmd.append("--overwrite-bootstrap")
 
-    proc_install = subprocess.run(install_cmd, cwd=str(repo_root))
+    proc_install = subprocess.run(install_cmd, cwd=str(repo_root), capture_output=True, text=True)
+    if args.json_output:
+        result = {
+            "ok": proc_install.returncode == 0,
+            "returncode": int(proc_install.returncode),
+            "fetch": fetch_payload,
+            "install": _parse_pack_install_output(proc_install.stdout),
+        }
+        if proc.stderr.strip():
+            result["fetch_stderr"] = proc.stderr.strip()
+        if proc_install.stderr.strip():
+            result["install_stderr"] = proc_install.stderr.strip()
+        _print_json(result)
+    else:
+        _emit_subprocess_result(proc)
+        _emit_subprocess_result(proc_install)
     return int(proc_install.returncode)
 
 
@@ -816,7 +1118,16 @@ def cmd_erdos_sync(args: argparse.Namespace) -> int:
         forwarded = forwarded[1:]
 
     cmd = [sys.executable, str(script_path), *forwarded]
-    proc = subprocess.run(cmd, cwd=str(repo_root))
+    proc = subprocess.run(cmd, cwd=str(repo_root), capture_output=True, text=True)
+    if args.json_output:
+        result = _parse_erdos_sync_output(proc.stdout)
+        result["ok"] = proc.returncode == 0
+        result["returncode"] = int(proc.returncode)
+        if proc.stderr.strip():
+            result["stderr"] = proc.stderr.strip()
+        _print_json(result)
+    else:
+        _emit_subprocess_result(proc)
     return int(proc.returncode)
 
 
@@ -1020,12 +1331,23 @@ def cmd_report_summary(args: argparse.Namespace) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(summary_md, encoding="utf-8")
 
-    print(f"run_id={run_id}")
-    print(f"run_json={_path_for_state(run_json_path, repo_root)}")
-    print(f"summary_md={_path_for_state(out_path, repo_root)}")
+    result = {
+        "run_id": run_id,
+        "run_json": _path_for_state(run_json_path, repo_root),
+        "summary_md": _path_for_state(out_path, repo_root),
+    }
     if args.print_stdout:
-        print("---")
-        print(summary_md)
+        result["summary_markdown"] = summary_md
+
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"run_id={run_id}")
+        print(f"run_json={_path_for_state(run_json_path, repo_root)}")
+        print(f"summary_md={_path_for_state(out_path, repo_root)}")
+        if args.print_stdout:
+            print("---")
+            print(summary_md)
     return 0
 
 
@@ -1083,15 +1405,39 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default="orp.yml", help="Config path relative to repo root (default: orp.yml)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    s_about = sub.add_parser(
+        "about",
+        help="Describe ORP discovery surfaces and machine-friendly interfaces",
+    )
+    s_about.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_about.set_defaults(func=cmd_about, json_output=False)
+
     s_init = sub.add_parser("init", help="Initialize runtime folders and starter config")
-    s_init.set_defaults(func=cmd_init)
+    s_init.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_init.set_defaults(func=cmd_init, json_output=False)
 
     s_gate = sub.add_parser("gate", help="Gate operations")
     gate_sub = s_gate.add_subparsers(dest="gate_cmd", required=True)
     s_run = gate_sub.add_parser("run", help="Run configured gates for a profile")
     s_run.add_argument("--profile", required=True, help="Profile name from config")
     s_run.add_argument("--run-id", default="", help="Optional run id override")
-    s_run.set_defaults(func=cmd_gate_run)
+    s_run.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_run.set_defaults(func=cmd_gate_run, json_output=False)
 
     s_packet = sub.add_parser("packet", help="Packet operations")
     packet_sub = s_packet.add_subparsers(dest="packet_cmd", required=True)
@@ -1099,7 +1445,13 @@ def build_parser() -> argparse.ArgumentParser:
     s_emit.add_argument("--profile", required=True, help="Profile name from config")
     s_emit.add_argument("--run-id", default="", help="Run id (defaults to last run)")
     s_emit.add_argument("--kind", default="", help="Packet kind override")
-    s_emit.set_defaults(func=cmd_packet_emit)
+    s_emit.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_emit.set_defaults(func=cmd_packet_emit, json_output=False)
 
     s_erdos = sub.add_parser("erdos", help="Erdos catalog operations")
     erdos_sub = s_erdos.add_subparsers(dest="erdos_cmd", required=True)
@@ -1160,13 +1512,25 @@ def build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Additional args forwarded to scripts/orp-erdos-problems-sync.py",
     )
-    s_erdos_sync.set_defaults(func=cmd_erdos_sync)
+    s_erdos_sync.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_erdos_sync.set_defaults(func=cmd_erdos_sync, json_output=False)
 
     s_pack = sub.add_parser("pack", help="Profile pack operations")
     pack_sub = s_pack.add_subparsers(dest="pack_cmd", required=True)
 
     s_pack_list = pack_sub.add_parser("list", help="List available local ORP packs")
-    s_pack_list.set_defaults(func=cmd_pack_list)
+    s_pack_list.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_pack_list.set_defaults(func=cmd_pack_list, json_output=False)
 
     s_pack_install = pack_sub.add_parser(
         "install",
@@ -1230,7 +1594,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allow bootstrap to overwrite existing scaffolded files",
     )
     s_pack_install.set_defaults(bootstrap=True)
-    s_pack_install.set_defaults(func=cmd_pack_install)
+    s_pack_install.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_pack_install.set_defaults(func=cmd_pack_install, json_output=False)
 
     s_pack_fetch = pack_sub.add_parser(
         "fetch",
@@ -1288,7 +1658,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow overwriting starter scaffold files during install",
     )
-    s_pack_fetch.set_defaults(func=cmd_pack_fetch)
+    s_pack_fetch.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_pack_fetch.set_defaults(func=cmd_pack_fetch, json_output=False)
 
     s_report = sub.add_parser("report", help="Run report operations")
     report_sub = s_report.add_subparsers(dest="report_cmd", required=True)
@@ -1317,7 +1693,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also print markdown summary to stdout",
     )
-    s_report_summary.set_defaults(func=cmd_report_summary)
+    s_report_summary.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_report_summary.set_defaults(func=cmd_report_summary, json_output=False)
 
     return p
 

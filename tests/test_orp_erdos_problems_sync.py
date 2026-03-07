@@ -10,6 +10,7 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "orp-erdos-problems-sync.py"
+CLI = REPO_ROOT / "cli" / "orp.py"
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "erdos_sample.html"
 
 
@@ -116,6 +117,51 @@ class ErdosProblemsSyncTests(unittest.TestCase):
             proc = _run_sync(tmp, ["--problem-id", "999999"])
             self.assertEqual(proc.returncode, 4)
             self.assertIn("selected.missing=999999", proc.stdout)
+
+    def test_cli_json_output_is_machine_readable(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            selected_dir = tmp / "selected"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(tmp),
+                    "erdos",
+                    "sync",
+                    "--input-html",
+                    str(FIXTURE),
+                    "--out-all",
+                    str(tmp / "all.json"),
+                    "--out-open",
+                    str(tmp / "open.json"),
+                    "--out-closed",
+                    str(tmp / "closed.json"),
+                    "--out-active",
+                    str(tmp / "active.json"),
+                    "--out-open-list",
+                    str(tmp / "open.md"),
+                    "--problem-id",
+                    "20",
+                    "--out-problem-dir",
+                    str(selected_dir),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["returncode"], 0)
+            self.assertEqual(payload["summary"]["open"], 1)
+            self.assertEqual(payload["summary"]["closed"], 1)
+            self.assertEqual(payload["selected_count"], 1)
+            self.assertEqual(payload["selected"][0]["problem_id"], 20)
+            self.assertEqual(payload["selected"][0]["url"], "https://erdosproblems.com/20")
 
 
 if __name__ == "__main__":

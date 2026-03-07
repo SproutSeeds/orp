@@ -23,9 +23,8 @@ class NpmBinWrapperTests(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         self.assertIn("ORP CLI", proc.stdout)
-        self.assertIn("{init,gate,packet,erdos,pack,report}", proc.stdout)
+        self.assertIn("{about,init,gate,packet,erdos,pack,report}", proc.stdout)
 
 
 if __name__ == "__main__":
     unittest.main()
-

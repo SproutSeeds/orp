@@ -1,0 +1,57 @@
+# ORP
+
+ORP (Open Research Protocol) is a docs-first, local-first, agent-friendly protocol and CLI for research workflows.
+
+## Start Here
+
+- `README.md` — high-level overview, install path, pack flow, and validated examples.
+- `PROTOCOL.md` — process boundary and operating rules.
+- `AGENT_INTEGRATION.md` — how to make ORP the default mode for an AI agent.
+- `INSTALL.md` — adopt ORP in an existing repo or start fresh.
+- `docs/AGENT_LOOP.md` — canonical ORP loop for agent-led workflows.
+
+## Fast Machine Discovery
+
+- Run `orp about --json` for machine-readable tool metadata, artifact paths, schemas, supported commands, and bundled packs.
+- Run `orp erdos sync --json` for machine-readable Erdos catalog sync results.
+- Run `orp pack list --json` for machine-readable bundled pack inventory.
+- Core runtime commands also support `--json`:
+  - `orp init --json`
+  - `orp gate run --profile <profile> --json`
+  - `orp packet emit --profile <profile> --json`
+  - `orp report summary --json`
+  - `orp pack install --pack-id <pack-id> --json`
+  - `orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json`
+
+## Stable Artifact Paths
+
+- `orp/state.json`
+- `orp/artifacts/<run_id>/RUN.json`
+- `orp/artifacts/<run_id>/RUN_SUMMARY.md`
+- `orp/packets/<packet_id>.json`
+- `orp/packets/<packet_id>.md`
+
+## Schemas
+
+- `spec/v1/orp.config.schema.json`
+- `spec/v1/packet.schema.json`
+- `spec/v1/profile-pack.schema.json`
+
+## Key Commands
+
+- `orp init`
+- `orp gate run --profile <profile>`
+- `orp packet emit --profile <profile>`
+- `orp report summary`
+- `orp erdos sync`
+- `orp pack list`
+- `orp pack install --pack-id erdos-open-problems`
+- `orp pack fetch --source <git-url> --pack-id <pack-id> --install-target .`
+
+## Included Pack
+
+- `packs/erdos-open-problems/` — public Erdos catalog sync plus starter flows for Problem 857, live compare, and governance.
+
+## Important Boundary
+
+ORP files are process-only. They are not evidence. Evidence belongs in canonical artifact paths such as code, data, proofs, logs, and papers.

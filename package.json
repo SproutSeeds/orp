@@ -1,7 +1,7 @@
 {
   "name": "@sproutseeds/orp-cli",
-  "version": "0.1.3",
-  "description": "ORP CLI (Open Research Protocol): runtime, reports, and problem-pack install/fetch tooling.",
+  "version": "0.1.4",
+  "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,7 +29,8 @@
     "INSTALL.md",
     "LICENSE",
     "PROTOCOL.md",
-    "README.md"
+    "README.md",
+    "llms.txt"
   ],
   "engines": {
     "node": ">=18"
@@ -39,10 +40,15 @@
     "test": "python3 -m unittest discover -s tests -v"
   },
   "keywords": [
+    "agentic",
+    "ai-agents",
     "cli",
     "gates",
+    "llms",
+    "machine-readable",
     "open-research-protocol",
     "orp",
+    "research-automation",
     "research-workflow"
   ]
 }
