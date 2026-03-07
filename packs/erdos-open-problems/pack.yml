@@ -1,7 +1,7 @@
 schema_version: "1.0.0"
 pack_id: erdos-open-problems
 name: Erdos Open Problems Pack
-version: "0.1.1"
+version: "0.1.2"
 description: >
   ORP profile templates for sunflower/Erdos open-problem workflows, including
   live gate compare profiles for Problems 857, 20, and 367 plus mathlib PR

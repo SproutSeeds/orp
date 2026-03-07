@@ -146,9 +146,9 @@ class OrpPacketEmitTests(unittest.TestCase):
                         "stdout_path": f"orp/artifacts/{run_id}/spec.stdout.log",
                         "stderr_path": f"orp/artifacts/{run_id}/spec.stderr.log",
                         "rule_issues": [],
-                        "evidence_paths": [f"orchestrator/logs/{run_id}/SPEC_CHECK.json"],
-                        "evidence_status": "starter_stub",
-                        "evidence_note": "starter spec stub",
+                        "evidence_paths": ["analysis/erdos_problems/selected/erdos_problem.857.json"],
+                        "evidence_status": "evidence",
+                        "evidence_note": "public Problem 857 scope consistency check",
                     }
                 ],
                 "summary": {
@@ -160,15 +160,15 @@ class OrpPacketEmitTests(unittest.TestCase):
                 "epistemic_status": {
                     "overall": "starter_public_scaffold",
                     "starter_scaffold": True,
-                    "stub_gates": ["spec_faithfulness"],
+                    "stub_gates": ["lean_build_balance"],
                     "starter_scaffold_gates": [],
-                    "evidence_gates": [],
+                    "evidence_gates": ["spec_faithfulness"],
                     "process_only_gates": [],
                     "strongest_evidence_paths": [
                         "analysis/curated-evidence.json",
-                        "analysis/selected/erdos_problem.857.json",
+                        "analysis/erdos_problems/selected/erdos_problem.857.json",
                     ],
-                    "notes": ["starter lane", "starter spec stub"],
+                    "notes": ["starter lane", "public Problem 857 scope consistency check"],
                 },
             }
             (run_dir / "RUN.json").write_text(json.dumps(run_payload, indent=2) + "\n", encoding="utf-8")
@@ -185,7 +185,13 @@ class OrpPacketEmitTests(unittest.TestCase):
                             "selected": [
                                 {
                                     "problem_id": 857,
-                                    "out": str(root / "analysis" / "selected" / "erdos_problem.857.json"),
+                                    "out": str(
+                                        root
+                                        / "analysis"
+                                        / "erdos_problems"
+                                        / "selected"
+                                        / "erdos_problem.857.json"
+                                    ),
                                 }
                             ]
                         },
@@ -219,10 +225,10 @@ class OrpPacketEmitTests(unittest.TestCase):
             self.assertEqual(packet["evidence_status"]["overall"], "starter_public_scaffold")
             self.assertIn("analysis/curated-evidence.json", packet["protocol_boundary"]["evidence_paths"])
             self.assertIn(
-                "analysis/selected/erdos_problem.857.json",
+                "analysis/erdos_problems/selected/erdos_problem.857.json",
                 packet["protocol_boundary"]["evidence_paths"],
             )
-            self.assertEqual(packet["gates"][0]["evidence_status"], "starter_stub")
+            self.assertEqual(packet["gates"][0]["evidence_status"], "evidence")
 
 
 if __name__ == "__main__":

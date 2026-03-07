@@ -106,6 +106,25 @@ orp report summary
 
 This path has been validated against the published npm package in a fresh directory and is the recommended first pack workflow.
 
+Clean-room public Problem 857 cycle:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include problem857
+
+orp erdos sync \
+  --problem-id 857 \
+  --out-problem-dir analysis/erdos_problems/selected
+
+orp --config orp.erdos-problem857.yml \
+  gate run --profile sunflower_problem857_discovery
+
+orp report summary
+```
+
+This lane remains starter-heavy overall, but `spec_faithfulness` now performs a real public consistency check against the synced Problem 857 payload.
+
 Strict mode for private adapter readiness:
 
 ```bash

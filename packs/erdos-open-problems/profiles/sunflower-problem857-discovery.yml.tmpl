@@ -7,6 +7,7 @@ project:
     code: sunflower_lean/
     analysis: analysis/
     docs: docs/
+    selected_problem_json: {{TARGET_REPO_ROOT}}/analysis/erdos_problems/selected/erdos_problem.857.json
     board_json: {{TARGET_REPO_ROOT}}/analysis/problem857_counting_gateboard.json
     board_md: {{TARGET_REPO_ROOT}}/docs/PROBLEM857_COUNTING_OPS_BOARD.md
     scope_config: {{TARGET_REPO_ROOT}}/orchestrator/v2/scopes/problem_857.yaml
@@ -28,7 +29,8 @@ epistemic_status:
   notes:
     - Public Problem 857 workflow is a starter discovery lane, not a proof-complete pipeline.
     - board_refresh, board_ready_queue, and route_frontier operate on starter scaffold state.
-    - spec_faithfulness and lean_build_balance are starter stubs until replaced by substantive adapters.
+    - spec_faithfulness validates the synced public Problem 857 snapshot against the installed scope and starter board.
+    - lean_build_balance remains a starter stub until real Lean build integration replaces it.
 
 lifecycle:
   claim_status_map:
@@ -90,19 +92,21 @@ gates:
     on_fail: mark_blocked
 
   - id: spec_faithfulness
-    description: Enforce theorem-cycle semantic completeness contract.
+    description: Validate public Problem 857 scope consistency against synced Erdos data.
     phase: quant_assembly
-    command: python3 orchestrator/spec_check.py --run-id {run_id}
+    command: python3 orchestrator/spec_check.py --run-id {run_id} --problem-id 857 --selected-problem analysis/erdos_problems/selected/erdos_problem.857.json --scope orchestrator/v2/scopes/problem_857.yaml --board analysis/problem857_counting_gateboard.json
     working_dir: {{TARGET_REPO_ROOT}}
     pass:
       exit_codes: [0]
+      stdout_must_contain:
+        - spec_check=PASS
     evidence:
       include_stdout: true
       include_stderr: true
-      status: starter_stub
-      note: Starter spec_check stub reports process status only and must be replaced for substantive verification.
+      status: evidence
+      note: Uses the synced public Problem 857 payload as evidence input and validates that scope plus starter board target the same problem.
       paths:
-        - {{TARGET_REPO_ROOT}}/orchestrator/logs/{run_id}/SPEC_CHECK.json
+        - {{TARGET_REPO_ROOT}}/analysis/erdos_problems/selected/erdos_problem.857.json
     on_fail: mark_blocked
 
   - id: lean_build_balance

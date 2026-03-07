@@ -1,6 +1,6 @@
 {
   "name": "@sproutseeds/orp-cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
   "license": "MIT",
   "repository": {

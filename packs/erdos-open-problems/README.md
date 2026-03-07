@@ -81,6 +81,25 @@ orp report summary
 
 This is the simplest pack-backed research cycle validated from the published npm package in a fresh directory.
 
+Clean-room public Problem 857 cycle:
+
+```bash
+orp pack install \
+  --pack-id erdos-open-problems \
+  --include problem857
+
+orp erdos sync \
+  --problem-id 857 \
+  --out-problem-dir analysis/erdos_problems/selected
+
+orp --config orp.erdos-problem857.yml \
+  gate run --profile sunflower_problem857_discovery
+
+orp report summary
+```
+
+In this public lane, `spec_faithfulness` is no longer a stub. It validates that the synced `erdos_problem.857.json` payload, the installed scope YAML, and the starter board all target the same problem.
+
 Enforce strict adapter readiness:
 
 ```bash

@@ -552,30 +552,401 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
+from typing import Any
+
+
+PROBLEM_ID = 857
+DEFAULT_SELECTED_PROBLEM = "analysis/erdos_problems/selected/erdos_problem.857.json"
+LEGACY_SELECTED_PROBLEM = "analysis/selected/erdos_problem.857.json"
+DEFAULT_SCOPE = "orchestrator/v2/scopes/problem_857.yaml"
+DEFAULT_BOARD = "analysis/problem857_counting_gateboard.json"
 
 
 def _now_utc() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(Path(".").resolve()))
+    except Exception:
+        return str(path)
+
+
+def _coerce_scalar(text: str) -> Any:
+    raw = text.strip()
+    if not raw:
+        return ""
+    if raw.startswith(("'", '"')) and raw.endswith(("'", '"')) and len(raw) >= 2:
+        raw = raw[1:-1]
+    lowered = raw.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    if raw.isdigit():
+        return int(raw)
+    return raw
+
+
+def _load_scope(path: Path) -> dict[str, Any]:
+    text = path.read_text(encoding="utf-8")
+    try:
+        import yaml  # type: ignore
+    except Exception:
+        yaml = None  # type: ignore[assignment]
+
+    if yaml is not None:
+        loaded = yaml.safe_load(text)
+        if isinstance(loaded, dict):
+            return loaded
+
+    payload: dict[str, Any] = {}
+    active_list: str | None = None
+    for raw_line in text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        if active_list and raw_line.startswith("  - "):
+            values = payload.setdefault(active_list, [])
+            if isinstance(values, list):
+                values.append(_coerce_scalar(raw_line.split("- ", 1)[1]))
+            continue
+        active_list = None
+        if ":" not in raw_line:
+            continue
+        key, value = raw_line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if not value:
+            payload[key] = []
+            active_list = key
+            continue
+        payload[key] = _coerce_scalar(value)
+    return payload
+
+
+def _add_check(
+    checks: list[dict[str, Any]],
+    *,
+    check_id: str,
+    ok: bool,
+    detail: str,
+    path: Path | None = None,
+    expected: Any = None,
+    actual: Any = None,
+) -> bool:
+    row: dict[str, Any] = {
+        "id": check_id,
+        "status": "PASS" if ok else "FAIL",
+        "detail": detail,
+    }
+    if path is not None:
+        row["path"] = _rel(path)
+    if expected is not None:
+        row["expected"] = expected
+    if actual is not None:
+        row["actual"] = actual
+    checks.append(row)
+    return ok
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"json root must be object: {path}")
+    return payload
+
+
+def _candidate_paths(raw: list[str]) -> list[Path]:
+    out: list[Path] = []
+    seen: set[str] = set()
+    for entry in raw:
+        value = entry.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        out.append(Path(value))
+    return out
+
+
+def _first_existing(paths: list[Path]) -> Path | None:
+    root = Path(".").resolve()
+    for candidate in paths:
+        full = candidate if candidate.is_absolute() else root / candidate
+        if full.exists():
+            return full
+    return None
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Starter spec-check stub")
+    parser = argparse.ArgumentParser(
+        description="Validate public Problem 857 scope consistency against synced Erdos data"
+    )
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--problem-id", type=int, default=PROBLEM_ID)
+    parser.add_argument(
+        "--selected-problem",
+        action="append",
+        default=[],
+        help="Selected problem JSON path (repeatable; first existing path wins).",
+    )
+    parser.add_argument("--scope", default=DEFAULT_SCOPE, help="Scope YAML path.")
+    parser.add_argument("--board", default=DEFAULT_BOARD, help="Board JSON path.")
     args = parser.parse_args()
 
+    checks: list[dict[str, Any]] = []
+    selected_candidates = _candidate_paths(
+        list(args.selected_problem) or [DEFAULT_SELECTED_PROBLEM, LEGACY_SELECTED_PROBLEM]
+    )
+    selected_path = _first_existing(selected_candidates)
+    scope_path = Path(args.scope).resolve()
+    board_path = Path(args.board).resolve()
+
+    selected_payload: dict[str, Any] = {}
+    if selected_path is None:
+        checked = ", ".join(str(path) for path in selected_candidates)
+        _add_check(
+            checks,
+            check_id="selected_problem_exists",
+            ok=False,
+            detail=f"selected problem JSON not found; checked: {checked}",
+        )
+    else:
+        try:
+            selected_payload = _load_json(selected_path)
+        except Exception as exc:
+            _add_check(
+                checks,
+                check_id="selected_problem_json_valid",
+                ok=False,
+                detail=f"failed to parse selected problem JSON: {exc}",
+                path=selected_path,
+            )
+        else:
+            _add_check(
+                checks,
+                check_id="selected_problem_exists",
+                ok=True,
+                detail="selected problem JSON is present",
+                path=selected_path,
+            )
+
+    problem_payload = (
+        selected_payload.get("problem", {})
+        if isinstance(selected_payload.get("problem"), dict)
+        else {}
+    )
+    source_payload = (
+        selected_payload.get("source", {})
+        if isinstance(selected_payload.get("source"), dict)
+        else {}
+    )
+
+    public_problem_id = int(problem_payload.get("problem_id", 0) or 0)
+    _add_check(
+        checks,
+        check_id="selected_problem_id_matches",
+        ok=public_problem_id == int(args.problem_id),
+        detail="public selected problem id matches workflow problem id",
+        path=selected_path,
+        expected=int(args.problem_id),
+        actual=public_problem_id,
+    )
+    public_status = str(problem_payload.get("status_bucket", "")).strip()
+    _add_check(
+        checks,
+        check_id="selected_problem_status_present",
+        ok=bool(public_status),
+        detail="public selected problem includes status_bucket",
+        path=selected_path,
+        actual=public_status,
+    )
+    source_ok = (
+        str(source_payload.get("site", "")).strip() == "erdosproblems.com"
+        and bool(str(source_payload.get("url", "")).strip())
+        and bool(str(source_payload.get("source_sha256", "")).strip())
+    )
+    _add_check(
+        checks,
+        check_id="selected_problem_source_metadata_present",
+        ok=source_ok,
+        detail="public selected problem records Erdos source metadata",
+        path=selected_path,
+        expected="site=erdosproblems.com with url and source_sha256",
+        actual={
+            "site": str(source_payload.get("site", "")).strip(),
+            "url": str(source_payload.get("url", "")).strip(),
+            "source_sha256": str(source_payload.get("source_sha256", "")).strip(),
+        },
+    )
+    statement = str(problem_payload.get("statement", "")).strip()
+    _add_check(
+        checks,
+        check_id="selected_problem_statement_present",
+        ok=bool(statement),
+        detail="public selected problem includes a non-empty statement",
+        path=selected_path,
+    )
+
+    scope_payload: dict[str, Any] = {}
+    if not scope_path.exists():
+        _add_check(
+            checks,
+            check_id="scope_exists",
+            ok=False,
+            detail="installed Problem 857 scope YAML is missing",
+            path=scope_path,
+        )
+    else:
+        try:
+            scope_payload = _load_scope(scope_path)
+        except Exception as exc:
+            _add_check(
+                checks,
+                check_id="scope_yaml_valid",
+                ok=False,
+                detail=f"failed to parse scope YAML: {exc}",
+                path=scope_path,
+            )
+        else:
+            _add_check(
+                checks,
+                check_id="scope_exists",
+                ok=True,
+                detail="installed Problem 857 scope YAML is present",
+                path=scope_path,
+            )
+
+    scope_problem_id = int(scope_payload.get("problem_id", 0) or 0)
+    _add_check(
+        checks,
+        check_id="scope_problem_id_matches",
+        ok=scope_problem_id == int(args.problem_id),
+        detail="scope problem id matches workflow problem id",
+        path=scope_path,
+        expected=int(args.problem_id),
+        actual=scope_problem_id,
+    )
+    scope_status = str(scope_payload.get("status", "")).strip()
+    _add_check(
+        checks,
+        check_id="scope_status_matches_public_status",
+        ok=bool(scope_status) and bool(public_status) and scope_status == public_status,
+        detail="scope status matches public selected problem status",
+        path=scope_path,
+        expected=public_status or "(non-empty public status)",
+        actual=scope_status,
+    )
+    scope_name = str(scope_payload.get("name", "")).strip()
+    _add_check(
+        checks,
+        check_id="scope_name_mentions_problem",
+        ok=str(args.problem_id) in scope_name,
+        detail="scope name mentions the workflow problem id",
+        path=scope_path,
+        expected=f"contains {args.problem_id}",
+        actual=scope_name,
+    )
+
+    board_payload: dict[str, Any] = {}
+    if not board_path.exists():
+        _add_check(
+            checks,
+            check_id="board_exists",
+            ok=False,
+            detail="starter board JSON is missing",
+            path=board_path,
+        )
+    else:
+        try:
+            board_payload = _load_json(board_path)
+        except Exception as exc:
+            _add_check(
+                checks,
+                check_id="board_json_valid",
+                ok=False,
+                detail=f"failed to parse board JSON: {exc}",
+                path=board_path,
+            )
+        else:
+            _add_check(
+                checks,
+                check_id="board_exists",
+                ok=True,
+                detail="starter board JSON is present",
+                path=board_path,
+            )
+
+    board_problem_id = int(board_payload.get("problem_id", 0) or 0)
+    _add_check(
+        checks,
+        check_id="board_problem_id_matches",
+        ok=board_problem_id == int(args.problem_id),
+        detail="starter board problem id matches workflow problem id",
+        path=board_path,
+        expected=int(args.problem_id),
+        actual=board_problem_id,
+    )
+    _add_check(
+        checks,
+        check_id="board_marked_starter_scaffold",
+        ok=bool(board_payload.get("starter_scaffold", False)),
+        detail="starter board explicitly marks itself as starter scaffolding",
+        path=board_path,
+        expected=True,
+        actual=bool(board_payload.get("starter_scaffold", False)),
+    )
+    route_status = board_payload.get("route_status", [])
+    _add_check(
+        checks,
+        check_id="board_route_status_present",
+        ok=isinstance(route_status, list) and len(route_status) > 0,
+        detail="starter board includes route status rows",
+        path=board_path,
+        expected="non-empty list",
+        actual=f"{len(route_status) if isinstance(route_status, list) else 0} rows",
+    )
+
+    failures = [row for row in checks if row.get("status") == "FAIL"]
+    status = "PASS" if not failures else "FAIL"
     out_path = Path("orchestrator") / "logs" / args.run_id / "SPEC_CHECK.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "status": "PASS",
+        "status": status,
+        "checker": "problem857_public_spec_check",
         "run_id": args.run_id,
+        "problem_id": int(args.problem_id),
         "checked_at_utc": _now_utc(),
-        "note": "starter stub: replace with real spec_check.py when available",
+        "note": (
+            "Validates that the synced public Problem 857 payload, installed scope, "
+            "and starter board agree on the target problem."
+        ),
+        "starter_scaffold": True,
+        "selected_problem_path": _rel(selected_path) if selected_path is not None else "",
+        "scope_path": _rel(scope_path),
+        "board_path": _rel(board_path),
+        "summary": {
+            "passed": len(checks) - len(failures),
+            "failed": len(failures),
+            "total": len(checks),
+        },
+        "public_problem": {
+            "problem_id": public_problem_id,
+            "status_bucket": public_status,
+            "status_label": str(problem_payload.get("status_label", "")).strip(),
+            "problem_url": str(problem_payload.get("problem_url", "")).strip(),
+        },
+        "checks": checks,
     }
     out_path.write_text(json.dumps(payload, indent=2) + "\\n", encoding="utf-8")
 
-    print("spec_check=PASS")
+    print(f"spec_check={status}")
+    if selected_path is not None:
+        print(f"selected_problem_json={_rel(selected_path)}")
+    print(f"scope_yaml={_rel(scope_path)}")
+    print(f"board_json={_rel(board_path)}")
     print(f"spec_check_json={out_path}")
-    return 0
+    return 0 if status == "PASS" else 1
 
 
 if __name__ == "__main__":
@@ -839,6 +1210,10 @@ def _write_report(
     lines.append("")
     lines.append("## Next Steps")
     lines.append("")
+    if "problem857" in rendered:
+        lines.append(
+            "- Sync public Problem 857 data first with `orp erdos sync --problem-id 857 --out-problem-dir analysis/erdos_problems/selected`."
+        )
     lines.append("- Run selected ORP profiles with `orp --config <rendered-config> gate run --profile <profile>`.")
     lines.append("- If developing ORP locally, the equivalent command is `./scripts/orp --config <rendered-config> gate run --profile <profile>`.")
     lines.append("- Generate one-page run digest with `orp report summary --run-id <run_id>`.")
