@@ -1,0 +1,223 @@
+version: "1"
+
+project:
+  name: external-pr-governance-example
+  repo_root: .
+  canonical_paths:
+    target_repo_root: /path/to/working/repo
+    default_pr_body_file: /path/to/working/repo/analysis/PR_DRAFT_BODY.md
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 1200
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: pr
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: watch_select
+    description: Example watch/select gate.
+    phase: scope_lock
+    command: printf 'selection=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - selection=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: viability_gate
+    description: Example viability gate.
+    phase: scope_lock
+    command: printf 'decision=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - decision=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: overlap_gate
+    description: Example overlap gate.
+    phase: scope_lock
+    command: printf 'overlap=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - overlap=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: local_gate
+    description: Example local verification gate.
+    phase: verification
+    command: printf 'gate=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - gate=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: ready_to_draft
+    description: Example ready-to-draft gate.
+    phase: verification
+    command: printf 'ready_to_draft=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_to_draft=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: pr_body_preflight
+    description: Example PR body preflight.
+    phase: verification
+    command: printf 'gate=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - gate=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - /path/to/working/repo/analysis/PR_DRAFT_BODY.md
+    on_fail: mark_blocked
+
+  - id: draft_pr_transition
+    description: Example draft PR open/update gate.
+    phase: verification
+    command: printf 'draft_pr=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - draft_pr=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - /path/to/working/repo/analysis/PR_DRAFT_BODY.md
+    on_fail: stop
+
+  - id: draft_ci
+    description: Example draft CI gate.
+    phase: verification
+    command: printf 'draft_ci=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - draft_ci=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: ready_for_review
+    description: Example ready-for-review gate.
+    phase: verification
+    command: printf 'ready_for_review=PASS\n'
+    working_dir: /path/to/working/repo
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ready_for_review=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+profiles:
+  external_watch_select:
+    description: Example watch/select profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - watch_select
+
+  external_pre_open:
+    description: Example pre-open profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - viability_gate
+      - overlap_gate
+
+  external_local_readiness:
+    description: Example local-readiness profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - local_gate
+      - ready_to_draft
+      - pr_body_preflight
+
+  external_draft_transition:
+    description: Example draft transition profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - draft_pr_transition
+
+  external_draft_lifecycle:
+    description: Example draft lifecycle profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - draft_ci
+      - ready_for_review
+
+  external_full_flow:
+    description: Example full-flow profile.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - watch_select
+      - viability_gate
+      - overlap_gate
+      - local_gate
+      - ready_to_draft
+      - pr_body_preflight
+      - draft_pr_transition
+      - draft_ci
+      - ready_for_review

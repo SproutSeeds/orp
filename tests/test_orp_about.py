@@ -119,6 +119,57 @@ class OrpAboutTests(unittest.TestCase):
             self.assertTrue(run_record["epistemic_status"]["starter_scaffold"])
             self.assertEqual(run_record["epistemic_status"]["stub_gates"], ["smoke"])
 
+    def test_gate_run_generates_distinct_default_run_ids_back_to_back(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = {
+                "profiles": {
+                    "default": {
+                        "packet_kind": "problem_scope",
+                        "gate_ids": ["smoke"],
+                    }
+                },
+                "gates": [
+                    {
+                        "id": "smoke",
+                        "phase": "verification",
+                        "command": "echo ORP_SMOKE",
+                        "pass": {
+                            "exit_codes": [0],
+                            "stdout_must_contain": ["ORP_SMOKE"],
+                        },
+                    }
+                ],
+            }
+            (root / "orp.sample.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+            run_ids: list[str] = []
+            for _ in range(2):
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        str(CLI),
+                        "--repo-root",
+                        str(root),
+                        "--config",
+                        "orp.sample.json",
+                        "gate",
+                        "run",
+                        "--profile",
+                        "default",
+                        "--json",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    cwd=str(REPO_ROOT),
+                )
+                self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+                payload = json.loads(proc.stdout)
+                run_ids.append(str(payload["run_id"]))
+
+            self.assertEqual(len(run_ids), 2)
+            self.assertNotEqual(run_ids[0], run_ids[1])
+
 
 if __name__ == "__main__":
     unittest.main()

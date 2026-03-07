@@ -1,0 +1,18 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node / packaging
+node_modules/
+*.tgz
+
+# Local ORP runtime and rendered configs
+/orp/
+/orp.yml
+/orp.*.yml
+/orp.*.pack-install-report.md

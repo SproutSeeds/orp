@@ -8,6 +8,10 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 - Run `orp about --json`.
 - If packs matter, run `orp pack list --json`.
 - Read `PROTOCOL.md` before making claims.
+- If the task is external OSS contribution workflow or PR governance, read
+  `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` before selecting work.
+- For the more detailed external-contribution operator rhythm, then read
+  `docs/OSS_CONTRIBUTION_AGENT_LOOP.md`.
 
 ## 2. Select Work
 

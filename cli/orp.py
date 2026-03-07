@@ -36,7 +36,7 @@ def _now_utc() -> str:
 
 
 def _run_id() -> str:
-    return "run-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return "run-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
 
 
 def _read_text(path: Path) -> str:
@@ -273,6 +273,36 @@ def _collect_atomic_context(config: dict[str, Any], repo_root: Path, run: dict[s
     }
 
 
+def _collect_claim_context(
+    config: dict[str, Any],
+    run: dict[str, Any],
+    evidence_paths: list[str],
+) -> dict[str, Any]:
+    project = config.get("project")
+    project_name = ""
+    if isinstance(project, dict):
+        project_name = str(project.get("name", "")).strip()
+    profile = str(run.get("profile", "")).strip() or "default"
+    claim_id = f"{project_name}:{profile}" if project_name else profile
+
+    canonical_artifacts: list[str] = []
+    results = run.get("results", [])
+    if isinstance(results, list):
+        for row in results:
+            if not isinstance(row, dict):
+                continue
+            raw_paths = row.get("evidence_paths", [])
+            if isinstance(raw_paths, list):
+                for raw in raw_paths:
+                    if isinstance(raw, str):
+                        canonical_artifacts.append(raw)
+    canonical_artifacts.extend(evidence_paths)
+    return {
+        "claim_id": claim_id,
+        "canonical_artifacts": _unique_strings(canonical_artifacts),
+    }
+
+
 def _config_epistemic_status(
     config: dict[str, Any], repo_root: Path, vars_map: dict[str, str]
 ) -> dict[str, Any]:
@@ -288,6 +318,7 @@ def _config_epistemic_status(
     return {
         "overall": str(raw.get("overall", "")).strip(),
         "starter_scaffold": bool(raw.get("starter_scaffold", False)),
+        "include_last_erdos_sync": bool(raw.get("include_last_erdos_sync", False)),
         "strongest_evidence_paths": _resolve_config_paths(
             raw.get("strongest_evidence_paths", []), repo_root, vars_map
         ),
@@ -357,7 +388,8 @@ def _derive_epistemic_status(
         if note:
             notes.append(note)
 
-    strongest_paths.extend(_last_erdos_sync_evidence_paths(state, repo_root))
+    if bool(declared.get("include_last_erdos_sync", False)):
+        strongest_paths.extend(_last_erdos_sync_evidence_paths(state, repo_root))
     strongest_paths = _unique_strings(strongest_paths)
     notes = _unique_strings(notes)
 
@@ -860,6 +892,10 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
             repo_root=repo_root,
             vars_map={"run_id": run_id},
         )
+    strongest_evidence_paths = [
+        str(x) for x in epistemic_status.get("strongest_evidence_paths", []) if isinstance(x, str)
+    ]
+    claim_context = _collect_claim_context(effective_config, run, strongest_evidence_paths)
 
     packet = {
         "schema_version": "1.0.0",
@@ -868,7 +904,7 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
         "created_at_utc": now,
         "protocol_boundary": {
             "process_only": True,
-            "evidence_paths": epistemic_status.get("strongest_evidence_paths", []),
+            "evidence_paths": strongest_evidence_paths,
             "note": "Packet is process metadata. Evidence remains in canonical artifact paths.",
         },
         "repo": {
@@ -903,6 +939,8 @@ def cmd_packet_emit(args: argparse.Namespace) -> int:
             "extra_paths": [],
         },
     }
+    if kind in {"pr", "claim", "verification"}:
+        packet["claim_context"] = claim_context
     if atomic_context is not None and kind in {"problem_scope", "atom_pass"}:
         packet["atomic_context"] = atomic_context
 
@@ -1614,6 +1652,18 @@ def _render_packet_md(packet: dict[str, Any]) -> str:
             f"{gate.get('exit_code', '')} | {gate.get('duration_ms', '')} |"
         )
 
+    claim = packet.get("claim_context")
+    if isinstance(claim, dict):
+        lines.append("")
+        lines.append("## Claim Context")
+        lines.append("")
+        lines.append(f"- Claim id: `{claim.get('claim_id', '')}`")
+        artifacts = [str(x) for x in claim.get("canonical_artifacts", []) if isinstance(x, str)]
+        if artifacts:
+            lines.append("- Canonical artifacts:")
+            for path in artifacts:
+                lines.append(f"  - `{path}`")
+
     atomic = packet.get("atomic_context")
     if isinstance(atomic, dict):
         lines.append("")
@@ -1819,11 +1869,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_pack_install.add_argument(
         "--include",
         action="append",
-        choices=["catalog", "live_compare", "problem857", "governance"],
         default=[],
         help=(
             "Component to install (repeatable). "
-            "Default when omitted: catalog + live_compare + problem857."
+            "Valid values depend on the selected pack. "
+            "Default when omitted: the pack's default install set."
         ),
     )
     s_pack_install.add_argument(
@@ -1835,7 +1885,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_pack_install.add_argument(
         "--report",
         default="",
-        help="Install report output path (default: <target>/orp.erdos.pack-install-report.md)",
+        help="Install report output path (default depends on selected pack)",
     )
     s_pack_install.add_argument(
         "--strict-deps",
@@ -1888,9 +1938,8 @@ def build_parser() -> argparse.ArgumentParser:
     s_pack_fetch.add_argument(
         "--include",
         action="append",
-        choices=["catalog", "live_compare", "problem857", "governance"],
         default=[],
-        help="Install component to include (repeatable, install mode only)",
+        help="Install component to include (repeatable, install mode only; valid values depend on the pack)",
     )
     s_pack_fetch.add_argument(
         "--var",

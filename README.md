@@ -21,11 +21,14 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `PROTOCOL.md` — the protocol to copy into a project
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
+- `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
+- `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates
 - `examples/` — minimal examples (illustrative, not exhaustive)
 - `scripts/` — optional helper scripts (no dependencies beyond standard shell tools)
 - `modules/` — optional modules (including Instruments)
 - `docs/` — optional docs (including Instruments overview + presentation)
+  - includes standardized external PR governance: `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md`
   - includes sunflower-coda PR governance mapping: `docs/SUNFLOWER_CODA_PR_GOVERNANCE_MAPPING.md`
 - `cone/` — optional process-only context log (agentic handoff/compaction)
 - `spec/` — optional v1 runtime draft schemas (packets/config/lifecycle mapping)
@@ -162,6 +165,7 @@ ORP supports reusable domain profile packs so core runtime stays general.
 - Pack docs: `docs/PROFILE_PACKS.md`
 - Pack metadata schema: `spec/v1/profile-pack.schema.json`
 - Included pack: `packs/erdos-open-problems/` (857/20/367 + catalog sync + governance profiles)
+- Included pack: `packs/external-pr-governance/` (generic external OSS contribution workflow pack)
 
 Install pack configs into a target repo (recommended):
 

@@ -325,6 +325,9 @@
         "starter_scaffold": {
           "type": "boolean"
         },
+        "include_last_erdos_sync": {
+          "type": "boolean"
+        },
         "strongest_evidence_paths": {
           "type": "array",
           "items": {

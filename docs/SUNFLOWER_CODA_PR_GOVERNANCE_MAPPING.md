@@ -2,6 +2,10 @@
 
 Date analyzed: 2026-03-05
 
+For the generalized cross-ecosystem version, read:
+
+- `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md`
+
 This note maps live `sunflower-coda/repo` PR-governance flow into ORP profile-pack gates without hardwiring ORP core to one team.
 
 ## Sources reviewed

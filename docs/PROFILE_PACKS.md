@@ -149,20 +149,20 @@ python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --template s
 Then run ORP with the rendered config:
 
 ```bash
-orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-live-compare.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
 
-orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
+orp --repo-root /path/to/scratch-repo report summary --run-id <run_id>
 
 export ORP_ISSUE_NUMBER=34959
 export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
 export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
-orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_full_flow
 
-orp --repo-root /tmp/orp-compare --config /path/to/repo/orp.erdos-catalog-sync.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/repo/orp.erdos-catalog-sync.yml \
   gate run --profile erdos_catalog_sync_active
 
 orp erdos sync --problem-id 857 --problem-id 20

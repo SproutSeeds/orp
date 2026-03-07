@@ -1,0 +1,233 @@
+version: "1"
+
+project:
+  name: external-pr-governance
+  repo_root: .
+  canonical_paths:
+    target_repo_root: {{TARGET_REPO_ROOT}}
+    default_pr_body_file: {{TARGET_REPO_ROOT}}/{{DEFAULT_PR_BODY_FILE}}
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: {{ORP_TIMEOUT_SEC}}
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: pr
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: watch_select
+    description: Select a target issue or contribution lane and record why it is worth pursuing.
+    phase: scope_lock
+    command: >
+      {{WATCH_SELECT_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{WATCH_SELECT_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: viability_gate
+    description: Decide whether work is viable and etiquette-safe to start.
+    phase: scope_lock
+    command: >
+      {{VIABILITY_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{VIABILITY_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: overlap_gate
+    description: Decide whether overlap is clear or coordination is already complete.
+    phase: scope_lock
+    command: >
+      {{OVERLAP_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{OVERLAP_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: local_gate
+    description: Run the repo-local verification gate before any public PR update.
+    phase: verification
+    command: >
+      {{LOCAL_GATE_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    timeout_sec: {{ORP_TIMEOUT_SEC}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{LOCAL_GATE_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: ready_to_draft
+    description: Freeze the branch or change-set as ready to open or update a draft PR.
+    phase: verification
+    command: >
+      {{READY_TO_DRAFT_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{READY_TO_DRAFT_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: pr_body_preflight
+    description: Enforce portable, reviewer-friendly public PR text.
+    phase: verification
+    command: >
+      {{PR_BODY_PREFLIGHT_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{PR_BODY_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - {{TARGET_REPO_ROOT}}/{{DEFAULT_PR_BODY_FILE}}
+    on_fail: mark_blocked
+
+  - id: draft_pr_transition
+    description: Open or update the draft PR only after the same-HEAD ready marker is satisfied.
+    phase: verification
+    command: >
+      {{DRAFT_PR_TRANSITION_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{DRAFT_PR_TRANSITION_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+      paths:
+        - {{TARGET_REPO_ROOT}}/{{DEFAULT_PR_BODY_FILE}}
+    on_fail: stop
+
+  - id: draft_ci
+    description: Confirm draft CI is green or otherwise approved for promotion.
+    phase: verification
+    command: >
+      {{DRAFT_CI_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{DRAFT_CI_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: ready_for_review
+    description: Confirm the PR can be promoted from draft to ready-for-review.
+    phase: verification
+    command: >
+      {{READY_FOR_REVIEW_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{READY_FOR_REVIEW_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+profiles:
+  external_watch_select:
+    description: Watch/select stage for choosing a candidate contribution target before pre-open checks.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - watch_select
+
+  external_pre_open:
+    description: Viability and overlap checks after a target is selected and before implementation or draft creation.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - viability_gate
+      - overlap_gate
+
+  external_local_readiness:
+    description: Local verification, freeze, and PR-body hygiene before draft open/update.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - local_gate
+      - ready_to_draft
+      - pr_body_preflight
+
+  external_draft_transition:
+    description: Open or update the draft PR once the same-HEAD readiness chain has passed.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - draft_pr_transition
+
+  external_draft_lifecycle:
+    description: Draft CI and ready-for-review checks after a draft PR exists.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - draft_ci
+      - ready_for_review
+
+  external_full_flow:
+    description: End-to-end lifecycle from watch/select through draft promotion readiness.
+    mode: collaboration
+    packet_kind: pr
+    gate_ids:
+      - watch_select
+      - viability_gate
+      - overlap_gate
+      - local_gate
+      - ready_to_draft
+      - pr_body_preflight
+      - draft_pr_transition
+      - draft_ci
+      - ready_for_review

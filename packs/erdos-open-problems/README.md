@@ -189,10 +189,10 @@ python3 scripts/orp-pack-render.py \
 ## Run with ORP
 
 ```bash
-orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-live-compare.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/sunflower-coda/repo/orp.erdos-live-compare.yml \
   gate run --profile sunflower_live_compare_857
 
-orp --repo-root /tmp/orp-compare report summary --run-id <run_id>
+orp --repo-root /path/to/scratch-repo report summary --run-id <run_id>
 ```
 
 PR-governance run examples:
@@ -203,17 +203,17 @@ export ORP_BRANCH_NAME=cody/issue-34959-cancellation-bounds
 export ORP_NATURALITY_MODULE=Mathlib/Combinatorics/SetFamily/Shade
 export ORP_PR_BODY_FILE=/path/to/sunflower-coda/repo/analysis/MATHLIB_DRAFT_PR_BODY.md
 
-orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_pre_open
 
-orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/sunflower-coda/repo/orp.erdos-mathlib-pr-governance.yml \
   gate run --profile sunflower_mathlib_draft_readiness
 ```
 
 Catalog sync run (open-default active set):
 
 ```bash
-orp --repo-root /tmp/orp-compare --config /path/to/sunflower-coda/repo/orp.erdos-catalog-sync.yml \
+orp --repo-root /path/to/scratch-repo --config /path/to/sunflower-coda/repo/orp.erdos-catalog-sync.yml \
   gate run --profile erdos_catalog_sync_active
 ```
 

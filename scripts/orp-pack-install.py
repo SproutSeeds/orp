@@ -21,61 +21,85 @@ from typing import Any
 import yaml
 
 
-COMPONENTS: dict[str, dict[str, Any]] = {
-    "catalog": {
-        "template_id": "erdos_problems_catalog_sync",
-        "output_name": "orp.erdos-catalog-sync.yml",
-        "description": "Erdos catalog sync (all/open/closed/active snapshots).",
-        "required_paths": [],
+PACK_SPECS: dict[str, dict[str, Any]] = {
+    "erdos-open-problems": {
+        "default_includes": ["catalog", "live_compare", "problem857"],
+        "report_name": "orp.erdos.pack-install-report.md",
+        "components": {
+            "catalog": {
+                "template_id": "erdos_problems_catalog_sync",
+                "output_name": "orp.erdos-catalog-sync.yml",
+                "description": "Erdos catalog sync (all/open/closed/active snapshots).",
+                "required_paths": [],
+            },
+            "live_compare": {
+                "template_id": "sunflower_live_compare_suite",
+                "output_name": "orp.erdos-live-compare.yml",
+                "description": "Side-by-side atomic-board compare for Problems 857/20/367.",
+                "required_paths": [
+                    "analysis/problem857_counting_gateboard.json",
+                    "analysis/problem20_k3_gateboard.json",
+                    "analysis/problem367_sharp_gateboard.json",
+                    "scripts/problem857_ops_board.py",
+                    "scripts/problem20_ops_board.py",
+                    "scripts/problem367_ops_board.py",
+                    "scripts/frontier_status.py",
+                ],
+            },
+            "problem857": {
+                "template_id": "sunflower_problem857_discovery",
+                "output_name": "orp.erdos-problem857.yml",
+                "description": "Problem 857 discovery profile (board refresh/ready/spec/lean/frontier).",
+                "required_paths": [
+                    "analysis/problem857_counting_gateboard.json",
+                    "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
+                    "orchestrator/v2/scopes/problem_857.yaml",
+                    "orchestrator/spec_check.py",
+                    "scripts/problem857_ops_board.py",
+                    "scripts/frontier_status.py",
+                    "scripts/orp-lean-build-stub.py",
+                    "sunflower_lean/lakefile.lean",
+                ],
+            },
+            "governance": {
+                "template_id": "sunflower_mathlib_pr_governance",
+                "output_name": "orp.erdos-mathlib-pr-governance.yml",
+                "description": "Mathlib PR governance profile set (pre-open, draft-readiness, full flow).",
+                "required_paths": [
+                    "docs/MATHLIB_SUBMISSION_CHECKLIST.md",
+                    "docs/MATHLIB_DRAFT_PR_TEMPLATE.md",
+                    "docs/MATHLIB_ISSUE_VIABILITY_GATE.md",
+                    "docs/UPSTREAM_PR_LANE.md",
+                    "analysis/UPSTREAM_PR_PLAN.yaml",
+                    "scripts/upstream-pr-plan.py",
+                    "scripts/upstream-pr-lane.sh",
+                    "scripts/mathlib-issue-viability-gate.py",
+                    "scripts/mathlib-naturality-snippet.sh",
+                    "scripts/mathlib-issue-local-gate.sh",
+                    "scripts/mathlib-tighten-fine-tooth-gate.sh",
+                    "scripts/mathlib-ready-to-draft-gate.sh",
+                    "scripts/mathlib-pr-body-preflight.py",
+                ],
+            },
+        },
     },
-    "live_compare": {
-        "template_id": "sunflower_live_compare_suite",
-        "output_name": "orp.erdos-live-compare.yml",
-        "description": "Side-by-side atomic-board compare for Problems 857/20/367.",
-        "required_paths": [
-            "analysis/problem857_counting_gateboard.json",
-            "analysis/problem20_k3_gateboard.json",
-            "analysis/problem367_sharp_gateboard.json",
-            "scripts/problem857_ops_board.py",
-            "scripts/problem20_ops_board.py",
-            "scripts/problem367_ops_board.py",
-            "scripts/frontier_status.py",
-        ],
-    },
-    "problem857": {
-        "template_id": "sunflower_problem857_discovery",
-        "output_name": "orp.erdos-problem857.yml",
-        "description": "Problem 857 discovery profile (board refresh/ready/spec/lean/frontier).",
-        "required_paths": [
-            "analysis/problem857_counting_gateboard.json",
-            "docs/PROBLEM857_COUNTING_OPS_BOARD.md",
-            "orchestrator/v2/scopes/problem_857.yaml",
-            "orchestrator/spec_check.py",
-            "scripts/problem857_ops_board.py",
-            "scripts/frontier_status.py",
-            "scripts/orp-lean-build-stub.py",
-            "sunflower_lean/lakefile.lean",
-        ],
-    },
-    "governance": {
-        "template_id": "sunflower_mathlib_pr_governance",
-        "output_name": "orp.erdos-mathlib-pr-governance.yml",
-        "description": "Mathlib PR governance profile set (pre-open, draft-readiness, full flow).",
-        "required_paths": [
-            "docs/MATHLIB_SUBMISSION_CHECKLIST.md",
-            "docs/MATHLIB_DRAFT_PR_TEMPLATE.md",
-            "docs/MATHLIB_ISSUE_VIABILITY_GATE.md",
-            "docs/UPSTREAM_PR_LANE.md",
-            "analysis/UPSTREAM_PR_PLAN.yaml",
-            "scripts/upstream-pr-plan.py",
-            "scripts/upstream-pr-lane.sh",
-            "scripts/mathlib-issue-viability-gate.py",
-            "scripts/mathlib-naturality-snippet.sh",
-            "scripts/mathlib-issue-local-gate.sh",
-            "scripts/mathlib-tighten-fine-tooth-gate.sh",
-            "scripts/mathlib-ready-to-draft-gate.sh",
-            "scripts/mathlib-pr-body-preflight.py",
-        ],
+    "external-pr-governance": {
+        "default_includes": ["governance", "feedback_hardening"],
+        "report_name": "orp.external-pr.pack-install-report.md",
+        "components": {
+            "governance": {
+                "template_id": "oss_pr_governance",
+                "output_name": "orp.external-pr-governance.yml",
+                "description": "Generic external contribution governance profiles (watch/select through draft lifecycle).",
+                "required_paths": ["analysis/PR_DRAFT_BODY.md"],
+            },
+            "feedback_hardening": {
+                "template_id": "oss_feedback_hardening",
+                "output_name": "orp.external-pr-feedback-hardening.yml",
+                "description": "Maintainer-feedback hardening profile.",
+                "required_paths": [],
+            },
+        },
     },
 }
 
@@ -987,6 +1011,21 @@ package SunflowerLean where
 lean_lib SunflowerLean where
 """
 
+STARTER_EXTERNAL_PR_BODY = """# Draft PR Body
+
+## Summary
+
+- TODO: summarize the proposed upstream contribution.
+
+## Local Verification
+
+- TODO: record the local gate outputs and any follow-up notes.
+
+## Coordination
+
+- TODO: note any overlap checks, issue references, or reviewer context.
+"""
+
 
 def _now_utc() -> str:
     return (
@@ -1002,6 +1041,20 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise RuntimeError(f"yaml root must be object: {path}")
     return payload
+
+
+def _pack_spec(pack_id: str) -> dict[str, Any]:
+    spec = PACK_SPECS.get(pack_id)
+    if not isinstance(spec, dict):
+        raise RuntimeError(f"unsupported pack for install flow: {pack_id}")
+    return spec
+
+
+def _pack_components(pack_id: str) -> dict[str, dict[str, Any]]:
+    components = _pack_spec(pack_id).get("components", {})
+    if not isinstance(components, dict) or not components:
+        raise RuntimeError(f"pack has no installable components: {pack_id}")
+    return components
 
 
 def _validate_var(raw: str) -> str:
@@ -1031,11 +1084,20 @@ def _write_json(path: Path, payload: dict[str, Any], *, overwrite: bool) -> bool
 
 def _install_starter_adapters(
     *,
+    pack_id: str,
     target_repo_root: Path,
     includes: list[str],
     overwrite: bool,
 ) -> list[str]:
     created: list[str] = []
+
+    if pack_id == "external-pr-governance":
+        if "governance" not in includes:
+            return created
+        draft_body = target_repo_root / "analysis/PR_DRAFT_BODY.md"
+        if _write_text(draft_body, STARTER_EXTERNAL_PR_BODY, overwrite=overwrite):
+            created.append(str(draft_body.relative_to(target_repo_root)))
+        return created
 
     needs_atomic = any(x in includes for x in ["live_compare", "problem857"])
     if not needs_atomic:
@@ -1090,11 +1152,12 @@ def _render_component(
     orp_repo_root: Path,
     pack_root: Path,
     target_repo_root: Path,
+    components: dict[str, dict[str, Any]],
     component_key: str,
     extra_vars: list[str],
     internal_vars: list[str],
 ) -> Path:
-    comp = COMPONENTS[component_key]
+    comp = components[component_key]
     out_path = target_repo_root / str(comp["output_name"])
     render_script = orp_repo_root / "scripts" / "orp-pack-render.py"
     if not render_script.exists():
@@ -1130,8 +1193,12 @@ def _render_component(
     return out_path
 
 
-def _check_dependencies(target_repo_root: Path, component_key: str) -> tuple[list[str], list[str]]:
-    comp = COMPONENTS[component_key]
+def _check_dependencies(
+    target_repo_root: Path,
+    components: dict[str, dict[str, Any]],
+    component_key: str,
+) -> tuple[list[str], list[str]]:
+    comp = components[component_key]
     required = [str(x) for x in comp.get("required_paths", [])]
     present: list[str] = []
     missing: list[str] = []
@@ -1151,6 +1218,7 @@ def _write_report(
     pack_id: str,
     pack_version: str,
     target_repo_root: Path,
+    components: dict[str, dict[str, Any]],
     rendered: dict[str, Path],
     dep_summary: dict[str, dict[str, Any]],
     bootstrap_enabled: bool,
@@ -1170,7 +1238,7 @@ def _write_report(
     lines.append("| Component | Template | Output |")
     lines.append("|---|---|---|")
     for key, out_path in rendered.items():
-        template_id = str(COMPONENTS[key]["template_id"])
+        template_id = str(components[key]["template_id"])
         lines.append(f"| `{key}` | `{template_id}` | `{out_path}` |")
 
     lines.append("")
@@ -1210,12 +1278,25 @@ def _write_report(
     lines.append("")
     lines.append("## Next Steps")
     lines.append("")
-    if "problem857" in rendered:
+    if pack_id == "erdos-open-problems" and "problem857" in rendered:
         lines.append(
             "- Sync public Problem 857 data first with `orp erdos sync --problem-id 857 --out-problem-dir analysis/erdos_problems/selected`."
         )
+    if pack_id == "external-pr-governance":
+        lines.append(
+            "- Replace the placeholder commands and repo metadata in the rendered configs before treating any governance run as meaningful."
+        )
+        if "governance" in rendered:
+            lines.append(
+                "- Run the lifecycle in order: `external_watch_select`, `external_pre_open`, `external_local_readiness`, `external_draft_transition`, then `external_draft_lifecycle`."
+            )
+        if "feedback_hardening" in rendered:
+            lines.append(
+                "- Use `external_feedback_hardening` when maintainer feedback reveals a missed check that should become a reusable guard."
+            )
     lines.append("- Run selected ORP profiles with `orp --config <rendered-config> gate run --profile <profile>`.")
     lines.append("- If developing ORP locally, the equivalent command is `./scripts/orp --config <rendered-config> gate run --profile <profile>`.")
+    lines.append("- Emit process packets with `orp --config <rendered-config> packet emit --profile <profile> --run-id <run_id>`.")
     lines.append("- Generate one-page run digest with `orp report summary --run-id <run_id>`.")
     lines.append("- Keep ORP core generic; treat this pack as optional domain wiring.")
     lines.append("")
@@ -1249,12 +1330,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--include",
         action="append",
-        choices=sorted(COMPONENTS.keys()),
         default=[],
         help=(
             "Component to install (repeatable). "
-            "Choices: catalog, live_compare, problem857, governance. "
-            "Default when omitted: catalog + live_compare + problem857."
+            "Valid values depend on the selected pack. "
+            "Examples: erdos-open-problems -> catalog/live_compare/problem857/governance; "
+            "external-pr-governance -> governance/feedback_hardening."
         ),
     )
     p.add_argument(
@@ -1266,7 +1347,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--report",
         default="",
-        help="Install report output path (default: <target>/orp.erdos.pack-install-report.md)",
+        help="Install report output path (default depends on selected pack)",
     )
     p.add_argument(
         "--strict-deps",
@@ -1311,14 +1392,29 @@ def main() -> int:
     pack_id = str(pack_meta.get("pack_id", args.pack_id))
     pack_version = str(pack_meta.get("version", "unknown"))
     generated_at_utc = _now_utc()
+    components = _pack_components(pack_id)
 
     includes = list(args.include or [])
     if not includes:
-        includes = ["catalog", "live_compare", "problem857"]
+        default_includes = _pack_spec(pack_id).get("default_includes", [])
+        if isinstance(default_includes, list):
+            includes = [str(x) for x in default_includes if isinstance(x, str)]
+    if not includes:
+        includes = sorted(components.keys())
+
+    unknown = [key for key in includes if key not in components]
+    if unknown:
+        valid = ", ".join(sorted(components.keys()))
+        print(
+            f"error: unknown component(s) for pack {pack_id}: {', '.join(unknown)}; valid: {valid}",
+            file=sys.stderr,
+        )
+        return 2
 
     bootstrap_created: list[str] = []
     if args.bootstrap:
         bootstrap_created = _install_starter_adapters(
+            pack_id=pack_id,
             target_repo_root=target_repo_root,
             includes=includes,
             overwrite=bool(args.overwrite_bootstrap),
@@ -1335,6 +1431,7 @@ def main() -> int:
             orp_repo_root=orp_repo_root,
             pack_root=pack_root,
             target_repo_root=target_repo_root,
+            components=components,
             component_key=key,
             extra_vars=list(args.var or []),
             internal_vars=internal_vars,
@@ -1344,7 +1441,7 @@ def main() -> int:
     dep_summary: dict[str, dict[str, Any]] = {}
     total_missing = 0
     for key in includes:
-        present_paths, missing_paths = _check_dependencies(target_repo_root, key)
+        present_paths, missing_paths = _check_dependencies(target_repo_root, components, key)
         dep_summary[key] = {
             "required": len(present_paths) + len(missing_paths),
             "present": len(present_paths),
@@ -1360,7 +1457,8 @@ def main() -> int:
         else:
             report_path = report_path.resolve()
     else:
-        report_path = (target_repo_root / "orp.erdos.pack-install-report.md").resolve()
+        report_name = str(_pack_spec(pack_id).get("report_name", f"orp.{pack_id}.pack-install-report.md"))
+        report_path = (target_repo_root / report_name).resolve()
 
     _write_report(
         report_path=report_path,
@@ -1368,6 +1466,7 @@ def main() -> int:
         pack_id=pack_id,
         pack_version=pack_version,
         target_repo_root=target_repo_root,
+        components=components,
         rendered=rendered,
         dep_summary=dep_summary,
         bootstrap_enabled=bool(args.bootstrap),

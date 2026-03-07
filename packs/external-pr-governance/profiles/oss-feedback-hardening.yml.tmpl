@@ -1,0 +1,92 @@
+version: "1"
+
+project:
+  name: external-pr-feedback-hardening
+  repo_root: .
+  canonical_paths:
+    target_repo_root: {{TARGET_REPO_ROOT}}
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: {{ORP_TIMEOUT_SEC}}
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: verification
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+  claim_level_values:
+    - Exact
+    - Verified
+    - Heuristic
+    - Conjecture
+
+gates:
+  - id: feedback_record
+    description: Record what slipped, why it slipped, and the intended prevention path.
+    phase: verification
+    command: >
+      {{FEEDBACK_RECORD_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{FEEDBACK_RECORD_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+  - id: guard_validation
+    description: Validate new or updated guards with explicit PASS and FAIL coverage.
+    phase: verification
+    command: >
+      {{GUARD_VALIDATION_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{GUARD_VALIDATION_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+  - id: docs_sync
+    description: Confirm docs, templates, and agent instructions were updated in the same pass.
+    phase: verification
+    command: >
+      {{DOC_SYNC_COMMAND}}
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - {{DOC_SYNC_PASS_TOKEN}}
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: mark_blocked
+
+profiles:
+  external_feedback_hardening:
+    description: Convert maintainer feedback into a validated guard plus synchronized docs.
+    mode: collaboration
+    packet_kind: verification
+    gate_ids:
+      - feedback_record
+      - guard_validation
+      - docs_sync
