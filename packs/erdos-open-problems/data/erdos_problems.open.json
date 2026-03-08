@@ -2,20 +2,20 @@
   "schema_version": "1.0.0",
   "subset": "open",
   "active_status": "open",
-  "generated_at_utc": "2026-03-05T15:52:31Z",
+  "generated_at_utc": "2026-03-08T06:26:52Z",
   "source": {
     "site": "erdosproblems.com",
     "url": "https://erdosproblems.com/range/1-end",
-    "source_sha256": "72366d21b9530355396bef95b3ead90176a9c634b7ecd68fd30c85bad703a0c1",
+    "source_sha256": "10377d6a64c2aa67da4e3bc4bd066b5ccdc33a41536c101027607c8651d15fe0",
     "solve_count": {
-      "raw": "488 solved out of 1179 shown",
-      "solved": 488,
-      "shown": 1179
+      "raw": "491 solved out of 1183 shown",
+      "solved": 491,
+      "shown": 1183
     }
   },
   "summary": {
-    "total": 691,
-    "open": 691,
+    "total": 692,
+    "open": 692,
     "closed": 0,
     "unknown": 0,
     "status_label_counts": {
@@ -26,6 +26,7 @@
       "NOT PROVABLE": 3,
       "OPEN": 645,
       "PROVED": 2,
+      "UNKNOWN": 1,
       "VERIFIABLE": 7
     }
   },
@@ -295,7 +296,6 @@
     454,
     455,
     456,
-    457,
     458,
     460,
     461,
@@ -405,7 +405,6 @@
     643,
     644,
     647,
-    650,
     653,
     654,
     655,
@@ -720,7 +719,10 @@
     1175,
     1176,
     1177,
-    1178
+    1178,
+    1181,
+    1182,
+    1183
   ],
   "problems": [
     {
@@ -1013,7 +1015,7 @@
       "tags": [
         "combinatorics"
       ],
-      "last_edited": "25 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/20",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/20.lean",
@@ -1152,7 +1154,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/33.lean",
       "oeis_urls": [],
       "comments_problem_id": 33,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 36,
@@ -2105,7 +2107,7 @@
       "tags": [
         "geometry"
       ],
-      "last_edited": "",
+      "last_edited": "06 March 2026",
       "latex_path": "/latex/106",
       "formalized": false,
       "formalized_url": "",
@@ -2826,13 +2828,13 @@
       "status_dom_id": "open",
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "There exists some constant $c>0$ such that $$R(C_4,K_n) \\ll n^{2-c}.$$",
       "tags": [
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/159",
       "formalized": false,
       "formalized_url": "",
@@ -2919,7 +2921,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/165",
       "formalized": false,
       "formalized_url": "",
@@ -3289,8 +3291,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/193",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/193.lean",
       "oeis_urls": [
         "https://oeis.org/A231255"
       ],
@@ -3744,7 +3746,7 @@
         "https://oeis.org/A000058"
       ],
       "comments_problem_id": 243,
-      "comments_count": 6
+      "comments_count": 7
     },
     {
       "problem_id": 244,
@@ -4893,7 +4895,10 @@
       "latex_path": "/latex/334",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A045535",
+        "https://oeis.org/A062241"
+      ],
       "comments_problem_id": 334,
       "comments_count": 2
     },
@@ -6497,28 +6502,6 @@
       "comments_count": 2
     },
     {
-      "problem_id": 457,
-      "problem_url": "/457",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Is there some $\\epsilon>0$ such that there are infinitely many $n$ where all primes $p\\leq (2+\\epsilon)\\log n$ divide\\[\\prod_{1\\leq i\\leq \\log n}(n+i)?\\]",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "07 October 2025",
-      "latex_path": "/latex/457",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/457.lean",
-      "oeis_urls": [
-        "https://oeis.org/A391668"
-      ],
-      "comments_problem_id": 457,
-      "comments_count": 7
-    },
-    {
       "problem_id": 458,
       "problem_url": "/458",
       "status_bucket": "open",
@@ -6775,7 +6758,7 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/475",
       "formalized": false,
       "formalized_url": "",
@@ -7478,12 +7461,12 @@
       "status_dom_id": "open",
       "status_label": "FALSIFIABLE",
       "status_detail": "Open, but could be disproved with a finite counterexample.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "Let $n\\geq k+1$. Every graph on $n$ vertices with at least $\\frac{k-1}{2}n+1$ edges contains every tree on $k+1$ vertices.",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/548",
       "formalized": false,
       "formalized_url": "",
@@ -7824,7 +7807,7 @@
         "graph theory",
         "turan number"
       ],
-      "last_edited": "18 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/571",
       "formalized": false,
       "formalized_url": "",
@@ -8832,26 +8815,6 @@
       "comments_count": 6
     },
     {
-      "problem_id": 650,
-      "problem_url": "/650",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $f(m)$ be such that if $A\\subseteq \\{1,\\ldots,N\\}$ has $\\lvert A\\rvert=m$ then every interval in $[1,\\infty)$ of length $2N$ contains $\\geq f(m)$ many distinct integers $b_1,\\ldots,b_r$ where each $b_i$ is divisible by some $a_i\\in A$, where $a_1,\\ldots,a_r$ are distinct. Estimate $f(m)$. In particular is it true that $f(m)\\ll m^{1/2}$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/650",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 650,
-      "comments_count": 0
-    },
-    {
       "problem_id": 653,
       "problem_url": "/653",
       "status_bucket": "open",
@@ -9384,7 +9347,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/686.lean",
       "oeis_urls": [],
       "comments_problem_id": 686,
-      "comments_count": 16
+      "comments_count": 19
     },
     {
       "problem_id": 687,
@@ -9800,7 +9763,7 @@
         "graph theory",
         "turan number"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/713",
       "formalized": false,
       "formalized_url": "",
@@ -13098,7 +13061,7 @@
         "https://oeis.org/A219429"
       ],
       "comments_problem_id": 985,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 986,
@@ -13585,7 +13548,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1038.lean",
       "oeis_urls": [],
       "comments_problem_id": 1038,
-      "comments_count": 127
+      "comments_count": 130
     },
     {
       "problem_id": 1039,
@@ -13606,7 +13569,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1039,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 1040,
@@ -14403,7 +14366,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1097.lean",
       "oeis_urls": [],
       "comments_problem_id": 1097,
-      "comments_count": 11
+      "comments_count": 17
     },
     {
       "problem_id": 1100,
@@ -14919,7 +14882,7 @@
         "number theory",
         "primes"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/1142",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1142.lean",
@@ -14927,7 +14890,7 @@
         "https://oeis.org/A039669"
       ],
       "comments_problem_id": 1142,
-      "comments_count": 3
+      "comments_count": 4
     },
     {
       "problem_id": 1143,
@@ -15556,6 +15519,68 @@
       "oeis_urls": [],
       "comments_problem_id": 1178,
       "comments_count": 1
+    },
+    {
+      "problem_id": 1181,
+      "problem_url": "/1181",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $q(n,k)$ denote the least prime which does not divide $\\prod_{1\\leq i\\leq k}(n+i)$. Is it true that there exists some $c>0$ such that, for all large $n$,\\[q(n,\\log n)<(1-c)(\\log n)^2?\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 March 2026",
+      "latex_path": "/latex/1181",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1181,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1182,
+      "problem_url": "/1182",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $f(n)$ be maximal such that there is a connected graph $G$ with $n$ vertices and $f(n)$ edges such that\\[R(K_3,G)= 2n-1.\\]Let $F(n)$ be maximal such that every connected graph $G$ with $n$ vertices and $\\leq F(n)$ edges has\\[R(K_3,G)= 2n-1.\\]Estimate $f(n)$ and $F(n)$. In particular, is it true that $F(n)/n\\to \\infty$?",
+      "tags": [
+        "graph theory",
+        "ramsey theory"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1182",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1182,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1183,
+      "problem_url": "/1183",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "",
+      "status_detail": "",
+      "prize_amount": "",
+      "statement": "Let $f(n)$ be maximal such that in any $2$-colouring of the subsets of $\\{1,\\ldots,n\\}$ there is always a monochromatic family of at least $f(n)$ sets which is closed under taking unions and intersections. Estimate $f(n)$. Let $F(n)$ be defined similarly, except that we only require the family be closed under taking unions. Estimate $F(n)$. In particular, is it true that $F(n)\\geq n^{\\omega(n)}$ for some $\\omega(n)\\to \\infty$ as $n\\to \\infty$, and $F(n)<(1+o(1))^n$?",
+      "tags": [
+        "combinatorics",
+        "ramsey theory"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1183",
+      "formalized": null,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1183,
+      "comments_count": 0
     }
   ]
 }
