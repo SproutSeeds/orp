@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Minimal ORP CLI runtime skeleton.
+"""ORP CLI.
 
-Commands:
+Public shape:
+- home
+- about
+- discover
+- collaborate
 - init
 - gate run
 - packet emit
 - erdos sync
-- pack list
-- pack fetch
-- pack install
 - report summary
 
+Advanced/internal:
+- pack list
+- pack install
+- pack fetch
+
 Design goals:
-- Local-first
-- Low dependency surface
-- Deterministic artifact layout
+- local-first
+- low dependency surface
+- deterministic artifact layout
+- built-in abilities over mode switches
 """
 
 from __future__ import annotations
@@ -29,6 +36,8 @@ import re
 import subprocess
 import sys
 from typing import Any
+from urllib import parse as urlparse
+from urllib import request as urlrequest
 
 
 def _now_utc() -> str:
@@ -73,6 +82,472 @@ def _tool_version() -> str:
 
 
 ORP_TOOL_VERSION = _tool_version()
+DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
+DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
+
+COLLABORATION_WORKFLOWS: list[dict[str, Any]] = [
+    {
+        "id": "watch_select",
+        "profile": "issue_smashers_watch_select",
+        "config": "orp.issue-smashers.yml",
+        "description": "Select a candidate issue lane and record why it is worth pursuing.",
+        "gate_ids": ["watch_select"],
+    },
+    {
+        "id": "pre_open",
+        "profile": "issue_smashers_pre_open",
+        "config": "orp.issue-smashers.yml",
+        "description": "Run viability and overlap checks before implementation or public PR work.",
+        "gate_ids": ["viability_gate", "overlap_gate"],
+    },
+    {
+        "id": "local_readiness",
+        "profile": "issue_smashers_local_readiness",
+        "config": "orp.issue-smashers.yml",
+        "description": "Run local verification, freeze same-head readiness, and preflight PR text.",
+        "gate_ids": ["local_gate", "ready_to_draft", "pr_body_preflight"],
+    },
+    {
+        "id": "draft_transition",
+        "profile": "issue_smashers_draft_transition",
+        "config": "orp.issue-smashers.yml",
+        "description": "Open or update the draft PR after readiness passes.",
+        "gate_ids": ["draft_pr_transition"],
+    },
+    {
+        "id": "draft_lifecycle",
+        "profile": "issue_smashers_draft_lifecycle",
+        "config": "orp.issue-smashers.yml",
+        "description": "Check draft CI and ready-for-review status.",
+        "gate_ids": ["draft_ci", "ready_for_review"],
+    },
+    {
+        "id": "full_flow",
+        "profile": "issue_smashers_full_flow",
+        "config": "orp.issue-smashers.yml",
+        "description": "End-to-end collaboration lifecycle from watch/select through ready-for-review.",
+        "gate_ids": [
+            "watch_select",
+            "viability_gate",
+            "overlap_gate",
+            "local_gate",
+            "ready_to_draft",
+            "pr_body_preflight",
+            "draft_pr_transition",
+            "draft_ci",
+            "ready_for_review",
+        ],
+    },
+    {
+        "id": "feedback_hardening",
+        "profile": "issue_smashers_feedback_hardening",
+        "config": "orp.issue-smashers-feedback-hardening.yml",
+        "description": "Turn maintainer feedback into validated guards and synced docs.",
+        "gate_ids": ["feedback_record", "guard_validation", "docs_sync"],
+    },
+]
+
+
+def _scan_id() -> str:
+    return "scan-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _coerce_string_list(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    values: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            text = item.strip()
+            if text:
+                values.append(text)
+    return _unique_strings(values)
+
+
+def _resolve_cli_path(raw: str, repo_root: Path) -> Path:
+    path = Path(raw)
+    if not path.is_absolute():
+        path = (repo_root / path).resolve()
+    return path
+
+
+def _discover_profile_template(
+    *,
+    profile_id: str,
+    owner: str,
+    owner_type: str,
+    keywords: list[str],
+    topics: list[str],
+    languages: list[str],
+    areas: list[str],
+    people: list[str],
+) -> dict[str, Any]:
+    owner_value = owner.strip() or "YOUR_GITHUB_OWNER"
+    return {
+        "schema_version": "1.0.0",
+        "profile_id": profile_id,
+        "notes": [
+            "ORP owns the portable discovery profile format and scan artifacts.",
+            "If Coda exists later, it can manage active profile selection on top of ORP.",
+            "Discovery outputs are process-only recommendations, not evidence.",
+        ],
+        "discover": {
+            "github": {
+                "owner": {
+                    "login": owner_value,
+                    "type": owner_type,
+                },
+                "signals": {
+                    "keywords": keywords,
+                    "repo_topics": topics,
+                    "languages": languages,
+                    "areas": areas,
+                    "people": people,
+                },
+                "filters": {
+                    "include_repos": [],
+                    "exclude_repos": [],
+                    "issue_states": ["open"],
+                    "labels_any": [],
+                    "exclude_labels": [],
+                    "updated_within_days": 180,
+                },
+                "ranking": {
+                    "repo_sample_size": 30,
+                    "max_repos": 12,
+                    "max_issues": 24,
+                    "max_people": 12,
+                    "issues_per_repo": 30,
+                },
+            }
+        },
+    }
+
+
+def _normalize_discover_profile(raw: dict[str, Any]) -> dict[str, Any]:
+    discover = raw.get("discover")
+    github = discover.get("github") if isinstance(discover, dict) else {}
+    github = github if isinstance(github, dict) else {}
+    owner = github.get("owner")
+    owner = owner if isinstance(owner, dict) else {}
+    signals = github.get("signals")
+    signals = signals if isinstance(signals, dict) else {}
+    filters = github.get("filters")
+    filters = filters if isinstance(filters, dict) else {}
+    ranking = github.get("ranking")
+    ranking = ranking if isinstance(ranking, dict) else {}
+    owner_type = str(owner.get("type", "auto")).strip().lower() or "auto"
+    if owner_type not in {"auto", "user", "org"}:
+        owner_type = "auto"
+    def _positive_int(value: Any, default: int) -> int:
+        try:
+            out = int(value)
+        except Exception:
+            return default
+        return out if out > 0 else default
+
+    issue_states = [state for state in _coerce_string_list(filters.get("issue_states")) if state in {"open", "closed", "all"}]
+    if not issue_states:
+        issue_states = ["open"]
+
+    return {
+        "schema_version": str(raw.get("schema_version", "1.0.0")).strip() or "1.0.0",
+        "profile_id": str(raw.get("profile_id", "default")).strip() or "default",
+        "notes": _coerce_string_list(raw.get("notes")),
+        "github": {
+            "owner": {
+                "login": str(owner.get("login", "")).strip(),
+                "type": owner_type,
+            },
+            "signals": {
+                "keywords": _coerce_string_list(signals.get("keywords")),
+                "repo_topics": _coerce_string_list(signals.get("repo_topics")),
+                "languages": _coerce_string_list(signals.get("languages")),
+                "areas": _coerce_string_list(signals.get("areas")),
+                "people": _coerce_string_list(signals.get("people")),
+            },
+            "filters": {
+                "include_repos": _coerce_string_list(filters.get("include_repos")),
+                "exclude_repos": _coerce_string_list(filters.get("exclude_repos")),
+                "issue_states": issue_states,
+                "labels_any": _coerce_string_list(filters.get("labels_any")),
+                "exclude_labels": _coerce_string_list(filters.get("exclude_labels")),
+                "updated_within_days": _positive_int(filters.get("updated_within_days", 180), 180),
+            },
+            "ranking": {
+                "repo_sample_size": _positive_int(ranking.get("repo_sample_size", 30), 30),
+                "max_repos": _positive_int(ranking.get("max_repos", 12), 12),
+                "max_issues": _positive_int(ranking.get("max_issues", 24), 24),
+                "max_people": _positive_int(ranking.get("max_people", 12), 12),
+                "issues_per_repo": _positive_int(ranking.get("issues_per_repo", 30), 30),
+            },
+        },
+    }
+
+
+def _github_token_context() -> dict[str, str]:
+    for env_name in ["GITHUB_TOKEN", "GH_TOKEN"]:
+        token = os.environ.get(env_name, "").strip()
+        if token:
+            return {"token": token, "source": env_name}
+    return {"token": "", "source": "anonymous"}
+
+
+def _github_headers(token: str) -> dict[str, str]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "ORP-Discover/1.0",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _http_json_get(url: str, headers: dict[str, str]) -> Any:
+    request = urlrequest.Request(url, headers=headers)
+    with urlrequest.urlopen(request, timeout=30) as response:
+        text = response.read().decode("utf-8")
+    return json.loads(text)
+
+
+def _github_detect_owner_type(owner_login: str, headers: dict[str, str]) -> str:
+    payload = _http_json_get(f"https://api.github.com/users/{urlparse.quote(owner_login)}", headers)
+    if isinstance(payload, dict):
+        owner_type = str(payload.get("type", "")).strip().lower()
+        if owner_type == "organization":
+            return "org"
+        if owner_type == "user":
+            return "user"
+    return "user"
+
+
+def _github_list_repos(owner_login: str, owner_type: str, limit: int, headers: dict[str, str]) -> list[dict[str, Any]]:
+    repos: list[dict[str, Any]] = []
+    page = 1
+    while len(repos) < limit:
+        params = {"per_page": min(100, max(limit, 1)), "page": page, "sort": "updated"}
+        if owner_type == "org":
+            params["type"] = "public"
+            url = f"https://api.github.com/orgs/{urlparse.quote(owner_login)}/repos?{urlparse.urlencode(params)}"
+        else:
+            params["type"] = "owner"
+            url = f"https://api.github.com/users/{urlparse.quote(owner_login)}/repos?{urlparse.urlencode(params)}"
+        payload = _http_json_get(url, headers)
+        if not isinstance(payload, list) or not payload:
+            break
+        repos.extend([row for row in payload if isinstance(row, dict)])
+        if len(payload) < params["per_page"]:
+            break
+        page += 1
+    return repos[:limit]
+
+
+def _github_list_issues(owner_login: str, repo_name: str, states: list[str], per_repo_limit: int, headers: dict[str, str]) -> list[dict[str, Any]]:
+    state = "all" if "all" in states else ("closed" if states == ["closed"] else "open")
+    issues: list[dict[str, Any]] = []
+    page = 1
+    while len(issues) < per_repo_limit:
+        params = {
+            "state": state,
+            "per_page": min(100, max(per_repo_limit, 1)),
+            "page": page,
+            "sort": "updated",
+            "direction": "desc",
+        }
+        url = (
+            f"https://api.github.com/repos/{urlparse.quote(owner_login)}/{urlparse.quote(repo_name)}"
+            f"/issues?{urlparse.urlencode(params)}"
+        )
+        payload = _http_json_get(url, headers)
+        if not isinstance(payload, list) or not payload:
+            break
+        cleaned = [row for row in payload if isinstance(row, dict) and "pull_request" not in row]
+        issues.extend(cleaned)
+        if len(payload) < params["per_page"]:
+            break
+        page += 1
+    return issues[:per_repo_limit]
+
+
+def _days_since_iso(iso_text: str) -> int | None:
+    text = iso_text.strip()
+    if not text:
+        return None
+    try:
+        stamp = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    now = dt.datetime.now(dt.timezone.utc)
+    delta = now - stamp.astimezone(dt.timezone.utc)
+    return max(0, int(delta.total_seconds() // 86400))
+
+
+def _recency_sort_key(iso_text: str) -> int:
+    days = _days_since_iso(iso_text)
+    if days is None:
+        return 10**9
+    return days
+
+
+def _text_contains_any(text: str, needles: list[str]) -> list[str]:
+    hay = text.lower()
+    matches: list[str] = []
+    for raw in needles:
+        needle = raw.strip().lower()
+        if needle and needle in hay:
+            matches.append(raw)
+    return _unique_strings(matches)
+
+
+def _score_repo(repo: dict[str, Any], profile: dict[str, Any]) -> tuple[int, list[str]]:
+    github = profile["github"]
+    signals = github["signals"]
+    filters = github["filters"]
+    repo_name = str(repo.get("name", "")).strip()
+    full_name = str(repo.get("full_name", "")).strip()
+    description = str(repo.get("description", "") or "").strip()
+    language = str(repo.get("language", "") or "").strip()
+    topics = [str(item).strip() for item in repo.get("topics", []) if isinstance(item, str)]
+    searchable = " ".join([repo_name, full_name, description, language, " ".join(topics)]).lower()
+    reasons: list[str] = []
+    score = 0
+
+    if repo_name in filters["exclude_repos"] or full_name in filters["exclude_repos"]:
+        return (-1, ["excluded_repo"])
+    if filters["include_repos"] and repo_name not in filters["include_repos"] and full_name not in filters["include_repos"]:
+        return (0, ["not_included"])
+    if repo_name in filters["include_repos"] or full_name in filters["include_repos"]:
+        score += 100
+        reasons.append("include_repo")
+
+    keyword_matches = _text_contains_any(searchable, signals["keywords"])
+    score += 5 * len(keyword_matches)
+    reasons.extend([f"keyword:{item}" for item in keyword_matches])
+
+    area_matches = _text_contains_any(searchable, signals["areas"])
+    score += 3 * len(area_matches)
+    reasons.extend([f"area:{item}" for item in area_matches])
+
+    if language and language in signals["languages"]:
+        score += 6
+        reasons.append(f"language:{language}")
+
+    topic_set = {topic.lower(): topic for topic in topics}
+    for raw in signals["repo_topics"]:
+        key = raw.lower()
+        if key in topic_set:
+            score += 8
+            reasons.append(f"topic:{topic_set[key]}")
+
+    updated_days = _days_since_iso(str(repo.get("updated_at", "") or ""))
+    if updated_days is not None and updated_days <= int(github["filters"]["updated_within_days"]):
+        score += 2
+        reasons.append("recent_repo_activity")
+
+    if score == 0:
+        score = 1
+        reasons.append("baseline_repo")
+    return (score, _unique_strings(reasons))
+
+
+def _score_issue(issue: dict[str, Any], repo_row: dict[str, Any], profile: dict[str, Any]) -> tuple[int, list[str]]:
+    github = profile["github"]
+    signals = github["signals"]
+    filters = github["filters"]
+    title = str(issue.get("title", "") or "").strip()
+    body = str(issue.get("body", "") or "").strip()
+    labels = [str(row.get("name", "")).strip() for row in issue.get("labels", []) if isinstance(row, dict)]
+    assignees = [str(row.get("login", "")).strip() for row in issue.get("assignees", []) if isinstance(row, dict)]
+    author = str((issue.get("user") or {}).get("login", "")).strip() if isinstance(issue.get("user"), dict) else ""
+    searchable = " ".join([title, body, " ".join(labels)]).lower()
+    reasons = [f"repo:{repo_row['full_name']}"]
+    score = int(repo_row["score"])
+
+    if any(label in filters["exclude_labels"] for label in labels):
+        return (-1, ["excluded_label"])
+
+    keyword_matches = _text_contains_any(searchable, signals["keywords"])
+    score += 6 * len(keyword_matches)
+    reasons.extend([f"keyword:{item}" for item in keyword_matches])
+
+    area_matches = _text_contains_any(searchable, signals["areas"])
+    score += 5 * len(area_matches)
+    reasons.extend([f"area:{item}" for item in area_matches])
+
+    label_matches = [label for label in labels if label in filters["labels_any"]]
+    score += 4 * len(label_matches)
+    reasons.extend([f"label:{item}" for item in label_matches])
+
+    people_matches = [person for person in signals["people"] if person in assignees or person == author]
+    score += 4 * len(people_matches)
+    reasons.extend([f"person:{item}" for item in people_matches])
+
+    updated_days = _days_since_iso(str(issue.get("updated_at", "") or ""))
+    if updated_days is not None and updated_days <= int(filters["updated_within_days"]):
+        score += 1
+        reasons.append("recent_issue_activity")
+
+    return (score, _unique_strings(reasons))
+
+
+def _load_fixture_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _render_discover_scan_summary(payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    lines.append(f"# ORP GitHub Discovery Scan `{payload['scan_id']}`")
+    lines.append("")
+    lines.append("## Headline")
+    lines.append("")
+    lines.append(f"- owner: `{payload['owner']['login']}`")
+    lines.append(f"- owner_type: `{payload['owner']['type']}`")
+    lines.append(f"- profile_id: `{payload['profile']['profile_id']}`")
+    lines.append(f"- auth: `{payload['auth']['source']}`")
+    lines.append(f"- repos_considered: `{payload['counts']['repos_considered']}`")
+    lines.append(f"- issues_considered: `{payload['counts']['issues_considered']}`")
+    lines.append("")
+    lines.append("## Top Repo Matches")
+    lines.append("")
+    lines.append("| Repo | Score | Why |")
+    lines.append("|---|---:|---|")
+    for row in payload.get("repos", [])[:10]:
+        reasons = ", ".join(row.get("reasons", [])[:4]) or "baseline_repo"
+        lines.append(f"| `{row['full_name']}` | {row['score']} | {reasons} |")
+    lines.append("")
+    lines.append("## Top Issue Matches")
+    lines.append("")
+    lines.append("| Issue | Repo | Score | People | Why |")
+    lines.append("|---|---|---:|---|---|")
+    for row in payload.get("issues", [])[:12]:
+        people = ", ".join(row.get("people", [])[:3]) or "-"
+        reasons = ", ".join(row.get("reasons", [])[:4]) or "repo_match"
+        lines.append(
+            f"| `#{row['number']} {row['title']}` | `{row['repo']}` | {row['score']} | {people} | {reasons} |"
+        )
+    lines.append("")
+    lines.append("## Active People Signals")
+    lines.append("")
+    lines.append("| Login | Score | Issue Count | Repos |")
+    lines.append("|---|---:|---:|---|")
+    for row in payload.get("people", [])[:10]:
+        repos = ", ".join(row.get("repos", [])[:3]) or "-"
+        lines.append(f"| `{row['login']}` | {row['score']} | {row['matched_issue_count']} | {repos} |")
+    lines.append("")
+    lines.append("## Notes")
+    lines.append("")
+    lines.append("- Discovery scans are recommendation artifacts, not evidence.")
+    lines.append("- GitHub public issue metadata shows authors, assignees, labels, and recency, but not full code ownership.")
+    if payload.get("repos"):
+        top_repo = payload["repos"][0]["full_name"]
+        lines.append(f"- Suggested handoff: `orp collaborate init --github-repo {top_repo}`")
+    return "\n".join(lines) + "\n"
 
 
 def _orp_repo_root() -> Path:
@@ -111,6 +586,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _ensure_dirs(repo_root: Path) -> None:
     (repo_root / "orp" / "packets").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "artifacts").mkdir(parents=True, exist_ok=True)
+    (repo_root / "orp" / "discovery" / "github").mkdir(parents=True, exist_ok=True)
     state_path = repo_root / "orp" / "state.json"
     if not state_path.exists():
         _write_json(
@@ -120,6 +596,8 @@ def _ensure_dirs(repo_root: Path) -> None:
                 "last_packet_id": "",
                 "runs": {},
                 "last_erdos_sync": {},
+                "last_discover_scan_id": "",
+                "discovery_scans": {},
             },
         )
 
@@ -439,11 +917,13 @@ def _discover_packs() -> tuple[Path, list[dict[str, str]]]:
         pack_id = str(meta.get("pack_id", child.name)) if isinstance(meta, dict) else child.name
         version = str(meta.get("version", "unknown")) if isinstance(meta, dict) else "unknown"
         name = str(meta.get("name", "")) if isinstance(meta, dict) else ""
+        description = str(meta.get("description", "")).strip() if isinstance(meta, dict) else ""
         packs.append(
             {
                 "id": pack_id,
                 "version": version,
                 "name": name,
+                "description": description,
                 "path": str(child),
             }
         )
@@ -467,6 +947,7 @@ def _about_payload() -> dict[str, Any]:
             "install": "INSTALL.md",
             "agent_integration": "AGENT_INTEGRATION.md",
             "agent_loop": "docs/AGENT_LOOP.md",
+            "discover": "docs/DISCOVER.md",
             "profile_packs": "docs/PROFILE_PACKS.md",
         },
         "artifacts": {
@@ -475,14 +956,59 @@ def _about_payload() -> dict[str, Any]:
             "run_summary_md": "orp/artifacts/<run_id>/RUN_SUMMARY.md",
             "packet_json": "orp/packets/<packet_id>.json",
             "packet_md": "orp/packets/<packet_id>.md",
+            "discovery_scan_json": "orp/discovery/github/<scan_id>/SCAN.json",
+            "discovery_scan_md": "orp/discovery/github/<scan_id>/SCAN_SUMMARY.md",
         },
         "schemas": {
             "config": "spec/v1/orp.config.schema.json",
             "packet": "spec/v1/packet.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
         },
+        "abilities": [
+            {
+                "id": "discover",
+                "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
+                "entrypoints": [
+                    ["discover", "profile", "init"],
+                    ["discover", "github", "scan"],
+                ],
+            },
+            {
+                "id": "collaborate",
+                "description": "Built-in repository collaboration setup and workflow execution.",
+                "entrypoints": [
+                    ["collaborate", "init"],
+                    ["collaborate", "workflows"],
+                    ["collaborate", "gates"],
+                    ["collaborate", "run"],
+                ],
+            },
+            {
+                "id": "erdos",
+                "description": "Domain-specific Erdos sync and open-problem workflow support.",
+                "entrypoints": [
+                    ["erdos", "sync"],
+                ],
+            },
+            {
+                "id": "packs",
+                "description": "Advanced/internal pack discovery and install surface.",
+                "entrypoints": [
+                    ["pack", "list"],
+                    ["pack", "install"],
+                    ["pack", "fetch"],
+                ],
+            },
+        ],
         "commands": [
+            {"name": "home", "path": ["home"], "json_output": True},
             {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "discover_profile_init", "path": ["discover", "profile", "init"], "json_output": True},
+            {"name": "discover_github_scan", "path": ["discover", "github", "scan"], "json_output": True},
+            {"name": "collaborate_init", "path": ["collaborate", "init"], "json_output": True},
+            {"name": "collaborate_workflows", "path": ["collaborate", "workflows"], "json_output": True},
+            {"name": "collaborate_gates", "path": ["collaborate", "gates"], "json_output": True},
+            {"name": "collaborate_run", "path": ["collaborate", "run"], "json_output": True},
             {"name": "init", "path": ["init"], "json_output": True},
             {"name": "gate_run", "path": ["gate", "run"], "json_output": True},
             {"name": "packet_emit", "path": ["packet", "emit"], "json_output": True},
@@ -496,9 +1022,536 @@ def _about_payload() -> dict[str, Any]:
             "ORP files are process-only and are not evidence.",
             "Canonical evidence lives in repo artifact paths outside ORP docs.",
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
+            "Discovery profiles in ORP are portable search-intent files; higher-level wrappers like Coda can manage active-profile selection later.",
+            "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
         ],
         "packs": packs,
     }
+
+
+def _collaboration_workflow_map() -> dict[str, dict[str, Any]]:
+    return {str(row["id"]): row for row in COLLABORATION_WORKFLOWS}
+
+
+def _collaboration_workflow_payload(repo_root: Path) -> dict[str, Any]:
+    workflows: list[dict[str, Any]] = []
+    for row in COLLABORATION_WORKFLOWS:
+        config_name = str(row.get("config", "")).strip()
+        config_path = (repo_root / config_name).resolve()
+        workflows.append(
+            {
+                "id": row["id"],
+                "profile": row["profile"],
+                "config": config_name,
+                "config_exists": config_path.exists(),
+                "description": row["description"],
+                "gate_ids": list(row["gate_ids"]),
+            }
+        )
+    return {
+        "workspace_ready": (repo_root / "orp.issue-smashers.yml").exists(),
+        "recommended_init_command": "orp collaborate init",
+        "workflows": workflows,
+    }
+
+
+def _git_home_context(repo_root: Path) -> dict[str, Any]:
+    context = {
+        "present": False,
+        "branch": "",
+        "commit": "",
+    }
+    try:
+        inside = subprocess.check_output(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(repo_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        context["present"] = inside == "true"
+    except Exception:
+        return context
+
+    if not context["present"]:
+        return context
+
+    try:
+        context["branch"] = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(repo_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        pass
+    try:
+        context["commit"] = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(repo_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        pass
+    return context
+
+
+def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
+    about = _about_payload()
+    collaboration = _collaboration_workflow_payload(repo_root)
+    config_path = Path(config_arg)
+    if not config_path.is_absolute():
+        config_path = repo_root / config_path
+    config_path = config_path.resolve()
+
+    state_path = repo_root / "orp" / "state.json"
+    state_exists = state_path.exists()
+    state: dict[str, Any] = {}
+    if state_exists:
+        try:
+            state = _read_json(state_path)
+        except Exception:
+            state = {}
+
+    git_context = _git_home_context(repo_root)
+    last_run_id = str(state.get("last_run_id", "")).strip() if isinstance(state, dict) else ""
+    last_packet_id = str(state.get("last_packet_id", "")).strip() if isinstance(state, dict) else ""
+    runtime_initialized = state_exists or (repo_root / "orp").exists()
+
+    quick_actions = [
+        {
+            "label": "Scaffold a discovery profile for GitHub scanning",
+            "command": "orp discover profile init --json",
+        },
+        {
+            "label": "Initialize collaboration scaffolding here",
+            "command": "orp collaborate init",
+        },
+        {
+            "label": "Inspect collaboration workflows",
+            "command": "orp collaborate workflows --json",
+        },
+        {
+            "label": "Inspect the full collaboration gate chain",
+            "command": "orp collaborate gates --workflow full_flow --json",
+        },
+        {
+            "label": "Run the full collaboration workflow",
+            "command": "orp collaborate run --workflow full_flow --json",
+        },
+        {
+            "label": "Inspect machine-readable capability surface",
+            "command": "orp about --json",
+        },
+    ]
+    if not runtime_initialized:
+        quick_actions.insert(
+            0,
+            {
+                "label": "Initialize base ORP runtime only",
+                "command": "orp init",
+            },
+        )
+    if config_path.exists():
+        quick_actions.append(
+            {
+                "label": "Run the default profile",
+                "command": "orp gate run --profile default --json",
+            }
+        )
+    if last_run_id:
+        quick_actions.append(
+            {
+                "label": "Summarize the last run",
+                "command": "orp report summary --json",
+            }
+        )
+
+    return {
+        "tool": about["tool"],
+        "repo": {
+            "root_path": str(repo_root),
+            "config_path": _path_for_state(config_path, repo_root),
+            "config_exists": config_path.exists(),
+            "git": git_context,
+        },
+        "runtime": {
+            "initialized": runtime_initialized,
+            "state_path": _path_for_state(state_path, repo_root),
+            "state_exists": state_exists,
+            "last_run_id": last_run_id,
+            "last_packet_id": last_packet_id,
+        },
+        "abilities": [
+            {
+                "id": "discover",
+                "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
+                "entrypoints": [
+                    "orp discover profile init --json",
+                    f"orp discover github scan --profile {DEFAULT_DISCOVER_PROFILE} --json",
+                ],
+            },
+            {
+                "id": "collaborate",
+                "description": "Built-in repository collaboration setup and workflow execution.",
+                "entrypoints": [
+                    "orp collaborate init",
+                    "orp collaborate workflows --json",
+                    "orp collaborate run --workflow full_flow --json",
+                ],
+            },
+            {
+                "id": "erdos",
+                "description": "Domain-specific Erdos sync and problem workflow support.",
+                "entrypoints": [
+                    "orp erdos sync --json",
+                ],
+            },
+        ],
+        "collaboration": collaboration,
+        "packs": about["packs"],
+        "discovery": about["discovery"],
+        "quick_actions": quick_actions,
+        "notes": about["notes"],
+    }
+
+
+def _truncate(text: str, *, limit: int = 76) -> str:
+    clean = re.sub(r"\s+", " ", text).strip()
+    if len(clean) <= limit:
+        return clean
+    return clean[: limit - 3].rstrip() + "..."
+
+
+def _render_home_screen(payload: dict[str, Any]) -> str:
+    tool = payload.get("tool", {})
+    repo = payload.get("repo", {})
+    runtime = payload.get("runtime", {})
+    abilities = payload.get("abilities", [])
+    collaboration = payload.get("collaboration", {})
+    packs = payload.get("packs", [])
+    discovery = payload.get("discovery", {})
+    quick_actions = payload.get("quick_actions", [])
+
+    lines: list[str] = []
+    lines.append(f"ORP {tool.get('version', 'unknown')}")
+    lines.append("Open Research Protocol CLI")
+    lines.append("")
+    lines.append("Repo")
+    lines.append(f"  root: {repo.get('root_path', '')}")
+    lines.append(
+        f"  config: {repo.get('config_path', '')} ({'present' if repo.get('config_exists') else 'missing'})"
+    )
+
+    git_ctx = repo.get("git", {})
+    if isinstance(git_ctx, dict) and git_ctx.get("present"):
+        branch = str(git_ctx.get("branch", "")).strip() or "(no branch)"
+        commit = str(git_ctx.get("commit", "")).strip() or "(no commits yet)"
+        lines.append(f"  git: yes, branch={branch}, commit={commit}")
+    else:
+        lines.append("  git: no")
+
+    lines.append("")
+    lines.append("Runtime")
+    lines.append(
+        f"  initialized: {'yes' if runtime.get('initialized') else 'no'}"
+    )
+    lines.append(
+        f"  state: {runtime.get('state_path', '')} ({'present' if runtime.get('state_exists') else 'missing'})"
+    )
+    last_run_id = str(runtime.get("last_run_id", "")).strip()
+    last_packet_id = str(runtime.get("last_packet_id", "")).strip()
+    lines.append(f"  last_run_id: {last_run_id or '(none)'}")
+    lines.append(f"  last_packet_id: {last_packet_id or '(none)'}")
+
+    lines.append("")
+    lines.append("Abilities")
+    if isinstance(abilities, list) and abilities:
+        for row in abilities:
+            if not isinstance(row, dict):
+                continue
+            ability_id = str(row.get("id", "")).strip()
+            desc = _truncate(str(row.get("description", "")).strip())
+            lines.append(f"  - {ability_id}")
+            if desc:
+                lines.append(f"    {desc}")
+    lines.append("")
+    lines.append("Collaboration")
+    lines.append(
+        f"  workspace_ready: {'yes' if collaboration.get('workspace_ready') else 'no'}"
+    )
+    lines.append(
+        f"  fastest_setup: {collaboration.get('recommended_init_command', 'orp collaborate init')}"
+    )
+    workflows = collaboration.get("workflows", [])
+    if isinstance(workflows, list):
+        for row in workflows[:3]:
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                f"  - {row.get('id', '')}: {_truncate(str(row.get('description', '')).strip(), limit=64)}"
+            )
+        if len(workflows) > 3:
+            lines.append("  - ... run `orp collaborate workflows --json` for the full list")
+
+    lines.append("")
+    lines.append("Advanced Bundles")
+    if isinstance(packs, list) and packs:
+        for pack in packs:
+            if not isinstance(pack, dict):
+                continue
+            pack_id = str(pack.get("id", "")).strip()
+            version = str(pack.get("version", "")).strip()
+            desc = _truncate(str(pack.get("description", "")).strip())
+            title = f"  - {pack_id}"
+            if version:
+                title += f" ({version})"
+            lines.append(title)
+            if desc:
+                lines.append(f"    {desc}")
+    else:
+        lines.append("  (no local internal bundles discovered)")
+
+    lines.append("")
+    lines.append("Discovery")
+    for key in ["readme", "protocol", "agent_integration", "agent_loop", "discover", "profile_packs"]:
+        value = discovery.get(key)
+        if isinstance(value, str) and value:
+            lines.append(f"  {key}: {value}")
+
+    lines.append("")
+    lines.append("Quick Actions")
+    if isinstance(quick_actions, list):
+        for row in quick_actions:
+            if not isinstance(row, dict):
+                continue
+            label = str(row.get("label", "")).strip()
+            command = str(row.get("command", "")).strip()
+            if not label or not command:
+                continue
+            lines.append(f"  - {label}")
+            lines.append(f"    {command}")
+
+    lines.append("")
+    lines.append("Tip")
+    lines.append("  Run `orp home --json` or `orp about --json` for machine-readable output.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _perform_github_discovery_scan(
+    *,
+    repo_root: Path,
+    profile_path: Path,
+    scan_id: str,
+    repos_fixture_path: Path | None,
+    issues_fixture_path: Path | None,
+) -> dict[str, Any]:
+    _ensure_dirs(repo_root)
+    raw_profile = _read_json(profile_path)
+    profile = _normalize_discover_profile(raw_profile)
+    owner = profile["github"]["owner"]
+    owner_login = owner["login"]
+    if not owner_login or owner_login == "YOUR_GITHUB_OWNER":
+        raise RuntimeError("discovery profile must set discover.github.owner.login")
+
+    token_context = _github_token_context()
+    headers = _github_headers(token_context["token"])
+    owner_type = owner["type"]
+    if owner_type == "auto":
+        owner_type = _github_detect_owner_type(owner_login, headers)
+
+    repos_fixture = _load_fixture_json(repos_fixture_path) if repos_fixture_path else None
+    issues_fixture = _load_fixture_json(issues_fixture_path) if issues_fixture_path else None
+    repo_limit = int(profile["github"]["ranking"]["repo_sample_size"])
+    if repos_fixture is not None:
+        if not isinstance(repos_fixture, list):
+            raise RuntimeError("repos fixture must be a JSON array")
+        repos_raw = [row for row in repos_fixture if isinstance(row, dict)]
+    else:
+        repos_raw = _github_list_repos(
+            owner_login=owner_login,
+            owner_type=owner_type,
+            limit=repo_limit,
+            headers=headers,
+        )
+
+    ranked_repos: list[dict[str, Any]] = []
+    for repo in repos_raw:
+        if bool(repo.get("archived")):
+            continue
+        score, reasons = _score_repo(repo, profile)
+        if score < 0:
+            continue
+        row = {
+            "name": str(repo.get("name", "")).strip(),
+            "full_name": str(repo.get("full_name", "")).strip(),
+            "url": str(repo.get("html_url", "")).strip(),
+            "description": str(repo.get("description", "") or "").strip(),
+            "language": str(repo.get("language", "") or "").strip(),
+            "topics": [str(item).strip() for item in repo.get("topics", []) if isinstance(item, str)],
+            "score": score,
+            "reasons": reasons,
+            "updated_at": str(repo.get("updated_at", "") or "").strip(),
+            "open_issues_count": int(repo.get("open_issues_count") or 0),
+        }
+        ranked_repos.append(row)
+
+    ranked_repos = sorted(
+        ranked_repos,
+        key=lambda row: (
+            -int(row["score"]),
+            _recency_sort_key(str(row["updated_at"])),
+            str(row["full_name"]),
+        ),
+        reverse=False,
+    )
+    top_repos = ranked_repos[: int(profile["github"]["ranking"]["max_repos"])]
+
+    issue_rows: list[dict[str, Any]] = []
+    people_map: dict[str, dict[str, Any]] = {}
+    issues_per_repo = int(profile["github"]["ranking"]["issues_per_repo"])
+    for repo_row in top_repos:
+        repo_full_name = str(repo_row["full_name"])
+        repo_name = str(repo_row["name"])
+        if not repo_full_name or not repo_name:
+            continue
+        if isinstance(issues_fixture, dict):
+            issues_raw = issues_fixture.get(repo_full_name, [])
+            if not isinstance(issues_raw, list):
+                issues_raw = []
+        else:
+            issues_raw = _github_list_issues(
+                owner_login=owner_login,
+                repo_name=repo_name,
+                states=profile["github"]["filters"]["issue_states"],
+                per_repo_limit=issues_per_repo,
+                headers=headers,
+            )
+        for issue in issues_raw:
+            if not isinstance(issue, dict):
+                continue
+            score, reasons = _score_issue(issue, repo_row, profile)
+            if score < 0:
+                continue
+            labels = [str(row.get("name", "")).strip() for row in issue.get("labels", []) if isinstance(row, dict)]
+            assignees = [str(row.get("login", "")).strip() for row in issue.get("assignees", []) if isinstance(row, dict)]
+            author = str((issue.get("user") or {}).get("login", "")).strip() if isinstance(issue.get("user"), dict) else ""
+            people = _unique_strings([author, *assignees])
+            issue_row = {
+                "repo": repo_full_name,
+                "number": int(issue.get("number") or 0),
+                "title": str(issue.get("title", "") or "").strip(),
+                "url": str(issue.get("html_url", "")).strip(),
+                "state": str(issue.get("state", "") or "").strip(),
+                "labels": labels,
+                "assignees": assignees,
+                "author": author,
+                "people": people,
+                "updated_at": str(issue.get("updated_at", "") or "").strip(),
+                "score": score,
+                "reasons": reasons,
+            }
+            issue_rows.append(issue_row)
+            for login in people:
+                if not login:
+                    continue
+                person = people_map.setdefault(
+                    login,
+                    {
+                        "login": login,
+                        "score": 0,
+                        "matched_issue_count": 0,
+                        "repos": set(),
+                    },
+                )
+                person["score"] += score
+                person["matched_issue_count"] += 1
+                person["repos"].add(repo_full_name)
+
+    issue_rows = sorted(
+        issue_rows,
+        key=lambda row: (
+            -int(row["score"]),
+            _recency_sort_key(str(row["updated_at"])),
+            str(row["repo"]),
+            int(row["number"]),
+        ),
+        reverse=False,
+    )
+    top_issues = issue_rows[: int(profile["github"]["ranking"]["max_issues"])]
+
+    people_rows: list[dict[str, Any]] = []
+    for person in people_map.values():
+        people_rows.append(
+            {
+                "login": str(person["login"]),
+                "score": int(person["score"]),
+                "matched_issue_count": int(person["matched_issue_count"]),
+                "repos": sorted(str(repo) for repo in person["repos"]),
+            }
+        )
+    people_rows = sorted(
+        people_rows,
+        key=lambda row: (-int(row["score"]), -int(row["matched_issue_count"]), str(row["login"])),
+        reverse=False,
+    )[: int(profile["github"]["ranking"]["max_people"])]
+
+    out_root = repo_root / DEFAULT_DISCOVER_SCAN_ROOT / scan_id
+    scan_json = out_root / "SCAN.json"
+    summary_md = out_root / "SCAN_SUMMARY.md"
+    payload = {
+        "scan_id": scan_id,
+        "generated_at_utc": _now_utc(),
+        "profile": {
+            "path": _path_for_state(profile_path, repo_root),
+            "profile_id": profile["profile_id"],
+        },
+        "owner": {
+            "login": owner_login,
+            "type": owner_type,
+        },
+        "auth": {
+            "source": token_context["source"],
+            "authenticated": bool(token_context["token"]),
+        },
+        "counts": {
+            "repos_fetched": len(repos_raw),
+            "repos_considered": len(top_repos),
+            "issues_considered": len(top_issues),
+            "people_considered": len(people_rows),
+        },
+        "repos": top_repos,
+        "issues": top_issues,
+        "people": people_rows,
+        "notes": [
+            "Discovery scan output is process-only recommendation data.",
+            "Use the top repo/issue matches to choose where collaboration should start.",
+            "Coda can manage active profile selection later, but ORP owns the portable profile and artifact format.",
+        ],
+        "artifacts": {
+            "scan_json": _path_for_state(scan_json, repo_root),
+            "summary_md": _path_for_state(summary_md, repo_root),
+        },
+    }
+    _write_json(scan_json, payload)
+    _write_text(summary_md, _render_discover_scan_summary(payload))
+
+    state_path = repo_root / "orp" / "state.json"
+    state = _read_json(state_path) if state_path.exists() else {}
+    if not isinstance(state, dict):
+        state = {}
+    state.setdefault("runs", {})
+    state.setdefault("discovery_scans", {})
+    state["last_discover_scan_id"] = scan_id
+    state["discovery_scans"][scan_id] = {
+        "scan_json": payload["artifacts"]["scan_json"],
+        "summary_md": payload["artifacts"]["summary_md"],
+        "profile_path": payload["profile"]["path"],
+        "owner": owner_login,
+    }
+    _write_json(state_path, state)
+    return payload
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -1010,6 +2063,80 @@ def cmd_pack_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_discover_profile_init(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    out_path = _resolve_cli_path(args.out or DEFAULT_DISCOVER_PROFILE, repo_root)
+    payload = _discover_profile_template(
+        profile_id=args.profile_id,
+        owner=args.owner or "",
+        owner_type=args.owner_type,
+        keywords=_coerce_string_list(args.keyword),
+        topics=_coerce_string_list(args.topic),
+        languages=_coerce_string_list(args.language),
+        areas=_coerce_string_list(args.area),
+        people=_coerce_string_list(args.person),
+    )
+    _write_json(out_path, payload)
+
+    result = {
+        "ok": True,
+        "profile_path": _path_for_state(out_path, repo_root),
+        "profile_id": payload["profile_id"],
+        "owner_login": payload["discover"]["github"]["owner"]["login"],
+        "owner_type": payload["discover"]["github"]["owner"]["type"],
+        "notes": payload["notes"],
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+
+    print(f"profile_path={result['profile_path']}")
+    print(f"profile_id={result['profile_id']}")
+    print(f"owner_login={result['owner_login']}")
+    print(f"owner_type={result['owner_type']}")
+    print(f"next=orp discover github scan --profile {result['profile_path']}")
+    return 0
+
+
+def cmd_discover_github_scan(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    profile_path = _resolve_cli_path(args.profile or DEFAULT_DISCOVER_PROFILE, repo_root)
+    if not profile_path.exists():
+        raise RuntimeError(
+            f"missing discovery profile: {_path_for_state(profile_path, repo_root)}. "
+            "Run `orp discover profile init` first."
+        )
+
+    repos_fixture = _resolve_cli_path(args.repos_fixture, repo_root) if args.repos_fixture else None
+    issues_fixture = _resolve_cli_path(args.issues_fixture, repo_root) if args.issues_fixture else None
+    scan_id = args.scan_id or _scan_id()
+    payload = _perform_github_discovery_scan(
+        repo_root=repo_root,
+        profile_path=profile_path,
+        scan_id=scan_id,
+        repos_fixture_path=repos_fixture,
+        issues_fixture_path=issues_fixture,
+    )
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(f"scan_id={payload['scan_id']}")
+    print(f"profile={payload['profile']['path']}")
+    print(f"owner={payload['owner']['login']}")
+    print(f"owner_type={payload['owner']['type']}")
+    print(f"scan_json={payload['artifacts']['scan_json']}")
+    print(f"summary_md={payload['artifacts']['summary_md']}")
+    if payload["repos"]:
+        top_repo = payload["repos"][0]["full_name"]
+        print(f"top_repo={top_repo}")
+        print(f"next=orp collaborate init --github-repo {top_repo}")
+    if payload["issues"]:
+        top_issue = payload["issues"][0]
+        print(f"top_issue={top_issue['repo']}#{top_issue['number']}")
+    return 0
+
+
 def cmd_about(args: argparse.Namespace) -> int:
     payload = _about_payload()
     if args.json_output:
@@ -1035,6 +2162,179 @@ def cmd_about(args: argparse.Namespace) -> int:
         print(f"pack.id={pack.get('id', '')}")
         print(f"pack.version={pack.get('version', '')}")
     return 0
+
+
+def cmd_home(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _home_payload(repo_root, args.config)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(_render_home_screen(payload))
+    return 0
+
+
+def cmd_collaborate_workflows(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _collaboration_workflow_payload(repo_root)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(f"workspace_ready={'yes' if payload['workspace_ready'] else 'no'}")
+    print(f"recommended_init_command={payload['recommended_init_command']}")
+    for row in payload["workflows"]:
+        print("---")
+        print(f"workflow.id={row['id']}")
+        print(f"workflow.profile={row['profile']}")
+        print(f"workflow.config={row['config']}")
+        print(f"workflow.config_exists={str(bool(row['config_exists'])).lower()}")
+        print(f"workflow.description={row['description']}")
+        print(f"workflow.gates={','.join(row['gate_ids'])}")
+    return 0
+
+
+def cmd_collaborate_gates(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    wf = _collaboration_workflow_map().get(args.workflow)
+    if wf is None:
+        raise RuntimeError(f"unknown collaboration workflow: {args.workflow}")
+
+    config_name = str(wf["config"])
+    config_path = (repo_root / config_name).resolve()
+    payload = {
+        "workflow": str(wf["id"]),
+        "profile": str(wf["profile"]),
+        "config": config_name,
+        "config_exists": config_path.exists(),
+        "description": str(wf["description"]),
+        "gate_ids": list(wf["gate_ids"]),
+        "recommended_run_command": f"orp collaborate run --workflow {wf['id']}",
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(f"workflow.id={payload['workflow']}")
+    print(f"profile={payload['profile']}")
+    print(f"config={payload['config']}")
+    print(f"config_exists={str(bool(payload['config_exists'])).lower()}")
+    print(f"description={payload['description']}")
+    print(f"recommended_run_command={payload['recommended_run_command']}")
+    print("gates=" + ",".join(payload["gate_ids"]))
+    return 0
+
+
+def cmd_collaborate_init(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    target_repo_root = Path(args.target_repo_root)
+    if not target_repo_root.is_absolute():
+        target_repo_root = (repo_root / target_repo_root).resolve()
+
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "orp-pack-install.py"
+    if not script_path.exists():
+        raise RuntimeError(f"missing collaboration installer script: {script_path}")
+
+    forwarded: list[str] = [
+        "--pack-id",
+        "issue-smashers",
+        "--target-repo-root",
+        str(target_repo_root),
+    ]
+    if args.workspace_root:
+        forwarded.extend(["--var", f"ISSUE_SMASHERS_ROOT={args.workspace_root}"])
+        forwarded.extend(["--var", f"ISSUE_SMASHERS_REPOS_DIR={args.workspace_root}/repos"])
+        forwarded.extend(["--var", f"ISSUE_SMASHERS_WORKTREES_DIR={args.workspace_root}/worktrees"])
+        forwarded.extend(["--var", f"ISSUE_SMASHERS_SCRATCH_DIR={args.workspace_root}/scratch"])
+        forwarded.extend(["--var", f"ISSUE_SMASHERS_ARCHIVE_DIR={args.workspace_root}/archive"])
+        forwarded.extend(
+            ["--var", f"WATCHLIST_FILE={args.workspace_root}/analysis/ISSUE_SMASHERS_WATCHLIST.json"]
+        )
+        forwarded.extend(
+            ["--var", f"STATUS_FILE={args.workspace_root}/analysis/ISSUE_SMASHERS_STATUS.md"]
+        )
+        forwarded.extend(["--var", f"WORKSPACE_RULES_FILE={args.workspace_root}/WORKSPACE_RULES.md"])
+        forwarded.extend(["--var", f"DEFAULT_PR_BODY_FILE={args.workspace_root}/analysis/PR_DRAFT_BODY.md"])
+    if args.github_repo:
+        forwarded.extend(["--var", f"TARGET_GITHUB_REPO={args.github_repo}"])
+    if args.github_author:
+        forwarded.extend(["--var", f"TARGET_GITHUB_AUTHOR={args.github_author}"])
+    for raw in args.var or []:
+        forwarded.extend(["--var", str(raw)])
+    if args.report:
+        forwarded.extend(["--report", args.report])
+    if args.strict_deps:
+        forwarded.append("--strict-deps")
+    if not args.bootstrap:
+        forwarded.append("--no-bootstrap")
+    if args.overwrite_bootstrap:
+        forwarded.append("--overwrite-bootstrap")
+
+    proc = subprocess.run(
+        [sys.executable, str(script_path), *forwarded],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+    parsed = _parse_pack_install_output(proc.stdout)
+    if proc.returncode == 0:
+        _ensure_dirs(target_repo_root)
+
+    payload = {
+        "ok": proc.returncode == 0,
+        "returncode": int(proc.returncode),
+        "target_repo_root": str(target_repo_root),
+        "workspace_root": args.workspace_root or "issue-smashers",
+        "config": "orp.issue-smashers.yml",
+        "feedback_config": "orp.issue-smashers-feedback-hardening.yml",
+        "report": parsed.get("report", "orp.issue-smashers.pack-install-report.md"),
+        "rendered": parsed.get("rendered", {}),
+        "bootstrap": parsed.get("bootstrap", {}),
+        "implementation": {
+            "internal_pack_id": "issue-smashers",
+        },
+    }
+    if proc.stderr.strip():
+        payload["stderr"] = proc.stderr.strip()
+
+    if args.json_output:
+        _print_json(payload)
+    else:
+        if proc.returncode == 0:
+            print(f"target_repo_root={target_repo_root}")
+            print(f"workspace_root={payload['workspace_root']}")
+            print(f"config={payload['config']}")
+            print(f"feedback_config={payload['feedback_config']}")
+            print(f"report={payload['report']}")
+            print("next=orp collaborate workflows")
+            print("next=orp collaborate run --workflow full_flow")
+        else:
+            _emit_subprocess_result(proc)
+    return int(proc.returncode)
+
+
+def cmd_collaborate_run(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    wf = _collaboration_workflow_map().get(args.workflow)
+    if wf is None:
+        raise RuntimeError(f"unknown collaboration workflow: {args.workflow}")
+
+    config_name = str(wf["config"])
+    config_path = (repo_root / config_name).resolve()
+    if not config_path.exists():
+        raise RuntimeError(
+            f"missing collaboration config: {config_name}. Run `orp collaborate init` first."
+        )
+
+    gate_args = argparse.Namespace(
+        repo_root=str(repo_root),
+        config=config_name,
+        profile=str(wf["profile"]),
+        run_id=args.run_id,
+        json_output=bool(args.json_output),
+    )
+    return cmd_gate_run(gate_args)
 
 
 def cmd_pack_install(args: argparse.Namespace) -> int:
@@ -1714,10 +3014,22 @@ def _render_packet_md(packet: dict[str, Any]) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="ORP CLI (minimal runtime skeleton)")
+    p = argparse.ArgumentParser(description="ORP CLI")
     p.add_argument("--repo-root", default=".", help="Repository root (default: .)")
     p.add_argument("--config", default="orp.yml", help="Config path relative to repo root (default: orp.yml)")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=False)
+
+    s_home = sub.add_parser(
+        "home",
+        help="Show ORP home screen with packs, repo status, and quick-start commands",
+    )
+    s_home.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_home.set_defaults(func=cmd_home, json_output=False)
 
     s_about = sub.add_parser(
         "about",
@@ -1730,6 +3042,233 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print machine-readable JSON",
     )
     s_about.set_defaults(func=cmd_about, json_output=False)
+
+    s_discover = sub.add_parser(
+        "discover",
+        help="Profile-based GitHub discovery and recommendation operations",
+    )
+    discover_sub = s_discover.add_subparsers(dest="discover_cmd", required=True)
+
+    s_discover_profile = discover_sub.add_parser(
+        "profile",
+        help="Discovery profile scaffold operations",
+    )
+    discover_profile_sub = s_discover_profile.add_subparsers(dest="discover_profile_cmd", required=True)
+    s_discover_profile_init = discover_profile_sub.add_parser(
+        "init",
+        help="Scaffold a GitHub discovery profile",
+    )
+    s_discover_profile_init.add_argument(
+        "--out",
+        default=DEFAULT_DISCOVER_PROFILE,
+        help=f"Output profile path (default: {DEFAULT_DISCOVER_PROFILE})",
+    )
+    s_discover_profile_init.add_argument(
+        "--profile-id",
+        default="default",
+        help="Profile id (default: default)",
+    )
+    s_discover_profile_init.add_argument(
+        "--owner",
+        default="",
+        help="GitHub owner login to scan, for example SproutSeeds",
+    )
+    s_discover_profile_init.add_argument(
+        "--owner-type",
+        choices=["auto", "user", "org"],
+        default="auto",
+        help="GitHub owner type (default: auto)",
+    )
+    s_discover_profile_init.add_argument(
+        "--keyword",
+        action="append",
+        default=[],
+        help="Interest keyword (repeatable)",
+    )
+    s_discover_profile_init.add_argument(
+        "--topic",
+        action="append",
+        default=[],
+        help="Preferred repo topic (repeatable)",
+    )
+    s_discover_profile_init.add_argument(
+        "--language",
+        action="append",
+        default=[],
+        help="Preferred language (repeatable)",
+    )
+    s_discover_profile_init.add_argument(
+        "--area",
+        action="append",
+        default=[],
+        help="Preferred issue/repo area keyword, for example docs or compiler (repeatable)",
+    )
+    s_discover_profile_init.add_argument(
+        "--person",
+        action="append",
+        default=[],
+        help="Preferred person/login signal (repeatable)",
+    )
+    s_discover_profile_init.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_discover_profile_init.set_defaults(func=cmd_discover_profile_init, json_output=False)
+
+    s_discover_github = discover_sub.add_parser(
+        "github",
+        help="GitHub-owner discovery operations",
+    )
+    discover_github_sub = s_discover_github.add_subparsers(dest="discover_github_cmd", required=True)
+    s_discover_github_scan = discover_github_sub.add_parser(
+        "scan",
+        help="Scan a GitHub owner space and rank repo/issue/person matches",
+    )
+    s_discover_github_scan.add_argument(
+        "--profile",
+        default=DEFAULT_DISCOVER_PROFILE,
+        help=f"Discovery profile path (default: {DEFAULT_DISCOVER_PROFILE})",
+    )
+    s_discover_github_scan.add_argument(
+        "--scan-id",
+        default="",
+        help="Optional scan id override",
+    )
+    s_discover_github_scan.add_argument(
+        "--repos-fixture",
+        default="",
+        help="Advanced/testing: read repos from fixture JSON instead of GitHub API",
+    )
+    s_discover_github_scan.add_argument(
+        "--issues-fixture",
+        default="",
+        help="Advanced/testing: read issues map fixture JSON instead of GitHub API",
+    )
+    s_discover_github_scan.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_discover_github_scan.set_defaults(func=cmd_discover_github_scan, json_output=False)
+
+    s_collab = sub.add_parser(
+        "collaborate",
+        help="Built-in repository collaboration setup and workflow operations",
+    )
+    collab_sub = s_collab.add_subparsers(dest="collaborate_cmd", required=True)
+
+    s_collab_init = collab_sub.add_parser(
+        "init",
+        help="Scaffold collaboration workspace and configs in the target repository",
+    )
+    s_collab_init.add_argument(
+        "--target-repo-root",
+        default=".",
+        help="Repository root to scaffold (default: current --repo-root)",
+    )
+    s_collab_init.add_argument(
+        "--workspace-root",
+        default="issue-smashers",
+        help="Workspace root relative to target repo (default: issue-smashers)",
+    )
+    s_collab_init.add_argument(
+        "--github-repo",
+        default="",
+        help="Optional GitHub repo slug, for example owner/repo",
+    )
+    s_collab_init.add_argument(
+        "--github-author",
+        default="",
+        help="Optional GitHub login used for coordination-aware gates",
+    )
+    s_collab_init.add_argument(
+        "--var",
+        action="append",
+        default=[],
+        help="Advanced internal template override KEY=VALUE (repeatable)",
+    )
+    s_collab_init.add_argument(
+        "--report",
+        default="",
+        help="Optional install report output path",
+    )
+    s_collab_init.add_argument(
+        "--strict-deps",
+        action="store_true",
+        help="Exit non-zero if dependency audit finds missing paths",
+    )
+    s_collab_init.add_argument(
+        "--no-bootstrap",
+        dest="bootstrap",
+        action="store_false",
+        help="Disable starter collaboration workspace scaffold",
+    )
+    s_collab_init.add_argument(
+        "--overwrite-bootstrap",
+        action="store_true",
+        help="Allow overwriting existing scaffolded collaboration files",
+    )
+    s_collab_init.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_collab_init.set_defaults(func=cmd_collaborate_init, json_output=False, bootstrap=True)
+
+    s_collab_workflows = collab_sub.add_parser(
+        "workflows",
+        help="List built-in collaboration workflows and their backing configs",
+    )
+    s_collab_workflows.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_collab_workflows.set_defaults(func=cmd_collaborate_workflows, json_output=False)
+
+    s_collab_gates = collab_sub.add_parser(
+        "gates",
+        help="Show the gate chain for a collaboration workflow",
+    )
+    s_collab_gates.add_argument(
+        "--workflow",
+        default="full_flow",
+        help="Workflow id (default: full_flow)",
+    )
+    s_collab_gates.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_collab_gates.set_defaults(func=cmd_collaborate_gates, json_output=False)
+
+    s_collab_run = collab_sub.add_parser(
+        "run",
+        help="Run a built-in collaboration workflow",
+    )
+    s_collab_run.add_argument(
+        "--workflow",
+        default="full_flow",
+        help="Workflow id (default: full_flow)",
+    )
+    s_collab_run.add_argument(
+        "--run-id",
+        default="",
+        help="Optional run id override",
+    )
+    s_collab_run.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="Print machine-readable JSON",
+    )
+    s_collab_run.set_defaults(func=cmd_collaborate_run, json_output=False)
 
     s_init = sub.add_parser("init", help="Initialize runtime folders and starter config")
     s_init.add_argument(
@@ -1834,7 +3373,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_erdos_sync.set_defaults(func=cmd_erdos_sync, json_output=False)
 
-    s_pack = sub.add_parser("pack", help="Profile pack operations")
+    s_pack = sub.add_parser("pack", help="Advanced/internal profile pack operations")
     pack_sub = s_pack.add_subparsers(dest="pack_cmd", required=True)
 
     s_pack_list = pack_sub.add_parser("list", help="List available local ORP packs")
@@ -2020,6 +3559,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if not getattr(args, "cmd", None):
+        return cmd_home(
+            argparse.Namespace(
+                repo_root=args.repo_root,
+                config=args.config,
+                json_output=False,
+            )
+        )
     return args.func(args)
 
 

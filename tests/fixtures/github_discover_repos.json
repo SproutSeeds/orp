@@ -1,0 +1,35 @@
+[
+  {
+    "name": "sunflower-lean",
+    "full_name": "SproutSeeds/sunflower-lean",
+    "html_url": "https://github.com/SproutSeeds/sunflower-lean",
+    "description": "Lean formalization and sunflower research workspace",
+    "language": "Lean",
+    "topics": ["lean", "formalization", "math"],
+    "open_issues_count": 12,
+    "updated_at": "2026-03-08T11:00:00Z",
+    "archived": false
+  },
+  {
+    "name": "orp",
+    "full_name": "SproutSeeds/orp",
+    "html_url": "https://github.com/SproutSeeds/orp",
+    "description": "Open Research Protocol CLI for collaboration and discovery workflows",
+    "language": "Python",
+    "topics": ["cli", "agents", "research"],
+    "open_issues_count": 8,
+    "updated_at": "2026-03-08T10:00:00Z",
+    "archived": false
+  },
+  {
+    "name": "garden-notes",
+    "full_name": "SproutSeeds/garden-notes",
+    "html_url": "https://github.com/SproutSeeds/garden-notes",
+    "description": "General notes and personal writing",
+    "language": "Markdown",
+    "topics": ["writing", "notes"],
+    "open_issues_count": 1,
+    "updated_at": "2026-03-05T09:00:00Z",
+    "archived": false
+  }
+]

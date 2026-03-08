@@ -1,5 +1,15 @@
 # ORP Profile Packs (v1 Draft)
 
+This is now an advanced/internal ORP surface.
+
+If you are using ORP normally, prefer:
+
+- `orp collaborate ...` for collaboration
+- `orp erdos ...` for Erdos-specific work
+
+Read this document when you are maintaining ORP, installing domain templates
+directly, or working on pack internals.
+
 Profile packs let ORP stay general while domain experts publish reusable workflows for specific problem sets.
 
 ## Core principle

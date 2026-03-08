@@ -1,0 +1,67 @@
+{
+  "SproutSeeds/sunflower-lean": [
+    {
+      "number": 857,
+      "title": "Formalize balance lemma for sunflower bound",
+      "html_url": "https://github.com/SproutSeeds/sunflower-lean/issues/857",
+      "body": "Need Lean proof work in Balance and Container modules for Problem 857.",
+      "state": "open",
+      "labels": [
+        {"name": "lean"},
+        {"name": "problem857"}
+      ],
+      "assignees": [
+        {"login": "alice"}
+      ],
+      "user": {"login": "bob"},
+      "updated_at": "2026-03-08T11:30:00Z"
+    },
+    {
+      "number": 860,
+      "title": "Docs pass for formalization roadmap",
+      "html_url": "https://github.com/SproutSeeds/sunflower-lean/issues/860",
+      "body": "Refresh docs around the proof roadmap and current Lean modules.",
+      "state": "open",
+      "labels": [
+        {"name": "docs"}
+      ],
+      "assignees": [
+        {"login": "carol"}
+      ],
+      "user": {"login": "alice"},
+      "updated_at": "2026-03-07T15:00:00Z"
+    }
+  ],
+  "SproutSeeds/orp": [
+    {
+      "number": 42,
+      "title": "Add discover ability for GitHub issue scanner",
+      "html_url": "https://github.com/SproutSeeds/orp/issues/42",
+      "body": "Need profile-based scanning for repos, issues, and people.",
+      "state": "open",
+      "labels": [
+        {"name": "discovery"}
+      ],
+      "assignees": [
+        {"login": "cody"}
+      ],
+      "user": {"login": "teammate"},
+      "updated_at": "2026-03-08T10:30:00Z"
+    }
+  ],
+  "SproutSeeds/garden-notes": [
+    {
+      "number": 3,
+      "title": "Clean up gardening note tags",
+      "html_url": "https://github.com/SproutSeeds/garden-notes/issues/3",
+      "body": "Low-priority housekeeping for notes.",
+      "state": "open",
+      "labels": [
+        {"name": "cleanup"}
+      ],
+      "assignees": [],
+      "user": {"login": "dana"},
+      "updated_at": "2026-03-05T10:00:00Z"
+    }
+  ]
+}

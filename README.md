@@ -34,12 +34,25 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `spec/` — optional v1 runtime draft schemas (packets/config/lifecycle mapping)
 - `packs/` — optional downloadable profile packs (domain templates + metadata)
 
+## Product Shape
+
+ORP should feel like one CLI with built-in abilities:
+
+- `discover` for profile-based GitHub scanning and opportunity selection
+- `collaborate` for repository collaboration setup and workflow execution
+- `erdos` for Erdos-specific data and workflow support
+- `report` and `packet` for ORP artifacts
+
+The `pack` layer still exists, but it is now an advanced/internal surface rather
+than the main product story.
+
 ## Install CLI (npm)
 
 Global install:
 
 ```bash
 npm i -g @sproutseeds/orp-cli
+orp
 orp -h
 ```
 
@@ -63,6 +76,7 @@ find orp -maxdepth 3 -type f | sort
 What this proves:
 
 - the global `orp` binary resolves,
+- running bare `orp` opens the CLI home screen with packs and quick actions,
 - the runtime can initialize a repo-local ORP workspace,
 - a gate run writes `RUN.json`,
 - packet emit writes process metadata to `orp/packets/`,
@@ -77,7 +91,13 @@ Local repo usage still works:
 Agent-first discovery surfaces:
 
 ```bash
+orp
+orp home --json
 orp about --json
+orp discover profile init --json
+orp discover github scan --profile orp.profile.default.json --json
+orp collaborate workflows --json
+orp collaborate gates --workflow full_flow --json
 orp erdos sync --json
 orp pack list --json
 orp pack install --pack-id erdos-open-problems --json
@@ -89,16 +109,23 @@ orp report summary --json
 
 These surfaces are meant to help automated systems discover ORP quickly:
 
+- bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
+- `orp home --json` returns the same landing context in machine-readable form
+- `orp discover ...` exposes profile-based GitHub scanning inside ORP itself instead of forcing discovery into a separate wrapper
+- `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
 - `llms.txt` gives a concise repo/package map for agents that scan documentation.
 - `docs/AGENT_LOOP.md` gives agents one intended operating rhythm instead of leaving them to invent one.
+- `docs/DISCOVER.md` explains the portable discovery profile model and how it relates to Coda.
 - `orp about --json` returns machine-readable capability, artifact, schema, and pack metadata.
 - Core runtime and pack commands can emit JSON so agents do not need to scrape human text.
 - Stable artifact paths make it easy to follow outputs across runs:
-  - `orp/state.json`
-  - `orp/artifacts/<run_id>/RUN.json`
-  - `orp/artifacts/<run_id>/RUN_SUMMARY.md`
-  - `orp/packets/<packet_id>.json`
-  - `orp/packets/<packet_id>.md`
+- `orp/state.json`
+- `orp/artifacts/<run_id>/RUN.json`
+- `orp/artifacts/<run_id>/RUN_SUMMARY.md`
+- `orp/packets/<packet_id>.json`
+- `orp/packets/<packet_id>.md`
+- `orp/discovery/github/<scan_id>/SCAN.json`
+- `orp/discovery/github/<scan_id>/SCAN_SUMMARY.md`
 
 Release process:
 
@@ -162,11 +189,32 @@ Sample summaries:
 
 ORP supports reusable domain profile packs so core runtime stays general.
 
+The main public collaboration story is now the built-in `orp collaborate ...`
+surface. Treat packs as advanced/internal packaging structure unless you are
+working on ORP itself or installing domain-specific workflows like `erdos`.
+
+Built-in collaboration quickstart:
+
+```bash
+orp collaborate init
+orp collaborate workflows --json
+orp collaborate gates --workflow full_flow --json
+orp collaborate run --workflow full_flow --json
+```
+
 - Pack docs: `docs/PROFILE_PACKS.md`
 - Pack metadata schema: `spec/v1/profile-pack.schema.json`
 - Included pack: `packs/erdos-open-problems/` (857/20/367 + catalog sync + governance profiles)
 - Included pack: `packs/external-pr-governance/` (generic external OSS contribution workflow pack)
 - Included pack: `packs/issue-smashers/` (opinionated external contribution workspace pack built on the same governance ideas)
+
+If you are using ORP normally, prefer:
+
+- `orp collaborate ...` for collaboration
+- `orp erdos ...` for Erdos work
+
+Reach for `orp pack ...` when you are doing advanced installs, ORP maintenance,
+or direct domain-template work.
 
 Install pack configs into a target repo (recommended):
 
@@ -193,7 +241,7 @@ This writes rendered configs and a dependency audit report at:
 - `./orp.erdos-problem857.yml`
 - `./orp.erdos.pack-install-report.md`
 
-Install the Issue Smashers workspace pack:
+Advanced/internal direct install of the Issue Smashers workspace pack:
 
 ```bash
 orp pack install \

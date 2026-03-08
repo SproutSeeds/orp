@@ -5,10 +5,18 @@ ORP supports both:
 - docs-first template adoption (`PROTOCOL.md`, templates), and
 - optional runtime CLI usage (`orp`) for gates/packets/packs.
 
+The default runtime story is now:
+
+- `orp discover ...` for profile-based GitHub scanning and opportunity selection
+- `orp collaborate ...` for repository collaboration
+- `orp erdos ...` for Erdos-specific workflows
+- `orp pack ...` only when you need advanced/internal template install behavior
+
 Optional global CLI install:
 
 ```sh
 npm i -g @sproutseeds/orp-cli
+orp
 orp -h
 orp about --json
 ```
@@ -20,10 +28,36 @@ CLI prerequisites:
 
 Agent-friendly discovery surfaces:
 
+- bare `orp` for the CLI home screen with packs, repo status, and quick actions
+- `orp home --json` for machine-readable landing context
+- `orp discover profile init --json` for a portable discovery profile scaffold
+- `orp discover github scan --profile orp.profile.default.json --json` for ranked GitHub repo/issue/person recommendations
+- `orp collaborate init` for immediate collaboration scaffolding
+- `orp collaborate workflows --json` for built-in collaboration workflow discovery
+- `orp collaborate gates --workflow full_flow --json` for the exact gate chain
 - `llms.txt` for quick repo/package discovery
 - `orp about --json` for machine-readable capabilities, schemas, artifacts, and bundled packs
+- `docs/DISCOVER.md` for the discovery profile model and Coda relationship
 - `docs/AGENT_LOOP.md` for the intended agent operating rhythm
 - `orp pack list --json` for machine-readable bundled pack inventory
+
+Fastest collaboration setup in a fresh repo:
+
+```sh
+orp collaborate init
+orp collaborate workflows --json
+orp collaborate run --workflow full_flow --json
+```
+
+This uses ORP's built-in collaboration ability. You do not need to think in
+terms of separate governance packs for the default collaboration path.
+
+To choose where collaboration should start, scaffold a profile first:
+
+```sh
+orp discover profile init --owner SproutSeeds --owner-type org
+orp discover github scan --profile orp.profile.default.json --json
+```
 
 ## Option 0 — Smoke-test ORP in a fresh directory
 
