@@ -21,6 +21,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `PROTOCOL.md` — the protocol to copy into a project
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
+- `docs/CODA_ORP_CONTRACT.md` — boundary between Coda app/wrapper concerns and ORP runtime concerns
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates

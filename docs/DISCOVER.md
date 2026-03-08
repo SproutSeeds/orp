@@ -65,3 +65,5 @@ If `coda-cli` exists later, the clean role for Coda is:
 
 That keeps ORP as the protocol/runtime while letting Coda become a higher-level
 profile manager if it earns its place.
+
+For the fuller boundary, see `docs/CODA_ORP_CONTRACT.md`.
