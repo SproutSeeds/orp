@@ -47,7 +47,7 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
 - Point old `coda-cli` users toward:
   - `npm i -g open-research-protocol`
   - `orp`
-- If the legacy `coda-cli` package is still live, deprecate it with a migration note once ORP release is confirmed stable.
+- Legacy `@sproutseeds/coda-cli` package is deprecated with a migration note to `open-research-protocol`.
 
 ## 6. Post-release checks
 
@@ -61,3 +61,4 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
 - Keep the web app and CLI rollout loosely coupled.
 - Launch the ORP CLI first if the web app/domain transition is still in progress.
 - Do not change domain, auth, runner, and package names all in one step unless all staging checks are green.
+- Follow [ORP_WEB_DOMAIN_TRANSITION_PLAN.md](/Users/codymitchell/Documents/code/orp/docs/ORP_WEB_DOMAIN_TRANSITION_PLAN.md) for the hosted cutover sequence.
