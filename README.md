@@ -21,7 +21,6 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `PROTOCOL.md` — the protocol to copy into a project
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
-- `docs/CODA_ORP_CONTRACT.md` — boundary between Coda app/wrapper concerns and ORP runtime concerns
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates
@@ -112,11 +111,11 @@ These surfaces are meant to help automated systems discover ORP quickly:
 
 - bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
 - `orp home --json` returns the same landing context in machine-readable form
-- `orp discover ...` exposes profile-based GitHub scanning inside ORP itself instead of forcing discovery into a separate wrapper
+- `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
 - `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
 - `llms.txt` gives a concise repo/package map for agents that scan documentation.
 - `docs/AGENT_LOOP.md` gives agents one intended operating rhythm instead of leaving them to invent one.
-- `docs/DISCOVER.md` explains the portable discovery profile model and how it relates to Coda.
+- `docs/DISCOVER.md` explains the portable discovery profile model and scan artifacts.
 - `orp about --json` returns machine-readable capability, artifact, schema, and pack metadata.
 - Core runtime and pack commands can emit JSON so agents do not need to scrape human text.
 - Stable artifact paths make it easy to follow outputs across runs:

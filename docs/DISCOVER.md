@@ -12,7 +12,8 @@ The first concrete surface is a GitHub profile scanner:
 - hand off the strongest match into `orp collaborate`
 
 Today ORP scans public GitHub owner space by default. If richer access policy
-or profile governance exists later, that belongs in Coda rather than in ORP.
+or profile governance exists later, ORP should still own the portable profile
+format and the resulting scan artifacts.
 
 ## Commands
 
@@ -52,18 +53,13 @@ GitHub scans write:
 
 These are process-only recommendation artifacts, not evidence.
 
-## Coda Relationship
+## Ownership
 
-ORP should own the portable discovery profile format and the scanning
-artifacts.
+ORP owns:
 
-If `coda-cli` exists later, the clean role for Coda is:
+- the portable discovery profile format
+- GitHub scanning
+- ranked discovery artifacts
 
-- manage active profiles
-- switch between operator contexts
-- wrap ORP commands for a smoother operator UX
-
-That keeps ORP as the protocol/runtime while letting Coda become a higher-level
-profile manager if it earns its place.
-
-For the fuller boundary, see `docs/CODA_ORP_CONTRACT.md`.
+Other tools may read or trigger ORP discovery, but ORP does not depend on a
+wrapper to manage active context or profile selection.

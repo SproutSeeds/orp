@@ -210,7 +210,7 @@ def _discover_profile_template(
         "profile_id": profile_id,
         "notes": [
             "ORP owns the portable discovery profile format and scan artifacts.",
-            "If Coda exists later, it can manage active profile selection on top of ORP.",
+            "ORP also owns active discovery profile selection and scanning context.",
             "Discovery outputs are process-only recommendations, not evidence.",
         ],
         "discover": {
@@ -1039,7 +1039,7 @@ def _about_payload() -> dict[str, Any]:
             "ORP files are process-only and are not evidence.",
             "Canonical evidence lives in repo artifact paths outside ORP docs.",
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
-            "Discovery profiles in ORP are portable search-intent files; higher-level wrappers like Coda can manage active-profile selection later.",
+            "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
         ],
         "packs": packs,
@@ -1544,7 +1544,7 @@ def _perform_github_discovery_scan(
         "notes": [
             "Discovery scan output is process-only recommendation data.",
             "Use the top repo/issue matches to choose where collaboration should start.",
-            "Coda can manage active profile selection later, but ORP owns the portable profile and artifact format.",
+            "ORP owns the portable discovery profile and artifact format.",
         ],
         "artifacts": {
             "scan_json": _path_for_state(scan_json, repo_root),

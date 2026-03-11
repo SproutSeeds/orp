@@ -37,7 +37,7 @@ Agent-friendly discovery surfaces:
 - `orp collaborate gates --workflow full_flow --json` for the exact gate chain
 - `llms.txt` for quick repo/package discovery
 - `orp about --json` for machine-readable capabilities, schemas, artifacts, and bundled packs
-- `docs/DISCOVER.md` for the discovery profile model and Coda relationship
+- `docs/DISCOVER.md` for the discovery profile model and scan artifacts
 - `docs/AGENT_LOOP.md` for the intended agent operating rhythm
 - `orp pack list --json` for machine-readable bundled pack inventory
 
