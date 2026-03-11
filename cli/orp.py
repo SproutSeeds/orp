@@ -104,7 +104,7 @@ ORP_TOOL_VERSION = _tool_version()
 ORP_PACKAGE_NAME = _tool_package_name()
 DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
 DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
-DEFAULT_HOSTED_BASE_URL = "https://codacli.com"
+DEFAULT_HOSTED_BASE_URL = "https://orp.earth"
 
 
 class HostedApiError(RuntimeError):

@@ -1,6 +1,6 @@
 # ORP Web Domain Transition Plan
 
-Use this when moving the hosted ORP web app from `codacli.com` to the new ORP-aligned domains.
+Use this as the rollout record and future reference for the hosted ORP web app domain transition from `codacli.com` to the ORP-aligned domains.
 
 ## Target shape
 
@@ -8,13 +8,34 @@ Use this when moving the hosted ORP web app from `codacli.com` to the new ORP-al
 - Full-name support domain: `openresearchprotocol.com`
 - Legacy redirect domain: `codacli.com`
 
-## Current safe state
+## Current live state
 
 - CLI/package is already public as:
   - `open-research-protocol`
   - `orp`
-- Hosted app still defaults to `https://codacli.com` in the CLI until the web cutover is verified.
-- Keep this default in place until auth, runner, and redirects are all ready.
+- Hosted app canonical browser host:
+  - `https://orp.earth`
+- Support domain:
+  - `https://openresearchprotocol.com`
+- Legacy redirect domain:
+  - `https://codacli.com`
+- CLI default hosted base URL:
+  - `https://orp.earth`
+- Browser redirects are live:
+  - `www.orp.earth` -> `orp.earth`
+  - `openresearchprotocol.com` -> `orp.earth`
+  - `www.openresearchprotocol.com` -> `orp.earth`
+  - `codacli.com` -> `orp.earth`
+  - `www.codacli.com` -> `orp.earth`
+
+## What is complete
+
+- `orp.earth` and `openresearchprotocol.com` are attached to the Vercel project.
+- Namecheap DNS points all new domains at Vercel.
+- `orp.earth` is the canonical browser/app host.
+- Browser traffic from the legacy domains redirects to `orp.earth`.
+- ORP CLI now defaults to `https://orp.earth`.
+- `ORP_BASE_URL` / `CODA_BASE_URL` overrides still work.
 
 ## Rollout order
 
