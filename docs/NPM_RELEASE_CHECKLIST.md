@@ -1,10 +1,10 @@
-# npm Release Checklist (`@sproutseeds/orp-cli`)
+# npm Release Checklist (`open-research-protocol`)
 
 Use this checklist to publish professional, versioned ORP CLI releases.
 
 ## One-time setup
 
-1. Confirm npm package ownership for `@sproutseeds/orp-cli`.
+1. Confirm npm package ownership for `open-research-protocol`.
 2. Add repository secret `NPM_TOKEN` in GitHub Actions:
    - token should have permission to publish this package.
 3. Confirm package metadata in `package.json`:
@@ -24,7 +24,7 @@ Use this checklist to publish professional, versioned ORP CLI releases.
    - `.github/workflows/npm-publish.yml`
    - tag push is the normal publish trigger
 6. Verify npm install:
-   - `npm i -g @sproutseeds/orp-cli`
+   - `npm i -g open-research-protocol`
    - `orp -h`
 
 ## Important guardrail

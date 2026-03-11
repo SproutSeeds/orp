@@ -52,7 +52,7 @@ than the main product story.
 Global install:
 
 ```bash
-npm i -g @sproutseeds/orp-cli
+npm i -g open-research-protocol
 orp
 orp -h
 ```
@@ -66,7 +66,7 @@ Fresh-directory smoke test:
 
 ```bash
 mkdir test-orp && cd test-orp
-npm i -g @sproutseeds/orp-cli
+npm i -g open-research-protocol
 orp init
 orp gate run --profile default
 orp packet emit --profile default

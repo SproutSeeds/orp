@@ -1,4 +1,4 @@
-name: Publish ORP CLI to npm
+name: Publish Open Research Protocol to npm
 
 on:
   push:

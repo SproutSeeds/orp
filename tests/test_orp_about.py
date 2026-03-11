@@ -11,7 +11,9 @@ import unittest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 PACKAGE_JSON = REPO_ROOT / "package.json"
-PACKAGE_VERSION = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["version"]
+PACKAGE_METADATA = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
+PACKAGE_VERSION = PACKAGE_METADATA["version"]
+PACKAGE_NAME = PACKAGE_METADATA["name"]
 
 
 class OrpAboutTests(unittest.TestCase):
@@ -26,6 +28,7 @@ class OrpAboutTests(unittest.TestCase):
 
         payload = json.loads(proc.stdout)
         self.assertEqual(payload["tool"]["name"], "orp")
+        self.assertEqual(payload["tool"]["package"], PACKAGE_NAME)
         self.assertEqual(payload["tool"]["version"], PACKAGE_VERSION)
         self.assertTrue(payload["tool"]["agent_friendly"])
         self.assertEqual(payload["discovery"]["llms_txt"], "llms.txt")

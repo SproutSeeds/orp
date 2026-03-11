@@ -15,7 +15,7 @@ The default runtime story is now:
 Optional global CLI install:
 
 ```sh
-npm i -g @sproutseeds/orp-cli
+npm i -g open-research-protocol
 orp
 orp -h
 orp about --json
@@ -65,7 +65,7 @@ This is the fastest way to verify the published CLI before integrating ORP into 
 
 ```sh
 mkdir test-orp && cd test-orp
-npm i -g @sproutseeds/orp-cli
+npm i -g open-research-protocol
 orp init
 orp gate run --profile default
 orp packet emit --profile default

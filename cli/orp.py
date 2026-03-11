@@ -81,7 +81,24 @@ def _tool_version() -> str:
     return "unknown"
 
 
+def _tool_package_name() -> str:
+    package_json = Path(__file__).resolve().parent.parent / "package.json"
+    if not package_json.exists():
+        return "unknown"
+
+    try:
+        payload = json.loads(package_json.read_text(encoding="utf-8"))
+    except Exception:
+        return "unknown"
+
+    name = payload.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return "unknown"
+
+
 ORP_TOOL_VERSION = _tool_version()
+ORP_PACKAGE_NAME = _tool_package_name()
 DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
 DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
 
@@ -935,7 +952,7 @@ def _about_payload() -> dict[str, Any]:
     return {
         "tool": {
             "name": "orp",
-            "package": "@sproutseeds/orp-cli",
+            "package": ORP_PACKAGE_NAME,
             "version": ORP_TOOL_VERSION,
             "description": "Open Research Protocol CLI for agent-friendly research workflows.",
             "agent_friendly": True,
