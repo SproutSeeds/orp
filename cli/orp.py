@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import getpass
 import hashlib
 import json
 import os
@@ -35,7 +36,9 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Any
+from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
@@ -101,6 +104,582 @@ ORP_TOOL_VERSION = _tool_version()
 ORP_PACKAGE_NAME = _tool_package_name()
 DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
 DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
+DEFAULT_HOSTED_BASE_URL = "https://codacli.com"
+
+
+class HostedApiError(RuntimeError):
+    """Raised when the hosted ORP app returns an API error."""
+
+
+def _config_home() -> Path:
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    if xdg_config_home:
+        return Path(xdg_config_home).expanduser()
+    return Path.home() / ".config"
+
+
+def _orp_user_dir() -> Path:
+    return _config_home() / "orp"
+
+
+def _hosted_session_path() -> Path:
+    return _orp_user_dir() / "remote-session.json"
+
+
+def _hosted_session_template() -> dict[str, Any]:
+    return {
+        "base_url": "",
+        "email": "",
+        "token": "",
+        "user": None,
+        "pending_verification": None,
+    }
+
+
+def _load_hosted_session() -> dict[str, Any]:
+    path = _hosted_session_path()
+    if not path.exists():
+        return _hosted_session_template()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _hosted_session_template()
+    if not isinstance(payload, dict):
+        return _hosted_session_template()
+    return {
+        **_hosted_session_template(),
+        **payload,
+    }
+
+
+def _save_hosted_session(payload: dict[str, Any]) -> None:
+    merged = {
+        **_hosted_session_template(),
+        **payload,
+    }
+    _write_json(_hosted_session_path(), merged)
+
+
+def _normalize_base_url(raw: str) -> str:
+    return str(raw or "").strip().rstrip("/")
+
+
+def _default_hosted_base_url() -> str:
+    for key in ("ORP_BASE_URL", "CODA_BASE_URL"):
+        value = _normalize_base_url(os.environ.get(key, ""))
+        if value:
+            return value
+    return DEFAULT_HOSTED_BASE_URL
+
+
+def _resolve_hosted_base_url(
+    args: argparse.Namespace | None,
+    session: dict[str, Any] | None = None,
+) -> str:
+    explicit = _normalize_base_url(getattr(args, "base_url", "") if args is not None else "")
+    if explicit:
+        return explicit
+    prior = _normalize_base_url((session or {}).get("base_url", ""))
+    if prior:
+        return prior
+    return _default_hosted_base_url()
+
+
+def _get_bypass_token() -> str:
+    for key in ("ORP_VERCEL_BYPASS_TOKEN", "CODA_VERCEL_BYPASS_TOKEN", "VERCEL_AUTOMATION_BYPASS_SECRET"):
+        value = str(os.environ.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _read_json_safe(raw: bytes) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        text = raw.decode("utf-8", errors="replace").strip()
+        return {"error": text} if text else {}
+    if isinstance(payload, dict):
+        return payload
+    return {"payload": payload}
+
+
+def _hosted_api_error(
+    *,
+    base_url: str,
+    path: str,
+    method: str,
+    status: int,
+    payload: dict[str, Any] | None,
+) -> HostedApiError:
+    message = str((payload or {}).get("error") or (payload or {}).get("message") or f"Request failed: {status}")
+    suffix = f" (status={status} path={path})"
+    hint = ""
+    if status == 401:
+        hint = " Run `orp auth login` and `orp auth verify` again to refresh the hosted session."
+    elif status == 403:
+        hint = " The hosted ORP app rejected the operation. Check permissions on the target record."
+    elif status == 404:
+        hint = " The hosted record may have changed. Re-list the resource and retry."
+    elif status == 409:
+        hint = " The hosted record changed since you last fetched it. Re-open it and retry the update."
+    return HostedApiError(f"{message}{suffix}.{hint}".replace("..", "."))
+
+
+def _request_hosted_json(
+    *,
+    base_url: str,
+    path: str,
+    method: str = "GET",
+    token: str = "",
+    body: dict[str, Any] | None = None,
+    timeout_sec: int = 30,
+) -> dict[str, Any]:
+    url = _normalize_base_url(base_url) + path
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    bypass_token = _get_bypass_token()
+    if bypass_token:
+        headers["x-vercel-protection-bypass"] = bypass_token
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    request = urlrequest.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlrequest.urlopen(request, timeout=timeout_sec) as response:
+            payload = _read_json_safe(response.read())
+            return payload
+    except urlerror.HTTPError as exc:
+        payload = _read_json_safe(exc.read())
+        raise _hosted_api_error(
+            base_url=base_url,
+            path=path,
+            method=method,
+            status=int(exc.code),
+            payload=payload,
+        ) from exc
+    except urlerror.URLError as exc:
+        raise HostedApiError(
+            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}"
+        ) from exc
+
+
+def _can_prompt() -> bool:
+    return bool(sys.stdin.isatty() and sys.stderr.isatty())
+
+
+def _prompt_value(label: str, *, secret: bool = False) -> str:
+    if not _can_prompt():
+        return ""
+    if secret:
+        return getpass.getpass(f"{label}: ").strip()
+    return input(f"{label}: ").strip()
+
+
+def _session_summary(session: dict[str, Any]) -> dict[str, Any]:
+    user = session.get("user") if isinstance(session.get("user"), dict) else None
+    pending = session.get("pending_verification")
+    pending = pending if isinstance(pending, dict) else None
+    return {
+        "base_url": _normalize_base_url(session.get("base_url", "")),
+        "email": str(session.get("email", "")).strip(),
+        "user": user,
+        "connected": bool(str(session.get("token", "")).strip()),
+        "pending_verification": pending,
+    }
+
+
+def _require_hosted_session(args: argparse.Namespace) -> dict[str, Any]:
+    session = _load_hosted_session()
+    session["base_url"] = _resolve_hosted_base_url(args, session)
+    if not str(session.get("token", "")).strip():
+        raise RuntimeError("No hosted ORP session found. Run `orp auth login` and `orp auth verify` first.")
+    return session
+
+
+def _print_pairs(rows: list[tuple[str, Any]]) -> None:
+    for key, value in rows:
+        if value is None:
+            value = ""
+        print(f"{key}={value}")
+
+
+def _mask_email(email: str) -> str:
+    text = str(email).strip()
+    if "@" not in text:
+        return text
+    local, domain = text.split("@", 1)
+    if len(local) <= 2:
+        masked = "*" * len(local)
+    else:
+        masked = local[:2] + ("*" * max(1, len(local) - 2))
+    return f"{masked}@{domain}"
+
+
+def _extract_detail_sections_value(raw: Any, source_label: str) -> list[Any]:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        if isinstance(raw.get("detailSections"), list):
+            return list(raw["detailSections"])
+        if isinstance(raw.get("details"), list):
+            return list(raw["details"])
+        if any(key in raw for key in {"body", "detail", "label", "detailLabel", "id"}):
+            return [raw]
+    if isinstance(raw, str):
+        return [raw]
+    raise RuntimeError(
+        f"{source_label} must be a JSON array, a detail object, or an object with detailSections/details."
+    )
+
+
+def _normalize_feature_detail_section(raw: Any, index: int, source_label: str) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return None
+        return {
+            "label": "Detail",
+            "body": text,
+        }
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"{source_label} entry #{index + 1} must be an object or string.")
+
+    label = str(raw.get("label", raw.get("detailLabel", "Detail"))).strip() or "Detail"
+    body = str(raw.get("body", raw.get("detail", "")))
+    result: dict[str, Any] = {
+        "label": label,
+        "body": body,
+    }
+    section_id = str(raw.get("id", "")).strip()
+    if section_id:
+        result["id"] = section_id
+    if not body.strip() and "id" not in result:
+        return None
+    return result
+
+
+def _normalize_detail_sections(raw: Any, source_label: str) -> list[dict[str, Any]]:
+    values = _extract_detail_sections_value(raw, source_label)
+    normalized: list[dict[str, Any]] = []
+    for index, value in enumerate(values):
+        section = _normalize_feature_detail_section(value, index, source_label)
+        if section:
+            normalized.append(section)
+    return normalized
+
+
+def _primary_detail_section(feature: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    feature = feature if isinstance(feature, dict) else {}
+    detail_sections = feature.get("detailSections")
+    if isinstance(detail_sections, list) and detail_sections:
+        first = detail_sections[0]
+        if isinstance(first, dict):
+            return dict(first)
+    if feature.get("detail") or feature.get("detailLabel"):
+        return {
+            "label": str(feature.get("detailLabel", "Detail")).strip() or "Detail",
+            "body": str(feature.get("detail", "")),
+        }
+    return None
+
+
+def _resolve_feature_detail_sections_input(
+    args: argparse.Namespace,
+    current_feature: dict[str, Any] | None = None,
+) -> list[dict[str, Any]] | None:
+    if bool(getattr(args, "clear_details", False)):
+        return []
+    details_file = str(getattr(args, "details_file", "")).strip()
+    if details_file:
+        path = Path(details_file).expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        return _normalize_detail_sections(_read_json(path.resolve()), f"Feature details file {details_file}")
+    details_json = getattr(args, "details_json", "")
+    if details_json:
+        try:
+            parsed = json.loads(str(details_json))
+        except Exception as exc:
+            raise RuntimeError(f"Invalid --details-json payload: {exc}") from exc
+        return _normalize_detail_sections(parsed, "--details-json")
+    if getattr(args, "detail", None) is not None or getattr(args, "detail_label", None) is not None:
+        current_primary = _primary_detail_section(current_feature)
+        return _normalize_detail_sections(
+            [
+                {
+                    **({"id": current_primary["id"]} if current_primary and current_primary.get("id") else {}),
+                    "label": (
+                        str(getattr(args, "detail_label", "")).strip()
+                        if getattr(args, "detail_label", None) is not None
+                        else str((current_primary or {}).get("label", "Detail")).strip()
+                    )
+                    or "Detail",
+                    "body": (
+                        str(getattr(args, "detail", ""))
+                        if getattr(args, "detail", None) is not None
+                        else str((current_primary or {}).get("body", ""))
+                    ),
+                }
+            ],
+            "feature detail input",
+        )
+    return None
+
+
+def _collect_detail_section_refs(values: list[str]) -> list[dict[str, str]]:
+    refs: list[dict[str, str]] = []
+    for value in _unique_strings(values):
+        feature_id, sep, detail_section_id = str(value).partition(":")
+        if not sep or not feature_id.strip() or not detail_section_id.strip():
+            raise RuntimeError("Detail section refs must use <feature-id>:<detail-section-id>.")
+        refs.append(
+            {
+                "featureId": feature_id.strip(),
+                "detailSectionId": detail_section_id.strip(),
+            }
+        )
+    return refs
+
+
+def _build_checkpoint_context_selection(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "includeIdeaTitle": not bool(getattr(args, "skip_idea_title", False)),
+        "includeCorePlan": not bool(getattr(args, "skip_core_plan", False)),
+        "includeGithub": not bool(getattr(args, "skip_github", False)),
+        "includeRepoBinding": not bool(getattr(args, "skip_repo_binding", False)),
+        "includePreviousResponseSummaries": bool(getattr(args, "include_previous_response_summaries", False)),
+        "featureIds": _unique_strings(list(getattr(args, "feature_id", []) or [])),
+        "detailSectionRefs": _collect_detail_section_refs(list(getattr(args, "detail_section", []) or [])),
+        "userNote": str(getattr(args, "user_note", "")).strip(),
+    }
+
+
+def _split_structured_list(text: str) -> list[str]:
+    lines = [line.strip() for line in str(text).splitlines() if line.strip()]
+    bullets = [
+        re.sub(r"^[-*•]\s+|^\d+\.\s+", "", line).strip()
+        for line in lines
+    ]
+    bullets = [line for line in bullets if line]
+    if bullets:
+        return bullets
+    text = str(text).strip()
+    return [text] if text else []
+
+
+def _parse_checkpoint_structured_response(body: str) -> dict[str, Any]:
+    text = str(body or "").replace("\r\n", "\n")
+    matches = list(
+        re.finditer(
+            r"^(?:#{1,6}\s*)?(Previous state|Current state|Heading state|Review notes|Action items)\s*:?\s*$",
+            text,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+    )
+    sections: dict[str, Any] = {
+        "previousState": None,
+        "currentState": None,
+        "headingState": None,
+        "reviewNotes": [],
+        "actionItems": [],
+    }
+    if not matches:
+        return sections
+
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        content = text[start:end].strip()
+        heading = str(match.group(1) or "").strip().lower()
+        if heading == "previous state":
+            sections["previousState"] = content or None
+        elif heading == "current state":
+            sections["currentState"] = content or None
+        elif heading == "heading state":
+            sections["headingState"] = content or None
+        elif heading == "review notes":
+            sections["reviewNotes"] = _split_structured_list(content)
+        elif heading == "action items":
+            sections["actionItems"] = _split_structured_list(content)
+    return sections
+
+
+def _summarize_checkpoint_response(body: str) -> str:
+    for line in str(body or "").splitlines():
+        text = line.strip()
+        if text:
+            return text[:280]
+    return ""
+
+
+def _summarize_checkpoint_response_from_structured(body: str, structured: dict[str, Any]) -> str:
+    for key in ("currentState", "headingState", "previousState"):
+        value = structured.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:280]
+    return _summarize_checkpoint_response(body)
+
+
+def _build_remote_world_body(args: argparse.Namespace) -> dict[str, Any]:
+    body: dict[str, Any] = {}
+    if getattr(args, "name", None) is not None:
+        body["name"] = str(getattr(args, "name", "")).strip()
+    if getattr(args, "project_root", None) is not None:
+        text = str(getattr(args, "project_root", "")).strip()
+        body["projectRoot"] = text or None
+    if getattr(args, "github_url", None) is not None:
+        text = str(getattr(args, "github_url", "")).strip()
+        body["githubUrl"] = text or None
+    if getattr(args, "codex_session_id", None) is not None:
+        text = str(getattr(args, "codex_session_id", "")).strip()
+        body["codexSessionId"] = text or None
+    return body
+
+
+def _build_remote_idea_body(
+    args: argparse.Namespace,
+    current_idea: dict[str, Any] | None = None,
+    *,
+    require_notes: bool = True,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {}
+    title = getattr(args, "title", None)
+    notes = getattr(args, "notes", None)
+    summary = getattr(args, "summary", None)
+    github_url = getattr(args, "github_url", None)
+    link_label = getattr(args, "link_label", None)
+    visibility = getattr(args, "visibility", None)
+
+    if title is not None:
+        text = str(title).strip()
+        if text:
+            body["title"] = text
+    if notes is not None:
+        body["notes"] = str(notes)
+    elif summary is not None:
+        body["notes"] = str(summary)
+    elif current_idea is None and require_notes:
+        body["notes"] = ""
+    if github_url is not None:
+        text = str(github_url).strip()
+        body["githubUrl"] = text or None
+    if link_label is not None:
+        text = str(link_label).strip()
+        body["linkLabel"] = text or None
+    if visibility is not None:
+        text = str(visibility).strip()
+        if text:
+            body["visibility"] = text
+    return body
+
+
+def _build_remote_feature_body(
+    args: argparse.Namespace,
+    idea_id: str,
+    current_feature: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "ideaId": idea_id,
+    }
+    if getattr(args, "title", None) is not None:
+        body["title"] = str(getattr(args, "title", "")).strip()
+    if getattr(args, "notes", None) is not None:
+        body["notes"] = str(getattr(args, "notes", ""))
+    if getattr(args, "detail", None) is not None:
+        body["detail"] = str(getattr(args, "detail", ""))
+    if getattr(args, "detail_label", None) is not None:
+        body["detailLabel"] = str(getattr(args, "detail_label", ""))
+    detail_sections = _resolve_feature_detail_sections_input(args, current_feature)
+    if detail_sections is not None:
+        body["details"] = detail_sections
+    if getattr(args, "starred", False):
+        body["starred"] = True
+    if getattr(args, "super_starred", False):
+        body["superStarred"] = True
+    if getattr(args, "visibility", None) is not None:
+        body["visibility"] = str(getattr(args, "visibility", "")).strip()
+    return body
+
+
+def _resolve_codex_bin(args: argparse.Namespace) -> str:
+    explicit = str(getattr(args, "codex_bin", "")).strip()
+    if explicit:
+        return explicit
+    env_bin = os.environ.get("CODEX_BIN", "").strip()
+    if env_bin:
+        return env_bin
+    return "codex"
+
+
+def _run_checkpoint_codex_job(job: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    world = job.get("world")
+    checkpoint = job.get("checkpoint")
+    if not isinstance(world, dict) or not isinstance(checkpoint, dict):
+        raise RuntimeError("Invalid checkpoint job payload: missing world/checkpoint.")
+
+    project_root = str(world.get("projectRoot", "")).strip()
+    codex_session_id = str(world.get("codexSessionId", "")).strip()
+    prompt = str(job.get("prompt", ""))
+    if not project_root:
+        raise RuntimeError("Checkpoint job world is missing projectRoot.")
+    if not codex_session_id:
+        raise RuntimeError("Checkpoint job world is missing codexSessionId.")
+
+    output_path = Path(tempfile.gettempdir()) / f"orp-checkpoint-response-{checkpoint.get('id', 'job')}.txt"
+    codex_bin = _resolve_codex_bin(args)
+    cmd = [
+        codex_bin,
+        "exec",
+        "resume",
+        "--skip-git-repo-check",
+        "--output-last-message",
+        str(output_path),
+        codex_session_id,
+        "-",
+    ]
+    env = dict(os.environ)
+    profile = str(getattr(args, "codex_config_profile", "")).strip()
+    if profile:
+        env["CODEX_PROFILE"] = profile
+
+    proc = subprocess.run(
+        cmd,
+        cwd=project_root,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    body = ""
+    if output_path.exists():
+        try:
+            body = output_path.read_text(encoding="utf-8")
+        finally:
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
+    if not body:
+        body = proc.stdout or proc.stderr or ""
+
+    structured = _parse_checkpoint_structured_response(body)
+    return {
+        "ok": proc.returncode == 0,
+        "exitCode": proc.returncode,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        "body": body,
+        "summary": _summarize_checkpoint_response_from_structured(body, structured),
+        "command": " ".join(cmd),
+        "structured": structured,
+    }
 
 COLLABORATION_WORKFLOWS: list[dict[str, Any]] = [
     {
@@ -983,6 +1562,18 @@ def _about_payload() -> dict[str, Any]:
         },
         "abilities": [
             {
+                "id": "workspace",
+                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and worker operations.",
+                "entrypoints": [
+                    ["auth", "login"],
+                    ["whoami"],
+                    ["ideas", "list"],
+                    ["world", "bind"],
+                    ["checkpoint", "queue"],
+                    ["agent", "work"],
+                ],
+            },
+            {
                 "id": "discover",
                 "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
                 "entrypoints": [
@@ -1020,6 +1611,25 @@ def _about_payload() -> dict[str, Any]:
         "commands": [
             {"name": "home", "path": ["home"], "json_output": True},
             {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "auth_login", "path": ["auth", "login"], "json_output": True},
+            {"name": "auth_verify", "path": ["auth", "verify"], "json_output": True},
+            {"name": "auth_logout", "path": ["auth", "logout"], "json_output": True},
+            {"name": "whoami", "path": ["whoami"], "json_output": True},
+            {"name": "ideas_list", "path": ["ideas", "list"], "json_output": True},
+            {"name": "idea_show", "path": ["idea", "show"], "json_output": True},
+            {"name": "idea_add", "path": ["idea", "add"], "json_output": True},
+            {"name": "idea_update", "path": ["idea", "update"], "json_output": True},
+            {"name": "idea_remove", "path": ["idea", "remove"], "json_output": True},
+            {"name": "idea_restore", "path": ["idea", "restore"], "json_output": True},
+            {"name": "feature_list", "path": ["feature", "list"], "json_output": True},
+            {"name": "feature_show", "path": ["feature", "show"], "json_output": True},
+            {"name": "feature_add", "path": ["feature", "add"], "json_output": True},
+            {"name": "feature_update", "path": ["feature", "update"], "json_output": True},
+            {"name": "feature_remove", "path": ["feature", "remove"], "json_output": True},
+            {"name": "world_show", "path": ["world", "show"], "json_output": True},
+            {"name": "world_bind", "path": ["world", "bind"], "json_output": True},
+            {"name": "checkpoint_queue", "path": ["checkpoint", "queue"], "json_output": True},
+            {"name": "agent_work", "path": ["agent", "work"], "json_output": True},
             {"name": "discover_profile_init", "path": ["discover", "profile", "init"], "json_output": True},
             {"name": "discover_github_scan", "path": ["discover", "github", "scan"], "json_output": True},
             {"name": "collaborate_init", "path": ["collaborate", "init"], "json_output": True},
@@ -1041,6 +1651,7 @@ def _about_payload() -> dict[str, Any]:
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
+            "Hosted workspace operations are built directly into ORP under auth/ideas/feature/world/checkpoint/agent.",
         ],
         "packs": packs,
     }
@@ -1137,6 +1748,18 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
 
     quick_actions = [
         {
+            "label": "Connect ORP to the hosted workspace",
+            "command": "orp auth login",
+        },
+        {
+            "label": "Inspect the current hosted workspace identity",
+            "command": "orp whoami --json",
+        },
+        {
+            "label": "List hosted ideas in the current workspace",
+            "command": "orp ideas list --json",
+        },
+        {
             "label": "Scaffold a discovery profile for GitHub scanning",
             "command": "orp discover profile init --json",
         },
@@ -1200,6 +1823,18 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "last_packet_id": last_packet_id,
         },
         "abilities": [
+            {
+                "id": "workspace",
+                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and worker operations.",
+                "entrypoints": [
+                    "orp auth login",
+                    "orp whoami --json",
+                    "orp ideas list --json",
+                    "orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json",
+                    "orp checkpoint queue --idea-id <idea-id> --json",
+                    "orp agent work --once --json",
+                ],
+            },
             {
                 "id": "discover",
                 "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
@@ -2943,6 +3578,688 @@ def cmd_report_summary(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_auth_login(args: argparse.Namespace) -> int:
+    session = _load_hosted_session()
+    base_url = _resolve_hosted_base_url(args, session)
+
+    email = str(getattr(args, "email", "")).strip() or str(session.get("email", "")).strip()
+    if not email:
+        email = _prompt_value("Email")
+    if not email:
+        raise RuntimeError("Email is required.")
+
+    password = str(getattr(args, "password", "")).strip()
+    if not password:
+        password = _prompt_value("Password", secret=True)
+    if not password:
+        raise RuntimeError("Password is required.")
+
+    payload = _request_hosted_json(
+        base_url=base_url,
+        path="/api/auth/device-login",
+        method="POST",
+        body={
+            "email": email,
+            "password": password,
+        },
+    )
+    pending = payload.get("pendingVerification")
+    if not isinstance(pending, dict):
+        raise RuntimeError("Hosted ORP login did not return pending verification details.")
+
+    updated = {
+        **session,
+        "base_url": base_url,
+        "email": email,
+        "token": "",
+        "user": None,
+        "pending_verification": pending,
+    }
+    _save_hosted_session(updated)
+
+    result = {
+        "base_url": base_url,
+        "email": _mask_email(email),
+        "expires_at": str(pending.get("expiresAt", "")).strip(),
+        "pending_verification": True,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("base_url", result["base_url"]),
+                ("email", result["email"]),
+                ("expires_at", result["expires_at"]),
+                ("pending_verification", "true"),
+            ]
+        )
+    return 0
+
+
+def cmd_auth_verify(args: argparse.Namespace) -> int:
+    session = _load_hosted_session()
+    base_url = _resolve_hosted_base_url(args, session)
+
+    email = str(getattr(args, "email", "")).strip() or str(session.get("email", "")).strip()
+    if not email:
+        email = _prompt_value("Email")
+    if not email:
+        raise RuntimeError("Email is required.")
+
+    code = str(getattr(args, "code", "")).strip()
+    if not code:
+        code = _prompt_value("Verification code")
+    if not code:
+        raise RuntimeError("Verification code is required.")
+
+    payload = _request_hosted_json(
+        base_url=base_url,
+        path="/api/auth/device-verify",
+        method="POST",
+        body={
+            "email": email,
+            "code": code,
+        },
+    )
+    token = str(payload.get("token", "")).strip()
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else None
+    if not token or user is None:
+        raise RuntimeError("Hosted ORP verify did not return a usable session.")
+
+    updated = {
+        **session,
+        "base_url": base_url,
+        "email": email,
+        "token": token,
+        "user": user,
+        "pending_verification": None,
+    }
+    _save_hosted_session(updated)
+
+    result = {
+        "base_url": base_url,
+        "email": str(user.get("email", email)).strip() or email,
+        "user_id": str(user.get("id", "")).strip(),
+        "connected": True,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("base_url", result["base_url"]),
+                ("email", result["email"]),
+                ("user_id", result["user_id"]),
+                ("connected", "true"),
+            ]
+        )
+    return 0
+
+
+def cmd_auth_logout(args: argparse.Namespace) -> int:
+    session = _load_hosted_session()
+    updated = {
+        "base_url": _normalize_base_url(session.get("base_url", "")),
+        "email": str(session.get("email", "")).strip(),
+        "token": "",
+        "user": None,
+        "pending_verification": None,
+    }
+    _save_hosted_session(updated)
+    result = {
+        "base_url": updated["base_url"],
+        "connected": False,
+        "ok": True,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("base_url", result["base_url"]),
+                ("connected", "false"),
+                ("ok", "true"),
+            ]
+        )
+    return 0
+
+
+def cmd_whoami(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    base_url = _resolve_hosted_base_url(args, session)
+    payload = _request_hosted_json(
+        base_url=base_url,
+        path="/api/cli/me",
+        token=str(session.get("token", "")).strip(),
+    )
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else payload
+    if not isinstance(user, dict):
+        raise RuntimeError("Hosted ORP did not return a user payload.")
+
+    result = {
+        "base_url": base_url,
+        "user_id": str(user.get("id", "")).strip(),
+        "email": str(user.get("email", "")).strip(),
+        "name": str(user.get("name", "")).strip(),
+        "connected": True,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("base_url", result["base_url"]),
+                ("user_id", result["user_id"]),
+                ("email", result["email"]),
+                ("name", result["name"]),
+                ("connected", "true"),
+            ]
+        )
+    return 0
+
+
+def cmd_ideas_list(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    params: list[str] = []
+    if int(args.limit) > 0:
+        params.append(f"limit={int(args.limit)}")
+    cursor = str(getattr(args, "cursor", "")).strip()
+    if cursor:
+        params.append(f"cursor={urlparse.quote(cursor)}")
+    sort_value = str(getattr(args, "sort", "")).strip()
+    if sort_value:
+        params.append(f"sort={urlparse.quote(sort_value)}")
+    if bool(getattr(args, "deleted", False)):
+        params.append("deleted=1")
+    query = f"?{'&'.join(params)}" if params else ""
+
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas{query}",
+        token=str(session.get("token", "")).strip(),
+    )
+    result = {
+        "ideas": payload.get("ideas", []) if isinstance(payload.get("ideas"), list) else [],
+        "cursor": str(payload.get("cursor", "")).strip(),
+        "has_more": bool(payload.get("hasMore", False)),
+        "sort": sort_value or "updated_desc",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("ideas.count", len(result["ideas"])),
+                ("cursor", result["cursor"]),
+                ("has_more", str(result["has_more"]).lower()),
+                ("sort", result["sort"]),
+            ]
+        )
+        for row in result["ideas"]:
+            if not isinstance(row, dict):
+                continue
+            print("---")
+            _print_pairs(
+                [
+                    ("idea.id", str(row.get("id", "")).strip()),
+                    ("idea.title", str(row.get("title", "")).strip()),
+                    ("idea.visibility", str(row.get("visibility", "")).strip()),
+                    ("idea.updated_at", str(row.get("updatedAt", "")).strip()),
+                ]
+            )
+    return 0
+
+
+def _get_remote_idea(args: argparse.Namespace, idea_id: str) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(idea_id)}",
+        token=str(session.get("token", "")).strip(),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid idea payload.")
+    return payload
+
+
+def cmd_idea_show(args: argparse.Namespace) -> int:
+    payload = _get_remote_idea(args, args.idea_id)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", str(payload.get("id", "")).strip()),
+                ("idea.title", str(payload.get("title", "")).strip()),
+                ("idea.visibility", str(payload.get("visibility", "")).strip()),
+                ("idea.github_url", str(payload.get("githubUrl", "")).strip()),
+                ("idea.updated_at", str(payload.get("updatedAt", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_idea_add(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    body = _build_remote_idea_body(args, require_notes=True)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/ideas",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", str(payload.get("id", "")).strip()),
+                ("idea.title", str(payload.get("title", "")).strip()),
+                ("idea.visibility", str(payload.get("visibility", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_idea_update(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    current = _get_remote_idea(args, args.idea_id)
+    body = _build_remote_idea_body(args, current_idea=current, require_notes=False)
+    updated_at = str(current.get("updatedAt", "")).strip()
+    if updated_at:
+        body["updatedAt"] = updated_at
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}",
+        method="PATCH",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", str(payload.get("id", "")).strip()),
+                ("idea.title", str(payload.get("title", "")).strip()),
+                ("idea.visibility", str(payload.get("visibility", "")).strip()),
+                ("idea.updated_at", str(payload.get("updatedAt", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_idea_remove(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    suffix = "?purge=1" if bool(getattr(args, "purge", False)) else ""
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}{suffix}",
+        method="DELETE",
+        token=str(session.get("token", "")).strip(),
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", str(payload.get("removedIdeaId", "")).strip()),
+                ("mode", str(payload.get("mode", "")).strip()),
+                ("ok", str(bool(payload.get("ok", False))).lower()),
+            ]
+        )
+    return 0
+
+
+def cmd_idea_restore(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/restore",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body={},
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", str(payload.get("id", "")).strip()),
+                ("idea.title", str(payload.get("title", "")).strip()),
+                ("idea.visibility", str(payload.get("visibility", "")).strip()),
+                ("ok", str(bool(payload.get("ok", True))).lower()),
+            ]
+        )
+    return 0
+
+
+def cmd_feature_list(args: argparse.Namespace) -> int:
+    idea = _get_remote_idea(args, args.idea_id)
+    features = idea.get("features") if isinstance(idea.get("features"), list) else []
+    result = {
+        "idea_id": str(idea.get("id", "")).strip(),
+        "idea_title": str(idea.get("title", "")).strip(),
+        "features": features,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", result["idea_id"]),
+                ("idea.title", result["idea_title"]),
+                ("features.count", len(features)),
+            ]
+        )
+        for row in features:
+            if not isinstance(row, dict):
+                continue
+            print("---")
+            _print_pairs(
+                [
+                    ("feature.id", str(row.get("id", "")).strip()),
+                    ("feature.title", str(row.get("title", "")).strip()),
+                    ("feature.updated_at", str(row.get("updatedAt", "")).strip()),
+                ]
+            )
+    return 0
+
+
+def _find_feature_by_id(idea_payload: dict[str, Any], feature_id: str) -> dict[str, Any]:
+    features = idea_payload.get("features")
+    if not isinstance(features, list):
+        raise RuntimeError("Idea does not contain feature data.")
+    for row in features:
+        if isinstance(row, dict) and str(row.get("id", "")).strip() == feature_id:
+            return row
+    raise RuntimeError(f"Feature not found on idea: {feature_id}")
+
+
+def cmd_feature_show(args: argparse.Namespace) -> int:
+    idea = _get_remote_idea(args, args.idea_id)
+    feature = _find_feature_by_id(idea, args.feature_id)
+    result = {
+        "idea_id": str(idea.get("id", "")).strip(),
+        "feature": feature,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("feature.id", str(feature.get("id", "")).strip()),
+                ("feature.title", str(feature.get("title", "")).strip()),
+                ("feature.updated_at", str(feature.get("updatedAt", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_feature_add(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    body = _build_remote_feature_body(args, args.idea_id, None)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/features",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("feature.id", str(payload.get("id", "")).strip()),
+                ("feature.title", str(payload.get("title", "")).strip()),
+                ("idea.id", str(payload.get("ideaId", args.idea_id)).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_feature_update(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    idea = _get_remote_idea(args, args.idea_id)
+    current = _find_feature_by_id(idea, args.feature_id)
+    body = _build_remote_feature_body(args, args.idea_id, current)
+    updated_at = str(current.get("updatedAt", "")).strip()
+    if updated_at:
+        body["updatedAt"] = updated_at
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/features/{urlparse.quote(args.feature_id)}",
+        method="PATCH",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("feature.id", str(payload.get("id", "")).strip()),
+                ("feature.title", str(payload.get("title", "")).strip()),
+                ("feature.updated_at", str(payload.get("updatedAt", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_feature_remove(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/features/{urlparse.quote(args.feature_id)}",
+        method="DELETE",
+        token=str(session.get("token", "")).strip(),
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("feature.id", str(payload.get("removedFeatureId", "")).strip()),
+                ("idea.id", str(payload.get("ideaId", "")).strip()),
+                ("ok", str(bool(payload.get("ok", False))).lower()),
+            ]
+        )
+    return 0
+
+
+def cmd_world_show(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/world",
+        token=str(session.get("token", "")).strip(),
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("world.id", str(payload.get("id", "")).strip()),
+                ("world.name", str(payload.get("name", "")).strip()),
+                ("world.project_root", str(payload.get("projectRoot", "")).strip()),
+                ("world.github_url", str(payload.get("githubUrl", "")).strip()),
+                ("world.codex_session_id", str(payload.get("codexSessionId", "")).strip()),
+                ("world.status", str(payload.get("status", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_world_bind(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    body = _build_remote_world_body(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/world",
+        method="PUT",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("world.id", str(payload.get("id", "")).strip()),
+                ("world.name", str(payload.get("name", "")).strip()),
+                ("world.project_root", str(payload.get("projectRoot", "")).strip()),
+                ("world.codex_session_id", str(payload.get("codexSessionId", "")).strip()),
+                ("world.status", str(payload.get("status", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_checkpoint_queue(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    body: dict[str, Any] = {
+        "triggerType": str(getattr(args, "trigger_type", "agent-feedback")).strip() or "agent-feedback",
+        "contextSelection": _build_checkpoint_context_selection(args),
+    }
+    world_id = str(getattr(args, "world_id", "")).strip()
+    if world_id:
+        body["worldId"] = world_id
+    focus_feature = str(getattr(args, "focus_feature", "")).strip()
+    if focus_feature:
+        body["featureId"] = focus_feature
+    focus_detail = str(getattr(args, "focus_detail_section", "")).strip()
+    if focus_detail:
+        body["detailSectionId"] = focus_detail
+
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/checkpoints",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("checkpoint.id", str(payload.get("id", "")).strip()),
+                ("checkpoint.status", str(payload.get("status", "")).strip()),
+                ("checkpoint.world_id", str(payload.get("worldId", "")).strip()),
+                ("checkpoint.idea_id", str(payload.get("ideaId", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def _run_worker_once(args: argparse.Namespace) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    agent = str(getattr(args, "agent", "")).strip()
+    query = f"?agent={urlparse.quote(agent)}" if agent else ""
+    job_payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/agent/jobs/poll{query}",
+        token=str(session.get("token", "")).strip(),
+    )
+    job = job_payload.get("job") if isinstance(job_payload.get("job"), dict) else job_payload
+    if not isinstance(job, dict) or not job:
+        return {
+            "ok": True,
+            "claimed": False,
+            "job": None,
+        }
+
+    if bool(getattr(args, "dry_run", False)):
+        return {
+            "ok": True,
+            "claimed": True,
+            "dry_run": True,
+            "job": job,
+        }
+
+    run_result = _run_checkpoint_codex_job(job, args)
+    checkpoint = job.get("checkpoint") if isinstance(job.get("checkpoint"), dict) else {}
+    checkpoint_id = str(checkpoint.get("id", "")).strip()
+    if not checkpoint_id:
+        raise RuntimeError("Claimed checkpoint job is missing checkpoint id.")
+
+    response_payload = {
+        "summary": str(run_result.get("summary", "")).strip(),
+        "body": str(run_result.get("body", "")),
+        "structuredOutput": run_result.get("structured", {}),
+        "worker": {
+            "command": str(run_result.get("command", "")),
+            "exitCode": int(run_result.get("exitCode", 0)),
+            "stdout": str(run_result.get("stdout", "")),
+            "stderr": str(run_result.get("stderr", "")),
+            "ok": bool(run_result.get("ok", False)),
+        },
+    }
+    response = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/checkpoints/{urlparse.quote(checkpoint_id)}/respond",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=response_payload,
+    )
+    return {
+        "ok": bool(run_result.get("ok", False)),
+        "claimed": True,
+        "job": job,
+        "response": response,
+        "worker": run_result,
+    }
+
+
+def cmd_agent_work(args: argparse.Namespace) -> int:
+    poll_interval = max(1, int(getattr(args, "poll_interval", 30)))
+    if bool(getattr(args, "once", False)):
+        result = _run_worker_once(args)
+        if args.json_output:
+            _print_json(result)
+        else:
+            if not result.get("claimed"):
+                print("job.claimed=false")
+                print("job.status=idle")
+            else:
+                checkpoint = result.get("job", {}).get("checkpoint", {}) if isinstance(result.get("job"), dict) else {}
+                print("job.claimed=true")
+                print(f"checkpoint.id={str(checkpoint.get('id', '')).strip()}")
+                if result.get("dry_run"):
+                    print("job.mode=dry-run")
+                else:
+                    response = result.get("response", {}) if isinstance(result.get("response"), dict) else {}
+                    print(f"response.id={str(response.get('id', '')).strip()}")
+                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+        return 0 if result.get("ok", True) else 1
+
+    while True:
+        result = _run_worker_once(args)
+        if args.json_output:
+            _print_json(result)
+        else:
+            if result.get("claimed"):
+                checkpoint = result.get("job", {}).get("checkpoint", {}) if isinstance(result.get("job"), dict) else {}
+                print("job.claimed=true")
+                print(f"checkpoint.id={str(checkpoint.get('id', '')).strip()}")
+                if result.get("dry_run"):
+                    print("job.mode=dry-run")
+                else:
+                    response = result.get("response", {}) if isinstance(result.get("response"), dict) else {}
+                    print(f"response.id={str(response.get('id', '')).strip()}")
+                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+            else:
+                print("job.claimed=false")
+                print("job.status=idle")
+        sys.stdout.flush()
+        if not result.get("ok", True):
+            return 1
+        time.sleep(poll_interval)
+
+
 def _duration_ms(started: Any, ended: Any) -> int:
     try:
         s = dt.datetime.fromisoformat(str(started).replace("Z", "+00:00"))
@@ -3036,29 +4353,296 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", default="orp.yml", help="Config path relative to repo root (default: orp.yml)")
     sub = p.add_subparsers(dest="cmd", required=False)
 
+    def add_json_flag(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--json",
+            dest="json_output",
+            action="store_true",
+            help="Print machine-readable JSON",
+        )
+
+    def add_base_url_flag(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--base-url",
+            default="",
+            help=f"Hosted ORP base URL (default: {DEFAULT_HOSTED_BASE_URL} or saved session)",
+        )
+
+    def add_feature_body_args(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--notes", default=None, help="Feature notes/body")
+        parser.add_argument("--detail", default=None, help="Primary detail section body")
+        parser.add_argument("--detail-label", default=None, help="Primary detail section label")
+        parser.add_argument(
+            "--details-file",
+            default="",
+            help="Path to feature detail sections JSON payload",
+        )
+        parser.add_argument(
+            "--details-json",
+            default="",
+            help="Inline JSON payload for feature detail sections",
+        )
+        parser.add_argument(
+            "--clear-details",
+            action="store_true",
+            help="Clear all structured detail sections",
+        )
+        parser.add_argument("--starred", action="store_true", help="Mark feature as starred")
+        parser.add_argument(
+            "--super-starred",
+            action="store_true",
+            help="Mark feature as super starred",
+        )
+        parser.add_argument(
+            "--visibility",
+            default=None,
+            help="Feature visibility override when supported by the hosted workspace",
+        )
+
     s_home = sub.add_parser(
         "home",
         help="Show ORP home screen with packs, repo status, and quick-start commands",
     )
-    s_home.add_argument(
-        "--json",
-        dest="json_output",
-        action="store_true",
-        help="Print machine-readable JSON",
-    )
+    add_json_flag(s_home)
     s_home.set_defaults(func=cmd_home, json_output=False)
 
     s_about = sub.add_parser(
         "about",
         help="Describe ORP discovery surfaces and machine-friendly interfaces",
     )
-    s_about.add_argument(
-        "--json",
-        dest="json_output",
-        action="store_true",
-        help="Print machine-readable JSON",
-    )
+    add_json_flag(s_about)
     s_about.set_defaults(func=cmd_about, json_output=False)
+
+    s_auth = sub.add_parser("auth", help="Hosted workspace authentication operations")
+    auth_sub = s_auth.add_subparsers(dest="auth_cmd", required=True)
+
+    s_auth_login = auth_sub.add_parser("login", help="Start hosted workspace login flow")
+    s_auth_login.add_argument("--email", default="", help="Hosted account email")
+    s_auth_login.add_argument("--password", default="", help="Hosted account password")
+    add_base_url_flag(s_auth_login)
+    add_json_flag(s_auth_login)
+    s_auth_login.set_defaults(func=cmd_auth_login, json_output=False)
+
+    s_auth_verify = auth_sub.add_parser("verify", help="Complete hosted workspace verification")
+    s_auth_verify.add_argument("--email", default="", help="Hosted account email")
+    s_auth_verify.add_argument("--code", default="", help="Verification code")
+    add_base_url_flag(s_auth_verify)
+    add_json_flag(s_auth_verify)
+    s_auth_verify.set_defaults(func=cmd_auth_verify, json_output=False)
+
+    s_auth_logout = auth_sub.add_parser("logout", help="Clear the hosted workspace session")
+    add_json_flag(s_auth_logout)
+    s_auth_logout.set_defaults(func=cmd_auth_logout, json_output=False)
+
+    s_whoami = sub.add_parser("whoami", help="Show the current hosted workspace identity")
+    add_base_url_flag(s_whoami)
+    add_json_flag(s_whoami)
+    s_whoami.set_defaults(func=cmd_whoami, json_output=False)
+
+    s_ideas = sub.add_parser("ideas", help="Hosted workspace idea listing operations")
+    ideas_sub = s_ideas.add_subparsers(dest="ideas_cmd", required=True)
+    s_ideas_list = ideas_sub.add_parser("list", help="List ideas from the hosted workspace")
+    s_ideas_list.add_argument("--limit", type=int, default=25, help="Page size (default: 25)")
+    s_ideas_list.add_argument("--cursor", default="", help="Pagination cursor")
+    s_ideas_list.add_argument(
+        "--sort",
+        default="updated_desc",
+        help="Sort order (default: updated_desc)",
+    )
+    s_ideas_list.add_argument(
+        "--deleted",
+        action="store_true",
+        help="List deleted ideas instead of active ones",
+    )
+    add_base_url_flag(s_ideas_list)
+    add_json_flag(s_ideas_list)
+    s_ideas_list.set_defaults(func=cmd_ideas_list, json_output=False)
+
+    s_idea = sub.add_parser("idea", help="Hosted workspace idea CRUD operations")
+    idea_sub = s_idea.add_subparsers(dest="idea_cmd", required=True)
+
+    s_idea_show = idea_sub.add_parser("show", help="Show one hosted idea")
+    s_idea_show.add_argument("idea_id", help="Hosted idea id")
+    add_base_url_flag(s_idea_show)
+    add_json_flag(s_idea_show)
+    s_idea_show.set_defaults(func=cmd_idea_show, json_output=False)
+
+    s_idea_add = idea_sub.add_parser("add", help="Create a hosted idea")
+    s_idea_add.add_argument("--title", required=True, help="Idea title")
+    s_idea_add.add_argument("--notes", default=None, help="Idea core plan/notes")
+    s_idea_add.add_argument("--summary", default=None, help="Alias for notes")
+    s_idea_add.add_argument("--github-url", default=None, help="Idea-level web or GitHub URL")
+    s_idea_add.add_argument("--link-label", default=None, help="Optional label for the idea link")
+    s_idea_add.add_argument("--visibility", default=None, help="Idea visibility")
+    add_base_url_flag(s_idea_add)
+    add_json_flag(s_idea_add)
+    s_idea_add.set_defaults(func=cmd_idea_add, json_output=False)
+
+    s_idea_update = idea_sub.add_parser("update", help="Update a hosted idea")
+    s_idea_update.add_argument("idea_id", help="Hosted idea id")
+    s_idea_update.add_argument("--title", default=None, help="Idea title")
+    s_idea_update.add_argument("--notes", default=None, help="Idea core plan/notes")
+    s_idea_update.add_argument("--summary", default=None, help="Alias for notes")
+    s_idea_update.add_argument("--github-url", default=None, help="Idea-level web or GitHub URL")
+    s_idea_update.add_argument("--link-label", default=None, help="Optional label for the idea link")
+    s_idea_update.add_argument("--visibility", default=None, help="Idea visibility")
+    add_base_url_flag(s_idea_update)
+    add_json_flag(s_idea_update)
+    s_idea_update.set_defaults(func=cmd_idea_update, json_output=False)
+
+    s_idea_remove = idea_sub.add_parser("remove", help="Remove a hosted idea")
+    s_idea_remove.add_argument("idea_id", help="Hosted idea id")
+    s_idea_remove.add_argument(
+        "--purge",
+        action="store_true",
+        help="Permanently purge instead of soft-delete",
+    )
+    add_base_url_flag(s_idea_remove)
+    add_json_flag(s_idea_remove)
+    s_idea_remove.set_defaults(func=cmd_idea_remove, json_output=False)
+
+    s_idea_restore = idea_sub.add_parser("restore", help="Restore a soft-deleted hosted idea")
+    s_idea_restore.add_argument("idea_id", help="Hosted idea id")
+    add_base_url_flag(s_idea_restore)
+    add_json_flag(s_idea_restore)
+    s_idea_restore.set_defaults(func=cmd_idea_restore, json_output=False)
+
+    s_feature = sub.add_parser("feature", help="Hosted workspace feature CRUD operations")
+    feature_sub = s_feature.add_subparsers(dest="feature_cmd", required=True)
+
+    s_feature_list = feature_sub.add_parser("list", help="List features on a hosted idea")
+    s_feature_list.add_argument("idea_id", help="Hosted idea id")
+    add_base_url_flag(s_feature_list)
+    add_json_flag(s_feature_list)
+    s_feature_list.set_defaults(func=cmd_feature_list, json_output=False)
+
+    s_feature_show = feature_sub.add_parser("show", help="Show one hosted feature")
+    s_feature_show.add_argument("feature_id", help="Hosted feature id")
+    s_feature_show.add_argument("--idea-id", required=True, help="Parent hosted idea id")
+    add_base_url_flag(s_feature_show)
+    add_json_flag(s_feature_show)
+    s_feature_show.set_defaults(func=cmd_feature_show, json_output=False)
+
+    s_feature_add = feature_sub.add_parser("add", help="Create a hosted feature")
+    s_feature_add.add_argument("--idea-id", required=True, help="Parent hosted idea id")
+    s_feature_add.add_argument("--title", required=True, help="Feature title")
+    add_feature_body_args(s_feature_add)
+    add_base_url_flag(s_feature_add)
+    add_json_flag(s_feature_add)
+    s_feature_add.set_defaults(func=cmd_feature_add, json_output=False)
+
+    s_feature_update = feature_sub.add_parser("update", help="Update a hosted feature")
+    s_feature_update.add_argument("feature_id", help="Hosted feature id")
+    s_feature_update.add_argument("--idea-id", required=True, help="Parent hosted idea id")
+    s_feature_update.add_argument("--title", default=None, help="Feature title")
+    add_feature_body_args(s_feature_update)
+    add_base_url_flag(s_feature_update)
+    add_json_flag(s_feature_update)
+    s_feature_update.set_defaults(func=cmd_feature_update, json_output=False)
+
+    s_feature_remove = feature_sub.add_parser("remove", help="Remove a hosted feature")
+    s_feature_remove.add_argument("feature_id", help="Hosted feature id")
+    add_base_url_flag(s_feature_remove)
+    add_json_flag(s_feature_remove)
+    s_feature_remove.set_defaults(func=cmd_feature_remove, json_output=False)
+
+    s_world = sub.add_parser("world", help="Hosted workspace world binding operations")
+    world_sub = s_world.add_subparsers(dest="world_cmd", required=True)
+
+    s_world_show = world_sub.add_parser("show", help="Show the world bound to a hosted idea")
+    s_world_show.add_argument("idea_id", help="Hosted idea id")
+    add_base_url_flag(s_world_show)
+    add_json_flag(s_world_show)
+    s_world_show.set_defaults(func=cmd_world_show, json_output=False)
+
+    s_world_bind = world_sub.add_parser("bind", help="Create or update a hosted idea world binding")
+    s_world_bind.add_argument("idea_id", help="Hosted idea id")
+    s_world_bind.add_argument("--name", default=None, help="World name")
+    s_world_bind.add_argument("--project-root", default=None, help="Absolute project root path")
+    s_world_bind.add_argument("--github-url", default=None, help="World GitHub URL")
+    s_world_bind.add_argument("--codex-session-id", default=None, help="Primary Codex session id")
+    add_base_url_flag(s_world_bind)
+    add_json_flag(s_world_bind)
+    s_world_bind.set_defaults(func=cmd_world_bind, json_output=False)
+
+    s_checkpoint = sub.add_parser("checkpoint", help="Hosted checkpoint queue operations")
+    checkpoint_sub = s_checkpoint.add_subparsers(dest="checkpoint_cmd", required=True)
+
+    s_checkpoint_queue = checkpoint_sub.add_parser("queue", help="Queue a hosted checkpoint review")
+    s_checkpoint_queue.add_argument("--idea-id", required=True, help="Hosted idea id")
+    s_checkpoint_queue.add_argument("--world-id", default="", help="Explicit world id override")
+    s_checkpoint_queue.add_argument(
+        "--trigger-type",
+        default="agent-feedback",
+        help="Checkpoint trigger type (default: agent-feedback)",
+    )
+    s_checkpoint_queue.add_argument("--feature-id", default="", dest="focus_feature", help="Focus one feature id")
+    s_checkpoint_queue.add_argument(
+        "--detail-section-id",
+        default="",
+        dest="focus_detail_section",
+        help="Focus one detail section id",
+    )
+    s_checkpoint_queue.add_argument("--user-note", default="", help="Instructional note sent to the worker")
+    s_checkpoint_queue.add_argument(
+        "--skip-idea-title",
+        action="store_true",
+        help="Exclude idea title from checkpoint context",
+    )
+    s_checkpoint_queue.add_argument(
+        "--skip-core-plan",
+        action="store_true",
+        help="Exclude core plan from checkpoint context",
+    )
+    s_checkpoint_queue.add_argument(
+        "--skip-github",
+        action="store_true",
+        help="Exclude GitHub/web link from checkpoint context",
+    )
+    s_checkpoint_queue.add_argument(
+        "--skip-repo-binding",
+        action="store_true",
+        help="Exclude world/repo binding from checkpoint context",
+    )
+    s_checkpoint_queue.add_argument(
+        "--include-previous-response-summaries",
+        action="store_true",
+        help="Include recent response summaries in checkpoint context",
+    )
+    add_base_url_flag(s_checkpoint_queue)
+    add_json_flag(s_checkpoint_queue)
+    s_checkpoint_queue.set_defaults(func=cmd_checkpoint_queue, json_output=False)
+
+    s_agent = sub.add_parser("agent", help="Hosted checkpoint worker operations")
+    agent_sub = s_agent.add_subparsers(dest="agent_cmd", required=True)
+
+    s_agent_work = agent_sub.add_parser("work", help="Poll and process hosted checkpoint jobs")
+    s_agent_work.add_argument("--agent", default="", help="Optional agent/world selector")
+    s_agent_work.add_argument("--codex-bin", default="", help="Codex executable path")
+    s_agent_work.add_argument(
+        "--codex-config-profile",
+        default="",
+        help="Optional Codex config profile passed via CODEX_CONFIG_PROFILE",
+    )
+    s_agent_work.add_argument(
+        "--poll-interval",
+        type=int,
+        default=30,
+        help="Poll interval in seconds for continuous mode (default: 30)",
+    )
+    s_agent_work.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Claim jobs but do not execute Codex or post responses",
+    )
+    s_agent_work.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single poll/claim cycle and exit",
+    )
+    add_base_url_flag(s_agent_work)
+    add_json_flag(s_agent_work)
+    s_agent_work.set_defaults(func=cmd_agent_work, json_output=False)
 
     s_discover = sub.add_parser(
         "discover",
