@@ -7,6 +7,7 @@ ORP supports both:
 
 The default runtime story is now:
 
+- `orp auth ...`, `orp ideas ...`, `orp feature ...`, `orp world ...`, `orp checkpoint ...`, and `orp agent ...` for hosted workspace work
 - `orp discover ...` for profile-based GitHub scanning and opportunity selection
 - `orp collaborate ...` for repository collaboration
 - `orp erdos ...` for Erdos-specific workflows
@@ -30,6 +31,12 @@ Agent-friendly discovery surfaces:
 
 - bare `orp` for the CLI home screen with packs, repo status, and quick actions
 - `orp home --json` for machine-readable landing context
+- `orp auth login` for hosted workspace login
+- `orp whoami --json` for the current hosted identity
+- `orp ideas list --json` for hosted idea listing
+- `orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json` for hosted world binding
+- `orp checkpoint queue --idea-id <idea-id> --json` for queueing a hosted checkpoint
+- `orp agent work --once --json` for processing one hosted checkpoint job
 - `orp discover profile init --json` for a portable discovery profile scaffold
 - `orp discover github scan --profile orp.profile.default.json --json` for ranked GitHub repo/issue/person recommendations
 - `orp collaborate init` for immediate collaboration scaffolding
@@ -51,6 +58,17 @@ orp collaborate run --workflow full_flow --json
 
 This uses ORP's built-in collaboration ability. You do not need to think in
 terms of separate governance packs for the default collaboration path.
+
+Fastest hosted workspace loop from the published ORP binary:
+
+```sh
+orp auth login
+orp whoami --json
+orp ideas list --json
+orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
+orp checkpoint queue --idea-id <idea-id> --json
+orp agent work --once --json
+```
 
 To choose where collaboration should start, scaffold a profile first:
 

@@ -38,6 +38,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 
 ORP should feel like one CLI with built-in abilities:
 
+- `workspace` for hosted auth, idea, feature, world, checkpoint, and worker operations
 - `discover` for profile-based GitHub scanning and opportunity selection
 - `collaborate` for repository collaboration setup and workflow execution
 - `erdos` for Erdos-specific data and workflow support
@@ -94,6 +95,12 @@ Agent-first discovery surfaces:
 orp
 orp home --json
 orp about --json
+orp auth login
+orp whoami --json
+orp ideas list --json
+orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
+orp checkpoint queue --idea-id <idea-id> --json
+orp agent work --once --json
 orp discover profile init --json
 orp discover github scan --profile orp.profile.default.json --json
 orp collaborate workflows --json
@@ -111,6 +118,7 @@ These surfaces are meant to help automated systems discover ORP quickly:
 
 - bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
 - `orp home --json` returns the same landing context in machine-readable form
+- `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
 - `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
 - `llms.txt` gives a concise repo/package map for agents that scan documentation.
@@ -130,6 +138,7 @@ These surfaces are meant to help automated systems discover ORP quickly:
 Release process:
 
 - `docs/NPM_RELEASE_CHECKLIST.md`
+- `docs/ORP_PUBLIC_LAUNCH_CHECKLIST.md`
 - `.github/workflows/npm-publish.yml` (publishes on `v*` tags)
 
 ## Quick start (existing repo)
@@ -162,11 +171,15 @@ ORP remains docs-first by default. For teams that want local gate execution and 
 Minimal CLI skeleton:
 
 ```bash
+orp auth login
+orp ideas list --json
+orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
+orp checkpoint queue --idea-id <idea-id> --json
+orp agent work --once --json
 orp init
 orp gate run --profile default
 orp packet emit --profile default
 orp report summary --run-id <run_id>
-orp pack list
 orp erdos sync
 ```
 

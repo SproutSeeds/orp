@@ -15,11 +15,11 @@ Use this checklist to publish professional, versioned ORP CLI releases.
 1. Ensure `main` is green and local tests pass:
    - `python3 -m unittest discover -s tests -v`
    - `npm pack --dry-run --cache /tmp/orp-npm-cache`
-2. Bump version in `package.json` (for example `0.1.1`).
+2. Bump version in `package.json` (for example `0.4.0`).
 3. Commit and push the version bump to `main`.
 4. Create and push a matching tag:
-   - `git tag v0.1.1`
-   - `git push origin v0.1.1`
+   - `git tag v0.4.0`
+   - `git push origin v0.4.0`
 5. Watch workflow:
    - `.github/workflows/npm-publish.yml`
    - tag push is the normal publish trigger
@@ -32,8 +32,8 @@ Use this checklist to publish professional, versioned ORP CLI releases.
 Tag version must match `package.json` exactly.
 
 - Example:
-  - tag: `v0.1.1`
-  - package version: `0.1.1`
+  - tag: `v0.4.0`
+  - package version: `0.4.0`
 
 The publish workflow hard-fails if these differ.
 
@@ -48,8 +48,8 @@ If automation is temporarily unavailable:
 3. Publish:
    - `npm publish --access public`
 4. Create and push the matching tag:
-   - `git tag v0.1.1`
-   - `git push origin v0.1.1`
+   - `git tag v0.4.0`
+   - `git push origin v0.4.0`
 5. Add release notes.
 
 The tag-triggered workflow will still validate the version and will skip `npm publish` if that exact npm version already exists.
