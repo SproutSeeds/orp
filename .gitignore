@@ -16,3 +16,6 @@ node_modules/
 /orp.yml
 /orp.*.yml
 /orp.*.pack-install-report.md
+
+# Local Coda workspace state
+/.coda/
