@@ -2,32 +2,32 @@
   "schema_version": "1.0.0",
   "subset": "closed",
   "active_status": "open",
-  "generated_at_utc": "2026-03-05T15:52:31Z",
+  "generated_at_utc": "2026-03-15T06:36:17Z",
   "source": {
     "site": "erdosproblems.com",
     "url": "https://erdosproblems.com/range/1-end",
-    "source_sha256": "72366d21b9530355396bef95b3ead90176a9c634b7ecd68fd30c85bad703a0c1",
+    "source_sha256": "d0b2a9875457a0c545db0cba19c6348c1076f3fa18c5a0aa3318601834713f01",
     "solve_count": {
-      "raw": "488 solved out of 1179 shown",
-      "solved": 488,
-      "shown": 1179
+      "raw": "491 solved out of 1183 shown",
+      "solved": 491,
+      "shown": 1183
     }
   },
   "summary": {
-    "total": 488,
+    "total": 491,
     "open": 0,
-    "closed": 488,
+    "closed": 491,
     "unknown": 0,
     "status_label_counts": {
       "DECIDABLE": 7,
-      "DISPROVED": 76,
-      "DISPROVED (LEAN)": 39,
+      "DISPROVED": 75,
+      "DISPROVED (LEAN)": 40,
       "INDEPENDENT": 3,
       "NOT PROVABLE": 1,
       "PROVED": 237,
-      "PROVED (LEAN)": 63,
-      "SOLVED": 52,
-      "SOLVED (LEAN)": 10
+      "PROVED (LEAN)": 66,
+      "SOLVED": 51,
+      "SOLVED (LEAN)": 11
     }
   },
   "problem_ids": [
@@ -222,6 +222,7 @@
     448,
     449,
     453,
+    457,
     459,
     464,
     465,
@@ -305,6 +306,7 @@
     646,
     648,
     649,
+    650,
     651,
     652,
     656,
@@ -518,7 +520,8 @@
     1164,
     1165,
     1166,
-    1179
+    1179,
+    1180
   ],
   "problems": [
     {
@@ -670,7 +673,7 @@
         "graph theory",
         "chromatic number"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/19",
       "formalized": false,
       "formalized_url": "",
@@ -2024,12 +2027,12 @@
       "status_dom_id": "solved",
       "status_label": "PROVED",
       "status_detail": "This has been solved in the affirmative.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "Let $k\\geq 3$. What is the maximum number of edges that a graph on $n$ vertices can contain if it does not have a $k$-regular subgraph? Is it $\\ll n^{1+o(1)}$?",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/182",
       "formalized": false,
       "formalized_url": "",
@@ -2483,7 +2486,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 221,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 223,
@@ -2538,7 +2541,7 @@
       "tags": [
         "analysis"
       ],
-      "last_edited": "01 February 2026",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/225",
       "formalized": false,
       "formalized_url": "",
@@ -3724,7 +3727,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/355.lean",
       "oeis_urls": [],
       "comments_problem_id": 355,
-      "comments_count": 16
+      "comments_count": 18
     },
     {
       "problem_id": 356,
@@ -3791,8 +3794,8 @@
       "problem_url": "/363",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that there are only finitely many collections of disjoint intervals $I_1,\\ldots,I_n$ of size $\\lvert I_i\\rvert \\geq 4$ for $1\\leq i\\leq n$ such that\\[\\prod_{1\\leq i\\leq n}\\prod_{m\\in I_i}m\\]is a square?",
       "tags": [
@@ -3804,7 +3807,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 363,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 370,
@@ -4585,12 +4588,34 @@
       "comments_count": 1
     },
     {
+      "problem_id": 457,
+      "problem_url": "/457",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Is there some $\\epsilon>0$ such that there are infinitely many $n$ where all primes $p\\leq (2+\\epsilon)\\log n$ divide\\[\\prod_{1\\leq i\\leq \\log n}(n+i)?\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 March 2026",
+      "latex_path": "/latex/457",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/457.lean",
+      "oeis_urls": [
+        "https://oeis.org/A391668"
+      ],
+      "comments_problem_id": 457,
+      "comments_count": 10
+    },
+    {
       "problem_id": 459,
       "problem_url": "/459",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "SOLVED",
-      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "status_label": "SOLVED (LEAN)",
+      "status_detail": "This has been resolved in some other way than a proof or disproof, and that resolution verified in Lean.",
       "prize_amount": "",
       "statement": "Let $f(u)$ be the largest $v$ such that no $m\\in (u,v)$ is composed entirely of primes dividing $uv$. Estimate $f(u)$.",
       "tags": [
@@ -4605,7 +4630,7 @@
         "https://oeis.org/A289280"
       ],
       "comments_problem_id": 459,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 464,
@@ -4954,7 +4979,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/494.lean",
       "oeis_urls": [],
       "comments_problem_id": 494,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 496,
@@ -5427,7 +5452,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "06 March 2026",
       "latex_path": "/latex/540",
       "formalized": false,
       "formalized_url": "",
@@ -6314,6 +6339,28 @@
       "comments_count": 2
     },
     {
+      "problem_id": 650,
+      "problem_url": "/650",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $f(m)$ be such that if $A\\subseteq \\{1,\\ldots,N\\}$ has $\\lvert A\\rvert=m$ then every interval in $[1,\\infty)$ of length $2N$ contains $\\geq f(m)$ many distinct integers $b_1,\\ldots,b_r$ where each $b_i$ is divisible by some $a_i\\in A$, where $a_1,\\ldots,a_r$ are distinct. Estimate $f(m)$. In particular is it true that $f(m)\\ll m^{1/2}$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 March 2026",
+      "latex_path": "/latex/650",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [
+        "https://oeis.org/A027434"
+      ],
+      "comments_problem_id": 650,
+      "comments_count": 26
+    },
+    {
       "problem_id": 651,
       "problem_url": "/651",
       "status_bucket": "closed",
@@ -6782,7 +6829,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "26 October 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/720",
       "formalized": false,
       "formalized_url": "",
@@ -6832,7 +6879,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 722,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 728,
@@ -7528,20 +7575,20 @@
       "problem_url": "/785",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A,B\\subseteq \\mathbb{N}$ be infinite sets such that $A+B$ contains all large integers. Let $A(x)=\\lvert A\\cap [1,x]\\rvert$ and similarly for $B(x)$. Is it true that if $A(x)B(x)\\sim x$ then\\[A(x)B(x)-x\\to \\infty\\]as $x\\to \\infty$?",
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/785",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 785,
-      "comments_count": 2
+      "comments_count": 5
     },
     {
       "problem_id": 794,
@@ -8145,7 +8192,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/848.lean",
       "oeis_urls": [],
       "comments_problem_id": 848,
-      "comments_count": 18
+      "comments_count": 28
     },
     {
       "problem_id": 861,
@@ -8455,7 +8502,7 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/900",
       "formalized": false,
       "formalized_url": "",
@@ -8622,7 +8669,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 914,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 915,
@@ -9418,7 +9465,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1010,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1012,
@@ -10398,7 +10445,7 @@
       "tags": [
         "algebra"
       ],
-      "last_edited": "31 December 2025",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/1123",
       "formalized": false,
       "formalized_url": "",
@@ -10754,6 +10801,26 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1179,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1180,
+      "problem_url": "/1180",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $\\epsilon>0$. Does there exist a constant $C_\\epsilon$ such that, for all primes $p$, every residue modulo $p$ is the sum of at most $C_\\epsilon$ many elements of\\[\\{ n^{-1} : 1\\leq n\\leq p^\\epsilon\\}\\]where $n^{-1}$ denotes the inverse of $n$ modulo $p$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "06 March 2026",
+      "latex_path": "/latex/1180",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1180,
       "comments_count": 0
     }
   ]
