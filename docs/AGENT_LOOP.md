@@ -43,8 +43,10 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 
 ## 6. Checkpoint
 
-- Before handoff, compaction, `git commit`, or `git push`, write a checkpoint:
-  - `scripts/orp-checkpoint.sh --sync --agent-file /path/to/agent/instructions.md "checkpoint note"`
+- Before handoff, compaction, or any meaningful git transition, write a checkpoint:
+  - `orp checkpoint create -m "checkpoint note" --json`
+- If the current state should exist off-machine before you stop, hand off, or compact:
+  - `orp backup -m "backup current work" --json`
 
 ## 7. Respect the Boundary
 

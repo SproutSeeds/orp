@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/link-session.schema.json",
+  "title": "ORP Linked Session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "orp_session_id",
+    "label",
+    "state",
+    "project_root",
+    "created_at_utc",
+    "last_active_at_utc",
+    "archived",
+    "primary"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "orp_session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "codex_session_id": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "secondary",
+        "review",
+        "exploration",
+        "other"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "closed"
+      ]
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_active_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "primary": {
+      "type": "boolean"
+    },
+    "terminal_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_id",
+        "tab_number"
+      ],
+      "properties": {
+        "window_id": {
+          "type": "integer"
+        },
+        "tab_number": {
+          "type": "integer"
+        }
+      }
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "cli",
+        "rust-app",
+        "import-rust"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

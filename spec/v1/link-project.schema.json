@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/link-project.schema.json",
+  "title": "ORP Linked Project",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "idea_id",
+    "project_root",
+    "linked_at_utc"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "idea_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idea_title": {
+      "type": "string"
+    },
+    "world_id": {
+      "type": "string"
+    },
+    "world_name": {
+      "type": "string"
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "github_url": {
+      "type": "string"
+    },
+    "linked_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "linked_email": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "cli",
+        "rust-app",
+        "import-rust"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

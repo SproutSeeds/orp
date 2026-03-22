@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/runner-runtime.schema.json",
+  "title": "ORP Runner Runtime",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "active_job",
+    "last_job",
+    "recent_events"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "claimed",
+        "running"
+      ]
+    },
+    "updated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "active_job": {
+      "$ref": "#/$defs/jobState"
+    },
+    "last_job": {
+      "$ref": "#/$defs/jobState"
+    },
+    "recent_events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/runtimeEvent"
+      }
+    }
+  },
+  "$defs": {
+    "jobState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "type": "string"
+        },
+        "job_kind": {
+          "type": "string"
+        },
+        "lease_id": {
+          "type": "string"
+        },
+        "idea_id": {
+          "type": "string"
+        },
+        "world_id": {
+          "type": "string"
+        },
+        "project_root": {
+          "type": "string"
+        },
+        "repo_root": {
+          "type": "string"
+        },
+        "orp_session_id": {
+          "type": "string"
+        },
+        "codex_session_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "claimed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "started_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_heartbeat_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lease_expires_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "runtimeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timestamp_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "lease_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

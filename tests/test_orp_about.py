@@ -35,10 +35,17 @@ class OrpAboutTests(unittest.TestCase):
         self.assertEqual(payload["discovery"]["agent_loop"], "docs/AGENT_LOOP.md")
         self.assertEqual(payload["discovery"]["discover"], "docs/DISCOVER.md")
         self.assertEqual(payload["schemas"]["packet"], "spec/v1/packet.schema.json")
+        self.assertEqual(payload["schemas"]["link_project"], "spec/v1/link-project.schema.json")
+        self.assertEqual(payload["schemas"]["link_session"], "spec/v1/link-session.schema.json")
+        self.assertEqual(payload["schemas"]["runner_machine"], "spec/v1/runner-machine.schema.json")
+        self.assertEqual(payload["schemas"]["runner_runtime"], "spec/v1/runner-runtime.schema.json")
         ability_ids = {row["id"] for row in payload["abilities"]}
         self.assertIn("workspace", ability_ids)
+        self.assertIn("linking", ability_ids)
+        self.assertIn("runner", ability_ids)
         self.assertIn("discover", ability_ids)
         self.assertIn("collaborate", ability_ids)
+        self.assertIn("governance", ability_ids)
         self.assertIn("erdos", ability_ids)
         self.assertIn("packs", ability_ids)
         command_names = {row["name"] for row in payload["commands"]}
@@ -61,7 +68,31 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("feature_remove", command_names)
         self.assertIn("world_show", command_names)
         self.assertIn("world_bind", command_names)
+        self.assertIn("link_project_bind", command_names)
+        self.assertIn("link_project_show", command_names)
+        self.assertIn("link_project_status", command_names)
+        self.assertIn("link_project_unbind", command_names)
+        self.assertIn("link_session_register", command_names)
+        self.assertIn("link_session_list", command_names)
+        self.assertIn("link_session_show", command_names)
+        self.assertIn("link_session_set_primary", command_names)
+        self.assertIn("link_session_archive", command_names)
+        self.assertIn("link_session_unarchive", command_names)
+        self.assertIn("link_session_remove", command_names)
+        self.assertIn("link_session_import_rust", command_names)
+        self.assertIn("link_status", command_names)
+        self.assertIn("link_doctor", command_names)
+        self.assertIn("runner_status", command_names)
+        self.assertIn("runner_enable", command_names)
+        self.assertIn("runner_disable", command_names)
+        self.assertIn("runner_heartbeat", command_names)
+        self.assertIn("runner_sync", command_names)
+        self.assertIn("runner_work", command_names)
+        self.assertIn("runner_cancel", command_names)
+        self.assertIn("runner_retry", command_names)
         self.assertIn("checkpoint_queue", command_names)
+        self.assertIn("checkpoint_create", command_names)
+        self.assertIn("backup", command_names)
         self.assertIn("agent_work", command_names)
         self.assertIn("discover_profile_init", command_names)
         self.assertIn("discover_github_scan", command_names)
@@ -69,6 +100,11 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("collaborate_workflows", command_names)
         self.assertIn("collaborate_gates", command_names)
         self.assertIn("collaborate_run", command_names)
+        self.assertIn("status", command_names)
+        self.assertIn("branch_start", command_names)
+        self.assertIn("ready", command_names)
+        self.assertIn("doctor", command_names)
+        self.assertIn("cleanup", command_names)
         self.assertIn("gate_run", command_names)
         self.assertIn("erdos_sync", command_names)
         self.assertIn("pack_install", command_names)
@@ -92,7 +128,31 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("feature_remove", json_commands)
         self.assertIn("world_show", json_commands)
         self.assertIn("world_bind", json_commands)
+        self.assertIn("link_project_bind", json_commands)
+        self.assertIn("link_project_show", json_commands)
+        self.assertIn("link_project_status", json_commands)
+        self.assertIn("link_project_unbind", json_commands)
+        self.assertIn("link_session_register", json_commands)
+        self.assertIn("link_session_list", json_commands)
+        self.assertIn("link_session_show", json_commands)
+        self.assertIn("link_session_set_primary", json_commands)
+        self.assertIn("link_session_archive", json_commands)
+        self.assertIn("link_session_unarchive", json_commands)
+        self.assertIn("link_session_remove", json_commands)
+        self.assertIn("link_session_import_rust", json_commands)
+        self.assertIn("link_status", json_commands)
+        self.assertIn("link_doctor", json_commands)
+        self.assertIn("runner_status", json_commands)
+        self.assertIn("runner_enable", json_commands)
+        self.assertIn("runner_disable", json_commands)
+        self.assertIn("runner_heartbeat", json_commands)
+        self.assertIn("runner_sync", json_commands)
+        self.assertIn("runner_work", json_commands)
+        self.assertIn("runner_cancel", json_commands)
+        self.assertIn("runner_retry", json_commands)
         self.assertIn("checkpoint_queue", json_commands)
+        self.assertIn("checkpoint_create", json_commands)
+        self.assertIn("backup", json_commands)
         self.assertIn("agent_work", json_commands)
         self.assertIn("discover_profile_init", json_commands)
         self.assertIn("discover_github_scan", json_commands)
@@ -100,6 +160,11 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("collaborate_workflows", json_commands)
         self.assertIn("collaborate_gates", json_commands)
         self.assertIn("collaborate_run", json_commands)
+        self.assertIn("status", json_commands)
+        self.assertIn("branch_start", json_commands)
+        self.assertIn("ready", json_commands)
+        self.assertIn("doctor", json_commands)
+        self.assertIn("cleanup", json_commands)
         self.assertIn("erdos_sync", json_commands)
         self.assertIn("pack_install", json_commands)
         self.assertIn("pack_fetch", json_commands)
@@ -136,15 +201,58 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("issue-smashers", pack_ids)
             ability_ids = {row["id"] for row in payload["abilities"]}
             self.assertIn("workspace", ability_ids)
+            self.assertIn("linking", ability_ids)
+            self.assertIn("runner", ability_ids)
             self.assertIn("discover", ability_ids)
             self.assertIn("collaborate", ability_ids)
+            self.assertIn("governance", ability_ids)
             commands = {row["command"] for row in payload["quick_actions"]}
             self.assertIn("orp auth login", commands)
             self.assertIn("orp whoami --json", commands)
             self.assertIn("orp ideas list --json", commands)
+            self.assertIn("orp link status --json", commands)
+            self.assertIn("orp runner status --json", commands)
             self.assertIn("orp discover profile init --json", commands)
+            self.assertIn("orp status --json", commands)
             self.assertIn("orp collaborate init", commands)
             self.assertIn("orp collaborate workflows --json", commands)
+
+    def test_home_json_initialized_repo_includes_backup_quick_action(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            init_proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(root),
+                    "init",
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(init_proc.returncode, 0, msg=init_proc.stderr + "\n" + init_proc.stdout)
+
+            home_proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(root),
+                    "home",
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(home_proc.returncode, 0, msg=home_proc.stderr + "\n" + home_proc.stdout)
+
+            payload = json.loads(home_proc.stdout)
+            commands = {row["command"] for row in payload["quick_actions"]}
+            self.assertIn('orp backup -m "backup current work" --json', commands)
 
     def test_cli_without_args_shows_home_screen(self) -> None:
         with tempfile.TemporaryDirectory() as td:

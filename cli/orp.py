@@ -32,15 +32,21 @@ import getpass
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
-from typing import Any
+import threading
+import time
+from typing import Any, Sequence
+import uuid
 from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
+
+RUNNER_LEASE_STALE_SECONDS = 120
 
 
 def _now_utc() -> str:
@@ -267,6 +273,134 @@ def _request_hosted_json(
         ) from exc
 
 
+def _request_hosted_sse_event(
+    *,
+    base_url: str,
+    path: str,
+    token: str = "",
+    timeout_sec: int = 45,
+) -> dict[str, Any]:
+    url = _normalize_base_url(base_url) + path
+    headers = {
+        "Accept": "text/event-stream",
+        "Cache-Control": "no-cache",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    bypass_token = _get_bypass_token()
+    if bypass_token:
+        headers["x-vercel-protection-bypass"] = bypass_token
+    request = urlrequest.Request(url, headers=headers, method="GET")
+    event_name = "message"
+    data_lines: list[str] = []
+    try:
+        with urlrequest.urlopen(request, timeout=timeout_sec) as response:
+            for raw_line in response:
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                if not line:
+                    if data_lines:
+                        payload = _read_json_safe("\n".join(data_lines).encode("utf-8"))
+                        terminal_event = {
+                            "event": event_name or "message",
+                            "data": payload,
+                        }
+                        if terminal_event["event"] in {"job.available", "timeout", "error"}:
+                            return terminal_event
+                    event_name = "message"
+                    data_lines = []
+                    continue
+                if line.startswith(":"):
+                    continue
+                if line.startswith("event:"):
+                    event_name = line.partition(":")[2].strip() or "message"
+                    continue
+                if line.startswith("data:"):
+                    data_lines.append(line.partition(":")[2].lstrip())
+                    continue
+        raise HostedApiError(
+            f"Hosted runner event stream ended before delivering a terminal event (path={path})."
+        )
+    except urlerror.HTTPError as exc:
+        payload = _read_json_safe(exc.read())
+        raise _hosted_api_error(
+            base_url=base_url,
+            path=path,
+            method="GET",
+            status=int(exc.code),
+            payload=payload,
+        ) from exc
+    except urlerror.URLError as exc:
+        raise HostedApiError(
+            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}"
+        ) from exc
+
+
+def _runner_transport_mode(args: argparse.Namespace) -> str:
+    mode = str(getattr(args, "transport", "auto") or "auto").strip().lower()
+    if mode in {"poll", "sse"}:
+        return mode
+    return "auto"
+
+
+def _wait_for_runner_signal_via_sse(args: argparse.Namespace, wait_seconds: int) -> dict[str, Any]:
+    session = _load_hosted_session()
+    token = str(session.get("token", "")).strip()
+    if not token:
+        raise HostedApiError("Run `orp auth login` and `orp auth verify` before waiting on hosted runner events.")
+    machine = _load_runner_machine()
+    machine_id = str(machine.get("machine_id", "")).strip()
+    if not machine_id:
+        raise RuntimeError("runner is disabled")
+    base_url = _resolve_hosted_base_url(args, session)
+    wait_seconds = max(1, int(wait_seconds))
+    signal = _request_hosted_sse_event(
+        base_url=base_url,
+        path=(
+            f"/api/cli/runner/events/stream?machineId={urlparse.quote(machine_id)}"
+            f"&waitSeconds={wait_seconds}"
+        ),
+        token=token,
+        timeout_sec=max(wait_seconds + 15, 30),
+    )
+    event_name = str(signal.get("event", "")).strip()
+    payload = signal.get("data", {}) if isinstance(signal.get("data"), dict) else {}
+    if event_name == "error":
+        message = str(payload.get("error") or payload.get("message") or "runner event stream failed").strip()
+        raise HostedApiError(message)
+    return {
+        "transport": "sse",
+        "event": event_name,
+        "machine_id": machine_id,
+        "wait_seconds": wait_seconds,
+        **payload,
+    }
+
+
+def _wait_for_next_runner_cycle(args: argparse.Namespace, wait_seconds: int) -> dict[str, Any]:
+    transport = _runner_transport_mode(args)
+    if transport == "poll":
+        time.sleep(max(1, int(wait_seconds)))
+        return {
+            "transport": "poll",
+            "wait_seconds": max(1, int(wait_seconds)),
+            "jobAvailable": False,
+            "reason": "poll_interval_sleep",
+        }
+    try:
+        return _wait_for_runner_signal_via_sse(args, wait_seconds)
+    except Exception as exc:
+        if transport == "sse":
+            raise
+        time.sleep(max(1, int(wait_seconds)))
+        return {
+            "transport": "poll-fallback",
+            "wait_seconds": max(1, int(wait_seconds)),
+            "jobAvailable": False,
+            "reason": "sse_fallback",
+            "error": str(exc),
+        }
+
+
 def _can_prompt() -> bool:
     return bool(sys.stdin.isatty() and sys.stderr.isatty())
 
@@ -277,6 +411,14 @@ def _prompt_value(label: str, *, secret: bool = False) -> str:
     if secret:
         return getpass.getpass(f"{label}: ").strip()
     return input(f"{label}: ").strip()
+
+
+def _read_value_from_stdin() -> str:
+    try:
+        raw = sys.stdin.read()
+    except Exception:
+        return ""
+    return raw.rstrip("\r\n")
 
 
 def _session_summary(session: dict[str, Any]) -> dict[str, Any]:
@@ -317,6 +459,17 @@ def _mask_email(email: str) -> str:
     else:
         masked = local[:2] + ("*" * max(1, len(local) - 2))
     return f"{masked}@{domain}"
+
+
+def _looks_like_uuid(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        uuid.UUID(text)
+    except Exception:
+        return False
+    return True
 
 
 def _extract_detail_sections_value(raw: Any, source_label: str) -> list[Any]:
@@ -1179,23 +1332,3402 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(_read_text(path))
 
 
+def _read_json_if_exists(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = _read_json(path)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _default_state_payload() -> dict[str, Any]:
+    return {
+        "last_run_id": "",
+        "last_packet_id": "",
+        "runs": {},
+        "last_erdos_sync": {},
+        "last_discover_scan_id": "",
+        "discovery_scans": {},
+        "governance": {},
+    }
+
+
 def _ensure_dirs(repo_root: Path) -> None:
     (repo_root / "orp" / "packets").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "artifacts").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "discovery" / "github").mkdir(parents=True, exist_ok=True)
+    (repo_root / "orp" / "checkpoints").mkdir(parents=True, exist_ok=True)
+    (repo_root / "orp" / "handoffs").mkdir(parents=True, exist_ok=True)
     state_path = repo_root / "orp" / "state.json"
     if not state_path.exists():
-        _write_json(
-            state_path,
+        _write_json(state_path, _default_state_payload())
+
+
+def _write_text_if_missing(path: Path, text: str) -> str:
+    if path.exists():
+        return "kept"
+    _write_text(path, text)
+    return "created"
+
+
+def _git_run(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is required for ORP repo governance but was not found on PATH.") from exc
+
+
+def _git_stdout(repo_root: Path, args: list[str]) -> str:
+    proc = _git_run(repo_root, args)
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def _git_error_detail(proc: subprocess.CompletedProcess[str]) -> str:
+    return proc.stderr.strip() or proc.stdout.strip() or "git command failed"
+
+
+def _git_require_success(repo_root: Path, args: list[str], *, context: str) -> subprocess.CompletedProcess[str]:
+    proc = _git_run(repo_root, args)
+    if proc.returncode != 0:
+        raise RuntimeError(f"{context}: {_git_error_detail(proc)}")
+    return proc
+
+
+def _git_repo_present(repo_root: Path) -> bool:
+    return _git_stdout(repo_root, ["rev-parse", "--is-inside-work-tree"]) == "true"
+
+
+def _git_dir_path(repo_root: Path) -> Path | None:
+    raw = _git_stdout(repo_root, ["rev-parse", "--git-dir"])
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        path = (repo_root / path).resolve()
+    return path
+
+
+def _git_current_branch(repo_root: Path) -> str:
+    branch = _git_stdout(repo_root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+    if branch:
+        return branch
+    branch = _git_stdout(repo_root, ["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch == "HEAD":
+        return ""
+    return branch
+
+
+def _git_has_commits(repo_root: Path) -> bool:
+    proc = _git_run(repo_root, ["rev-parse", "--verify", "HEAD"])
+    return proc.returncode == 0
+
+
+def _git_status_lines(repo_root: Path) -> list[str]:
+    proc = _git_run(repo_root, ["status", "--short"])
+    if proc.returncode != 0:
+        return []
+    return [line.rstrip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _git_branch_exists(repo_root: Path, branch_name: str) -> bool:
+    proc = _git_run(repo_root, ["show-ref", "--verify", "--quiet", f"refs/heads/{branch_name}"])
+    return proc.returncode == 0
+
+
+def _git_commit_exists(repo_root: Path) -> bool:
+    return _git_has_commits(repo_root)
+
+
+def _parse_iso8601_utc(raw: Any) -> dt.datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _git_upstream_branch(repo_root: Path) -> str:
+    return _git_stdout(repo_root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+
+
+def _git_remote_default_branch(repo_root: Path, remote_name: str) -> str:
+    if not remote_name:
+        return ""
+    ref = _git_stdout(repo_root, ["symbolic-ref", "--quiet", "--short", f"refs/remotes/{remote_name}/HEAD"])
+    if not ref:
+        return ""
+    prefix = f"{remote_name}/"
+    if ref.startswith(prefix):
+        return ref[len(prefix) :]
+    return ref
+
+
+def _git_remote_branch_exists(repo_root: Path, remote_name: str, branch_name: str) -> bool:
+    if not remote_name or not branch_name:
+        return False
+    proc = _git_run(repo_root, ["show-ref", "--verify", "--quiet", f"refs/remotes/{remote_name}/{branch_name}"])
+    return proc.returncode == 0
+
+
+def _git_ahead_behind(repo_root: Path, left_ref: str, right_ref: str) -> tuple[int, int] | None:
+    if not left_ref or not right_ref:
+        return None
+    proc = _git_run(repo_root, ["rev-list", "--left-right", "--count", f"{left_ref}...{right_ref}"])
+    if proc.returncode != 0:
+        return None
+    parts = proc.stdout.strip().split()
+    if len(parts) != 2:
+        return None
+    try:
+        ahead = int(parts[0])
+        behind = int(parts[1])
+    except Exception:
+        return None
+    return ahead, behind
+
+
+def _git_branch_inventory(repo_root: Path) -> list[dict[str, Any]]:
+    proc = _git_run(
+        repo_root,
+        [
+            "for-each-ref",
+            "refs/heads",
+            "--format=%(refname:short)\t%(objectname:short)\t%(upstream:short)\t%(upstream:track)\t%(committerdate:iso-strict)\t%(subject)",
+        ],
+    )
+    if proc.returncode != 0:
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in proc.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 6:
+            continue
+        rows.append(
             {
-                "last_run_id": "",
-                "last_packet_id": "",
-                "runs": {},
-                "last_erdos_sync": {},
-                "last_discover_scan_id": "",
-                "discovery_scans": {},
+                "name": parts[0],
+                "commit": parts[1],
+                "upstream": parts[2],
+                "track": parts[3],
+                "committed_at_utc": parts[4],
+                "subject": parts[5],
+            }
+        )
+    return rows
+
+
+def _default_git_runtime_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "initialized_at_utc": "",
+        "last_init": {},
+        "last_branch_action": {},
+        "branch_transitions": [],
+        "last_checkpoint": {},
+        "checkpoint_history": [],
+        "last_backup": {},
+        "backup_history": [],
+        "last_ready": {},
+        "ready_history": [],
+        "last_doctor": {},
+        "doctor_history": [],
+        "last_cleanup": {},
+        "cleanup_history": [],
+    }
+
+
+def _git_runtime_path(repo_root: Path) -> Path | None:
+    git_dir = _git_dir_path(repo_root)
+    if git_dir is None:
+        return None
+    return git_dir / "orp" / "runtime.json"
+
+
+def _read_git_runtime(repo_root: Path) -> dict[str, Any]:
+    path = _git_runtime_path(repo_root)
+    if path is None:
+        return _default_git_runtime_payload()
+    payload = _read_json_if_exists(path)
+    return {
+        **_default_git_runtime_payload(),
+        **payload,
+    }
+
+
+def _write_git_runtime(repo_root: Path, payload: dict[str, Any]) -> None:
+    path = _git_runtime_path(repo_root)
+    if path is None:
+        return
+    merged = {
+        **_default_git_runtime_payload(),
+        **payload,
+    }
+    _write_json(path, merged)
+
+
+def _normalize_bool(raw: Any) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    text = str(raw or "").strip().lower()
+    return text in {"1", "true", "yes", "on"}
+
+
+def _normalize_timestamp_utc(raw: Any, *, fallback: str = "") -> str:
+    parsed = _parse_iso8601_utc(raw)
+    if parsed is None:
+        return fallback
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    else:
+        parsed = parsed.astimezone(dt.timezone.utc)
+    return parsed.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_local_path(raw: Any, repo_root: Path, *, fallback: str = "") -> str:
+    text = str(raw or "").strip() or str(fallback or "").strip()
+    if not text:
+        return ""
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        path = (repo_root / path).resolve()
+    else:
+        path = path.resolve()
+    return str(path)
+
+
+def _link_root_path(repo_root: Path) -> Path | None:
+    git_dir = _git_dir_path(repo_root)
+    if git_dir is None:
+        return None
+    return git_dir / "orp" / "link"
+
+
+def _require_link_root(repo_root: Path) -> Path:
+    path = _link_root_path(repo_root)
+    if path is None:
+        raise RuntimeError("git repository not detected. Run `orp init` or `git init` first.")
+    return path
+
+
+def _link_project_path(repo_root: Path) -> Path | None:
+    root = _link_root_path(repo_root)
+    if root is None:
+        return None
+    return root / "project.json"
+
+
+def _link_sessions_dir(repo_root: Path) -> Path | None:
+    root = _link_root_path(repo_root)
+    if root is None:
+        return None
+    return root / "sessions"
+
+
+def _link_session_filename(orp_session_id: str) -> str:
+    session_id = str(orp_session_id).strip()
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", session_id).strip("._-") or "session"
+    digest = hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:12]
+    return f"{safe}-{digest}.json"
+
+
+def _link_session_path(repo_root: Path, orp_session_id: str) -> Path | None:
+    sessions_dir = _link_sessions_dir(repo_root)
+    if sessions_dir is None:
+        return None
+    return sessions_dir / _link_session_filename(orp_session_id)
+
+
+def _normalize_terminal_target(raw: Any) -> dict[str, int] | None:
+    if not isinstance(raw, dict):
+        return None
+    try:
+        window_id = int(raw.get("window_id", raw.get("windowId")))
+        tab_number = int(raw.get("tab_number", raw.get("tabNumber")))
+    except Exception:
+        return None
+    return {
+        "window_id": window_id,
+        "tab_number": tab_number,
+    }
+
+
+def _normalize_link_project_payload(
+    raw: dict[str, Any],
+    repo_root: Path,
+    *,
+    default_source: str = "cli",
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise RuntimeError("linked project payload must be an object.")
+    idea_id = str(raw.get("idea_id", raw.get("ideaId", ""))).strip()
+    if not idea_id:
+        raise RuntimeError("linked project requires idea_id.")
+    project_root = _normalize_local_path(
+        raw.get("project_root", raw.get("projectRoot", str(repo_root))),
+        repo_root,
+        fallback=str(repo_root),
+    )
+    if not project_root:
+        raise RuntimeError("linked project requires project_root.")
+    source = str(raw.get("source", default_source)).strip()
+    if source not in {"cli", "rust-app", "import-rust"}:
+        source = default_source
+    payload: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "idea_id": idea_id,
+        "project_root": project_root,
+        "linked_at_utc": _normalize_timestamp_utc(
+            raw.get("linked_at_utc", raw.get("linkedAt", raw.get("linked_at"))),
+            fallback=_now_utc(),
+        ),
+    }
+    for key, aliases in {
+        "idea_title": ["idea_title", "ideaTitle"],
+        "world_id": ["world_id", "worldId"],
+        "world_name": ["world_name", "worldName", "name"],
+        "github_url": ["github_url", "githubUrl"],
+        "linked_email": ["linked_email", "linkedEmail"],
+        "notes": ["notes"],
+    }.items():
+        value = ""
+        for alias in aliases:
+            value = str(raw.get(alias, "")).strip()
+            if value:
+                break
+        if value:
+            payload[key] = value
+    payload["source"] = source
+    return payload
+
+
+def _normalize_link_session_payload(
+    raw: dict[str, Any],
+    repo_root: Path,
+    *,
+    default_source: str = "cli",
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise RuntimeError("linked session payload must be an object.")
+    orp_session_id = str(
+        raw.get("orp_session_id", raw.get("orpSessionId", raw.get("session_id", raw.get("sessionId", ""))))
+    ).strip()
+    if not orp_session_id:
+        raise RuntimeError("linked session requires orp_session_id.")
+    label = str(raw.get("label", "")).strip()
+    if not label:
+        raise RuntimeError("linked session requires label.")
+    project_root = _normalize_local_path(
+        raw.get(
+            "project_root",
+            raw.get("projectRoot", raw.get("project_path", raw.get("projectPath", str(repo_root)))),
+        ),
+        repo_root,
+        fallback=str(repo_root),
+    )
+    if not project_root:
+        raise RuntimeError("linked session requires project_root.")
+    state = str(raw.get("state", "active")).strip().lower() or "active"
+    if state not in {"active", "closed"}:
+        state = "active"
+    created_at_utc = _normalize_timestamp_utc(
+        raw.get("created_at_utc", raw.get("createdAt", raw.get("created_at"))),
+        fallback=_now_utc(),
+    )
+    last_active_at_utc = _normalize_timestamp_utc(
+        raw.get("last_active_at_utc", raw.get("lastActiveAt", raw.get("last_active_at"))),
+        fallback=created_at_utc,
+    )
+    archived = _normalize_bool(raw.get("archived", False))
+    primary = _normalize_bool(raw.get("primary", False)) and not archived
+    source = str(raw.get("source", default_source)).strip()
+    if source not in {"cli", "rust-app", "import-rust"}:
+        source = default_source
+    payload: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "orp_session_id": orp_session_id,
+        "label": label,
+        "state": state,
+        "project_root": project_root,
+        "created_at_utc": created_at_utc,
+        "last_active_at_utc": last_active_at_utc,
+        "archived": archived,
+        "primary": primary,
+        "source": source,
+    }
+    codex_session_id = str(raw.get("codex_session_id", raw.get("codexSessionId", ""))).strip()
+    if codex_session_id:
+        payload["codex_session_id"] = codex_session_id
+    role = str(raw.get("role", "")).strip().lower()
+    if role in {"primary", "secondary", "review", "exploration", "other"}:
+        payload["role"] = role
+    terminal_target = _normalize_terminal_target(raw.get("terminal_target", raw.get("terminalTarget")))
+    if terminal_target is not None:
+        payload["terminal_target"] = terminal_target
+    notes = str(raw.get("notes", "")).strip()
+    if notes:
+        payload["notes"] = notes
+    return payload
+
+
+def _read_link_project(repo_root: Path) -> dict[str, Any]:
+    path = _link_project_path(repo_root)
+    if path is None or not path.exists():
+        return {}
+    raw = _read_json_if_exists(path)
+    if not raw:
+        return {}
+    try:
+        return _normalize_link_project_payload(raw, repo_root, default_source=str(raw.get("source", "cli")).strip() or "cli")
+    except RuntimeError:
+        return {}
+
+
+def _write_link_project(repo_root: Path, payload: dict[str, Any]) -> Path:
+    path = _require_link_root(repo_root) / "project.json"
+    normalized = _normalize_link_project_payload(payload, repo_root)
+    _write_json(path, normalized)
+    return path
+
+
+def _delete_link_project(repo_root: Path) -> Path | None:
+    path = _link_project_path(repo_root)
+    if path is None or not path.exists():
+        return None
+    path.unlink()
+    return path
+
+
+def _link_session_sort_key(payload: dict[str, Any]) -> tuple[bool, bool, bool, float, str]:
+    timestamp = _parse_iso8601_utc(payload.get("last_active_at_utc"))
+    ts_value = timestamp.timestamp() if timestamp is not None else 0.0
+    return (
+        not bool(payload.get("primary", False)),
+        bool(payload.get("archived", False)),
+        str(payload.get("state", "active")).strip() != "active",
+        -ts_value,
+        str(payload.get("label", "")).strip().lower(),
+    )
+
+
+def _read_link_session(repo_root: Path, orp_session_id: str) -> dict[str, Any]:
+    path = _link_session_path(repo_root, orp_session_id)
+    if path is None or not path.exists():
+        return {}
+    raw = _read_json_if_exists(path)
+    if not raw:
+        return {}
+    try:
+        payload = _normalize_link_session_payload(raw, repo_root, default_source=str(raw.get("source", "cli")).strip() or "cli")
+    except RuntimeError:
+        return {}
+    payload["path"] = _path_for_state(path, repo_root)
+    return payload
+
+
+def _list_link_sessions(repo_root: Path) -> list[dict[str, Any]]:
+    sessions_dir = _link_sessions_dir(repo_root)
+    if sessions_dir is None or not sessions_dir.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in sorted(sessions_dir.glob("*.json")):
+        raw = _read_json_if_exists(path)
+        if not raw:
+            continue
+        try:
+            payload = _normalize_link_session_payload(
+                raw,
+                repo_root,
+                default_source=str(raw.get("source", "cli")).strip() or "cli",
+            )
+        except RuntimeError:
+            continue
+        payload["path"] = _path_for_state(path, repo_root)
+        rows.append(payload)
+    return sorted(rows, key=_link_session_sort_key)
+
+
+def _write_link_session(repo_root: Path, payload: dict[str, Any]) -> Path:
+    normalized = _normalize_link_session_payload(payload, repo_root)
+    path = _require_link_root(repo_root) / "sessions" / _link_session_filename(normalized["orp_session_id"])
+    _write_json(path, normalized)
+    return path
+
+
+def _delete_link_session(repo_root: Path, orp_session_id: str) -> Path | None:
+    path = _link_session_path(repo_root, orp_session_id)
+    if path is None or not path.exists():
+        return None
+    path.unlink()
+    return path
+
+
+def _set_primary_link_session(repo_root: Path, orp_session_id: str) -> None:
+    sessions_dir = _link_sessions_dir(repo_root)
+    if sessions_dir is None or not sessions_dir.exists():
+        return
+    for path in sorted(sessions_dir.glob("*.json")):
+        raw = _read_json_if_exists(path)
+        if not raw:
+            continue
+        try:
+            payload = _normalize_link_session_payload(
+                raw,
+                repo_root,
+                default_source=str(raw.get("source", "cli")).strip() or "cli",
+            )
+        except RuntimeError:
+            continue
+        payload["primary"] = payload["orp_session_id"] == orp_session_id and not payload["archived"]
+        _write_json(path, payload)
+
+
+def _rebalance_primary_link_session(repo_root: Path) -> dict[str, Any]:
+    sessions = _list_link_sessions(repo_root)
+    eligible = [row for row in sessions if not row.get("archived")]
+    current_primaries = [row for row in eligible if row.get("primary")]
+    if len(current_primaries) == 1:
+        return current_primaries[0]
+    target = {}
+    if len(current_primaries) > 1:
+        target = current_primaries[0]
+    elif eligible:
+        active = [row for row in eligible if str(row.get("state", "active")).strip() == "active"]
+        target = active[0] if active else eligible[0]
+    if target:
+        _set_primary_link_session(repo_root, str(target.get("orp_session_id", "")).strip())
+        return _read_link_session(repo_root, str(target.get("orp_session_id", "")).strip())
+    for row in sessions:
+        path = _link_session_path(repo_root, str(row.get("orp_session_id", "")).strip())
+        if path is None:
+            continue
+        payload = dict(row)
+        payload.pop("path", None)
+        payload["primary"] = False
+        _write_json(path, payload)
+    return {}
+
+
+def _normalize_remote_world_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    world = payload.get("world") if isinstance(payload.get("world"), dict) else payload
+    if not isinstance(world, dict):
+        raise RuntimeError("Hosted ORP returned an invalid world payload.")
+    return {
+        "ok": bool(payload.get("ok", True)),
+        "world": dict(world),
+    }
+
+
+def _link_session_counts(sessions: list[dict[str, Any]]) -> dict[str, int]:
+    active = [row for row in sessions if not row.get("archived") and str(row.get("state", "active")).strip() == "active"]
+    archived = [row for row in sessions if row.get("archived")]
+    routeable = [row for row in active if str(row.get("codex_session_id", "")).strip()]
+    primary = [row for row in sessions if row.get("primary")]
+    return {
+        "total": len(sessions),
+        "active": len(active),
+        "archived": len(archived),
+        "routeable": len(routeable),
+        "primary": len(primary),
+    }
+
+
+def _link_status_payload(repo_root: Path, args: argparse.Namespace, *, refresh_remote_world: bool = True) -> dict[str, Any]:
+    project_link = _read_link_project(repo_root)
+    project_link_path = _link_project_path(repo_root)
+    sessions = _list_link_sessions(repo_root)
+    primary_session = next((row for row in sessions if row.get("primary")), {})
+    governance = _governance_status_payload(repo_root, args.config)
+    hosted_session = _load_hosted_session()
+    hosted_session["base_url"] = _resolve_hosted_base_url(args, hosted_session)
+    hosted_auth = _session_summary(hosted_session)
+    hosted_world: dict[str, Any] = {}
+    hosted_world_error = ""
+    if project_link and hosted_auth.get("connected") and refresh_remote_world:
+        try:
+            payload = _request_hosted_json(
+                base_url=_resolve_hosted_base_url(args, hosted_session),
+                path=f"/api/cli/ideas/{urlparse.quote(str(project_link.get('idea_id', '')).strip())}/world",
+                token=str(hosted_session.get("token", "")).strip(),
+            )
+            if isinstance(payload, dict):
+                hosted_world = _normalize_remote_world_payload(payload)["world"]
+        except Exception as exc:
+            hosted_world_error = str(exc)
+
+    warnings: list[str] = []
+    notes: list[str] = []
+    next_actions: list[str] = []
+    if not governance.get("orp_governed"):
+        notes.append("repo governance is not initialized yet.")
+        next_actions.append("orp init")
+    if not governance.get("git", {}).get("present"):
+        warnings.append("git repository not detected for local link/session state.")
+        next_actions.append("orp init")
+    if not project_link:
+        warnings.append("project is not linked to a hosted idea/world yet.")
+        next_actions.append("orp link project bind --idea-id <idea-id> --json")
+    if not sessions:
+        warnings.append("no linked sessions are registered for this repo.")
+        next_actions.append(
+            "orp link session register --orp-session-id <session-id> --label <label> --codex-session-id <codex-session-id> --primary --json"
+        )
+    if sessions and not primary_session:
+        warnings.append("no primary linked session is selected.")
+        next_actions.append("orp link session set-primary <orp_session_id> --json")
+    if primary_session and not str(primary_session.get("codex_session_id", "")).strip():
+        warnings.append(
+            f"primary session `{primary_session.get('orp_session_id', '')}` is missing a Codex session id."
+        )
+        next_actions.append(
+            f"orp link session register --orp-session-id {primary_session.get('orp_session_id', '')} --label \"{primary_session.get('label', '')}\" --codex-session-id <codex-session-id> --json"
+        )
+    if project_link and not hosted_auth.get("connected"):
+        warnings.append("hosted auth is not connected; remote link sync and delivery are unavailable.")
+        next_actions.append("orp auth login")
+    if hosted_world_error:
+        warnings.append(f"unable to refresh hosted world state: {hosted_world_error}")
+    if hosted_world and project_link:
+        remote_root = _normalize_local_path(hosted_world.get("projectRoot", ""), repo_root)
+        local_root = str(project_link.get("project_root", "")).strip()
+        if remote_root and local_root and remote_root != local_root:
+            warnings.append("hosted world project root does not match the local linked project root.")
+        remote_codex_session_id = str(hosted_world.get("codexSessionId", "")).strip()
+        primary_codex_session_id = str(primary_session.get("codex_session_id", "")).strip()
+        if remote_codex_session_id and primary_codex_session_id and remote_codex_session_id != primary_codex_session_id:
+            warnings.append("hosted world primary Codex session id does not match the local primary linked session.")
+        world_id = str(project_link.get("world_id", "")).strip()
+        remote_world_id = str(hosted_world.get("id", "")).strip()
+        if world_id and remote_world_id and world_id != remote_world_id:
+            warnings.append("hosted world id does not match the locally recorded linked world id.")
+
+    session_counts = _link_session_counts(sessions)
+    routeable_sessions = [
+        row
+        for row in sessions
+        if not row.get("archived")
+        and str(row.get("state", "active")).strip() == "active"
+        and str(row.get("codex_session_id", "")).strip()
+    ]
+    return {
+        "ok": True,
+        "repo_root": str(repo_root),
+        "project_link_path": _path_for_state(project_link_path, repo_root) if project_link_path is not None else "",
+        "project_link_exists": bool(project_link),
+        "project_link": project_link,
+        "sessions": sessions,
+        "session_counts": session_counts,
+        "primary_session": primary_session,
+        "routeable_sessions": routeable_sessions,
+        "routing_ready": bool(project_link) and bool(primary_session) and bool(routeable_sessions),
+        "hosted_auth": hosted_auth,
+        "hosted_world": hosted_world,
+        "hosted_world_error": hosted_world_error,
+        "governance": governance,
+        "warnings": _unique_strings(warnings),
+        "notes": _unique_strings(notes),
+        "next_actions": _unique_strings(next_actions),
+    }
+
+
+def _runner_machine_path() -> Path:
+    return _orp_user_dir() / "machine.json"
+
+
+def _runner_repo_path(repo_root: Path) -> Path | None:
+    root = _link_root_path(repo_root)
+    if root is None:
+        return None
+    return root / "runner.json"
+
+
+def _runner_runtime_path(repo_root: Path) -> Path | None:
+    root = _link_root_path(repo_root)
+    if root is None:
+        return None
+    return root / "runtime.json"
+
+
+def _runner_platform_name() -> str:
+    system = platform.system().strip().lower()
+    if system == "darwin":
+        return "macos"
+    if system.startswith("win"):
+        return "windows"
+    if system:
+        return system
+    return sys.platform.strip().lower() or "unknown"
+
+
+def _default_runner_machine_payload(*, machine_id: str = "") -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "machine_id": machine_id or str(uuid.uuid4()),
+        "machine_name": platform.node().strip() or "This Machine",
+        "platform": _runner_platform_name(),
+        "app_version": ORP_TOOL_VERSION,
+        "runner_enabled": False,
+    }
+    return payload
+
+
+def _default_runner_runtime_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "status": "idle",
+        "updated_at_utc": "",
+        "active_job": {},
+        "last_job": {},
+        "recent_events": [],
+    }
+
+
+def _normalize_runner_runtime_job(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    normalized: dict[str, Any] = {}
+    for key in (
+        "job_id",
+        "job_kind",
+        "lease_id",
+        "checkpoint_id",
+        "idea_id",
+        "world_id",
+        "project_root",
+        "repo_root",
+        "orp_session_id",
+        "codex_session_id",
+        "status",
+        "summary",
+        "error",
+    ):
+        value = str(raw.get(key, "")).strip()
+        if value:
+            normalized[key] = value
+    for key in (
+        "claimed_at_utc",
+        "started_at_utc",
+        "last_heartbeat_at_utc",
+        "lease_expires_at_utc",
+        "finished_at_utc",
+    ):
+        value = _normalize_timestamp_utc(raw.get(key), fallback="")
+        if value:
+            normalized[key] = value
+    return normalized
+
+
+def _normalize_runner_runtime_event(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    event: dict[str, Any] = {}
+    timestamp = _normalize_timestamp_utc(raw.get("timestamp_utc"), fallback="")
+    if timestamp:
+        event["timestamp_utc"] = timestamp
+    for key in ("status", "job_id", "lease_id", "message"):
+        value = str(raw.get(key, "")).strip()
+        if value:
+            event[key] = value
+    return event
+
+
+def _normalize_runner_runtime_payload(raw: Any) -> dict[str, Any]:
+    payload = _default_runner_runtime_payload()
+    if not isinstance(raw, dict):
+        return payload
+    recent_rows = raw.get("recent_events", raw.get("recentEvents", []))
+    if not isinstance(recent_rows, list):
+        recent_rows = []
+    normalized = {
+        "schema_version": "1.0.0",
+        "status": str(raw.get("status", "idle")).strip().lower() or "idle",
+        "updated_at_utc": _normalize_timestamp_utc(raw.get("updated_at_utc"), fallback=""),
+        "active_job": _normalize_runner_runtime_job(raw.get("active_job", raw.get("activeJob"))),
+        "last_job": _normalize_runner_runtime_job(raw.get("last_job", raw.get("lastJob"))),
+        "recent_events": [
+            event for event in (_normalize_runner_runtime_event(row) for row in recent_rows)
+            if event
+        ][-25:],
+    }
+    if normalized["status"] not in {"idle", "claimed", "running"}:
+        normalized["status"] = "idle"
+    if not normalized["active_job"]:
+        normalized["status"] = "idle"
+    return normalized
+
+
+def _normalize_runner_machine_payload(
+    raw: dict[str, Any],
+    *,
+    default_machine_id: str = "",
+    default_machine_name: str = "",
+) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise RuntimeError("runner machine payload must be an object.")
+    payload = _default_runner_machine_payload(machine_id=default_machine_id)
+    machine_id = str(raw.get("machine_id", raw.get("machineId", payload["machine_id"]))).strip() or payload["machine_id"]
+    machine_name = (
+        str(raw.get("machine_name", raw.get("machineName", default_machine_name or payload["machine_name"]))).strip()
+        or default_machine_name
+        or payload["machine_name"]
+    )
+    normalized: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "machine_id": machine_id,
+        "machine_name": machine_name,
+        "platform": str(raw.get("platform", payload["platform"])).strip() or payload["platform"],
+        "app_version": str(raw.get("app_version", raw.get("appVersion", ORP_TOOL_VERSION))).strip() or ORP_TOOL_VERSION,
+        "runner_enabled": _normalize_bool(raw.get("runner_enabled", raw.get("runnerEnabled", False))),
+    }
+    linked_email = str(raw.get("linked_email", raw.get("linkedEmail", ""))).strip()
+    if linked_email:
+        normalized["linked_email"] = linked_email
+    last_heartbeat = _normalize_timestamp_utc(
+        raw.get("last_heartbeat_at_utc", raw.get("lastHeartbeatAt")),
+        fallback="",
+    )
+    if last_heartbeat:
+        normalized["last_heartbeat_at_utc"] = last_heartbeat
+    last_sync = _normalize_timestamp_utc(
+        raw.get("last_sync_at_utc", raw.get("lastSyncAt")),
+        fallback="",
+    )
+    if last_sync:
+        normalized["last_sync_at_utc"] = last_sync
+    return normalized
+
+
+def _load_runner_machine() -> dict[str, Any]:
+    path = _runner_machine_path()
+    raw = _read_json_if_exists(path)
+    default_payload = _default_runner_machine_payload()
+    if raw:
+        try:
+            payload = _normalize_runner_machine_payload(
+                raw,
+                default_machine_id=str(default_payload["machine_id"]),
+                default_machine_name=str(default_payload["machine_name"]),
+            )
+        except RuntimeError:
+            payload = default_payload
+    else:
+        payload = default_payload
+    if not path.exists() or not raw:
+        _write_json(path, payload)
+    return payload
+
+
+def _save_runner_machine(payload: dict[str, Any]) -> Path:
+    path = _runner_machine_path()
+    current = _load_runner_machine()
+    normalized = _normalize_runner_machine_payload(
+        {**current, **payload},
+        default_machine_id=str(current.get("machine_id", "")),
+        default_machine_name=str(current.get("machine_name", "")),
+    )
+    _write_json(path, normalized)
+    return path
+
+
+def _read_runner_runtime(repo_root: Path) -> dict[str, Any]:
+    path = _runner_runtime_path(repo_root)
+    if path is None or not path.exists():
+        return _default_runner_runtime_payload()
+    raw = _read_json_if_exists(path)
+    if not raw:
+        return _default_runner_runtime_payload()
+    return _normalize_runner_runtime_payload(raw)
+
+
+def _write_runner_runtime(repo_root: Path, payload: dict[str, Any]) -> Path:
+    path = _runner_runtime_path(repo_root)
+    if path is None:
+        raise RuntimeError("git repository not detected. Run `orp init` or `git init` first.")
+    current = _read_runner_runtime(repo_root)
+    normalized = _normalize_runner_runtime_payload({**current, **payload})
+    normalized["updated_at_utc"] = _normalize_timestamp_utc(
+        normalized.get("updated_at_utc"),
+        fallback=_now_utc(),
+    )
+    _write_json(path, normalized)
+    return path
+
+
+def _update_runner_runtime(
+    repo_root: Path,
+    *,
+    status: str | None = None,
+    active_job: dict[str, Any] | None = None,
+    last_job: dict[str, Any] | None = None,
+    clear_active: bool = False,
+    event: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], Path]:
+    current = _read_runner_runtime(repo_root)
+    payload = {
+        "schema_version": "1.0.0",
+        "status": current.get("status", "idle"),
+        "updated_at_utc": _now_utc(),
+        "active_job": current.get("active_job", {}),
+        "last_job": current.get("last_job", {}),
+        "recent_events": list(current.get("recent_events", [])),
+    }
+    if status is not None:
+        payload["status"] = str(status).strip().lower() or payload["status"]
+    if clear_active:
+        payload["active_job"] = {}
+    if active_job is not None:
+        payload["active_job"] = active_job
+    if last_job is not None:
+        payload["last_job"] = last_job
+    if event:
+        _append_bounded_event_list(payload, "recent_events", event)
+    path = _write_runner_runtime(repo_root, payload)
+    return _read_runner_runtime(repo_root), path
+
+
+def _read_runner_repo_state(repo_root: Path) -> dict[str, Any]:
+    path = _runner_repo_path(repo_root)
+    if path is None or not path.exists():
+        return {}
+    raw = _read_json_if_exists(path)
+    if not raw:
+        return {}
+    machine = _load_runner_machine()
+    try:
+        return _normalize_runner_machine_payload(
+            raw,
+            default_machine_id=str(machine.get("machine_id", "")),
+            default_machine_name=str(machine.get("machine_name", "")),
+        )
+    except RuntimeError:
+        return {}
+
+
+def _write_runner_repo_state(repo_root: Path, payload: dict[str, Any]) -> Path:
+    path = _runner_repo_path(repo_root)
+    if path is None:
+        raise RuntimeError("git repository not detected. Run `orp init` or `git init` first.")
+    machine = _load_runner_machine()
+    normalized = _normalize_runner_machine_payload(
+        {**machine, **payload},
+        default_machine_id=str(machine.get("machine_id", "")),
+        default_machine_name=str(machine.get("machine_name", "")),
+    )
+    _write_json(path, normalized)
+    return path
+
+
+def _runner_runtime_event(
+    *,
+    status: str,
+    message: str = "",
+    job_id: str = "",
+    lease_id: str = "",
+    timestamp_utc: str = "",
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "status": str(status).strip().lower() or "idle",
+        "timestamp_utc": _normalize_timestamp_utc(timestamp_utc, fallback=_now_utc()),
+    }
+    if str(job_id).strip():
+        event["job_id"] = str(job_id).strip()
+    if str(lease_id).strip():
+        event["lease_id"] = str(lease_id).strip()
+    if str(message).strip():
+        event["message"] = str(message).strip()
+    return event
+
+
+def _runner_sync_payload_for_repo(
+    repo_root: Path,
+    machine: dict[str, Any],
+    link_status: dict[str, Any],
+    *,
+    synced_at_utc: str = "",
+) -> dict[str, Any]:
+    synced_at_value = _normalize_timestamp_utc(synced_at_utc, fallback=_now_utc())
+    project_link = link_status.get("project_link", {}) if isinstance(link_status.get("project_link"), dict) else {}
+    idea_id = str(project_link.get("idea_id", "")).strip()
+    world_id = str(project_link.get("world_id", "")).strip() or None
+    project_root = str(project_link.get("project_root", str(repo_root))).strip() or str(repo_root)
+    linked_projects: list[dict[str, Any]] = []
+    if idea_id:
+        linked_projects.append(
+            {
+                "ideaId": idea_id,
+                "ideaTitle": str(project_link.get("idea_title", "")).strip() or repo_root.name,
+                "worldId": world_id,
+                "worldName": str(project_link.get("world_name", "")).strip() or None,
+                "projectName": repo_root.name,
+                "projectRoot": project_root,
+                "githubUrl": str(project_link.get("github_url", "")).strip() or None,
+                "lastOpenedAt": _now_utc(),
+            }
+        )
+
+    sessions: list[dict[str, Any]] = []
+    for row in link_status.get("sessions", []):
+        if not isinstance(row, dict) or row.get("archived"):
+            continue
+        sessions.append(
+            {
+                "ideaId": idea_id,
+                "worldId": world_id,
+                "projectRoot": str(row.get("project_root", project_root)).strip() or project_root,
+                "orpSessionId": str(row.get("orp_session_id", "")).strip(),
+                "codexSessionId": str(row.get("codex_session_id", "")).strip() or None,
+                "label": str(row.get("label", "")).strip(),
+                "state": str(row.get("state", "active")).strip() or "active",
+                "primary": bool(row.get("primary")),
+                "lastActiveAt": str(row.get("last_active_at_utc", "")).strip() or None,
+            }
+        )
+
+    return {
+        "machineId": str(machine.get("machine_id", "")).strip(),
+        "machineName": str(machine.get("machine_name", "")).strip(),
+        "platform": str(machine.get("platform", _runner_platform_name())).strip() or _runner_platform_name(),
+        "appVersion": str(machine.get("app_version", ORP_TOOL_VERSION)).strip() or ORP_TOOL_VERSION,
+        "syncedAt": synced_at_value,
+        "linkedProjects": linked_projects,
+        "sessions": sessions,
+    }
+
+
+def _normalize_runner_sync_roots(repo_root: Path, raw_roots: Sequence[str] | None) -> list[Path]:
+    roots: list[Path] = []
+    seen: set[str] = set()
+
+    def add_root(raw_value: str | Path) -> None:
+        text = str(raw_value).strip()
+        if not text:
+            return
+        try:
+            candidate = Path(text).expanduser().resolve()
+        except Exception:
+            candidate = Path(text).expanduser()
+        key = str(candidate)
+        if key in seen:
+            return
+        seen.add(key)
+        roots.append(candidate)
+
+    add_root(repo_root)
+    for raw_value in raw_roots or []:
+        add_root(raw_value)
+    return roots
+
+
+def _linked_email_matches(project_link: dict[str, Any], linked_email: str) -> bool:
+    current_email = linked_email.strip().lower()
+    if not current_email:
+        return True
+    project_email = str(project_link.get("linked_email", "")).strip().lower()
+    if not project_email:
+        return True
+    return project_email == current_email
+
+
+def _runner_sync_payload_for_roots(
+    repo_roots: Sequence[Path],
+    machine: dict[str, Any],
+    args: argparse.Namespace,
+    *,
+    linked_email: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    synced_at_utc = _now_utc()
+    linked_projects: list[dict[str, Any]] = []
+    sessions: list[dict[str, Any]] = []
+    included_project_roots: list[str] = []
+    skipped_project_roots: list[dict[str, Any]] = []
+    seen_project_keys: set[tuple[str, str, str]] = set()
+    routeable_sessions = 0
+
+    for repo_root in repo_roots:
+        root_display = str(repo_root)
+        if not repo_root.exists():
+            skipped_project_roots.append(
+                {
+                    "project_root": root_display,
+                    "reason": "missing",
+                }
+            )
+            continue
+        if not _git_repo_present(repo_root):
+            skipped_project_roots.append(
+                {
+                    "project_root": root_display,
+                    "reason": "not_git_repo",
+                }
+            )
+            continue
+
+        link_status = _link_status_payload(repo_root, args, refresh_remote_world=False)
+        if not link_status.get("project_link_exists"):
+            skipped_project_roots.append(
+                {
+                    "project_root": root_display,
+                    "reason": "not_linked",
+                }
+            )
+            continue
+
+        project_link = link_status.get("project_link", {}) if isinstance(link_status.get("project_link"), dict) else {}
+        if not _linked_email_matches(project_link, linked_email):
+            skipped_project_roots.append(
+                {
+                    "project_root": root_display,
+                    "reason": "linked_email_mismatch",
+                }
+            )
+            continue
+
+        repo_payload = _runner_sync_payload_for_repo(
+            repo_root,
+            machine,
+            link_status,
+            synced_at_utc=synced_at_utc,
+        )
+        for row in repo_payload.get("linkedProjects", []):
+            if not isinstance(row, dict):
+                continue
+            key = (
+                str(row.get("projectRoot", "")).strip(),
+                str(row.get("ideaId", "")).strip(),
+                str(row.get("worldId", "")).strip(),
+            )
+            if key in seen_project_keys:
+                continue
+            seen_project_keys.add(key)
+            linked_projects.append(row)
+
+        for row in repo_payload.get("sessions", []):
+            if isinstance(row, dict):
+                sessions.append(row)
+
+        routeable_sessions += int(link_status.get("session_counts", {}).get("routeable", 0) or 0)
+        included_project_roots.append(root_display)
+
+    sync_payload = {
+        "machineId": str(machine.get("machine_id", "")).strip(),
+        "machineName": str(machine.get("machine_name", "")).strip(),
+        "platform": str(machine.get("platform", _runner_platform_name())).strip() or _runner_platform_name(),
+        "appVersion": str(machine.get("app_version", ORP_TOOL_VERSION)).strip() or ORP_TOOL_VERSION,
+        "syncedAt": synced_at_utc,
+        "linkedProjects": linked_projects,
+        "sessions": sessions,
+    }
+    summary = {
+        "included_project_roots": included_project_roots,
+        "skipped_project_roots": skipped_project_roots,
+        "routeable_sessions": routeable_sessions,
+    }
+    return sync_payload, summary
+
+
+def _runner_status_payload(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    machine = _load_runner_machine()
+    machine_path = _runner_machine_path()
+    repo_has_git = _git_repo_present(repo_root)
+    repo_runner_path = _runner_repo_path(repo_root)
+    repo_runtime_path = _runner_runtime_path(repo_root)
+    repo_runner = _read_runner_repo_state(repo_root) if repo_has_git else {}
+    repo_runtime = _read_runner_runtime(repo_root) if repo_has_git else _default_runner_runtime_payload()
+    hosted_session = _load_hosted_session()
+    hosted_session["base_url"] = _resolve_hosted_base_url(args, hosted_session)
+    hosted_auth = _session_summary(hosted_session)
+    link_status = _link_status_payload(repo_root, args, refresh_remote_world=False) if repo_has_git else {
+        "project_link_exists": False,
+        "project_link": {},
+        "sessions": [],
+        "session_counts": {
+            "total": 0,
+            "active": 0,
+            "archived": 0,
+            "routeable": 0,
+            "primary": 0,
+        },
+        "routing_ready": False,
+        "warnings": ["git repository not detected for local link/session state."],
+        "notes": [],
+        "next_actions": ["orp init"],
+        "hosted_auth": hosted_auth,
+    }
+    session_counts = link_status.get("session_counts", {}) if isinstance(link_status.get("session_counts"), dict) else {}
+    project_link_exists = bool(link_status.get("project_link_exists"))
+    sync_ready = bool(machine.get("runner_enabled")) and repo_has_git and project_link_exists and bool(hosted_auth.get("connected"))
+    work_ready = sync_ready and int(session_counts.get("routeable", 0) or 0) > 0
+    lease_health = _runner_active_lease_health(repo_runtime, machine)
+    active_job = repo_runtime.get("active_job", {}) if isinstance(repo_runtime.get("active_job"), dict) else {}
+    last_job = repo_runtime.get("last_job", {}) if isinstance(repo_runtime.get("last_job"), dict) else {}
+
+    warnings: list[str] = []
+    notes: list[str] = []
+    next_actions: list[str] = []
+    if not machine.get("runner_enabled"):
+        warnings.append("runner is disabled on this machine.")
+        next_actions.append("orp runner enable --json")
+    elif not str(machine.get("last_heartbeat_at_utc", "")).strip():
+        warnings.append("runner has not sent a heartbeat yet.")
+        next_actions.append("orp runner heartbeat --json")
+    if not repo_has_git:
+        warnings.append("git repository not detected for the current repo.")
+        next_actions.append("orp init")
+    if repo_has_git and not project_link_exists:
+        warnings.append("current repo is not linked to a hosted idea/world yet.")
+        next_actions.append("orp link project bind --idea-id <idea-id> --json")
+    if repo_has_git and project_link_exists and int(session_counts.get("total", 0) or 0) == 0:
+        warnings.append("current repo has no linked sessions to advertise.")
+        next_actions.append(
+            "orp link session register --orp-session-id <session-id> --label <label> --codex-session-id <codex-session-id> --primary --json"
+        )
+    if project_link_exists and not hosted_auth.get("connected"):
+        warnings.append("hosted auth is not connected, so runner sync cannot reach the hosted app.")
+        next_actions.append("orp auth login")
+    if sync_ready:
+        notes.append("runner is ready to sync linked project/session inventory to the hosted app.")
+    if work_ready:
+        notes.append("runner has at least one routeable linked session for hosted prompt delivery.")
+    elif sync_ready:
+        warnings.append("runner can sync this repo, but there is no routeable linked session yet.")
+        next_actions.append("orp link session set-primary <orp_session_id> --json")
+    if active_job:
+        notes.append("runner is tracking an active hosted lease for this repo.")
+        if lease_health.get("stale"):
+            warnings.append(
+                f"local runner lease appears stale ({int(lease_health.get('age_seconds', 0) or 0)}s since heartbeat)."
+            )
+            if str(active_job.get("job_id", "")).strip():
+                cancel_command = f"orp runner cancel {str(active_job.get('job_id', '')).strip()}"
+                if str(active_job.get("lease_id", "")).strip():
+                    cancel_command += f" --lease-id {str(active_job.get('lease_id', '')).strip()}"
+                cancel_command += " --json"
+                next_actions.append(cancel_command)
+    if last_job and str(last_job.get("status", "")).strip() == "failed":
+        warnings.append("last hosted runner job failed; review the last job summary and error in runner status JSON.")
+
+    return {
+        "ok": True,
+        "machine": machine,
+        "machine_path": str(machine_path),
+        "repo_has_git": repo_has_git,
+        "repo_runner": repo_runner,
+        "repo_runner_path": _path_for_state(repo_runner_path, repo_root) if repo_runner_path is not None else "",
+        "repo_runtime": repo_runtime,
+        "repo_runtime_path": _path_for_state(repo_runtime_path, repo_root) if repo_runtime_path is not None else "",
+        "active_lease": lease_health,
+        "project_link_exists": project_link_exists,
+        "session_counts": session_counts,
+        "sync_ready": sync_ready,
+        "work_ready": work_ready,
+        "hosted_auth": hosted_auth,
+        "link_status": link_status,
+        "warnings": _unique_strings(warnings + list(link_status.get("warnings", []))),
+        "notes": _unique_strings(notes + list(link_status.get("notes", []))),
+        "next_actions": _unique_strings(next_actions + list(link_status.get("next_actions", []))),
+    }
+
+
+def _perform_runner_heartbeat(
+    repo_root: Path,
+    args: argparse.Namespace,
+    session: dict[str, Any],
+    machine: dict[str, Any],
+    *,
+    heartbeat_at_utc: str = "",
+    job_id: str = "",
+    lease_id: str = "",
+) -> dict[str, Any]:
+    timestamp_utc = _normalize_timestamp_utc(heartbeat_at_utc, fallback=_now_utc())
+    runtime = _read_runner_runtime(repo_root) if _git_repo_present(repo_root) else _default_runner_runtime_payload()
+    active_job = runtime.get("active_job", {}) if isinstance(runtime.get("active_job"), dict) else {}
+    resolved_job_id = str(job_id).strip() or str(active_job.get("job_id", "")).strip()
+    resolved_lease_id = str(lease_id).strip() or str(active_job.get("lease_id", "")).strip()
+    body: dict[str, Any] = {
+        "machineId": str(machine.get("machine_id", "")).strip(),
+        "machineName": str(machine.get("machine_name", "")).strip(),
+    }
+    if resolved_job_id:
+        body["jobId"] = resolved_job_id
+    if resolved_lease_id:
+        body["leaseId"] = resolved_lease_id
+    response = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/runner/heartbeat",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    machine_update: dict[str, Any] = {
+        "runner_enabled": bool(machine.get("runner_enabled", False)),
+        "last_heartbeat_at_utc": timestamp_utc,
+    }
+    linked_email = str(session.get("email", "")).strip() or str(machine.get("linked_email", "")).strip()
+    if linked_email:
+        machine_update["linked_email"] = linked_email
+    machine_path = _save_runner_machine(machine_update)
+    repo_runner_path = ""
+    repo_runtime_path = ""
+    if _git_repo_present(repo_root):
+        repo_runner_path = _path_for_state(_write_runner_repo_state(repo_root, {**machine, **machine_update}), repo_root)
+        _, runtime_path = _record_runner_heartbeat(
+            repo_root,
+            heartbeat_at_utc=timestamp_utc,
+            job_id=resolved_job_id,
+            lease_id=resolved_lease_id,
+        )
+        if runtime_path is not None:
+            repo_runtime_path = _path_for_state(runtime_path, repo_root)
+    return {
+        "machine": _load_runner_machine(),
+        "machine_path": str(machine_path),
+        "repo_runner_path": repo_runner_path,
+        "repo_runtime_path": repo_runtime_path,
+        "heartbeat_at_utc": timestamp_utc,
+        "job_id": resolved_job_id,
+        "lease_id": resolved_lease_id,
+        "response": response if isinstance(response, dict) else {},
+    }
+
+
+def _runner_job_path_value(raw: Any, repo_root: Path) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    return _normalize_local_path(text, repo_root, fallback="")
+
+
+def _runner_job_target_summary(job: dict[str, Any], repo_root: Path) -> dict[str, str]:
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    project = job.get("project") if isinstance(job.get("project"), dict) else {}
+    session = job.get("session") if isinstance(job.get("session"), dict) else {}
+    checkpoint_id = (
+        str(job.get("checkpointId", job.get("checkpoint_id", ""))).strip()
+        or str(payload.get("checkpointId", payload.get("checkpoint_id", ""))).strip()
+    )
+    idea_id = (
+        str(job.get("ideaId", job.get("idea_id", ""))).strip()
+        or str(payload.get("ideaId", payload.get("idea_id", ""))).strip()
+        or str(project.get("ideaId", project.get("idea_id", ""))).strip()
+        or str(session.get("ideaId", session.get("idea_id", ""))).strip()
+    )
+    world_id = (
+        str(payload.get("worldId", payload.get("world_id", ""))).strip()
+        or str(project.get("worldId", project.get("world_id", ""))).strip()
+        or str(session.get("worldId", session.get("world_id", ""))).strip()
+    )
+    project_root = (
+        _runner_job_path_value(payload.get("projectRoot", payload.get("project_root", "")), repo_root)
+        or _runner_job_path_value(project.get("projectRoot", project.get("project_root", "")), repo_root)
+        or _runner_job_path_value(session.get("projectRoot", session.get("project_root", "")), repo_root)
+    )
+    explicit_orp_session_id = (
+        str(payload.get("orpSessionId", payload.get("orp_session_id", ""))).strip()
+        or str(session.get("orpSessionId", session.get("orp_session_id", ""))).strip()
+    )
+    explicit_codex_session_id = (
+        str(payload.get("codexSessionId", payload.get("codex_session_id", ""))).strip()
+        or str(session.get("codexSessionId", session.get("codex_session_id", ""))).strip()
+    )
+    prompt = (
+        str(payload.get("prompt", "")).strip()
+        or str(job.get("prompt", "")).strip()
+    )
+    return {
+        "job_id": str(job.get("id", "")).strip(),
+        "kind": str(job.get("kind", "")).strip(),
+        "checkpoint_id": checkpoint_id,
+        "idea_id": idea_id,
+        "world_id": world_id,
+        "project_root": project_root,
+        "orp_session_id": explicit_orp_session_id,
+        "codex_session_id": explicit_codex_session_id,
+        "prompt": prompt,
+    }
+
+
+def _runner_supported_job_kinds() -> set[str]:
+    return {
+        "session.prompt",
+        "idea.checkpoint",
+    }
+
+
+def _runner_job_lease_summary(poll_payload: Any, job: dict[str, Any]) -> dict[str, str]:
+    poll = poll_payload if isinstance(poll_payload, dict) else {}
+    payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+    lease = poll.get("lease") if isinstance(poll.get("lease"), dict) else {}
+    lease_id = (
+        str(poll.get("leaseId", poll.get("lease_id", ""))).strip()
+        or str(job.get("leaseId", job.get("lease_id", ""))).strip()
+        or str(payload.get("leaseId", payload.get("lease_id", ""))).strip()
+        or str(lease.get("id", lease.get("leaseId", lease.get("lease_id", "")))).strip()
+    )
+    lease_expires_at_utc = _normalize_timestamp_utc(
+        poll.get("leaseExpiresAt", poll.get("lease_expires_at"))
+        or job.get("leaseExpiresAt", job.get("lease_expires_at"))
+        or payload.get("leaseExpiresAt", payload.get("lease_expires_at"))
+        or lease.get("expiresAt", lease.get("lease_expires_at")),
+        fallback="",
+    )
+    return {
+        "lease_id": lease_id,
+        "lease_expires_at_utc": lease_expires_at_utc,
+    }
+
+
+def _runner_runtime_job_snapshot(
+    job: dict[str, Any],
+    repo_root: Path,
+    *,
+    lease_id: str = "",
+    lease_expires_at_utc: str = "",
+    selected_session: dict[str, Any] | None = None,
+    status: str = "",
+    claimed_at_utc: str = "",
+    started_at_utc: str = "",
+    last_heartbeat_at_utc: str = "",
+    finished_at_utc: str = "",
+    summary: str = "",
+    error: str = "",
+) -> dict[str, Any]:
+    target = _runner_job_target_summary(job, repo_root)
+    session = selected_session if isinstance(selected_session, dict) else {}
+    snapshot: dict[str, Any] = {
+        "job_id": target["job_id"],
+        "job_kind": target["kind"],
+        "lease_id": str(lease_id).strip(),
+        "checkpoint_id": target["checkpoint_id"],
+        "idea_id": target["idea_id"],
+        "world_id": target["world_id"],
+        "project_root": target["project_root"] or str(repo_root),
+        "repo_root": str(repo_root),
+        "orp_session_id": str(session.get("orp_session_id", target.get("orp_session_id", ""))).strip(),
+        "codex_session_id": str(session.get("codex_session_id", target.get("codex_session_id", ""))).strip(),
+        "status": str(status).strip().lower(),
+        "summary": str(summary).strip(),
+        "error": str(error).strip(),
+        "claimed_at_utc": _normalize_timestamp_utc(claimed_at_utc, fallback=""),
+        "started_at_utc": _normalize_timestamp_utc(started_at_utc, fallback=""),
+        "last_heartbeat_at_utc": _normalize_timestamp_utc(last_heartbeat_at_utc, fallback=""),
+        "lease_expires_at_utc": _normalize_timestamp_utc(lease_expires_at_utc, fallback=""),
+        "finished_at_utc": _normalize_timestamp_utc(finished_at_utc, fallback=""),
+    }
+    return _normalize_runner_runtime_job(snapshot)
+
+
+def _record_runner_claim(
+    repo_root: Path,
+    job: dict[str, Any],
+    *,
+    lease_id: str = "",
+    lease_expires_at_utc: str = "",
+    claimed_at_utc: str = "",
+) -> tuple[dict[str, Any], Path]:
+    timestamp_utc = _normalize_timestamp_utc(claimed_at_utc, fallback=_now_utc())
+    active_job = _runner_runtime_job_snapshot(
+        job,
+        repo_root,
+        lease_id=lease_id,
+        lease_expires_at_utc=lease_expires_at_utc,
+        status="claimed",
+        claimed_at_utc=timestamp_utc,
+        last_heartbeat_at_utc=timestamp_utc,
+    )
+    return _update_runner_runtime(
+        repo_root,
+        status="claimed",
+        active_job=active_job,
+        event=_runner_runtime_event(
+            status="claimed",
+            job_id=active_job.get("job_id", ""),
+            lease_id=active_job.get("lease_id", ""),
+            timestamp_utc=timestamp_utc,
+            message="Claimed hosted runner job.",
+        ),
+    )
+
+
+def _record_runner_start(
+    repo_root: Path,
+    job: dict[str, Any],
+    *,
+    lease_id: str = "",
+    lease_expires_at_utc: str = "",
+    selected_session: dict[str, Any] | None = None,
+    started_at_utc: str = "",
+) -> tuple[dict[str, Any], Path]:
+    timestamp_utc = _normalize_timestamp_utc(started_at_utc, fallback=_now_utc())
+    current = _read_runner_runtime(repo_root)
+    claimed_at_utc = str(current.get("active_job", {}).get("claimed_at_utc", "")).strip()
+    active_job = _runner_runtime_job_snapshot(
+        job,
+        repo_root,
+        lease_id=lease_id or str(current.get("active_job", {}).get("lease_id", "")).strip(),
+        lease_expires_at_utc=lease_expires_at_utc or str(current.get("active_job", {}).get("lease_expires_at_utc", "")).strip(),
+        selected_session=selected_session,
+        status="running",
+        claimed_at_utc=claimed_at_utc,
+        started_at_utc=timestamp_utc,
+        last_heartbeat_at_utc=timestamp_utc,
+    )
+    return _update_runner_runtime(
+        repo_root,
+        status="running",
+        active_job=active_job,
+        event=_runner_runtime_event(
+            status="running",
+            job_id=active_job.get("job_id", ""),
+            lease_id=active_job.get("lease_id", ""),
+            timestamp_utc=timestamp_utc,
+            message="Started hosted runner job.",
+        ),
+    )
+
+
+def _record_runner_heartbeat(
+    repo_root: Path,
+    *,
+    heartbeat_at_utc: str = "",
+    job_id: str = "",
+    lease_id: str = "",
+) -> tuple[dict[str, Any], Path] | tuple[dict[str, Any], None]:
+    current = _read_runner_runtime(repo_root)
+    active_job = current.get("active_job", {}) if isinstance(current.get("active_job"), dict) else {}
+    if not active_job:
+        return current, None
+    current_job_id = str(active_job.get("job_id", "")).strip()
+    current_lease_id = str(active_job.get("lease_id", "")).strip()
+    if str(job_id).strip() and current_job_id and str(job_id).strip() != current_job_id:
+        return current, None
+    if str(lease_id).strip() and current_lease_id and str(lease_id).strip() != current_lease_id:
+        return current, None
+    timestamp_utc = _normalize_timestamp_utc(heartbeat_at_utc, fallback=_now_utc())
+    updated_job = _normalize_runner_runtime_job(
+        {
+            **active_job,
+            "last_heartbeat_at_utc": timestamp_utc,
+        }
+    )
+    return _update_runner_runtime(
+        repo_root,
+        status="running",
+        active_job=updated_job,
+        event=_runner_runtime_event(
+            status="heartbeat",
+            job_id=updated_job.get("job_id", ""),
+            lease_id=updated_job.get("lease_id", ""),
+            timestamp_utc=timestamp_utc,
+            message="Sent hosted runner heartbeat.",
+        ),
+    )
+
+
+def _record_runner_finish(
+    repo_root: Path,
+    job: dict[str, Any],
+    *,
+    final_status: str,
+    lease_id: str = "",
+    lease_expires_at_utc: str = "",
+    selected_session: dict[str, Any] | None = None,
+    summary: str = "",
+    error: str = "",
+    finished_at_utc: str = "",
+) -> tuple[dict[str, Any], Path]:
+    timestamp_utc = _normalize_timestamp_utc(finished_at_utc, fallback=_now_utc())
+    current = _read_runner_runtime(repo_root)
+    active_job = current.get("active_job", {}) if isinstance(current.get("active_job"), dict) else {}
+    claimed_at_utc = str(active_job.get("claimed_at_utc", "")).strip()
+    started_at_utc = str(active_job.get("started_at_utc", "")).strip()
+    last_heartbeat_at_utc = str(active_job.get("last_heartbeat_at_utc", "")).strip()
+    last_job = _runner_runtime_job_snapshot(
+        job,
+        repo_root,
+        lease_id=lease_id or str(active_job.get("lease_id", "")).strip(),
+        lease_expires_at_utc=lease_expires_at_utc or str(active_job.get("lease_expires_at_utc", "")).strip(),
+        selected_session=selected_session,
+        status=final_status,
+        claimed_at_utc=claimed_at_utc,
+        started_at_utc=started_at_utc,
+        last_heartbeat_at_utc=last_heartbeat_at_utc,
+        finished_at_utc=timestamp_utc,
+        summary=summary,
+        error=error,
+    )
+    return _update_runner_runtime(
+        repo_root,
+        status="idle",
+        clear_active=True,
+        last_job=last_job,
+        event=_runner_runtime_event(
+            status=final_status,
+            job_id=last_job.get("job_id", ""),
+            lease_id=last_job.get("lease_id", ""),
+            timestamp_utc=timestamp_utc,
+            message=str(summary).strip() or str(error).strip() or f"Runner job {final_status}.",
+        ),
+    )
+
+
+def _resolve_runner_control_target(
+    repo_root: Path,
+    *,
+    job_id: str = "",
+    lease_id: str = "",
+    prefer_last_job: bool = False,
+) -> dict[str, Any]:
+    runtime = _read_runner_runtime(repo_root)
+    active_job = runtime.get("active_job", {}) if isinstance(runtime.get("active_job"), dict) else {}
+    last_job = runtime.get("last_job", {}) if isinstance(runtime.get("last_job"), dict) else {}
+    selected = active_job if active_job else {}
+    source = "active_runtime"
+    if not selected and prefer_last_job and last_job:
+        selected = last_job
+        source = "last_job"
+    resolved_job_id = str(job_id).strip() or str(selected.get("job_id", "")).strip()
+    resolved_lease_id = str(lease_id).strip() or str(selected.get("lease_id", "")).strip()
+    return {
+        "job_id": resolved_job_id,
+        "lease_id": resolved_lease_id,
+        "job": selected,
+        "source": source if selected else ("explicit" if resolved_job_id or resolved_lease_id else ""),
+        "runtime": runtime,
+    }
+
+
+def _resolve_runner_control_target_for_roots(
+    repo_roots: Sequence[Path],
+    *,
+    job_id: str = "",
+    lease_id: str = "",
+    prefer_last_job: bool = False,
+) -> tuple[Path, dict[str, Any]]:
+    explicit_job_id = str(job_id).strip()
+    explicit_lease_id = str(lease_id).strip()
+    active_candidates: list[tuple[Path, dict[str, Any]]] = []
+    last_candidates: list[tuple[Path, dict[str, Any]]] = []
+    roots = list(repo_roots) or [Path(".").resolve()]
+    for repo_root in roots:
+        target = _resolve_runner_control_target(
+            repo_root,
+            job_id=explicit_job_id,
+            lease_id=explicit_lease_id,
+            prefer_last_job=prefer_last_job,
+        )
+        if explicit_job_id and target.get("job_id") == explicit_job_id:
+            return repo_root, target
+        if explicit_lease_id and target.get("lease_id") == explicit_lease_id and target.get("job_id"):
+            return repo_root, target
+        if target.get("source") == "active_runtime" and target.get("job_id"):
+            active_candidates.append((repo_root, target))
+        elif prefer_last_job and target.get("source") == "last_job" and target.get("job_id"):
+            last_candidates.append((repo_root, target))
+    if active_candidates:
+        return active_candidates[0]
+    if last_candidates:
+        return last_candidates[0]
+    if explicit_job_id or explicit_lease_id:
+        return roots[0], {
+            "job_id": explicit_job_id,
+            "lease_id": explicit_lease_id,
+            "job": {},
+            "source": "explicit",
+            "runtime": _read_runner_runtime(roots[0]),
+        }
+    return roots[0], _resolve_runner_control_target(roots[0], prefer_last_job=prefer_last_job)
+
+
+def _runner_active_lease_health(
+    runtime: dict[str, Any],
+    machine: dict[str, Any],
+) -> dict[str, Any]:
+    active_job = runtime.get("active_job", {}) if isinstance(runtime.get("active_job"), dict) else {}
+    if not active_job:
+        return {"has_active_job": False, "stale": False, "age_seconds": 0}
+    heartbeat_at = (
+        str(active_job.get("last_heartbeat_at_utc", "")).strip()
+        or str(machine.get("last_heartbeat_at_utc", "")).strip()
+        or str(active_job.get("started_at_utc", "")).strip()
+        or str(active_job.get("claimed_at_utc", "")).strip()
+    )
+    parsed = _parse_iso8601_utc(heartbeat_at)
+    if parsed is None:
+        return {"has_active_job": True, "stale": False, "age_seconds": 0}
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    else:
+        parsed = parsed.astimezone(dt.timezone.utc)
+    age_seconds = max(0, int((dt.datetime.now(dt.timezone.utc) - parsed).total_seconds()))
+    return {
+        "has_active_job": True,
+        "stale": age_seconds >= RUNNER_LEASE_STALE_SECONDS,
+        "age_seconds": age_seconds,
+    }
+
+
+def _runner_job_matches_current_repo(job: dict[str, Any], repo_root: Path, link_status: dict[str, Any]) -> tuple[bool, str]:
+    project_link = link_status.get("project_link", {}) if isinstance(link_status.get("project_link"), dict) else {}
+    if not project_link:
+        return False, "current repo is not linked to a hosted idea/world."
+    target = _runner_job_target_summary(job, repo_root)
+    project_idea_id = str(project_link.get("idea_id", "")).strip()
+    project_world_id = str(project_link.get("world_id", "")).strip()
+    project_root = str(project_link.get("project_root", str(repo_root))).strip() or str(repo_root)
+
+    checks: list[tuple[str, bool]] = []
+    if target["idea_id"] and project_idea_id:
+        checks.append(("idea_id", target["idea_id"] == project_idea_id))
+    if target["world_id"] and project_world_id:
+        checks.append(("world_id", target["world_id"] == project_world_id))
+    if target["project_root"]:
+        checks.append(("project_root", target["project_root"] == project_root))
+    if not checks:
+        return True, ""
+    if any(match for _, match in checks):
+        return True, ""
+    detail = ", ".join([f"{name} mismatch" for name, _ in checks]) or "job target mismatch"
+    return False, f"claimed runner job does not target the current repo ({detail})."
+
+
+def _runner_repo_contexts_for_roots(
+    repo_roots: Sequence[Path],
+    args: argparse.Namespace,
+) -> list[dict[str, Any]]:
+    contexts: list[dict[str, Any]] = []
+    for repo_root in repo_roots:
+        if not _git_repo_present(repo_root):
+            continue
+        link_status = _link_status_payload(repo_root, args, refresh_remote_world=False)
+        contexts.append(
+            {
+                "repo_root": repo_root,
+                "link_status": link_status,
+                "project_link": link_status.get("project_link", {}) if isinstance(link_status.get("project_link"), dict) else {},
+            }
+        )
+    return contexts
+
+
+def _select_runner_repo_context_for_job(
+    job: dict[str, Any],
+    repo_contexts: Sequence[dict[str, Any]],
+    *,
+    default_repo_root: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    linked_contexts = [
+        context
+        for context in repo_contexts
+        if isinstance(context.get("project_link"), dict) and context.get("project_link")
+    ]
+    if not linked_contexts:
+        return {}, {
+            "source": "none",
+            "error": "no linked repo is available on this machine for runner work.",
+        }
+
+    default_context = next(
+        (context for context in linked_contexts if context.get("repo_root") == default_repo_root),
+        linked_contexts[0],
+    )
+    best_context: dict[str, Any] = {}
+    best_details: dict[str, Any] = {}
+    best_score = -1
+    mismatch_notes: list[str] = []
+
+    for context in linked_contexts:
+        repo_root = context["repo_root"]
+        link_status = context["link_status"]
+        project_link = context["project_link"]
+        target = _runner_job_target_summary(job, repo_root)
+        sessions = [
+            row
+            for row in link_status.get("sessions", [])
+            if isinstance(row, dict)
+        ]
+        checks: list[tuple[str, bool]] = []
+        score = 0
+
+        target_orp_session_id = target["orp_session_id"]
+        if target_orp_session_id:
+            session_match = any(
+                str(row.get("orp_session_id", "")).strip() == target_orp_session_id
+                for row in sessions
+            )
+            checks.append(("orp_session_id", session_match))
+            if session_match:
+                score += 8
+
+        target_codex_session_id = target["codex_session_id"]
+        if target_codex_session_id:
+            codex_match = any(
+                str(row.get("codex_session_id", "")).strip() == target_codex_session_id
+                for row in sessions
+            )
+            checks.append(("codex_session_id", codex_match))
+            if codex_match:
+                score += 6
+
+        project_root = str(project_link.get("project_root", str(repo_root))).strip() or str(repo_root)
+        if target["project_root"]:
+            project_root_match = target["project_root"] == project_root
+            checks.append(("project_root", project_root_match))
+            if project_root_match:
+                score += 4
+
+        project_world_id = str(project_link.get("world_id", "")).strip()
+        if target["world_id"] and project_world_id:
+            world_match = target["world_id"] == project_world_id
+            checks.append(("world_id", world_match))
+            if world_match:
+                score += 2
+
+        project_idea_id = str(project_link.get("idea_id", "")).strip()
+        if target["idea_id"] and project_idea_id:
+            idea_match = target["idea_id"] == project_idea_id
+            checks.append(("idea_id", idea_match))
+            if idea_match:
+                score += 1
+
+        if not checks:
+            continue
+
+        if any(match for _, match in checks):
+            if score > best_score:
+                best_context = context
+                best_score = score
+                best_details = {
+                    "source": "job_target_match",
+                    "score": score,
+                    "matched_fields": [name for name, matched in checks if matched],
+                    "target": target,
+                }
+            continue
+
+        mismatch_fields = ", ".join(name for name, _ in checks) or "target"
+        mismatch_notes.append(f"{repo_root}: {mismatch_fields} mismatch")
+
+    if best_context:
+        return best_context, best_details
+
+    target = _runner_job_target_summary(job, default_repo_root)
+    has_explicit_target = any(
+        bool(target[key])
+        for key in ("idea_id", "world_id", "project_root", "orp_session_id", "codex_session_id")
+    )
+    if has_explicit_target:
+        detail = "; ".join(mismatch_notes) if mismatch_notes else "no linked repo matched the job target"
+        return {}, {
+            "source": "none",
+            "target": target,
+            "error": f"claimed runner job does not target any linked repo on this machine ({detail}).",
+        }
+
+    return default_context, {
+        "source": "default_repo_root" if default_context.get("repo_root") == default_repo_root else "first_linked_repo",
+        "score": 0,
+        "matched_fields": [],
+        "target": target,
+    }
+
+
+def _select_runner_session_for_job(job: dict[str, Any], repo_root: Path, link_status: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    sessions = [
+        row
+        for row in link_status.get("sessions", [])
+        if isinstance(row, dict)
+    ]
+    target = _runner_job_target_summary(job, repo_root)
+    target_session_id = target["orp_session_id"]
+    explicit_fallback_reason = ""
+    if target_session_id:
+        selected = next((row for row in sessions if str(row.get("orp_session_id", "")).strip() == target_session_id), {})
+        if not selected:
+            explicit_fallback_reason = "missing_target_session"
+        elif selected.get("archived"):
+            explicit_fallback_reason = "archived_target_session"
+        else:
+            codex_session_id = str(selected.get("codex_session_id", "")).strip() or target["codex_session_id"]
+            if not codex_session_id:
+                explicit_fallback_reason = "target_session_missing_codex_session_id"
+            else:
+                selected = dict(selected)
+                selected["codex_session_id"] = codex_session_id
+                return selected, {
+                    "source": "explicit_orp_session_id",
+                    "targeted": True,
+                }
+
+    primary = next(
+        (
+            row
+            for row in sessions
+            if not row.get("archived")
+            and bool(row.get("primary"))
+            and str(row.get("state", "active")).strip() == "active"
+            and str(row.get("codex_session_id", "")).strip()
+        ),
+        {},
+    )
+    if primary:
+        selection = {
+            "source": "primary_session",
+            "targeted": False,
+        }
+        if explicit_fallback_reason:
+            selection = {
+                "source": "primary_session_fallback",
+                "targeted": True,
+                "fallback_reason": explicit_fallback_reason,
+                "requested_orp_session_id": target_session_id,
+            }
+        return primary, selection
+
+    first_routeable = next(
+        (
+            row
+            for row in sessions
+            if not row.get("archived")
+            and str(row.get("state", "active")).strip() == "active"
+            and str(row.get("codex_session_id", "")).strip()
+        ),
+        {},
+    )
+    if first_routeable:
+        selection = {
+            "source": "first_routeable_session",
+            "targeted": False,
+        }
+        if explicit_fallback_reason:
+            selection = {
+                "source": "first_routeable_session_fallback",
+                "targeted": True,
+                "fallback_reason": explicit_fallback_reason,
+                "requested_orp_session_id": target_session_id,
+            }
+        return first_routeable, selection
+    if explicit_fallback_reason and target_session_id:
+        raise RuntimeError(
+            f"runner job targeted ORP session `{target_session_id}`, but it is unavailable ({explicit_fallback_reason}) and no fallback active linked session with a Codex session id is available for this repo."
+        )
+    raise RuntimeError("no active linked session with a Codex session id is available for this repo.")
+
+
+def _runner_job_log_lines(run_result: dict[str, Any]) -> list[dict[str, str]]:
+    lines: list[dict[str, str]] = []
+    stdout = str(run_result.get("stdout", ""))
+    stderr = str(run_result.get("stderr", ""))
+    for line in stdout.splitlines():
+        text = line.rstrip()
+        if text:
+            lines.append({"level": "info", "line": text})
+    for line in stderr.splitlines():
+        text = line.rstrip()
+        if text:
+            lines.append({"level": "error", "line": text})
+    return lines
+
+
+def _runner_post_job_update(
+    *,
+    args: argparse.Namespace,
+    session: dict[str, Any],
+    path: str,
+    method: str = "POST",
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=path,
+        method=method,
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+
+
+def _touch_link_session_last_active(repo_root: Path, orp_session_id: str, *, timestamp_utc: str = "") -> dict[str, Any]:
+    session = _read_link_session(repo_root, orp_session_id)
+    if not session:
+        return {}
+    payload = {k: v for k, v in session.items() if k != "path"}
+    payload["last_active_at_utc"] = _normalize_timestamp_utc(timestamp_utc, fallback=_now_utc())
+    _write_link_session(repo_root, payload)
+    return _read_link_session(repo_root, orp_session_id)
+
+
+def _run_runner_codex_job(
+    *,
+    job: dict[str, Any],
+    repo_root: Path,
+    selected_session: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    target = _runner_job_target_summary(job, repo_root)
+    project_root = str(selected_session.get("project_root", "")).strip() or str(repo_root)
+    codex_session_id = str(selected_session.get("codex_session_id", "")).strip()
+    prompt = target["prompt"]
+    if not codex_session_id:
+        raise RuntimeError("selected linked session is missing a Codex session id.")
+    if not prompt:
+        raise RuntimeError("runner job is missing a prompt.")
+
+    output_path = Path(tempfile.gettempdir()) / f"orp-runner-response-{target['job_id'] or 'job'}.txt"
+    codex_bin = _resolve_codex_bin(args)
+    cmd = [
+        codex_bin,
+        "exec",
+        "resume",
+        "--skip-git-repo-check",
+        "--output-last-message",
+        str(output_path),
+        codex_session_id,
+        "-",
+    ]
+    env = dict(os.environ)
+    profile = str(getattr(args, "codex_config_profile", "")).strip()
+    if profile:
+        env["CODEX_PROFILE"] = profile
+
+    proc = subprocess.run(
+        cmd,
+        cwd=project_root,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    body = ""
+    if output_path.exists():
+        try:
+            body = output_path.read_text(encoding="utf-8")
+        finally:
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
+    if not body:
+        body = proc.stdout or proc.stderr or ""
+    summary = _summarize_checkpoint_response(body)
+    return {
+        "ok": proc.returncode == 0,
+        "exitCode": proc.returncode,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        "body": body,
+        "summary": summary,
+        "command": " ".join(cmd),
+    }
+
+
+def _perform_runner_sync(
+    repo_root: Path,
+    args: argparse.Namespace,
+    session: dict[str, Any],
+    machine: dict[str, Any],
+    link_status: dict[str, Any],
+    *,
+    synced_at_utc: str = "",
+) -> dict[str, Any]:
+    sync_payload = _runner_sync_payload_for_repo(repo_root, machine, link_status)
+    if synced_at_utc:
+        sync_payload["syncedAt"] = synced_at_utc
+    response = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/runner/sync",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=sync_payload,
+    )
+    synced_at = str(sync_payload.get("syncedAt", "")).strip() or _now_utc()
+    machine_update: dict[str, Any] = {
+        "runner_enabled": True,
+        "linked_email": str(session.get("email", "")).strip(),
+        "last_sync_at_utc": synced_at,
+    }
+    machine_path = _save_runner_machine(machine_update)
+    repo_runner_path = _write_runner_repo_state(repo_root, {**machine, **machine_update})
+    return {
+        "machine": _load_runner_machine(),
+        "machine_path": str(machine_path),
+        "repo_runner_path": _path_for_state(repo_runner_path, repo_root),
+        "sync_payload": sync_payload,
+        "response": response if isinstance(response, dict) else {},
+        "synced_at_utc": synced_at,
+    }
+
+
+def _perform_runner_sync_for_roots(
+    primary_repo_root: Path,
+    repo_roots: Sequence[Path],
+    args: argparse.Namespace,
+    session: dict[str, Any],
+    machine: dict[str, Any],
+) -> dict[str, Any]:
+    sync_payload, sync_summary = _runner_sync_payload_for_roots(
+        repo_roots,
+        machine,
+        args,
+        linked_email=str(session.get("email", "")).strip(),
+    )
+    if not sync_payload["linkedProjects"]:
+        raise RuntimeError("No linked project is available to sync.")
+    response = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/runner/sync",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=sync_payload,
+    )
+    synced_at = str(sync_payload.get("syncedAt", "")).strip() or _now_utc()
+    machine_update: dict[str, Any] = {
+        "runner_enabled": True,
+        "linked_email": str(session.get("email", "")).strip(),
+        "last_sync_at_utc": synced_at,
+    }
+    machine_path = _save_runner_machine(machine_update)
+    repo_runner_path = ""
+    if _git_repo_present(primary_repo_root):
+        repo_runner_path = _path_for_state(
+            _write_runner_repo_state(primary_repo_root, {**machine, **machine_update}),
+            primary_repo_root,
+        )
+    return {
+        "machine": _load_runner_machine(),
+        "machine_path": str(machine_path),
+        "repo_runner_path": repo_runner_path,
+        "sync_payload": sync_payload,
+        "response": response if isinstance(response, dict) else {},
+        "synced_at_utc": synced_at,
+        "linked_projects": len(sync_payload["linkedProjects"]),
+        "sessions": len(sync_payload["sessions"]),
+        "routeable_sessions": int(sync_summary.get("routeable_sessions", 0) or 0),
+        "included_project_roots": list(sync_summary.get("included_project_roots", [])),
+        "skipped_project_roots": list(sync_summary.get("skipped_project_roots", [])),
+    }
+
+
+def _run_runner_work_once(args: argparse.Namespace) -> dict[str, Any]:
+    requested_repo_root = Path(args.repo_root).resolve()
+    candidate_roots = _normalize_runner_sync_roots(
+        requested_repo_root,
+        getattr(args, "linked_project_roots", None),
+    )
+    repo_root = next((root for root in candidate_roots if _git_repo_present(root)), requested_repo_root)
+    if not _git_repo_present(repo_root):
+        raise RuntimeError("git repository not detected for any requested runner root. Run `orp init` or `git init` first.")
+    machine = _load_runner_machine()
+    if not machine.get("runner_enabled"):
+        raise RuntimeError("Runner is disabled. Run `orp runner enable --json` first.")
+    session = _require_hosted_session(args)
+    repo_contexts = _runner_repo_contexts_for_roots(candidate_roots, args)
+    if not any(context.get("project_link") for context in repo_contexts):
+        raise RuntimeError("No linked repo is available for runner work. Run `orp link project bind --idea-id <idea-id> --json` first.")
+
+    heartbeat = _perform_runner_heartbeat(repo_root, args, session, machine)
+    heartbeat_error = ""
+    machine = heartbeat.get("machine") if isinstance(heartbeat.get("machine"), dict) else _load_runner_machine()
+    machine_id = str(machine.get("machine_id", "")).strip()
+    if not machine_id:
+        raise RuntimeError("Runner machine id is missing.")
+    poll_payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/runner/jobs/poll?machineId={urlparse.quote(machine_id)}",
+        token=str(session.get("token", "")).strip(),
+    )
+    job = poll_payload.get("job") if isinstance(poll_payload, dict) and isinstance(poll_payload.get("job"), dict) else poll_payload
+    if not isinstance(job, dict) or not job or not str(job.get("id", "")).strip():
+        return {
+            "ok": True,
+            "claimed": False,
+            "job": None,
+            "heartbeat": heartbeat,
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+    lease = _runner_job_lease_summary(poll_payload, job)
+    lease_id = str(lease.get("lease_id", "")).strip()
+    lease_expires_at_utc = str(lease.get("lease_expires_at_utc", "")).strip()
+
+    selected_context, repo_selection = _select_runner_repo_context_for_job(
+        job,
+        repo_contexts,
+        default_repo_root=requested_repo_root,
+    )
+    selected_repo_root = selected_context.get("repo_root") if isinstance(selected_context, dict) else None
+    selected_session: dict[str, Any] = {}
+    selection: dict[str, Any] = {}
+    match_ok = bool(selected_context)
+    match_error = str(repo_selection.get("error", "")).strip()
+    if match_ok and isinstance(selected_repo_root, Path):
+        selected_session, selection = _select_runner_session_for_job(
+            job,
+            selected_repo_root,
+            selected_context["link_status"],
+        )
+        selection = {
+            **selection,
+            "repo_selection_source": str(repo_selection.get("source", "")).strip(),
+            "selected_repo_root": str(selected_repo_root),
+            "matched_fields": list(repo_selection.get("matched_fields", [])),
+        }
+
+    if bool(getattr(args, "dry_run", False)):
+        return {
+            "ok": match_ok,
+            "claimed": True,
+            "dry_run": True,
+            "job": job,
+            "selected_repo_root": str(selected_repo_root) if isinstance(selected_repo_root, Path) else "",
+            "selected_session": selected_session,
+            "selection": selection,
+            "repo_selection": repo_selection,
+            "error": match_error,
+            "heartbeat": heartbeat,
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+
+    job_id = str(job.get("id", "")).strip()
+    claim_root = selected_repo_root if isinstance(selected_repo_root, Path) else repo_root
+    runtime_claim, runtime_path = _record_runner_claim(
+        claim_root,
+        job,
+        lease_id=lease_id,
+        lease_expires_at_utc=lease_expires_at_utc,
+    )
+    start_response = _runner_post_job_update(
+        args=args,
+        session=session,
+        path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/start",
+        body={
+            "machineId": machine_id,
+            "leaseId": lease_id or None,
+        },
+    )
+
+    if not match_ok:
+        complete_response = _runner_post_job_update(
+            args=args,
+            session=session,
+            path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/complete",
+            body={
+                "machineId": machine_id,
+                "leaseId": lease_id or None,
+                "success": False,
+                "summary": None,
+                "content": None,
+                "error": match_error,
             },
         )
+        runtime_last, runtime_last_path = _record_runner_finish(
+            repo_root,
+            job,
+            final_status="failed",
+            lease_id=lease_id,
+            lease_expires_at_utc=lease_expires_at_utc,
+            error=match_error,
+        )
+        return {
+            "ok": False,
+            "claimed": True,
+            "job": job,
+            "lease": lease,
+            "selected_repo_root": "",
+            "selected_session": {},
+            "selection": {},
+            "repo_selection": repo_selection,
+            "start_response": start_response,
+            "complete_response": complete_response,
+            "error": match_error,
+            "heartbeat": heartbeat,
+            "runtime": runtime_last,
+            "runtime_path": _path_for_state(runtime_last_path, repo_root),
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+
+    assert isinstance(selected_repo_root, Path)
+    runtime_start, runtime_start_path = _record_runner_start(
+        selected_repo_root,
+        job,
+        lease_id=lease_id,
+        lease_expires_at_utc=lease_expires_at_utc,
+        selected_session=selected_session,
+    )
+    target = _runner_job_target_summary(job, selected_repo_root)
+    meta = {
+        "orpSessionId": str(selected_session.get("orp_session_id", "")).strip(),
+        "codexSessionId": str(selected_session.get("codex_session_id", "")).strip(),
+        "leaseId": lease_id or None,
+    }
+    job_kind = str(job.get("kind", "")).strip()
+    message_text = (
+        f"Sending checkpoint review prompt to {selected_session.get('label', 'linked session')}."
+        if job_kind == "idea.checkpoint"
+        else f"Sending prompt to {selected_session.get('label', 'linked session')}."
+    )
+    message_response = _runner_post_job_update(
+        args=args,
+        session=session,
+        path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/messages",
+        body={
+            "machineId": machine_id,
+            "leaseId": lease_id or None,
+            "sender": "system",
+            "content": message_text,
+            "meta": meta,
+        },
+    )
+
+    if job_kind not in _runner_supported_job_kinds():
+        error_text = f"unsupported runner job kind: {job_kind or '(missing)'}"
+        complete_response = _runner_post_job_update(
+            args=args,
+            session=session,
+            path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/complete",
+            body={
+                "machineId": machine_id,
+                "leaseId": lease_id or None,
+                "success": False,
+                "summary": None,
+                "content": None,
+                "error": error_text,
+            },
+        )
+        runtime_last, runtime_last_path = _record_runner_finish(
+            selected_repo_root,
+            job,
+            final_status="failed",
+            lease_id=lease_id,
+            lease_expires_at_utc=lease_expires_at_utc,
+            selected_session=selected_session,
+            error=error_text,
+        )
+        return {
+            "ok": False,
+            "claimed": True,
+            "job": job,
+            "lease": lease,
+            "selected_repo_root": str(selected_repo_root),
+            "selected_session": selected_session,
+            "selection": selection,
+            "repo_selection": repo_selection,
+            "start_response": start_response,
+            "message_response": message_response,
+            "complete_response": complete_response,
+            "error": error_text,
+            "heartbeat": heartbeat,
+            "runtime": runtime_last,
+            "runtime_path": _path_for_state(runtime_last_path, selected_repo_root),
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+
+    heartbeat_interval = max(1, int(getattr(args, "heartbeat_interval", 20)))
+    heartbeat_stop = threading.Event()
+    heartbeat_errors: list[str] = []
+
+    def heartbeat_loop() -> None:
+        while not heartbeat_stop.wait(heartbeat_interval):
+            try:
+                _perform_runner_heartbeat(
+                    selected_repo_root,
+                    args,
+                    session,
+                    _load_runner_machine(),
+                    job_id=job_id,
+                    lease_id=lease_id,
+                )
+            except Exception as exc:
+                heartbeat_errors.append(str(exc))
+
+    heartbeat_thread = threading.Thread(target=heartbeat_loop, name="orp-runner-heartbeat", daemon=True)
+    heartbeat_thread.start()
+    sync_result: dict[str, Any] = {}
+    sync_error = ""
+    try:
+        run_result = _run_runner_codex_job(
+            job=job,
+            repo_root=selected_repo_root,
+            selected_session=selected_session,
+            args=args,
+        )
+    except Exception as exc:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+        if heartbeat_errors and not heartbeat_error:
+            heartbeat_error = heartbeat_errors[-1]
+        error_text = str(exc)
+        complete_response = _runner_post_job_update(
+            args=args,
+            session=session,
+            path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/complete",
+            body={
+                "machineId": machine_id,
+                "leaseId": lease_id or None,
+                "success": False,
+                "summary": None,
+                "content": None,
+                "error": error_text,
+            },
+        )
+        runtime_last, runtime_last_path = _record_runner_finish(
+            selected_repo_root,
+            job,
+            final_status="failed",
+            lease_id=lease_id,
+            lease_expires_at_utc=lease_expires_at_utc,
+            selected_session=selected_session,
+            error=error_text,
+        )
+        return {
+            "ok": False,
+            "claimed": True,
+            "job": job,
+            "lease": lease,
+            "selected_repo_root": str(selected_repo_root),
+            "selected_session": selected_session,
+            "selection": selection,
+            "repo_selection": repo_selection,
+            "start_response": start_response,
+            "message_response": message_response,
+            "complete_response": complete_response,
+            "error": error_text,
+            "heartbeat": heartbeat,
+            "heartbeat_error": heartbeat_error,
+            "runtime": runtime_last,
+            "runtime_path": _path_for_state(runtime_last_path, selected_repo_root),
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+    finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=1.0)
+
+    if heartbeat_errors and not heartbeat_error:
+        heartbeat_error = heartbeat_errors[-1]
+
+    log_lines = _runner_job_log_lines(run_result)
+    logs_response: dict[str, Any] = {}
+    if log_lines:
+        logs_response = _runner_post_job_update(
+            args=args,
+            session=session,
+            path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/logs",
+            body={
+                "machineId": machine_id,
+                "leaseId": lease_id or None,
+                "lines": log_lines,
+            },
+        )
+
+    if run_result.get("ok"):
+        touched_session = _touch_link_session_last_active(
+            selected_repo_root,
+            str(selected_session.get("orp_session_id", "")).strip(),
+        )
+        try:
+            sync_result = _perform_runner_sync_for_roots(
+                repo_root,
+                candidate_roots,
+                args,
+                session,
+                machine,
+            )
+        except Exception as exc:
+            sync_error = str(exc)
+        complete_response = _runner_post_job_update(
+            args=args,
+            session=session,
+            path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/complete",
+            body={
+                "machineId": machine_id,
+                "leaseId": lease_id or None,
+                "success": True,
+                "summary": (
+                    str(run_result.get("summary", "")).strip()
+                    or (
+                        f"Checkpoint review sent to {selected_session.get('label', 'linked session')}."
+                        if job_kind == "idea.checkpoint"
+                        else f"Prompt sent to {selected_session.get('label', 'linked session')}."
+                    )
+                ),
+                "content": str(run_result.get("body", "")),
+                "error": None,
+            },
+        )
+        success_summary = (
+            str(run_result.get("summary", "")).strip()
+            or (
+                f"Checkpoint review sent to {selected_session.get('label', 'linked session')}."
+                if job_kind == "idea.checkpoint"
+                else f"Prompt sent to {selected_session.get('label', 'linked session')}."
+            )
+        )
+        runtime_last, runtime_last_path = _record_runner_finish(
+            selected_repo_root,
+            job,
+            final_status="completed",
+            lease_id=lease_id,
+            lease_expires_at_utc=lease_expires_at_utc,
+            selected_session=touched_session or selected_session,
+            summary=success_summary,
+        )
+        return {
+            "ok": True,
+            "claimed": True,
+            "job": job,
+            "lease": lease,
+            "selected_repo_root": str(selected_repo_root),
+            "selected_session": touched_session or selected_session,
+            "selection": selection,
+            "repo_selection": repo_selection,
+            "start_response": start_response,
+            "message_response": message_response,
+            "logs_response": logs_response,
+            "complete_response": complete_response,
+            "worker": run_result,
+            "sync_result": sync_result,
+            "sync_error": sync_error,
+            "heartbeat": heartbeat,
+            "heartbeat_error": heartbeat_error,
+            "runtime": runtime_last,
+            "runtime_path": _path_for_state(runtime_last_path, selected_repo_root),
+            "candidate_project_roots": [str(root) for root in candidate_roots],
+        }
+
+    error_text = (
+        next((line.strip() for line in str(run_result.get("stderr", "")).splitlines() if line.strip()), "")
+        or "Codex returned a non-zero exit code."
+    )
+    complete_response = _runner_post_job_update(
+        args=args,
+        session=session,
+        path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/complete",
+        body={
+            "machineId": machine_id,
+            "leaseId": lease_id or None,
+            "success": False,
+            "summary": str(run_result.get("summary", "")).strip() or None,
+            "content": None,
+            "error": error_text,
+        },
+    )
+    runtime_last, runtime_last_path = _record_runner_finish(
+        selected_repo_root,
+        job,
+        final_status="failed",
+        lease_id=lease_id,
+        lease_expires_at_utc=lease_expires_at_utc,
+        selected_session=selected_session,
+        summary=str(run_result.get("summary", "")).strip(),
+        error=error_text,
+    )
+    return {
+        "ok": False,
+        "claimed": True,
+        "job": job,
+        "lease": lease,
+        "selected_repo_root": str(selected_repo_root),
+        "selected_session": selected_session,
+        "selection": selection,
+        "repo_selection": repo_selection,
+        "start_response": start_response,
+        "message_response": message_response,
+        "logs_response": logs_response,
+        "complete_response": complete_response,
+        "worker": run_result,
+        "error": error_text,
+        "heartbeat": heartbeat,
+        "heartbeat_error": heartbeat_error,
+        "runtime": runtime_last,
+        "runtime_path": _path_for_state(runtime_last_path, selected_repo_root),
+        "candidate_project_roots": [str(root) for root in candidate_roots],
+    }
+
+
+def _append_bounded_event_list(payload: dict[str, Any], key: str, event: dict[str, Any], *, limit: int = 25) -> None:
+    rows = payload.get(key)
+    if not isinstance(rows, list):
+        rows = []
+    rows = [row for row in rows if isinstance(row, dict)]
+    rows.append(event)
+    payload[key] = rows[-limit:]
+
+
+def _git_latest_checkpoint_commit(repo_root: Path) -> dict[str, Any]:
+    proc = _git_run(
+        repo_root,
+        [
+            "log",
+            "-1",
+            "--pretty=format:%H%x1f%h%x1f%s%x1f%cI",
+            "--grep",
+            "^checkpoint:",
+        ],
+    )
+    if proc.returncode != 0:
+        return {}
+    parts = proc.stdout.strip().split("\x1f") if proc.stdout.strip() else []
+    if len(parts) != 4:
+        return {}
+    return {
+        "commit_full": parts[0],
+        "commit": parts[1],
+        "commit_message": parts[2],
+        "committed_at_utc": parts[3],
+    }
+
+
+def _latest_run_payload(repo_root: Path, *, run_id_arg: str = "", run_json_arg: str = "") -> dict[str, Any]:
+    try:
+        run_id, run_json_path = _resolve_run_json_path(
+            repo_root=repo_root,
+            run_id_arg=run_id_arg,
+            run_json_arg=run_json_arg,
+        )
+    except RuntimeError:
+        return {}
+
+    run = _read_json_if_exists(run_json_path)
+    summary = run.get("summary") if isinstance(run.get("summary"), dict) else {}
+    repo = run.get("repo") if isinstance(run.get("repo"), dict) else {}
+    git = repo.get("git") if isinstance(repo.get("git"), dict) else {}
+    return {
+        "run_id": run_id,
+        "run_json": _path_for_state(run_json_path, repo_root),
+        "profile": str(run.get("profile", "")).strip(),
+        "overall": str(summary.get("overall_result", "")).strip(),
+        "gates_passed": int(summary.get("gates_passed", 0) or 0),
+        "gates_failed": int(summary.get("gates_failed", 0) or 0),
+        "gates_total": int(summary.get("gates_total", 0) or 0),
+        "started_at_utc": str(run.get("started_at_utc", "")).strip(),
+        "ended_at_utc": str(run.get("ended_at_utc", "")).strip(),
+        "git_branch": str(git.get("branch", "")).strip(),
+        "git_commit": str(git.get("commit", "")).strip(),
+    }
+
+
+def _github_repo_from_remote_url(raw: str) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+
+    patterns = [
+        r"^https?://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$",
+        r"^git@github\.com:(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$",
+        r"^ssh://git@github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$",
+    ]
+    for pattern in patterns:
+        match = re.match(pattern, text)
+        if match:
+            return f"{match.group('owner')}/{match.group('repo')}"
+    return ""
+
+
+def _normalize_github_repo(raw: str) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+
+    parsed = _github_repo_from_remote_url(text)
+    if parsed:
+        return parsed
+
+    if text.endswith(".git"):
+        text = text[:-4]
+    text = text.strip("/")
+    pieces = [piece for piece in text.split("/") if piece]
+    if len(pieces) != 2:
+        raise RuntimeError(f"expected GitHub repo as owner/repo, got: {raw}")
+    return f"{pieces[0]}/{pieces[1]}"
+
+
+def _synthesized_github_remote_url(github_repo: str) -> str:
+    return f"https://github.com/{github_repo}.git"
+
+
+def _git_init_repo(repo_root: Path, default_branch: str) -> dict[str, Any]:
+    init_proc = _git_run(repo_root, ["init", "-b", default_branch])
+    if init_proc.returncode == 0:
+        return {
+            "initialized": True,
+            "method": "git init -b",
+        }
+
+    fallback_proc = _git_run(repo_root, ["init"])
+    if fallback_proc.returncode != 0:
+        detail = fallback_proc.stderr.strip() or fallback_proc.stdout.strip() or "git init failed"
+        raise RuntimeError(f"failed to initialize git repo: {detail}")
+
+    head_ref = f"refs/heads/{default_branch}"
+    head_proc = _git_run(repo_root, ["symbolic-ref", "HEAD", head_ref])
+    if head_proc.returncode == 0:
+        return {
+            "initialized": True,
+            "method": "git init + symbolic-ref",
+        }
+
+    checkout_proc = _git_run(repo_root, ["checkout", "-b", default_branch])
+    if checkout_proc.returncode == 0:
+        return {
+            "initialized": True,
+            "method": "git init + checkout -b",
+        }
+
+    detail = checkout_proc.stderr.strip() or head_proc.stderr.strip() or "unable to select default branch"
+    raise RuntimeError(f"failed to set default branch to {default_branch}: {detail}")
+
+
+def _git_governance_snapshot(
+    repo_root: Path,
+    *,
+    default_branch: str,
+    allow_protected_branch_work: bool,
+) -> dict[str, Any]:
+    present = _git_repo_present(repo_root)
+    branch = _git_current_branch(repo_root) if present else ""
+    commit = _git_stdout(repo_root, ["rev-parse", "--short", "HEAD"]) if present else ""
+    origin_url = _git_stdout(repo_root, ["remote", "get-url", "origin"]) if present else ""
+    has_commits = _git_has_commits(repo_root) if present else False
+    status_lines = _git_status_lines(repo_root) if present else []
+    protected_branches = [default_branch]
+    protected_branch = bool(branch) and branch in protected_branches
+    work_branch_required = protected_branch and not allow_protected_branch_work
+    working_branch_safe = bool(branch) and (allow_protected_branch_work or not protected_branch)
+    return {
+        "present": present,
+        "branch": branch,
+        "commit": commit,
+        "has_commits": has_commits,
+        "dirty": len(status_lines) > 0,
+        "dirty_paths": status_lines,
+        "default_branch": default_branch,
+        "protected_branches": protected_branches,
+        "protected_branch": protected_branch,
+        "allow_protected_branch_work": allow_protected_branch_work,
+        "work_branch_required": work_branch_required,
+        "working_branch_safe": working_branch_safe,
+        "detected_remote_url": origin_url,
+        "detected_github_repo": _github_repo_from_remote_url(origin_url),
+    }
+
+
+def _effective_remote_context(
+    *,
+    detected_remote_url: str,
+    detected_github_repo: str,
+    remote_url_arg: str,
+    github_repo_arg: str,
+) -> dict[str, Any]:
+    explicit_remote_url_input = str(remote_url_arg or "").strip()
+    explicit_github_repo_input = _normalize_github_repo(github_repo_arg)
+    explicit_remote_url = explicit_remote_url_input
+    explicit_github_repo = explicit_github_repo_input
+    github_from_remote = _github_repo_from_remote_url(explicit_remote_url)
+
+    if explicit_github_repo and github_from_remote and explicit_github_repo != github_from_remote:
+        raise RuntimeError(
+            "explicit GitHub repo and --remote-url disagree; pass matching values or only one of them."
+        )
+
+    if explicit_github_repo and not explicit_remote_url:
+        explicit_remote_url = _synthesized_github_remote_url(explicit_github_repo)
+    if github_from_remote and not explicit_github_repo:
+        explicit_github_repo = github_from_remote
+
+    effective_remote_url = explicit_remote_url or str(detected_remote_url or "").strip()
+    effective_github_repo = explicit_github_repo or str(detected_github_repo or "").strip()
+
+    source = "none"
+    if explicit_remote_url_input and explicit_github_repo_input:
+        source = "explicit_remote_url+github_repo"
+    elif explicit_github_repo_input:
+        source = "explicit_github_repo"
+    elif explicit_remote_url_input:
+        source = "explicit_remote_url"
+    elif detected_remote_url:
+        source = "detected_origin"
+
+    mode = "local_only"
+    if effective_remote_url and effective_github_repo:
+        mode = "github"
+    elif effective_remote_url:
+        mode = "remote"
+
+    return {
+        "source": source,
+        "mode": mode,
+        "detected_remote_url": str(detected_remote_url or "").strip(),
+        "detected_github_repo": str(detected_github_repo or "").strip(),
+        "effective_remote_url": effective_remote_url,
+        "effective_github_repo": effective_github_repo,
+    }
+
+
+def _init_config_starter() -> str:
+    return (
+        'version: "1"\n'
+        "project:\n"
+        "  name: my-project\n"
+        "  repo_root: .\n"
+        "  canonical_paths:\n"
+        "    code: src/\n"
+        "    analysis: analysis/\n"
+        "lifecycle:\n"
+        "  claim_status_map:\n"
+        "    Draft: draft\n"
+        "    In review: ready\n"
+        "    Verified: reviewed\n"
+        "    Blocked: blocked\n"
+        "    Retracted: retracted\n"
+        "  atom_status_map:\n"
+        "    todo: draft\n"
+        "    in_progress: ready\n"
+        "    blocked: blocked\n"
+        "    done: reviewed\n"
+        "gates:\n"
+        "  - id: smoke\n"
+        "    description: Basic smoke gate\n"
+        "    phase: verification\n"
+        "    command: echo ORP_SMOKE\n"
+        "    pass:\n"
+        "      exit_codes: [0]\n"
+        "      stdout_must_contain:\n"
+        "        - ORP_SMOKE\n"
+        "profiles:\n"
+        "  default:\n"
+        "    description: Minimal starter profile\n"
+        "    mode: discovery\n"
+        "    packet_kind: problem_scope\n"
+        "    gate_ids:\n"
+        "      - smoke\n"
+    )
+
+
+def _init_handoff_template(repo_root: Path, *, default_branch: str, initialized_at_utc: str) -> str:
+    return (
+        f"# ORP Repo Handoff\n\n"
+        f"- Repo: `{repo_root.name}`\n"
+        f"- ORP-governed since: `{initialized_at_utc}`\n"
+        f"- Protected branch expectation: `{default_branch}`\n\n"
+        "## Current Objective\n\n"
+        "- Describe the current implementation goal.\n"
+        "- Link the active branch and the next meaningful checkpoint.\n\n"
+        "## Validation State\n\n"
+        "- Record what was validated, what is still failing, and what blocks readiness.\n\n"
+        "## Agent Rules\n\n"
+        f"- Do not do meaningful implementation work directly on `{default_branch}` unless explicitly allowed.\n"
+        "- Create a work branch before substantial edits.\n"
+        "- Create a checkpoint commit after each meaningful completed unit of work.\n"
+        "- Do not mark work ready when validation is failing.\n"
+        "- Update this handoff before leaving the repo.\n"
+    )
+
+
+def _init_checkpoint_log_template() -> str:
+    return (
+        "# ORP Checkpoint Log\n\n"
+        "Record meaningful checkpoint commits and why they were created.\n\n"
+        "| UTC | Branch | Commit | Note |\n"
+        "|---|---|---|---|\n"
+    )
+
+
+def _agent_policy_payload(
+    *,
+    default_branch: str,
+    allow_protected_branch_work: bool,
+    remote_context: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "mode": "repo_governance",
+        "local_first": True,
+        "remote_optional": True,
+        "branch_policy": {
+            "default_branch": default_branch,
+            "protected_branches": [default_branch],
+            "allow_direct_work_on_protected_branches": allow_protected_branch_work,
+            "require_work_branch_for_meaningful_edits": not allow_protected_branch_work,
+        },
+        "checkpoint_policy": {
+            "required": True,
+            "cadence": "after_each_meaningful_completed_unit",
+            "commit_message_prefix": "checkpoint:",
+            "log_path": "orp/checkpoints/CHECKPOINT_LOG.md",
+        },
+        "merge_policy": {
+            "allow_automatic_merge_to_protected_branches": False,
+            "require_validation_before_ready": True,
+        },
+        "continuity_policy": {
+            "handoff_path": "orp/HANDOFF.md",
+            "update_handoff_during_transitions": True,
+            "prefer_explicit_cleanup_flows": True,
+            "prefer_destructive_deletion": False,
+        },
+        "remote_policy": {
+            "mode": remote_context["mode"],
+            "effective_remote_url": remote_context["effective_remote_url"],
+            "effective_github_repo": remote_context["effective_github_repo"],
+            "source": remote_context["source"],
+        },
+        "rules": [
+            {
+                "id": "no_direct_protected_branch_work",
+                "enabled": True,
+                "enforcement": "governance_runtime",
+            },
+            {
+                "id": "checkpoint_after_meaningful_unit",
+                "enabled": True,
+                "enforcement": "governance_runtime",
+            },
+            {
+                "id": "validation_before_ready",
+                "enabled": True,
+                "enforcement": "governance_runtime",
+            },
+            {
+                "id": "no_automatic_merge_to_protected",
+                "enabled": True,
+                "enforcement": "governance_runtime",
+            },
+        ],
+    }
+
+
+def _governance_runtime_payload(
+    *,
+    repo_root: Path,
+    config_path: Path,
+    initialized_at_utc: str,
+    git_snapshot: dict[str, Any],
+    remote_context: dict[str, Any],
+    warnings: list[str],
+    next_actions: list[str],
+    initialized_git: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "governance_mode": "repo_governance",
+        "initialized_at_utc": initialized_at_utc,
+        "tool": {
+            "name": "orp",
+            "package": ORP_PACKAGE_NAME,
+            "version": ORP_TOOL_VERSION,
+        },
+        "repo": {
+            "root_path": str(repo_root),
+            "orp_governed": True,
+        },
+        "runtime": {
+            "config_path": _path_for_state(config_path, repo_root),
+            "state_json": "orp/state.json",
+            "manifest_path": "orp/governance.json",
+            "agent_policy_path": "orp/agent-policy.json",
+            "handoff_path": "orp/HANDOFF.md",
+            "checkpoint_log_path": "orp/checkpoints/CHECKPOINT_LOG.md",
+            "artifact_root": "orp/artifacts",
+            "packet_root": "orp/packets",
+            "discovery_root": "orp/discovery/github",
+        },
+        "git": {
+            **git_snapshot,
+            "initialized_by_orp": initialized_git,
+        },
+        "remote": remote_context,
+        "status": {
+            "warnings": warnings,
+            "next_actions": next_actions,
+            "ready_for_agent_work": bool(git_snapshot["working_branch_safe"]) and not bool(git_snapshot["dirty"]),
+        },
+    }
+
+
+def _resolve_repo_path(repo_root: Path, raw: str, fallback_relative: str) -> Path:
+    text = str(raw or "").strip()
+    path = Path(text) if text else repo_root / fallback_relative
+    if not path.is_absolute():
+        path = repo_root / path
+    return path.resolve()
+
+
+def _checkpoint_commit_message(note: str) -> str:
+    clean = re.sub(r"\s+", " ", str(note or "").strip())
+    if not clean:
+        raise RuntimeError("checkpoint note is required.")
+    return f"checkpoint: {clean}"
+
+
+def _backup_note(note: str) -> str:
+    clean = re.sub(r"\s+", " ", str(note or "").strip())
+    if clean:
+        return clean
+    return "agent backup snapshot"
+
+
+def _backup_stamp(timestamp_utc: str) -> str:
+    parsed = _parse_iso8601_utc(timestamp_utc)
+    if parsed is None:
+        return re.sub(r"[^0-9]+", "", str(timestamp_utc or "")) or "backup"
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    else:
+        parsed = parsed.astimezone(dt.timezone.utc)
+    return parsed.strftime("%Y%m%d-%H%M%S")
+
+
+def _ref_slug(text: str, *, fallback: str = "backup") -> str:
+    clean = re.sub(r"[^A-Za-z0-9._-]+", "-", str(text or "").strip().lower()).strip(".-_")
+    return clean or fallback
+
+
+def _markdown_table_escape(text: str) -> str:
+    return str(text or "").replace("|", "\\|").strip()
+
+
+def _append_checkpoint_log_row(
+    path: Path,
+    *,
+    timestamp_utc: str,
+    branch: str,
+    note: str,
+) -> None:
+    if not path.exists():
+        _write_text(path, _init_checkpoint_log_template())
+    text = path.read_text(encoding="utf-8")
+    if not text.endswith("\n"):
+        text += "\n"
+    row = (
+        f"| {_markdown_table_escape(timestamp_utc)} | {_markdown_table_escape(branch or '(detached)')} | "
+        f"HEAD | {_markdown_table_escape(note)} |\n"
+    )
+    path.write_text(text + row, encoding="utf-8")
+
+
+def _create_checkpoint_commit(
+    repo_root: Path,
+    status_payload: dict[str, Any],
+    *,
+    branch: str,
+    note: str,
+    timestamp_utc: str,
+) -> dict[str, Any]:
+    commit_message = _checkpoint_commit_message(note)
+
+    _git_require_success(
+        repo_root,
+        ["var", "GIT_AUTHOR_IDENT"],
+        context="git author identity is not configured",
+    )
+
+    checkpoint_log_path = repo_root / str(status_payload.get("checkpoint_log_path", "orp/checkpoints/CHECKPOINT_LOG.md"))
+    checkpoint_log_path = checkpoint_log_path.resolve()
+    _append_checkpoint_log_row(
+        checkpoint_log_path,
+        timestamp_utc=timestamp_utc,
+        branch=branch,
+        note=note,
+    )
+
+    _git_require_success(repo_root, ["add", "-A"], context="failed to stage checkpoint changes")
+    _git_require_success(
+        repo_root,
+        ["commit", "-m", commit_message],
+        context="failed to create checkpoint commit",
+    )
+
+    commit_full = _git_stdout(repo_root, ["rev-parse", "HEAD"])
+    commit_short = _git_stdout(repo_root, ["rev-parse", "--short", "HEAD"])
+    return {
+        "timestamp_utc": timestamp_utc,
+        "branch": branch,
+        "note": note,
+        "commit": commit_short,
+        "commit_full": commit_full,
+        "commit_message": commit_message,
+        "checkpoint_log_path": _path_for_state(checkpoint_log_path, repo_root),
+    }
+
+
+def _generate_backup_work_branch(repo_root: Path, current_branch: str, *, timestamp_utc: str) -> str:
+    stamp = _backup_stamp(timestamp_utc)
+    base = _ref_slug(current_branch or "detached", fallback="head")
+    candidate = f"work/backup-{base}-{stamp}"
+    if not _git_branch_exists(repo_root, candidate):
+        return candidate
+    suffix = 2
+    while True:
+        variant = f"{candidate}-{suffix}"
+        if not _git_branch_exists(repo_root, variant):
+            return variant
+        suffix += 1
+
+
+def _backup_remote_ref_name(branch: str, *, timestamp_utc: str, prefix: str = "orp/backup") -> str:
+    clean_prefix = str(prefix or "orp/backup").strip().strip("/")
+    if not clean_prefix:
+        clean_prefix = "orp/backup"
+    stamp = _backup_stamp(timestamp_utc)
+    branch_slug = _ref_slug(branch or "detached", fallback="head")
+    return f"{clean_prefix}/{branch_slug}/{stamp}"
+
+
+def _governance_status_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
+    state_path = repo_root / "orp" / "state.json"
+    state = _read_json_if_exists(state_path)
+    governance_state = state.get("governance") if isinstance(state.get("governance"), dict) else {}
+    default_branch = str(governance_state.get("default_branch", "main")).strip() or "main"
+    allow_protected_branch_work = bool(governance_state.get("allow_protected_branch_work", False))
+
+    config_path = _resolve_repo_path(
+        repo_root,
+        str(governance_state.get("config_path", config_arg)),
+        config_arg,
+    )
+    manifest_path = _resolve_repo_path(
+        repo_root,
+        str(governance_state.get("manifest_path", "orp/governance.json")),
+        "orp/governance.json",
+    )
+    agent_policy_path = _resolve_repo_path(
+        repo_root,
+        str(governance_state.get("agent_policy_path", "orp/agent-policy.json")),
+        "orp/agent-policy.json",
+    )
+    handoff_path = _resolve_repo_path(
+        repo_root,
+        str(governance_state.get("handoff_path", "orp/HANDOFF.md")),
+        "orp/HANDOFF.md",
+    )
+    checkpoint_log_path = _resolve_repo_path(
+        repo_root,
+        str(governance_state.get("checkpoint_log_path", "orp/checkpoints/CHECKPOINT_LOG.md")),
+        "orp/checkpoints/CHECKPOINT_LOG.md",
+    )
+
+    manifest = _read_json_if_exists(manifest_path)
+    orp_governed = bool(governance_state.get("orp_governed")) or bool(manifest.get("repo", {}).get("orp_governed"))
+    git_snapshot = _git_governance_snapshot(
+        repo_root,
+        default_branch=default_branch,
+        allow_protected_branch_work=allow_protected_branch_work,
+    )
+    remote_context = _effective_remote_context(
+        detected_remote_url=str(git_snapshot.get("detected_remote_url", "")),
+        detected_github_repo=str(git_snapshot.get("detected_github_repo", "")),
+        remote_url_arg=str(governance_state.get("effective_remote_url", "")),
+        github_repo_arg=str(governance_state.get("effective_github_repo", "")),
+    )
+    git_runtime = _read_git_runtime(repo_root)
+    last_checkpoint = (
+        git_runtime.get("last_checkpoint")
+        if isinstance(git_runtime.get("last_checkpoint"), dict)
+        else {}
+    )
+    last_backup = (
+        git_runtime.get("last_backup")
+        if isinstance(git_runtime.get("last_backup"), dict)
+        else {}
+    )
+    if not last_checkpoint:
+        last_checkpoint = _git_latest_checkpoint_commit(repo_root)
+    last_branch_action = (
+        git_runtime.get("last_branch_action")
+        if isinstance(git_runtime.get("last_branch_action"), dict)
+        else {}
+    )
+    last_ready = (
+        git_runtime.get("last_ready")
+        if isinstance(git_runtime.get("last_ready"), dict)
+        else {}
+    )
+    latest_run = _latest_run_payload(repo_root)
+
+    upstream_branch = _git_upstream_branch(repo_root) if git_snapshot["present"] else ""
+    upstream_remote = ""
+    upstream_branch_name = ""
+    if upstream_branch:
+        upstream_remote, _, upstream_branch_name = upstream_branch.partition("/")
+    remote_name = upstream_remote or ("origin" if str(remote_context.get("effective_remote_url", "")).strip() else "")
+    remote_default_branch = _git_remote_default_branch(repo_root, remote_name) if git_snapshot["present"] else ""
+    ahead_count = None
+    behind_count = None
+    if upstream_branch:
+        ahead_behind = _git_ahead_behind(repo_root, "HEAD", upstream_branch)
+        if ahead_behind is not None:
+            ahead_count, behind_count = ahead_behind
+    remote_default_ahead = None
+    remote_default_behind = None
+    if remote_name and remote_default_branch:
+        remote_default_ref = f"{remote_name}/{remote_default_branch}"
+        ahead_behind_default = _git_ahead_behind(repo_root, "HEAD", remote_default_ref)
+        if ahead_behind_default is not None:
+            remote_default_ahead, remote_default_behind = ahead_behind_default
+
+    warnings: list[str] = []
+    notes: list[str] = []
+    next_actions: list[str] = []
+
+    if not git_snapshot["present"]:
+        warnings.append("git repository not detected at repo root.")
+        if not orp_governed:
+            next_actions.append("orp init")
+    if not orp_governed:
+        warnings.append("repo is not ORP-governed yet.")
+        next_actions.append("orp init")
+    else:
+        if git_snapshot["protected_branch"] and not allow_protected_branch_work:
+            warnings.append(
+                f"current branch `{git_snapshot['branch']}` is protected; switch to a work branch before meaningful edits."
+            )
+            next_actions.append("orp branch start <topic>")
+        if git_snapshot["dirty"]:
+            warnings.append("working tree is dirty; create a checkpoint commit before handoff or readiness.")
+            next_actions.append('orp checkpoint create -m "describe completed unit"')
+            if remote_context["mode"] != "local_only":
+                notes.append("current local work can be captured to a dedicated remote backup ref with `orp backup`.")
+                next_actions.append('orp backup -m "backup current work" --json')
+        if not handoff_path.exists():
+            warnings.append("handoff file is missing from ORP governance runtime.")
+        if not checkpoint_log_path.exists():
+            warnings.append("checkpoint log is missing from ORP governance runtime.")
+        if not agent_policy_path.exists():
+            warnings.append("agent policy file is missing from ORP governance runtime.")
+
+    if remote_context["mode"] == "local_only":
+        notes.append("local-first mode active; no remote is required.")
+    elif remote_context["mode"] == "github":
+        notes.append(f"GitHub remote awareness active for `{remote_context['effective_github_repo']}`.")
+    elif remote_context["mode"] == "remote":
+        notes.append("non-GitHub remote awareness active.")
+
+    if remote_context["mode"] != "local_only":
+        if upstream_branch:
+            if behind_count is not None and behind_count > 0:
+                warnings.append(
+                    f"current branch is behind upstream `{upstream_branch}` by {behind_count} commit(s)."
+                )
+            if ahead_count is not None and ahead_count > 0:
+                notes.append(
+                    f"current branch is ahead of upstream `{upstream_branch}` by {ahead_count} commit(s)."
+                )
+        elif git_snapshot["working_branch_safe"]:
+            notes.append("current work branch has no upstream tracking branch yet.")
+            if git_snapshot["branch"]:
+                next_actions.append(f"git push -u origin {git_snapshot['branch']}")
+
+        if remote_default_branch:
+            notes.append(f"remote default branch is `{remote_default_branch}`.")
+        elif remote_name:
+            notes.append(f"remote `{remote_name}` is configured but its default branch is not known locally.")
+
+    ready_for_agent_work = (
+        bool(orp_governed)
+        and bool(git_snapshot["present"])
+        and bool(git_snapshot["working_branch_safe"])
+        and not bool(git_snapshot["dirty"])
+        and handoff_path.exists()
+        and checkpoint_log_path.exists()
+        and agent_policy_path.exists()
+    )
+
+    local_ready = ready_for_agent_work
+    if not latest_run:
+        local_ready = False
+    if latest_run and latest_run.get("overall") != "PASS":
+        local_ready = False
+    checkpoint_at = _parse_iso8601_utc(last_checkpoint.get("timestamp_utc") or last_checkpoint.get("committed_at_utc"))
+    validation_at = _parse_iso8601_utc(latest_run.get("ended_at_utc"))
+    checkpoint_after_validation = bool(checkpoint_at and validation_at and checkpoint_at >= validation_at)
+    if latest_run and validation_at and not checkpoint_after_validation:
+        local_ready = False
+    if latest_run and latest_run.get("overall") == "PASS" and not checkpoint_after_validation:
+        warnings.append("latest passing validation run is newer than the latest checkpoint commit.")
+        next_actions.append('orp checkpoint create -m "checkpoint validation-ready state"')
+    if not latest_run:
+        warnings.append("no validation run found. Run `orp gate run --profile <profile>` before readiness.")
+    elif latest_run.get("overall") != "PASS":
+        warnings.append(
+            f"latest validation run `{latest_run.get('run_id', '')}` did not pass."
+        )
+
+    remote_ready = local_ready
+    if remote_context["mode"] != "local_only":
+        if behind_count is not None and behind_count > 0:
+            remote_ready = False
+        if git_snapshot["working_branch_safe"] and not upstream_branch:
+            remote_ready = False
+
+    readiness_scope = "local_only" if remote_context["mode"] == "local_only" else "remote_optional"
+    if last_ready:
+        last_ready_commit = str(last_ready.get("commit_full", "")).strip() or str(last_ready.get("commit", "")).strip()
+        current_commit = str(git_snapshot.get("commit", "")).strip()
+        if last_ready_commit and current_commit and last_ready_commit != current_commit:
+            notes.append("latest recorded readiness applies to an older commit than the current HEAD.")
+
+    return {
+        "repo_root": str(repo_root),
+        "orp_governed": bool(orp_governed),
+        "mode": str(governance_state.get("mode", "repo_governance")) if orp_governed else "uninitialized",
+        "config_path": _path_for_state(config_path, repo_root),
+        "config_exists": config_path.exists(),
+        "state_path": _path_for_state(state_path, repo_root),
+        "state_exists": state_path.exists(),
+        "manifest_path": _path_for_state(manifest_path, repo_root),
+        "manifest_exists": manifest_path.exists(),
+        "agent_policy_path": _path_for_state(agent_policy_path, repo_root),
+        "agent_policy_exists": agent_policy_path.exists(),
+        "handoff_path": _path_for_state(handoff_path, repo_root),
+        "handoff_exists": handoff_path.exists(),
+        "checkpoint_log_path": _path_for_state(checkpoint_log_path, repo_root),
+        "checkpoint_log_exists": checkpoint_log_path.exists(),
+        "git_runtime_path": _path_for_state(_git_runtime_path(repo_root) or Path(".git/orp/runtime.json"), repo_root),
+        "git": {
+            **git_snapshot,
+            "effective_remote_mode": remote_context["mode"],
+            "effective_remote_url": remote_context["effective_remote_url"],
+            "effective_github_repo": remote_context["effective_github_repo"],
+            "remote_name": remote_name,
+            "upstream_branch": upstream_branch,
+            "upstream_remote": upstream_remote,
+            "upstream_branch_name": upstream_branch_name,
+            "remote_default_branch": remote_default_branch,
+            "ahead_count": ahead_count,
+            "behind_count": behind_count,
+            "remote_default_ahead_count": remote_default_ahead,
+            "remote_default_behind_count": remote_default_behind,
+        },
+        "runtime": {
+            "last_branch_action": last_branch_action,
+            "last_checkpoint": last_checkpoint,
+            "last_backup": last_backup,
+            "last_ready": last_ready,
+            "latest_run": latest_run,
+        },
+        "validation": {
+            "available": bool(latest_run),
+            "run": latest_run,
+            "checkpoint_after_validation": checkpoint_after_validation if latest_run else False,
+        },
+        "readiness": {
+            "scope": readiness_scope,
+            "local_ready": local_ready,
+            "remote_ready": remote_ready,
+            "last_ready": last_ready,
+        },
+        "warnings": warnings,
+        "notes": notes,
+        "next_actions": _unique_strings(next_actions),
+        "ready_for_agent_work": ready_for_agent_work,
+    }
 
 
 def _replace_vars(s: str, values: dict[str, str]) -> str:
@@ -1559,6 +5091,10 @@ def _about_payload() -> dict[str, Any]:
             "config": "spec/v1/orp.config.schema.json",
             "packet": "spec/v1/packet.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
+            "link_project": "spec/v1/link-project.schema.json",
+            "link_session": "spec/v1/link-session.schema.json",
+            "runner_machine": "spec/v1/runner-machine.schema.json",
+            "runner_runtime": "spec/v1/runner-runtime.schema.json",
         },
         "abilities": [
             {
@@ -1571,6 +5107,30 @@ def _about_payload() -> dict[str, Any]:
                     ["world", "bind"],
                     ["checkpoint", "queue"],
                     ["agent", "work"],
+                ],
+            },
+            {
+                "id": "linking",
+                "description": "Canonical CLI-owned repo/project/session linking for hosted routing and Rust-app interoperability.",
+                "entrypoints": [
+                    ["link", "project", "bind"],
+                    ["link", "project", "show"],
+                    ["link", "session", "register"],
+                    ["link", "session", "list"],
+                    ["link", "status"],
+                    ["link", "doctor"],
+                ],
+            },
+            {
+                "id": "runner",
+                "description": "Machine runner identity, enable/disable state, and hosted sync for linked repos and sessions.",
+                "entrypoints": [
+                    ["runner", "status"],
+                    ["runner", "enable"],
+                    ["runner", "disable"],
+                    ["runner", "heartbeat"],
+                    ["runner", "sync"],
+                    ["runner", "work"],
                 ],
             },
             {
@@ -1589,6 +5149,20 @@ def _about_payload() -> dict[str, Any]:
                     ["collaborate", "workflows"],
                     ["collaborate", "gates"],
                     ["collaborate", "run"],
+                ],
+            },
+            {
+                "id": "governance",
+                "description": "Local-first repo governance, branch safety, checkpoint commits, backup refs, and runtime status.",
+                "entrypoints": [
+                    ["init"],
+                    ["status"],
+                    ["branch", "start"],
+                    ["checkpoint", "create"],
+                    ["backup"],
+                    ["ready"],
+                    ["doctor"],
+                    ["cleanup"],
                 ],
             },
             {
@@ -1628,6 +5202,28 @@ def _about_payload() -> dict[str, Any]:
             {"name": "feature_remove", "path": ["feature", "remove"], "json_output": True},
             {"name": "world_show", "path": ["world", "show"], "json_output": True},
             {"name": "world_bind", "path": ["world", "bind"], "json_output": True},
+            {"name": "link_project_bind", "path": ["link", "project", "bind"], "json_output": True},
+            {"name": "link_project_show", "path": ["link", "project", "show"], "json_output": True},
+            {"name": "link_project_status", "path": ["link", "project", "status"], "json_output": True},
+            {"name": "link_project_unbind", "path": ["link", "project", "unbind"], "json_output": True},
+            {"name": "link_session_register", "path": ["link", "session", "register"], "json_output": True},
+            {"name": "link_session_list", "path": ["link", "session", "list"], "json_output": True},
+            {"name": "link_session_show", "path": ["link", "session", "show"], "json_output": True},
+            {"name": "link_session_set_primary", "path": ["link", "session", "set-primary"], "json_output": True},
+            {"name": "link_session_archive", "path": ["link", "session", "archive"], "json_output": True},
+            {"name": "link_session_unarchive", "path": ["link", "session", "unarchive"], "json_output": True},
+            {"name": "link_session_remove", "path": ["link", "session", "remove"], "json_output": True},
+            {"name": "link_session_import_rust", "path": ["link", "session", "import-rust"], "json_output": True},
+            {"name": "link_status", "path": ["link", "status"], "json_output": True},
+            {"name": "link_doctor", "path": ["link", "doctor"], "json_output": True},
+            {"name": "runner_status", "path": ["runner", "status"], "json_output": True},
+            {"name": "runner_enable", "path": ["runner", "enable"], "json_output": True},
+            {"name": "runner_disable", "path": ["runner", "disable"], "json_output": True},
+            {"name": "runner_heartbeat", "path": ["runner", "heartbeat"], "json_output": True},
+            {"name": "runner_sync", "path": ["runner", "sync"], "json_output": True},
+            {"name": "runner_work", "path": ["runner", "work"], "json_output": True},
+            {"name": "runner_cancel", "path": ["runner", "cancel"], "json_output": True},
+            {"name": "runner_retry", "path": ["runner", "retry"], "json_output": True},
             {"name": "checkpoint_queue", "path": ["checkpoint", "queue"], "json_output": True},
             {"name": "agent_work", "path": ["agent", "work"], "json_output": True},
             {"name": "discover_profile_init", "path": ["discover", "profile", "init"], "json_output": True},
@@ -1637,6 +5233,13 @@ def _about_payload() -> dict[str, Any]:
             {"name": "collaborate_gates", "path": ["collaborate", "gates"], "json_output": True},
             {"name": "collaborate_run", "path": ["collaborate", "run"], "json_output": True},
             {"name": "init", "path": ["init"], "json_output": True},
+            {"name": "status", "path": ["status"], "json_output": True},
+            {"name": "branch_start", "path": ["branch", "start"], "json_output": True},
+            {"name": "checkpoint_create", "path": ["checkpoint", "create"], "json_output": True},
+            {"name": "backup", "path": ["backup"], "json_output": True},
+            {"name": "ready", "path": ["ready"], "json_output": True},
+            {"name": "doctor", "path": ["doctor"], "json_output": True},
+            {"name": "cleanup", "path": ["cleanup"], "json_output": True},
             {"name": "gate_run", "path": ["gate", "run"], "json_output": True},
             {"name": "packet_emit", "path": ["packet", "emit"], "json_output": True},
             {"name": "erdos_sync", "path": ["erdos", "sync"], "json_output": True},
@@ -1651,6 +5254,9 @@ def _about_payload() -> dict[str, Any]:
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
+            "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
+            "Machine runner identity, heartbeat, hosted sync, prompt-job execution, and lease control are built into ORP through `orp runner status`, `orp runner enable`, `orp runner disable`, `orp runner heartbeat`, `orp runner sync`, `orp runner work`, `orp runner cancel`, and `orp runner retry`.",
+            "Repo governance is built into ORP through `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup`.",
             "Hosted workspace operations are built directly into ORP under auth/ideas/feature/world/checkpoint/agent.",
         ],
         "packs": packs,
@@ -1760,8 +5366,20 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp ideas list --json",
         },
         {
+            "label": "Inspect local project/session link state",
+            "command": "orp link status --json",
+        },
+        {
+            "label": "Inspect machine runner state",
+            "command": "orp runner status --json",
+        },
+        {
             "label": "Scaffold a discovery profile for GitHub scanning",
             "command": "orp discover profile init --json",
+        },
+        {
+            "label": "Inspect local repo governance status",
+            "command": "orp status --json",
         },
         {
             "label": "Initialize collaboration scaffolding here",
@@ -1788,8 +5406,72 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             0,
             {
-                "label": "Initialize base ORP runtime only",
+                "label": "Initialize ORP repo governance here",
                 "command": "orp init",
+            },
+        )
+    else:
+        quick_actions.insert(
+            0,
+            {
+                "label": "Inspect repo governance safety and branch state",
+                "command": "orp status --json",
+            },
+        )
+        quick_actions.insert(
+            1,
+            {
+                "label": "Start a safe work branch",
+                "command": "orp branch start work/<topic> --json",
+            },
+        )
+        quick_actions.insert(
+            2,
+            {
+                "label": "Create a structured checkpoint commit",
+                "command": 'orp checkpoint create -m "describe completed unit" --json',
+            },
+        )
+        quick_actions.insert(
+            3,
+            {
+                "label": "Checkpoint and back up current work to a dedicated remote ref",
+                "command": 'orp backup -m "backup current work" --json',
+            },
+        )
+        quick_actions.insert(
+            4,
+            {
+                "label": "Mark the repo locally ready after validation",
+                "command": "orp ready --json",
+            },
+        )
+        quick_actions.insert(
+            5,
+            {
+                "label": "Inspect local project/session link state",
+                "command": "orp link status --json",
+            },
+        )
+        quick_actions.insert(
+            6,
+            {
+                "label": "Inspect machine runner state",
+                "command": "orp runner status --json",
+            },
+        )
+        quick_actions.insert(
+            7,
+            {
+                "label": "Inspect and repair governance health",
+                "command": "orp doctor --json",
+            },
+        )
+        quick_actions.insert(
+            8,
+            {
+                "label": "Inspect safe cleanup candidates",
+                "command": "orp cleanup --json",
             },
         )
     if config_path.exists():
@@ -1825,14 +5507,38 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         "abilities": [
             {
                 "id": "workspace",
-                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and worker operations.",
+                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and runner-first worker operations.",
                 "entrypoints": [
                     "orp auth login",
                     "orp whoami --json",
                     "orp ideas list --json",
                     "orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json",
                     "orp checkpoint queue --idea-id <idea-id> --json",
+                    "orp runner work --once --json",
                     "orp agent work --once --json",
+                ],
+            },
+            {
+                "id": "linking",
+                "description": "Canonical CLI-owned repo/project/session linking for hosted routing and Rust-app interoperability.",
+                "entrypoints": [
+                    "orp link project bind --idea-id <idea-id> --json",
+                    "orp link session register --orp-session-id <id> --label <label> --codex-session-id <session-id> --primary --json",
+                    "orp link session import-rust --json",
+                    "orp link status --json",
+                    "orp link doctor --json",
+                ],
+            },
+            {
+                "id": "runner",
+                "description": "Machine runner identity, local enable/disable state, and hosted sync for linked repos and sessions.",
+                "entrypoints": [
+                    "orp runner status --json",
+                    "orp runner enable --json",
+                    "orp runner disable --json",
+                    "orp runner heartbeat --json",
+                    "orp runner sync --json",
+                    "orp runner work --once --json",
                 ],
             },
             {
@@ -1850,6 +5556,20 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                     "orp collaborate init",
                     "orp collaborate workflows --json",
                     "orp collaborate run --workflow full_flow --json",
+                ],
+            },
+            {
+                "id": "governance",
+                "description": "Local-first repo governance, branch safety, checkpoint commits, backup refs, and runtime status.",
+                "entrypoints": [
+                    "orp init",
+                    "orp status --json",
+                    "orp branch start work/<topic> --json",
+                    'orp checkpoint create -m "describe completed unit" --json',
+                    'orp backup -m "backup current work" --json',
+                    "orp ready --json",
+                    "orp doctor --json",
+                    "orp cleanup --json",
                 ],
             },
             {
@@ -2208,55 +5928,184 @@ def _perform_github_discovery_scan(
 
 def cmd_init(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
-    _ensure_dirs(repo_root)
+    repo_root.mkdir(parents=True, exist_ok=True)
 
+    default_branch = str(getattr(args, "default_branch", "main") or "main").strip() or "main"
+    allow_protected_branch_work = bool(getattr(args, "allow_protected_branch_work", False))
+    git_was_present = _git_repo_present(repo_root)
+    git_init_result = {"initialized": False, "method": ""}
+    if not git_was_present:
+        git_init_result = _git_init_repo(repo_root, default_branch)
+
+    _ensure_dirs(repo_root)
     config_path = repo_root / args.config
     config_action = "kept"
     if not config_path.exists():
-        starter = (
-            'version: "1"\n'
-            "project:\n"
-            "  name: my-project\n"
-            "  repo_root: .\n"
-            "  canonical_paths:\n"
-            "    code: src/\n"
-            "    analysis: analysis/\n"
-            "lifecycle:\n"
-            "  claim_status_map:\n"
-            "    Draft: draft\n"
-            "    In review: ready\n"
-            "    Verified: reviewed\n"
-            "    Blocked: blocked\n"
-            "    Retracted: retracted\n"
-            "  atom_status_map:\n"
-            "    todo: draft\n"
-            "    in_progress: ready\n"
-            "    blocked: blocked\n"
-            "    done: reviewed\n"
-            "gates:\n"
-            "  - id: smoke\n"
-            "    description: Basic smoke gate\n"
-            "    phase: verification\n"
-            "    command: echo ORP_SMOKE\n"
-            "    pass:\n"
-            "      exit_codes: [0]\n"
-            "      stdout_must_contain:\n"
-            "        - ORP_SMOKE\n"
-            "profiles:\n"
-            "  default:\n"
-            "    description: Minimal starter profile\n"
-            "    mode: discovery\n"
-            "    packet_kind: problem_scope\n"
-            "    gate_ids:\n"
-            "      - smoke\n"
-        )
-        config_path.write_text(starter, encoding="utf-8")
+        config_path.write_text(_init_config_starter(), encoding="utf-8")
         config_action = "created"
 
+    initialized_at_utc = _now_utc()
+    git_snapshot = _git_governance_snapshot(
+        repo_root,
+        default_branch=default_branch,
+        allow_protected_branch_work=allow_protected_branch_work,
+    )
+    remote_context = _effective_remote_context(
+        detected_remote_url=str(git_snapshot["detected_remote_url"]),
+        detected_github_repo=str(git_snapshot["detected_github_repo"]),
+        remote_url_arg=str(getattr(args, "remote_url", "")),
+        github_repo_arg=str(getattr(args, "github_repo", "")),
+    )
+
+    warnings: list[str] = []
+    notes: list[str] = []
+    next_actions: list[str] = []
+
+    if git_snapshot["protected_branch"] and not allow_protected_branch_work:
+        warnings.append(
+            f"current branch `{git_snapshot['branch']}` is protected; create or switch to a work branch before meaningful edits."
+        )
+        next_actions.append("git checkout -b orp/bootstrap")
+    elif not git_snapshot["branch"]:
+        warnings.append("git HEAD is detached or has no symbolic branch; switch to a named work branch before agent work.")
+
+    if git_snapshot["dirty"]:
+        warnings.append("working tree is dirty; create an explicit checkpoint commit before agent work.")
+        next_actions.append('git add orp.yml orp && git commit -m "checkpoint: bootstrap ORP governance"')
+
+    if not git_snapshot["has_commits"]:
+        notes.append("repo has no commits yet; treat the first commit as the initial ORP checkpoint.")
+
+    if remote_context["mode"] == "local_only":
+        notes.append("no git remote detected; ORP is operating in local-first mode.")
+        if not getattr(args, "github_repo", "") and not getattr(args, "remote_url", ""):
+            next_actions.append("optional: rerun with --github-repo owner/repo or --remote-url <url> when a remote exists")
+    elif remote_context["mode"] == "github":
+        notes.append(
+            f"GitHub remote context recorded for `{remote_context['effective_github_repo']}`."
+        )
+    else:
+        notes.append("non-GitHub remote context recorded for this repo.")
+
+    files: dict[str, dict[str, str]] = {
+        "config": {
+            "path": str(config_path),
+            "action": config_action,
+        }
+    }
+    handoff_path = repo_root / "orp" / "HANDOFF.md"
+    checkpoint_log_path = repo_root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md"
+    governance_path = repo_root / "orp" / "governance.json"
+    agent_policy_path = repo_root / "orp" / "agent-policy.json"
+
+    files["handoff"] = {
+        "path": _path_for_state(handoff_path, repo_root),
+        "action": _write_text_if_missing(
+            handoff_path,
+            _init_handoff_template(
+                repo_root,
+                default_branch=default_branch,
+                initialized_at_utc=initialized_at_utc,
+            ),
+        ),
+    }
+    files["checkpoint_log"] = {
+        "path": _path_for_state(checkpoint_log_path, repo_root),
+        "action": _write_text_if_missing(checkpoint_log_path, _init_checkpoint_log_template()),
+    }
+
+    agent_policy_exists = agent_policy_path.exists()
+    agent_policy = _agent_policy_payload(
+        default_branch=default_branch,
+        allow_protected_branch_work=allow_protected_branch_work,
+        remote_context=remote_context,
+    )
+    _write_json(agent_policy_path, agent_policy)
+    files["agent_policy"] = {
+        "path": _path_for_state(agent_policy_path, repo_root),
+        "action": "updated" if agent_policy_exists else "created",
+    }
+
+    governance_exists = governance_path.exists()
+    governance_payload = _governance_runtime_payload(
+        repo_root=repo_root,
+        config_path=config_path,
+        initialized_at_utc=initialized_at_utc,
+        git_snapshot=git_snapshot,
+        remote_context=remote_context,
+        warnings=warnings,
+        next_actions=next_actions,
+        initialized_git=bool(git_init_result["initialized"]),
+    )
+    _write_json(governance_path, governance_payload)
+    files["governance_manifest"] = {
+        "path": _path_for_state(governance_path, repo_root),
+        "action": "updated" if governance_exists else "created",
+    }
+
+    state_path = repo_root / "orp" / "state.json"
+    state = _read_json(state_path) if state_path.exists() else _default_state_payload()
+    if not isinstance(state, dict):
+        state = _default_state_payload()
+    state.setdefault("governance", {})
+    governance_state = state["governance"]
+    if not isinstance(governance_state, dict):
+        governance_state = {}
+        state["governance"] = governance_state
+    governance_state.update(
+        {
+            "orp_governed": True,
+            "mode": "repo_governance",
+            "initialized_at_utc": initialized_at_utc,
+            "config_path": _path_for_state(config_path, repo_root),
+            "manifest_path": _path_for_state(governance_path, repo_root),
+            "agent_policy_path": _path_for_state(agent_policy_path, repo_root),
+            "handoff_path": _path_for_state(handoff_path, repo_root),
+            "checkpoint_log_path": _path_for_state(checkpoint_log_path, repo_root),
+            "default_branch": default_branch,
+            "protected_branches": [default_branch],
+            "allow_protected_branch_work": allow_protected_branch_work,
+            "git_initialized_by_orp": bool(git_init_result["initialized"]),
+            "git_init_method": str(git_init_result["method"]),
+            "remote_mode": remote_context["mode"],
+            "effective_remote_url": remote_context["effective_remote_url"],
+            "effective_github_repo": remote_context["effective_github_repo"],
+            "remote_source": remote_context["source"],
+        }
+    )
+    _write_json(state_path, state)
+
+    git_runtime = _read_git_runtime(repo_root)
+    git_runtime["initialized_at_utc"] = git_runtime.get("initialized_at_utc") or initialized_at_utc
+    git_runtime["last_init"] = {
+        "timestamp_utc": initialized_at_utc,
+        "default_branch": default_branch,
+        "allow_protected_branch_work": allow_protected_branch_work,
+        "git_initialized_by_orp": bool(git_init_result["initialized"]),
+        "git_init_method": str(git_init_result["method"]),
+        "remote_mode": remote_context["mode"],
+        "effective_remote_url": remote_context["effective_remote_url"],
+        "effective_github_repo": remote_context["effective_github_repo"],
+    }
+    _write_git_runtime(repo_root, git_runtime)
+
     result = {
+        "ok": True,
         "config_action": config_action,
         "config_path": str(config_path),
         "runtime_root": str(repo_root / "orp"),
+        "files": files,
+        "git": {
+            **git_snapshot,
+            "initialized_by_orp": bool(git_init_result["initialized"]),
+            "git_init_method": str(git_init_result["method"]),
+            "effective_remote_mode": remote_context["mode"],
+            "effective_remote_url": remote_context["effective_remote_url"],
+            "effective_github_repo": remote_context["effective_github_repo"],
+        },
+        "warnings": warnings,
+        "notes": notes,
+        "next_actions": next_actions,
     }
     if args.json_output:
         _print_json(result)
@@ -2265,7 +6114,1043 @@ def cmd_init(args: argparse.Namespace) -> int:
             print(f"created {config_path}")
         else:
             print(f"kept existing {config_path}")
-        print(f"initialized ORP runtime dirs under {repo_root / 'orp'}")
+        print(f"initialized ORP governance runtime under {repo_root / 'orp'}")
+        if git_init_result["initialized"]:
+            print(f"initialized git repository with default branch {default_branch}")
+        print(
+            "git_state="
+            + ",".join(
+                [
+                    f"branch={git_snapshot['branch'] or '(none)'}",
+                    f"dirty={'true' if git_snapshot['dirty'] else 'false'}",
+                    f"protected={'true' if git_snapshot['protected_branch'] else 'false'}",
+                    f"remote_mode={remote_context['mode']}",
+                ]
+            )
+        )
+        for note in notes:
+            print(f"note={note}")
+        for warning in warnings:
+            print(f"warning={warning}")
+        for action in next_actions:
+            print(f"next={action}")
+    return 0
+
+
+def _render_governance_status_text(payload: dict[str, Any]) -> str:
+    git = payload.get("git", {}) if isinstance(payload.get("git"), dict) else {}
+    runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
+    validation = payload.get("validation", {}) if isinstance(payload.get("validation"), dict) else {}
+    readiness = payload.get("readiness", {}) if isinstance(payload.get("readiness"), dict) else {}
+    last_branch_action = (
+        runtime.get("last_branch_action")
+        if isinstance(runtime.get("last_branch_action"), dict)
+        else {}
+    )
+    last_checkpoint = (
+        runtime.get("last_checkpoint")
+        if isinstance(runtime.get("last_checkpoint"), dict)
+        else {}
+    )
+    last_backup = (
+        runtime.get("last_backup")
+        if isinstance(runtime.get("last_backup"), dict)
+        else {}
+    )
+
+    lines = [
+        "ORP Governance Status",
+        f"repo_root={payload.get('repo_root', '')}",
+        f"orp_governed={'true' if payload.get('orp_governed') else 'false'}",
+        f"mode={payload.get('mode', '')}",
+        f"ready_for_agent_work={'true' if payload.get('ready_for_agent_work') else 'false'}",
+        f"git.present={'true' if git.get('present') else 'false'}",
+        f"git.branch={git.get('branch', '') or '(none)'}",
+        f"git.commit={git.get('commit', '') or '(none)'}",
+        f"git.dirty={'true' if git.get('dirty') else 'false'}",
+        f"git.protected_branch={'true' if git.get('protected_branch') else 'false'}",
+        f"git.work_branch_required={'true' if git.get('work_branch_required') else 'false'}",
+        f"remote.mode={git.get('effective_remote_mode', '')}",
+        f"remote.url={git.get('effective_remote_url', '') or '(none)'}",
+        f"remote.github_repo={git.get('effective_github_repo', '') or '(none)'}",
+        f"remote.upstream={git.get('upstream_branch', '') or '(none)'}",
+        f"remote.default_branch={git.get('remote_default_branch', '') or '(none)'}",
+        f"remote.ahead={git.get('ahead_count', '') if git.get('ahead_count') is not None else '(unknown)'}",
+        f"remote.behind={git.get('behind_count', '') if git.get('behind_count') is not None else '(unknown)'}",
+        f"paths.config={payload.get('config_path', '')}",
+        f"paths.handoff={payload.get('handoff_path', '')}",
+        f"paths.checkpoint_log={payload.get('checkpoint_log_path', '')}",
+        f"paths.git_runtime={payload.get('git_runtime_path', '')}",
+        f"readiness.local_ready={'true' if readiness.get('local_ready') else 'false'}",
+        f"readiness.remote_ready={'true' if readiness.get('remote_ready') else 'false'}",
+    ]
+    if last_branch_action:
+        lines.append(
+            "last_branch_action="
+            + ",".join(
+                [
+                    f"action={last_branch_action.get('action', '')}",
+                    f"from={last_branch_action.get('from_branch', '') or '(none)'}",
+                    f"to={last_branch_action.get('to_branch', '') or '(none)'}",
+                    f"at={last_branch_action.get('timestamp_utc', '')}",
+                ]
+            )
+        )
+    if last_checkpoint:
+        lines.append(
+            "last_checkpoint="
+            + ",".join(
+                [
+                    f"commit={last_checkpoint.get('commit', '') or '(none)'}",
+                    f"branch={last_checkpoint.get('branch', '') or '(none)'}",
+                    f"note={last_checkpoint.get('note', last_checkpoint.get('commit_message', ''))}",
+                    f"at={last_checkpoint.get('timestamp_utc', last_checkpoint.get('committed_at_utc', ''))}",
+                ]
+            )
+        )
+    if last_backup:
+        lines.append(
+            "last_backup="
+            + ",".join(
+                [
+                    f"commit={last_backup.get('commit', '') or '(none)'}",
+                    f"branch={last_backup.get('branch', '') or '(none)'}",
+                    f"remote={last_backup.get('remote_name', '') or '(none)'}",
+                    f"ref={last_backup.get('backup_ref', '') or '(none)'}",
+                    f"scope={last_backup.get('backup_scope', '') or '(none)'}",
+                    f"at={last_backup.get('timestamp_utc', '')}",
+                ]
+            )
+        )
+    latest_run = validation.get("run") if isinstance(validation.get("run"), dict) else {}
+    if latest_run:
+        lines.append(
+            "latest_run="
+            + ",".join(
+                [
+                    f"run_id={latest_run.get('run_id', '')}",
+                    f"profile={latest_run.get('profile', '')}",
+                    f"overall={latest_run.get('overall', '')}",
+                    f"ended_at={latest_run.get('ended_at_utc', '')}",
+                ]
+            )
+        )
+        lines.append(
+            f"validation.checkpoint_after_validation={'true' if validation.get('checkpoint_after_validation') else 'false'}"
+        )
+    for note in payload.get("notes", []):
+        lines.append(f"note={note}")
+    for warning in payload.get("warnings", []):
+        lines.append(f"warning={warning}")
+    for action in payload.get("next_actions", []):
+        lines.append(f"next={action}")
+    return "\n".join(lines)
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _governance_status_payload(repo_root, args.config)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(_render_governance_status_text(payload))
+    return 0
+
+
+def cmd_branch_start(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    if not status_payload.get("orp_governed"):
+        raise RuntimeError("repo is not ORP-governed yet. Run `orp init` first.")
+
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    if not git.get("present"):
+        raise RuntimeError("git repository not detected. Run `orp init` first.")
+
+    target_branch = str(getattr(args, "name", "")).strip()
+    if not target_branch:
+        raise RuntimeError("branch name is required.")
+
+    validate_proc = _git_run(repo_root, ["check-ref-format", "--branch", target_branch])
+    if validate_proc.returncode != 0:
+        raise RuntimeError(f"invalid branch name `{target_branch}`: {_git_error_detail(validate_proc)}")
+
+    protected_branches = [
+        str(item).strip()
+        for item in git.get("protected_branches", [])
+        if isinstance(item, str) and str(item).strip()
+    ]
+    if target_branch in protected_branches and not bool(git.get("allow_protected_branch_work")):
+        raise RuntimeError(
+            f"target branch `{target_branch}` is protected. Choose a non-protected work branch name."
+        )
+
+    current_branch = str(git.get("branch", "")).strip()
+    dirty_before = bool(git.get("dirty"))
+    if dirty_before and not bool(getattr(args, "allow_dirty", False)):
+        raise RuntimeError(
+            "working tree is dirty. Commit or stash changes first, or rerun with `--allow-dirty`."
+        )
+
+    if current_branch == target_branch:
+        action = "already_current"
+        base_ref = current_branch or "HEAD"
+    else:
+        branch_exists = _git_branch_exists(repo_root, target_branch)
+        base_ref = str(getattr(args, "from_ref", "")).strip() or current_branch or "HEAD"
+        if branch_exists:
+            _git_require_success(
+                repo_root,
+                ["checkout", target_branch],
+                context=f"failed to switch to existing branch `{target_branch}`",
+            )
+            action = "switched_existing"
+        else:
+            create_args = ["checkout", "-b", target_branch]
+            if git.get("has_commits"):
+                create_args.append(base_ref)
+            _git_require_success(
+                repo_root,
+                create_args,
+                context=f"failed to create branch `{target_branch}`",
+            )
+            action = "created"
+
+    now = _now_utc()
+    event = {
+        "timestamp_utc": now,
+        "action": action,
+        "from_branch": current_branch,
+        "to_branch": target_branch,
+        "from_ref": base_ref,
+        "dirty_before": dirty_before,
+    }
+    git_runtime = _read_git_runtime(repo_root)
+    git_runtime["last_branch_action"] = event
+    _append_bounded_event_list(git_runtime, "branch_transitions", event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    refreshed = _governance_status_payload(repo_root, args.config)
+    result = {
+        "ok": True,
+        "action": action,
+        "branch": target_branch,
+        "previous_branch": current_branch,
+        "from_ref": base_ref,
+        "dirty_before": dirty_before,
+        "git_runtime_path": refreshed.get("git_runtime_path", ""),
+        "ready_for_agent_work": refreshed.get("ready_for_agent_work", False),
+        "warnings": refreshed.get("warnings", []),
+        "next_actions": refreshed.get("next_actions", []),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"action={action}")
+        print(f"branch={target_branch}")
+        print(f"previous_branch={current_branch or '(none)'}")
+        print(f"from_ref={base_ref}")
+        print(f"git_runtime={refreshed.get('git_runtime_path', '')}")
+        for warning in result["warnings"]:
+            print(f"warning={warning}")
+        for action_line in result["next_actions"]:
+            print(f"next={action_line}")
+    return 0
+
+
+def cmd_checkpoint_create(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    if not status_payload.get("orp_governed"):
+        raise RuntimeError("repo is not ORP-governed yet. Run `orp init` first.")
+
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    if not git.get("present"):
+        raise RuntimeError("git repository not detected. Run `orp init` first.")
+
+    branch = str(git.get("branch", "")).strip()
+    if not branch:
+        raise RuntimeError("git HEAD is detached. Switch to a named work branch before checkpointing.")
+
+    protected_branch = bool(git.get("protected_branch"))
+    protected_allowed = bool(git.get("allow_protected_branch_work")) or bool(
+        getattr(args, "allow_protected_branch", False)
+    )
+    if protected_branch and not protected_allowed:
+        raise RuntimeError(
+            f"current branch `{branch}` is protected. Create a work branch first or rerun with `--allow-protected-branch`."
+        )
+
+    note = re.sub(r"\s+", " ", str(getattr(args, "message", "")).strip())
+    timestamp_utc = _now_utc()
+    event = _create_checkpoint_commit(
+        repo_root,
+        status_payload,
+        branch=branch,
+        note=note,
+        timestamp_utc=timestamp_utc,
+    )
+    git_runtime = _read_git_runtime(repo_root)
+    git_runtime["last_checkpoint"] = event
+    _append_bounded_event_list(git_runtime, "checkpoint_history", event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    refreshed = _governance_status_payload(repo_root, args.config)
+    result = {
+        "ok": True,
+        "branch": branch,
+        "commit": event["commit"],
+        "commit_full": event["commit_full"],
+        "commit_message": event["commit_message"],
+        "note": note,
+        "checkpoint_log_path": event["checkpoint_log_path"],
+        "git_runtime_path": refreshed.get("git_runtime_path", ""),
+        "ready_for_agent_work": refreshed.get("ready_for_agent_work", False),
+        "warnings": refreshed.get("warnings", []),
+        "next_actions": refreshed.get("next_actions", []),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"commit={commit_short}")
+        print(f"branch={branch}")
+        print(f"message={commit_message}")
+        print(f"checkpoint_log={result['checkpoint_log_path']}")
+        print(f"git_runtime={result['git_runtime_path']}")
+        for warning in result["warnings"]:
+            print(f"warning={warning}")
+        for action_line in result["next_actions"]:
+            print(f"next={action_line}")
+    return 0
+
+
+def cmd_backup(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    if not status_payload.get("orp_governed"):
+        raise RuntimeError("repo is not ORP-governed yet. Run `orp init` first.")
+
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    if not git.get("present"):
+        raise RuntimeError("git repository not detected. Run `orp init` first.")
+
+    timestamp_utc = _now_utc()
+    branch_before = str(git.get("branch", "")).strip()
+    active_branch = branch_before
+    dirty_before = bool(git.get("dirty"))
+    auto_branch_event: dict[str, Any] = {}
+
+    if dirty_before and (not active_branch or (bool(git.get("protected_branch")) and not bool(getattr(args, "allow_protected_branch", False)))):
+        backup_branch = _generate_backup_work_branch(repo_root, active_branch, timestamp_utc=timestamp_utc)
+        _git_require_success(
+            repo_root,
+            ["checkout", "-b", backup_branch],
+            context=f"failed to create backup work branch `{backup_branch}`",
+        )
+        active_branch = backup_branch
+        auto_branch_event = {
+            "timestamp_utc": timestamp_utc,
+            "action": "created_for_backup",
+            "from_branch": branch_before,
+            "to_branch": active_branch,
+            "from_ref": branch_before or "HEAD",
+            "dirty_before": dirty_before,
+        }
+
+    checkpoint_event: dict[str, Any] = {}
+    if dirty_before:
+        if not active_branch:
+            raise RuntimeError("unable to determine a branch for backup checkpointing.")
+        checkpoint_event = _create_checkpoint_commit(
+            repo_root,
+            status_payload,
+            branch=active_branch,
+            note=_backup_note(getattr(args, "message", "")),
+            timestamp_utc=timestamp_utc,
+        )
+
+    commit_full = (
+        str(checkpoint_event.get("commit_full", "")).strip()
+        if checkpoint_event
+        else _git_stdout(repo_root, ["rev-parse", "HEAD"])
+    )
+    commit_short = (
+        str(checkpoint_event.get("commit", "")).strip()
+        if checkpoint_event
+        else _git_stdout(repo_root, ["rev-parse", "--short", "HEAD"])
+    )
+    if not commit_full:
+        raise RuntimeError("no commit is available to back up yet. Create a checkpoint commit first.")
+
+    remote_name = str(getattr(args, "remote", "")).strip()
+    if not remote_name:
+        remote_name = str(git.get("upstream_remote", "")).strip()
+    if not remote_name and str(git.get("effective_remote_url", "")).strip():
+        remote_name = "origin"
+
+    remote_url = _git_stdout(repo_root, ["remote", "get-url", remote_name]) if remote_name else ""
+    backup_ref = _backup_remote_ref_name(
+        active_branch or branch_before or "detached",
+        timestamp_utc=timestamp_utc,
+        prefix=str(getattr(args, "prefix", "orp/backup")),
+    )
+    push_target = f"refs/heads/{backup_ref}"
+    pushed_remote = False
+    backup_scope = "local_only"
+    if remote_name:
+        _git_require_success(
+            repo_root,
+            ["push", remote_name, f"HEAD:{push_target}"],
+            context=f"failed to push backup ref `{backup_ref}` to remote `{remote_name}`",
+        )
+        pushed_remote = True
+        backup_scope = "remote"
+
+    backup_event = {
+        "timestamp_utc": timestamp_utc,
+        "branch_before": branch_before,
+        "branch": active_branch or branch_before,
+        "dirty_before": dirty_before,
+        "checkpoint_created": bool(checkpoint_event),
+        "note": checkpoint_event.get("note", ""),
+        "commit": commit_short,
+        "commit_full": commit_full,
+        "remote_name": remote_name,
+        "remote_url": remote_url,
+        "backup_ref": backup_ref,
+        "push_target": push_target if pushed_remote else "",
+        "pushed_remote": pushed_remote,
+        "backup_scope": backup_scope,
+        "auto_branch_created": bool(auto_branch_event),
+        "auto_branch_name": active_branch if auto_branch_event else "",
+    }
+
+    git_runtime = _read_git_runtime(repo_root)
+    if auto_branch_event:
+        git_runtime["last_branch_action"] = auto_branch_event
+        _append_bounded_event_list(git_runtime, "branch_transitions", auto_branch_event)
+    if checkpoint_event:
+        git_runtime["last_checkpoint"] = checkpoint_event
+        _append_bounded_event_list(git_runtime, "checkpoint_history", checkpoint_event)
+    git_runtime["last_backup"] = backup_event
+    _append_bounded_event_list(git_runtime, "backup_history", backup_event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    refreshed = _governance_status_payload(repo_root, args.config)
+    next_actions = list(refreshed.get("next_actions", []))
+    notes = []
+    if not pushed_remote:
+        notes.append("no remote was configured; backup was recorded locally only.")
+        next_actions.append("git remote add origin <url>")
+    result = {
+        "ok": True,
+        "backup_scope": backup_scope,
+        "branch_before": branch_before,
+        "branch": active_branch or branch_before,
+        "dirty_before": dirty_before,
+        "checkpoint_created": bool(checkpoint_event),
+        "checkpoint_note": checkpoint_event.get("note", ""),
+        "commit": commit_short,
+        "commit_full": commit_full,
+        "remote_name": remote_name,
+        "remote_url": remote_url,
+        "backup_ref": backup_ref,
+        "push_target": push_target if pushed_remote else "",
+        "pushed_remote": pushed_remote,
+        "auto_branch_created": bool(auto_branch_event),
+        "auto_branch_name": active_branch if auto_branch_event else "",
+        "git_runtime_path": refreshed.get("git_runtime_path", ""),
+        "ready_for_agent_work": refreshed.get("ready_for_agent_work", False),
+        "warnings": refreshed.get("warnings", []),
+        "notes": _unique_strings(list(refreshed.get("notes", [])) + notes),
+        "next_actions": _unique_strings(next_actions),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"backup_scope={backup_scope}")
+        print(f"branch={result['branch'] or '(detached)'}")
+        print(f"commit={commit_short}")
+        print(f"remote={remote_name or '(none)'}")
+        print(f"backup_ref={backup_ref}")
+        print(f"pushed_remote={'true' if pushed_remote else 'false'}")
+        if result["auto_branch_created"]:
+            print(f"auto_branch={result['auto_branch_name']}")
+        if result["checkpoint_created"]:
+            print(f"checkpoint_note={result['checkpoint_note']}")
+        print(f"git_runtime={result['git_runtime_path']}")
+        for note in result["notes"]:
+            print(f"note={note}")
+        for warning in result["warnings"]:
+            print(f"warning={warning}")
+        for action_line in result["next_actions"]:
+            print(f"next={action_line}")
+    return 0
+
+
+def _doctor_issue(
+    *,
+    severity: str,
+    code: str,
+    message: str,
+    fixable: bool = False,
+    path: str = "",
+) -> dict[str, Any]:
+    issue = {
+        "severity": severity,
+        "code": code,
+        "message": message,
+        "fixable": fixable,
+    }
+    if path:
+        issue["path"] = path
+    return issue
+
+
+def _cleanup_candidates(repo_root: Path, status_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    default_branch = str(git.get("default_branch", "main")).strip() or "main"
+    current_branch = str(git.get("branch", "")).strip()
+    protected_branches = {
+        str(item).strip()
+        for item in git.get("protected_branches", [])
+        if isinstance(item, str) and str(item).strip()
+    }
+
+    merged: set[str] = set()
+    merged_proc = _git_run(repo_root, ["branch", "--format=%(refname:short)", "--merged", default_branch])
+    if merged_proc.returncode == 0:
+        merged = {line.strip() for line in merged_proc.stdout.splitlines() if line.strip()}
+
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in _git_branch_inventory(repo_root):
+        branch_name = str(row.get("name", "")).strip()
+        if not branch_name or branch_name == current_branch or branch_name in protected_branches:
+            continue
+        reasons: list[str] = []
+        safe_delete = False
+        if branch_name in merged:
+            reasons.append("merged_into_default_branch")
+            safe_delete = True
+        track = str(row.get("track", "")).strip()
+        if "[gone]" in track:
+            reasons.append("upstream_gone")
+        if not reasons or branch_name in seen:
+            continue
+        seen.add(branch_name)
+        candidates.append(
+            {
+                "branch": branch_name,
+                "commit": str(row.get("commit", "")).strip(),
+                "upstream": str(row.get("upstream", "")).strip(),
+                "committed_at_utc": str(row.get("committed_at_utc", "")).strip(),
+                "subject": str(row.get("subject", "")).strip(),
+                "reasons": reasons,
+                "safe_delete": safe_delete,
+                "delete_command": f"git branch -d {branch_name}" if safe_delete else "",
+            }
+        )
+    return sorted(candidates, key=lambda row: (0 if row["safe_delete"] else 1, row["branch"]))
+
+
+def _apply_doctor_fixes(repo_root: Path, config_arg: str, status_payload: dict[str, Any]) -> list[str]:
+    state_path = repo_root / "orp" / "state.json"
+    state = _read_json_if_exists(state_path)
+    governance_state = state.get("governance") if isinstance(state.get("governance"), dict) else {}
+
+    default_branch = str(governance_state.get("default_branch", "main")).strip() or "main"
+    allow_protected_branch_work = bool(governance_state.get("allow_protected_branch_work", False))
+    initialized_at_utc = str(governance_state.get("initialized_at_utc", "")).strip() or _now_utc()
+    config_path = repo_root / str(governance_state.get("config_path", config_arg) or config_arg)
+    if not config_path.is_absolute():
+        config_path = (repo_root / config_path).resolve()
+    else:
+        config_path = config_path.resolve()
+
+    if not config_path.exists():
+        config_path.write_text(_init_config_starter(), encoding="utf-8")
+
+    git_snapshot = _git_governance_snapshot(
+        repo_root,
+        default_branch=default_branch,
+        allow_protected_branch_work=allow_protected_branch_work,
+    )
+    remote_context = _effective_remote_context(
+        detected_remote_url=str(git_snapshot.get("detected_remote_url", "")),
+        detected_github_repo=str(git_snapshot.get("detected_github_repo", "")),
+        remote_url_arg=str(governance_state.get("effective_remote_url", "")),
+        github_repo_arg=str(governance_state.get("effective_github_repo", "")),
+    )
+
+    handoff_path = repo_root / "orp" / "HANDOFF.md"
+    checkpoint_log_path = repo_root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md"
+    governance_path = repo_root / "orp" / "governance.json"
+    agent_policy_path = repo_root / "orp" / "agent-policy.json"
+
+    fixes_applied: list[str] = []
+    if _write_text_if_missing(
+        handoff_path,
+        _init_handoff_template(
+            repo_root,
+            default_branch=default_branch,
+            initialized_at_utc=initialized_at_utc,
+        ),
+    ) == "created":
+        fixes_applied.append("created_handoff")
+    if _write_text_if_missing(checkpoint_log_path, _init_checkpoint_log_template()) == "created":
+        fixes_applied.append("created_checkpoint_log")
+
+    _write_json(
+        agent_policy_path,
+        _agent_policy_payload(
+            default_branch=default_branch,
+            allow_protected_branch_work=allow_protected_branch_work,
+            remote_context=remote_context,
+        ),
+    )
+    fixes_applied.append("synced_agent_policy")
+
+    refreshed_status = _governance_status_payload(repo_root, config_arg)
+    _write_json(
+        governance_path,
+        _governance_runtime_payload(
+            repo_root=repo_root,
+            config_path=config_path,
+            initialized_at_utc=initialized_at_utc,
+            git_snapshot=git_snapshot,
+            remote_context=remote_context,
+            warnings=list(refreshed_status.get("warnings", [])),
+            next_actions=list(refreshed_status.get("next_actions", [])),
+            initialized_git=bool(governance_state.get("git_initialized_by_orp", False)),
+        ),
+    )
+    fixes_applied.append("synced_governance_manifest")
+
+    state.setdefault("governance", {})
+    if not isinstance(state["governance"], dict):
+        state["governance"] = {}
+    state["governance"].update(
+        {
+            "orp_governed": True,
+            "mode": "repo_governance",
+            "initialized_at_utc": initialized_at_utc,
+            "config_path": _path_for_state(config_path, repo_root),
+            "manifest_path": _path_for_state(governance_path, repo_root),
+            "agent_policy_path": _path_for_state(agent_policy_path, repo_root),
+            "handoff_path": _path_for_state(handoff_path, repo_root),
+            "checkpoint_log_path": _path_for_state(checkpoint_log_path, repo_root),
+            "default_branch": default_branch,
+            "protected_branches": [default_branch],
+            "allow_protected_branch_work": allow_protected_branch_work,
+            "git_initialized_by_orp": bool(governance_state.get("git_initialized_by_orp", False)),
+            "git_init_method": str(governance_state.get("git_init_method", "")).strip(),
+            "remote_mode": remote_context["mode"],
+            "effective_remote_url": remote_context["effective_remote_url"],
+            "effective_github_repo": remote_context["effective_github_repo"],
+            "remote_source": remote_context["source"],
+        }
+    )
+    _write_json(state_path, state)
+    fixes_applied.append("synced_state_governance")
+
+    git_runtime = _read_git_runtime(repo_root)
+    if not str(git_runtime.get("initialized_at_utc", "")).strip():
+        git_runtime["initialized_at_utc"] = initialized_at_utc
+        fixes_applied.append("initialized_git_runtime")
+    _write_git_runtime(repo_root, git_runtime)
+    return fixes_applied
+
+
+def cmd_ready(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    if not status_payload.get("orp_governed"):
+        raise RuntimeError("repo is not ORP-governed yet. Run `orp init` first.")
+
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    readiness = status_payload.get("readiness", {}) if isinstance(status_payload.get("readiness"), dict) else {}
+    validation = status_payload.get("validation", {}) if isinstance(status_payload.get("validation"), dict) else {}
+    run = validation.get("run") if isinstance(validation.get("run"), dict) else {}
+    if getattr(args, "run_id", "") or getattr(args, "run_json", ""):
+        run = _latest_run_payload(
+            repo_root,
+            run_id_arg=str(getattr(args, "run_id", "")),
+            run_json_arg=str(getattr(args, "run_json", "")),
+        )
+        checkpoint = (
+            (status_payload.get("runtime", {}) if isinstance(status_payload.get("runtime"), dict) else {})
+            .get("last_checkpoint", {})
+        )
+        checkpoint_at = _parse_iso8601_utc(checkpoint.get("timestamp_utc") or checkpoint.get("committed_at_utc"))
+        validation_at = _parse_iso8601_utc(run.get("ended_at_utc"))
+        validation = {
+            "available": bool(run),
+            "run": run,
+            "checkpoint_after_validation": bool(checkpoint_at and validation_at and checkpoint_at >= validation_at),
+        }
+        readiness = {
+            **readiness,
+            "local_ready": bool(status_payload.get("ready_for_agent_work")) and bool(run) and run.get("overall") == "PASS" and bool(validation["checkpoint_after_validation"]),
+            "remote_ready": bool(readiness.get("remote_ready")) and bool(run) and run.get("overall") == "PASS" and bool(validation["checkpoint_after_validation"]),
+        }
+
+    if not git.get("present"):
+        raise RuntimeError("git repository not detected. Run `orp init` first.")
+    if not status_payload.get("handoff_exists"):
+        raise RuntimeError("handoff file is missing. Run `orp doctor --fix` first.")
+    if not status_payload.get("checkpoint_log_exists"):
+        raise RuntimeError("checkpoint log is missing. Run `orp doctor --fix` first.")
+    if not status_payload.get("agent_policy_exists"):
+        raise RuntimeError("agent policy is missing. Run `orp doctor --fix` first.")
+    if git.get("dirty"):
+        raise RuntimeError("working tree is dirty. Create a checkpoint commit before marking ready.")
+    if git.get("protected_branch") and not git.get("allow_protected_branch_work"):
+        raise RuntimeError(
+            f"current branch `{git.get('branch', '')}` is protected. Use a work branch before marking ready."
+        )
+    if not validation.get("available"):
+        raise RuntimeError("no validation run found. Run `orp gate run --profile <profile>` first.")
+    if run.get("overall") != "PASS":
+        raise RuntimeError(f"latest validation run `{run.get('run_id', '')}` did not pass.")
+    if not validation.get("checkpoint_after_validation"):
+        raise RuntimeError(
+            "latest passing validation run is newer than the latest checkpoint commit. Create a new checkpoint first."
+        )
+    if not readiness.get("local_ready"):
+        raise RuntimeError("repo is not locally ready yet. Run `orp status` to inspect blockers.")
+    if bool(getattr(args, "require_remote_ready", False)) and not readiness.get("remote_ready"):
+        raise RuntimeError("repo is locally ready but not remote-ready yet. Resolve remote tracking blockers first.")
+
+    timestamp_utc = _now_utc()
+    event = {
+        "timestamp_utc": timestamp_utc,
+        "branch": str(git.get("branch", "")).strip(),
+        "commit": str(git.get("commit", "")).strip(),
+        "run_id": str(run.get("run_id", "")).strip(),
+        "run_json": str(run.get("run_json", "")).strip(),
+        "profile": str(run.get("profile", "")).strip(),
+        "validation_overall": str(run.get("overall", "")).strip(),
+        "checkpoint_commit": str(
+            (status_payload.get("runtime", {}) if isinstance(status_payload.get("runtime"), dict) else {})
+            .get("last_checkpoint", {})
+            .get("commit", "")
+        ).strip(),
+        "local_ready": True,
+        "remote_ready": bool(readiness.get("remote_ready")),
+        "scope": (
+            "local_only"
+            if str(git.get("effective_remote_mode", "")).strip() == "local_only"
+            else ("remote" if bool(readiness.get("remote_ready")) else "local")
+        ),
+    }
+    git_runtime = _read_git_runtime(repo_root)
+    git_runtime["last_ready"] = event
+    _append_bounded_event_list(git_runtime, "ready_history", event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    refreshed = _governance_status_payload(repo_root, args.config)
+    result = {
+        "ok": True,
+        "branch": event["branch"],
+        "commit": event["commit"],
+        "run_id": event["run_id"],
+        "profile": event["profile"],
+        "local_ready": True,
+        "remote_ready": bool(refreshed.get("readiness", {}).get("remote_ready")),
+        "scope": event["scope"],
+        "git_runtime_path": refreshed.get("git_runtime_path", ""),
+        "warnings": refreshed.get("warnings", []),
+        "next_actions": refreshed.get("next_actions", []),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"branch={result['branch']}")
+        print(f"commit={result['commit']}")
+        print(f"run_id={result['run_id']}")
+        print(f"profile={result['profile']}")
+        print(f"local_ready={'true' if result['local_ready'] else 'false'}")
+        print(f"remote_ready={'true' if result['remote_ready'] else 'false'}")
+        print(f"scope={result['scope']}")
+        for warning in result["warnings"]:
+            print(f"warning={warning}")
+        for action_line in result["next_actions"]:
+            print(f"next={action_line}")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    issues: list[dict[str, Any]] = []
+
+    if not status_payload.get("orp_governed"):
+        issues.append(
+            _doctor_issue(
+                severity="error",
+                code="not_orp_governed",
+                message="repo is not ORP-governed yet.",
+                fixable=False,
+            )
+        )
+    else:
+        if not status_payload.get("config_exists"):
+            issues.append(
+                _doctor_issue(
+                    severity="error",
+                    code="missing_config",
+                    message="ORP config file is missing.",
+                    fixable=True,
+                    path=str(status_payload.get("config_path", "")),
+                )
+            )
+        if not status_payload.get("manifest_exists"):
+            issues.append(
+                _doctor_issue(
+                    severity="error",
+                    code="missing_governance_manifest",
+                    message="ORP governance manifest is missing.",
+                    fixable=True,
+                    path=str(status_payload.get("manifest_path", "")),
+                )
+            )
+        if not status_payload.get("agent_policy_exists"):
+            issues.append(
+                _doctor_issue(
+                    severity="error",
+                    code="missing_agent_policy",
+                    message="ORP agent policy file is missing.",
+                    fixable=True,
+                    path=str(status_payload.get("agent_policy_path", "")),
+                )
+            )
+        if not status_payload.get("handoff_exists"):
+            issues.append(
+                _doctor_issue(
+                    severity="error",
+                    code="missing_handoff",
+                    message="ORP handoff file is missing.",
+                    fixable=True,
+                    path=str(status_payload.get("handoff_path", "")),
+                )
+            )
+        if not status_payload.get("checkpoint_log_exists"):
+            issues.append(
+                _doctor_issue(
+                    severity="error",
+                    code="missing_checkpoint_log",
+                    message="ORP checkpoint log is missing.",
+                    fixable=True,
+                    path=str(status_payload.get("checkpoint_log_path", "")),
+                )
+            )
+
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    if status_payload.get("orp_governed") and not git.get("present"):
+        issues.append(
+            _doctor_issue(
+                severity="error",
+                code="missing_git_repo",
+                message="git repository is not available at repo root.",
+                fixable=False,
+            )
+        )
+    git_runtime_path = _git_runtime_path(repo_root)
+    if status_payload.get("orp_governed") and git_runtime_path is not None and not git_runtime_path.exists():
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="missing_git_runtime",
+                message="git-local ORP runtime file is missing.",
+                fixable=True,
+                path=_path_for_state(git_runtime_path, repo_root),
+            )
+        )
+
+    author_proc = _git_run(repo_root, ["var", "GIT_AUTHOR_IDENT"]) if git.get("present") else None
+    if git.get("present") and author_proc is not None and author_proc.returncode != 0:
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="git_author_identity_missing",
+                message="git author identity is not configured.",
+                fixable=False,
+            )
+        )
+
+    if git.get("effective_remote_mode") != "local_only":
+        detected_remote_url = str(git.get("detected_remote_url", "")).strip()
+        effective_remote_url = str(git.get("effective_remote_url", "")).strip()
+        if detected_remote_url and effective_remote_url and detected_remote_url != effective_remote_url:
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="remote_metadata_mismatch",
+                    message="recorded remote URL does not match detected origin URL.",
+                    fixable=True,
+                )
+            )
+        if git.get("behind_count") is not None and int(git.get("behind_count") or 0) > 0:
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="branch_behind_upstream",
+                    message=f"current branch is behind upstream by {int(git.get('behind_count') or 0)} commit(s).",
+                    fixable=False,
+                )
+            )
+
+    validation = status_payload.get("validation", {}) if isinstance(status_payload.get("validation"), dict) else {}
+    run = validation.get("run") if isinstance(validation.get("run"), dict) else {}
+    if not validation.get("available"):
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="missing_validation_run",
+                message="no validation run is available for readiness.",
+                fixable=False,
+            )
+        )
+    elif run.get("overall") != "PASS":
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="latest_validation_failed",
+                message=f"latest validation run `{run.get('run_id', '')}` did not pass.",
+                fixable=False,
+            )
+        )
+    elif not validation.get("checkpoint_after_validation"):
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="checkpoint_outdated_after_validation",
+                message="latest passing validation run is newer than the latest checkpoint commit.",
+                fixable=False,
+            )
+        )
+
+    fixes_applied: list[str] = []
+    if getattr(args, "fix", False) and status_payload.get("orp_governed"):
+        fixes_applied = _apply_doctor_fixes(repo_root, args.config, status_payload)
+        status_payload = _governance_status_payload(repo_root, args.config)
+        issues = [
+            issue
+            for issue in issues
+            if not (issue.get("fixable") and issue.get("severity") in {"error", "warning"})
+        ]
+        if not status_payload.get("config_exists"):
+            issues.append(
+                _doctor_issue(severity="error", code="missing_config", message="ORP config file is missing.", fixable=True)
+            )
+
+    timestamp_utc = _now_utc()
+    git_runtime = _read_git_runtime(repo_root)
+    doctor_event = {
+        "timestamp_utc": timestamp_utc,
+        "errors": sum(1 for issue in issues if issue.get("severity") == "error"),
+        "warnings": sum(1 for issue in issues if issue.get("severity") == "warning"),
+        "fix": bool(getattr(args, "fix", False)),
+        "fixes_applied": fixes_applied,
+    }
+    git_runtime["last_doctor"] = doctor_event
+    _append_bounded_event_list(git_runtime, "doctor_history", doctor_event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    errors = doctor_event["errors"]
+    warnings_count = doctor_event["warnings"]
+    ok = errors == 0 and (warnings_count == 0 or not bool(getattr(args, "strict", False)))
+    result = {
+        "ok": ok,
+        "errors": errors,
+        "warnings": warnings_count,
+        "fix": bool(getattr(args, "fix", False)),
+        "fixes_applied": fixes_applied,
+        "issues": issues,
+        "ready_for_agent_work": status_payload.get("ready_for_agent_work", False),
+        "readiness": status_payload.get("readiness", {}),
+        "git_runtime_path": status_payload.get("git_runtime_path", ""),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"ok={'true' if ok else 'false'}")
+        print(f"errors={errors}")
+        print(f"warnings={warnings_count}")
+        for fix_name in fixes_applied:
+            print(f"fix={fix_name}")
+        for issue in issues:
+            print(
+                "issue="
+                + ",".join(
+                    [
+                        f"severity={issue.get('severity', '')}",
+                        f"code={issue.get('code', '')}",
+                        f"message={issue.get('message', '')}",
+                    ]
+                )
+            )
+    return 0 if ok else 1
+
+
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    if not git.get("present"):
+        raise RuntimeError("git repository not detected. Run `orp init` first.")
+
+    candidates = _cleanup_candidates(repo_root, status_payload)
+    deleted_branches: list[str] = []
+    if getattr(args, "apply", False) and getattr(args, "delete_merged", False):
+        for row in candidates:
+            if not row.get("safe_delete"):
+                continue
+            branch_name = str(row.get("branch", "")).strip()
+            if not branch_name:
+                continue
+            _git_require_success(
+                repo_root,
+                ["branch", "-d", branch_name],
+                context=f"failed to delete merged branch `{branch_name}`",
+            )
+            deleted_branches.append(branch_name)
+        candidates = _cleanup_candidates(repo_root, status_payload)
+
+    event = {
+        "timestamp_utc": _now_utc(),
+        "apply": bool(getattr(args, "apply", False)),
+        "delete_merged": bool(getattr(args, "delete_merged", False)),
+        "deleted_branches": deleted_branches,
+        "suggestion_count": len(candidates),
+    }
+    git_runtime = _read_git_runtime(repo_root)
+    git_runtime["last_cleanup"] = event
+    _append_bounded_event_list(git_runtime, "cleanup_history", event)
+    _write_git_runtime(repo_root, git_runtime)
+
+    result = {
+        "ok": True,
+        "deleted_branches": deleted_branches,
+        "candidates": candidates,
+        "git_runtime_path": status_payload.get("git_runtime_path", ""),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"deleted_branches={','.join(deleted_branches) if deleted_branches else '(none)'}")
+        for row in candidates:
+            print(
+                "candidate="
+                + ",".join(
+                    [
+                        f"branch={row.get('branch', '')}",
+                        f"reasons={'+'.join(row.get('reasons', []))}",
+                        f"safe_delete={'true' if row.get('safe_delete') else 'false'}",
+                    ]
+                )
+            )
     return 0
 
 
@@ -2453,6 +7338,11 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
     gates_failed = sum(1 for g in run_results if g["status"] == "fail")
     gates_total = len(run_results)
     overall = "PASS" if gates_failed == 0 else "FAIL"
+    git_snapshot = _git_governance_snapshot(
+        repo_root,
+        default_branch="main",
+        allow_protected_branch_work=True,
+    )
 
     run_record = {
         "run_id": run_id,
@@ -2467,6 +7357,14 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
             "gates_passed": gates_passed,
             "gates_failed": gates_failed,
             "gates_total": gates_total,
+        },
+        "repo": {
+            "git": {
+                "present": git_snapshot["present"],
+                "branch": git_snapshot["branch"],
+                "commit": git_snapshot["commit"],
+                "dirty_before_run": git_snapshot["dirty"],
+            }
         },
     }
 
@@ -3588,7 +8486,12 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
     if not email:
         raise RuntimeError("Email is required.")
 
+    password_from_stdin = bool(getattr(args, "password_stdin", False))
     password = str(getattr(args, "password", "")).strip()
+    if password_from_stdin and password:
+        raise RuntimeError("Use either --password or --password-stdin, not both.")
+    if password_from_stdin:
+        password = _read_value_from_stdin()
     if not password:
         password = _prompt_value("Password", secret=True)
     if not password:
@@ -3604,36 +8507,77 @@ def cmd_auth_login(args: argparse.Namespace) -> int:
         },
     )
     pending = payload.get("pendingVerification")
-    if not isinstance(pending, dict):
-        raise RuntimeError("Hosted ORP login did not return pending verification details.")
+    expires_at = str(payload.get("expiresAt", "")).strip()
+    token = str(payload.get("token", "")).strip()
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else None
+    if user is None and any(key in payload for key in ("userId", "email", "name")):
+        user = {
+            "id": str(payload.get("userId", "")).strip(),
+            "email": str(payload.get("email", email)).strip() or email,
+            "name": str(payload.get("name", "")).strip(),
+        }
 
-    updated = {
-        **session,
-        "base_url": base_url,
-        "email": email,
-        "token": "",
-        "user": None,
-        "pending_verification": pending,
-    }
-    _save_hosted_session(updated)
+    if isinstance(pending, dict) or expires_at:
+        pending_payload = pending if isinstance(pending, dict) else {"expiresAt": expires_at}
+        updated = {
+            **session,
+            "base_url": base_url,
+            "email": email,
+            "token": "",
+            "user": None,
+            "pending_verification": pending_payload,
+        }
+        _save_hosted_session(updated)
 
-    result = {
-        "base_url": base_url,
-        "email": _mask_email(email),
-        "expires_at": str(pending.get("expiresAt", "")).strip(),
-        "pending_verification": True,
-    }
+        result = {
+            "base_url": base_url,
+            "email": _mask_email(email),
+            "expires_at": str(pending_payload.get("expiresAt", "")).strip(),
+            "pending_verification": True,
+        }
+    elif token and user is not None:
+        updated = {
+            **session,
+            "base_url": base_url,
+            "email": email,
+            "token": token,
+            "user": user,
+            "pending_verification": None,
+        }
+        _save_hosted_session(updated)
+
+        result = {
+            "base_url": base_url,
+            "email": str(user.get("email", email)).strip() or email,
+            "user_id": str(user.get("id", "")).strip(),
+            "connected": True,
+        }
+    else:
+        raise RuntimeError(
+            "Hosted ORP login did not return pending verification details or a usable session."
+        )
+
     if args.json_output:
         _print_json(result)
     else:
-        _print_pairs(
-            [
-                ("base_url", result["base_url"]),
-                ("email", result["email"]),
-                ("expires_at", result["expires_at"]),
-                ("pending_verification", "true"),
-            ]
-        )
+        if result.get("pending_verification") is True:
+            _print_pairs(
+                [
+                    ("base_url", result["base_url"]),
+                    ("email", result["email"]),
+                    ("expires_at", result["expires_at"]),
+                    ("pending_verification", "true"),
+                ]
+            )
+        else:
+            _print_pairs(
+                [
+                    ("base_url", result["base_url"]),
+                    ("email", result["email"]),
+                    ("user_id", result["user_id"]),
+                    ("connected", "true"),
+                ]
+            )
     return 0
 
 
@@ -3647,7 +8591,12 @@ def cmd_auth_verify(args: argparse.Namespace) -> int:
     if not email:
         raise RuntimeError("Email is required.")
 
+    code_from_stdin = bool(getattr(args, "code_stdin", False))
     code = str(getattr(args, "code", "")).strip()
+    if code_from_stdin and code:
+        raise RuntimeError("Use either --code or --code-stdin, not both.")
+    if code_from_stdin:
+        code = _read_value_from_stdin()
     if not code:
         code = _prompt_value("Verification code")
     if not code:
@@ -3664,6 +8613,12 @@ def cmd_auth_verify(args: argparse.Namespace) -> int:
     )
     token = str(payload.get("token", "")).strip()
     user = payload.get("user") if isinstance(payload.get("user"), dict) else None
+    if user is None and any(key in payload for key in ("userId", "email", "name")):
+        user = {
+            "id": str(payload.get("userId", "")).strip(),
+            "email": str(payload.get("email", email)).strip() or email,
+            "name": str(payload.get("name", "")).strip(),
+        }
     if not token or user is None:
         raise RuntimeError("Hosted ORP verify did not return a usable session.")
 
@@ -3725,6 +8680,194 @@ def cmd_auth_logout(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_current_project_scope(repo_root: Path, *, required: bool) -> dict[str, str]:
+    project_link = _read_link_project(repo_root)
+    if not project_link:
+        if required:
+            raise RuntimeError(
+                "No local linked project found. Run `orp link project bind --idea-id <idea-id>` first or pass --world-id/--idea-id explicitly."
+            )
+        return {}
+
+    world_id = str(project_link.get("world_id", "")).strip()
+    idea_id = str(project_link.get("idea_id", "")).strip()
+    if not world_id and not idea_id:
+        if required:
+            raise RuntimeError(
+                "The current linked project is missing world and idea identifiers. Rebind the project or pass --world-id/--idea-id explicitly."
+            )
+        return {}
+
+    return {
+        "world_id": world_id,
+        "idea_id": idea_id,
+        "idea_title": str(project_link.get("idea_title", "")).strip(),
+        "world_name": str(project_link.get("world_name", "")).strip(),
+    }
+
+
+def _resolve_secret_scope_from_args(
+    args: argparse.Namespace,
+    *,
+    require_scope: bool = False,
+    fallback_to_current_project: bool = False,
+) -> tuple[str, str]:
+    repo_root = Path(str(getattr(args, "repo_root", ".") or ".")).resolve()
+    world_id = str(getattr(args, "world_id", "") or "").strip()
+    idea_id = str(getattr(args, "idea_id", "") or "").strip()
+    current_project = bool(getattr(args, "current_project", False))
+
+    if not world_id and not idea_id and (current_project or fallback_to_current_project):
+        scope = _load_current_project_scope(repo_root, required=current_project)
+        if scope:
+            world_id = str(scope.get("world_id", "")).strip()
+            idea_id = str(scope.get("idea_id", "")).strip()
+
+    if require_scope and not world_id and not idea_id:
+        raise RuntimeError("Provide --world-id, --idea-id, or --current-project.")
+
+    return world_id, idea_id
+
+
+def _resolve_secret_value_arg(args: argparse.Namespace, *, required: bool) -> tuple[bool, str]:
+    value_from_stdin = bool(getattr(args, "value_stdin", False))
+    raw_value = getattr(args, "value", None)
+    if value_from_stdin and raw_value is not None:
+        raise RuntimeError("Use either --value or --value-stdin, not both.")
+
+    provided = raw_value is not None or value_from_stdin
+    value = str(raw_value).strip() if raw_value is not None else ""
+    if value_from_stdin:
+        value = _read_value_from_stdin()
+
+    if required and not value:
+        value = _prompt_value("Secret value", secret=True)
+        provided = provided or bool(value)
+
+    if required and not value:
+        raise RuntimeError("Secret value is required.")
+
+    return provided, value
+
+
+def _build_secret_binding_payload_from_args(
+    args: argparse.Namespace,
+    *,
+    fallback_to_current_project: bool = False,
+) -> dict[str, Any] | None:
+    world_id, idea_id = _resolve_secret_scope_from_args(
+        args,
+        require_scope=False,
+        fallback_to_current_project=fallback_to_current_project,
+    )
+    purpose = str(getattr(args, "purpose", "") or "").strip()
+    primary = bool(getattr(args, "primary", False))
+
+    if not world_id and not idea_id:
+        if purpose or primary or bool(getattr(args, "current_project", False)):
+            raise RuntimeError("Provide --world-id, --idea-id, or --current-project to attach binding metadata.")
+        return None
+
+    binding: dict[str, Any] = {}
+    if world_id:
+        binding["worldId"] = world_id
+    if idea_id:
+        binding["ideaId"] = idea_id
+    if purpose:
+        binding["purpose"] = purpose
+    if primary:
+        binding["isPrimary"] = True
+    return binding
+
+
+def _request_secret_payload(
+    args: argparse.Namespace,
+    *,
+    path: str,
+    method: str = "GET",
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=path,
+        method=method,
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret payload.")
+    return payload
+
+
+def _secret_bindings(secret: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = secret.get("bindings")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _print_secret_binding_rows(bindings: list[dict[str, Any]]) -> None:
+    for row in bindings:
+        print("---")
+        _print_pairs(
+            [
+                ("binding.id", str(row.get("id", "")).strip()),
+                ("binding.world_id", str(row.get("worldId", "")).strip()),
+                ("binding.world_name", str(row.get("worldName", "")).strip()),
+                ("binding.idea_id", str(row.get("ideaId", "")).strip()),
+                ("binding.idea_title", str(row.get("ideaTitle", "")).strip()),
+                ("binding.project_root", str(row.get("projectRoot", "")).strip()),
+                ("binding.purpose", str(row.get("purpose", "")).strip()),
+                ("binding.primary", str(bool(row.get("isPrimary", False))).lower()),
+            ]
+        )
+
+
+def _print_secret_human(
+    secret: dict[str, Any],
+    *,
+    include_bindings: bool = False,
+    binding: dict[str, Any] | None = None,
+    value: str | None = None,
+    matched_by: str = "",
+) -> None:
+    bindings = _secret_bindings(secret)
+    _print_pairs(
+        [
+            ("secret.id", str(secret.get("id", "")).strip()),
+            ("secret.alias", str(secret.get("alias", "")).strip()),
+            ("secret.label", str(secret.get("label", "")).strip()),
+            ("secret.provider", str(secret.get("provider", "")).strip()),
+            ("secret.kind", str(secret.get("kind", "")).strip()),
+            ("secret.env_var_name", str(secret.get("envVarName", "")).strip()),
+            ("secret.preview", str(secret.get("valuePreview", "")).strip()),
+            ("secret.version", str(secret.get("valueVersion", "")).strip()),
+            ("secret.status", str(secret.get("status", "")).strip()),
+            ("secret.binding_count", len(bindings)),
+            ("secret.last_used_at", str(secret.get("lastUsedAt", "")).strip()),
+            ("secret.rotated_at", str(secret.get("rotatedAt", "")).strip()),
+            ("secret.updated_at", str(secret.get("updatedAt", "")).strip()),
+        ]
+    )
+    if matched_by:
+        print(f"secret.matched_by={matched_by}")
+    if binding:
+        _print_pairs(
+            [
+                ("binding.id", str(binding.get("id", "")).strip()),
+                ("binding.world_id", str(binding.get("worldId", "")).strip()),
+                ("binding.idea_id", str(binding.get("ideaId", "")).strip()),
+                ("binding.purpose", str(binding.get("purpose", "")).strip()),
+                ("binding.primary", str(bool(binding.get("isPrimary", False))).lower()),
+            ]
+        )
+    if value is not None:
+        print(f"secret.value={value}")
+    if include_bindings and bindings:
+        _print_secret_binding_rows(bindings)
+
+
 def cmd_whoami(args: argparse.Namespace) -> int:
     session = _require_hosted_session(args)
     base_url = _resolve_hosted_base_url(args, session)
@@ -3779,11 +8922,24 @@ def cmd_ideas_list(args: argparse.Namespace) -> int:
         path=f"/api/cli/ideas{query}",
         token=str(session.get("token", "")).strip(),
     )
+    ideas = payload.get("ideas") if isinstance(payload.get("ideas"), list) else None
+    if ideas is None and isinstance(payload.get("items"), list):
+        ideas = payload.get("items")
+    cursor_value = payload.get("cursor")
+    next_cursor = str(cursor_value).strip() if cursor_value is not None else ""
+    if not next_cursor:
+        next_cursor_value = payload.get("nextCursor")
+        next_cursor = str(next_cursor_value).strip() if next_cursor_value is not None else ""
+    has_more = payload.get("hasMore")
+    if isinstance(has_more, bool):
+        has_more_value = has_more
+    else:
+        has_more_value = bool(next_cursor)
     result = {
-        "ideas": payload.get("ideas", []) if isinstance(payload.get("ideas"), list) else [],
-        "cursor": str(payload.get("cursor", "")).strip(),
-        "has_more": bool(payload.get("hasMore", False)),
-        "sort": sort_value or "updated_desc",
+        "ideas": ideas or [],
+        "cursor": next_cursor,
+        "has_more": has_more_value,
+        "sort": str(payload.get("sort", "")).strip() or sort_value or "updated_desc",
     }
     if args.json_output:
         _print_json(result)
@@ -3811,6 +8967,21 @@ def cmd_ideas_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _normalize_remote_idea_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    idea = payload.get("idea") if isinstance(payload.get("idea"), dict) else payload
+    if not isinstance(idea, dict):
+        raise RuntimeError("Hosted ORP returned an invalid idea payload.")
+    features = payload.get("features") if isinstance(payload.get("features"), list) else idea.get("features")
+    normalized_features = features if isinstance(features, list) else []
+    normalized_idea = dict(idea)
+    normalized_idea["features"] = normalized_features
+    return {
+        "ok": bool(payload.get("ok", True)),
+        "idea": normalized_idea,
+        "features": normalized_features,
+    }
+
+
 def _get_remote_idea(args: argparse.Namespace, idea_id: str) -> dict[str, Any]:
     session = _require_hosted_session(args)
     payload = _request_hosted_json(
@@ -3820,21 +8991,98 @@ def _get_remote_idea(args: argparse.Namespace, idea_id: str) -> dict[str, Any]:
     )
     if not isinstance(payload, dict):
         raise RuntimeError("Hosted ORP returned an invalid idea payload.")
-    return payload
+    return _normalize_remote_idea_payload(payload)["idea"]
+
+
+def _require_current_repo_project_root(raw: Any, repo_root: Path, *, context: str) -> str:
+    project_root = _normalize_local_path(raw, repo_root, fallback=str(repo_root))
+    if project_root != str(repo_root):
+        raise RuntimeError(f"{context} only supports the current --repo-root. Re-run with the matching repo root.")
+    return project_root
+
+
+def _print_link_status_human(payload: dict[str, Any]) -> None:
+    session_counts = payload.get("session_counts", {}) if isinstance(payload.get("session_counts"), dict) else {}
+    primary_session = payload.get("primary_session", {}) if isinstance(payload.get("primary_session"), dict) else {}
+    project_link = payload.get("project_link", {}) if isinstance(payload.get("project_link"), dict) else {}
+    hosted_auth = payload.get("hosted_auth", {}) if isinstance(payload.get("hosted_auth"), dict) else {}
+    hosted_world = payload.get("hosted_world", {}) if isinstance(payload.get("hosted_world"), dict) else {}
+
+    print(f"project_linked={'true' if payload.get('project_link_exists') else 'false'}")
+    print(f"routing_ready={'true' if payload.get('routing_ready') else 'false'}")
+    print(f"project.idea_id={project_link.get('idea_id', '')}")
+    print(f"project.world_id={project_link.get('world_id', '')}")
+    print(f"project.link_path={payload.get('project_link_path', '')}")
+    print(f"sessions.total={session_counts.get('total', 0)}")
+    print(f"sessions.active={session_counts.get('active', 0)}")
+    print(f"sessions.archived={session_counts.get('archived', 0)}")
+    print(f"sessions.routeable={session_counts.get('routeable', 0)}")
+    print(f"primary.orp_session_id={primary_session.get('orp_session_id', '')}")
+    print(f"primary.codex_session_id={primary_session.get('codex_session_id', '')}")
+    print(f"hosted.connected={'true' if hosted_auth.get('connected') else 'false'}")
+    print(f"hosted.email={hosted_auth.get('email', '')}")
+    print(f"hosted.world_id={hosted_world.get('id', '')}")
+    for note in payload.get("notes", []):
+        print(f"note={note}")
+    for warning in payload.get("warnings", []):
+        print(f"warning={warning}")
+    for action_line in payload.get("next_actions", []):
+        print(f"next={action_line}")
+
+
+def _print_runner_status_human(payload: dict[str, Any]) -> None:
+    machine = payload.get("machine", {}) if isinstance(payload.get("machine"), dict) else {}
+    session_counts = payload.get("session_counts", {}) if isinstance(payload.get("session_counts"), dict) else {}
+    repo_runtime = payload.get("repo_runtime", {}) if isinstance(payload.get("repo_runtime"), dict) else {}
+    active_job = repo_runtime.get("active_job", {}) if isinstance(repo_runtime.get("active_job"), dict) else {}
+    last_job = repo_runtime.get("last_job", {}) if isinstance(repo_runtime.get("last_job"), dict) else {}
+    print(f"runner.enabled={'true' if machine.get('runner_enabled') else 'false'}")
+    print(f"runner.sync_ready={'true' if payload.get('sync_ready') else 'false'}")
+    print(f"runner.work_ready={'true' if payload.get('work_ready') else 'false'}")
+    print(f"machine.id={machine.get('machine_id', '')}")
+    print(f"machine.name={machine.get('machine_name', '')}")
+    print(f"machine.platform={machine.get('platform', '')}")
+    print(f"machine.last_heartbeat_at_utc={machine.get('last_heartbeat_at_utc', '')}")
+    print(f"machine.last_sync_at_utc={machine.get('last_sync_at_utc', '')}")
+    print(f"machine.path={payload.get('machine_path', '')}")
+    print(f"repo.runner_path={payload.get('repo_runner_path', '')}")
+    print(f"repo.runtime_path={payload.get('repo_runtime_path', '')}")
+    print(f"runtime.status={repo_runtime.get('status', '')}")
+    print(f"runtime.active_job_id={active_job.get('job_id', '')}")
+    print(f"runtime.active_lease_id={active_job.get('lease_id', '')}")
+    print(f"runtime.last_job_status={last_job.get('status', '')}")
+    print(f"project_linked={'true' if payload.get('project_link_exists') else 'false'}")
+    print(f"sessions.total={session_counts.get('total', 0)}")
+    print(f"sessions.routeable={session_counts.get('routeable', 0)}")
+    for note in payload.get("notes", []):
+        print(f"note={note}")
+    for warning in payload.get("warnings", []):
+        print(f"warning={warning}")
+    for action_line in payload.get("next_actions", []):
+        print(f"next={action_line}")
 
 
 def cmd_idea_show(args: argparse.Namespace) -> int:
-    payload = _get_remote_idea(args, args.idea_id)
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}",
+        token=str(session.get("token", "")).strip(),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid idea payload.")
+    result = _normalize_remote_idea_payload(payload)
+    idea = result["idea"]
     if args.json_output:
-        _print_json(payload)
+        _print_json(result)
     else:
         _print_pairs(
             [
-                ("idea.id", str(payload.get("id", "")).strip()),
-                ("idea.title", str(payload.get("title", "")).strip()),
-                ("idea.visibility", str(payload.get("visibility", "")).strip()),
-                ("idea.github_url", str(payload.get("githubUrl", "")).strip()),
-                ("idea.updated_at", str(payload.get("updatedAt", "")).strip()),
+                ("idea.id", str(idea.get("id", "")).strip()),
+                ("idea.title", str(idea.get("title", "")).strip()),
+                ("idea.visibility", str(idea.get("visibility", "")).strip()),
+                ("idea.github_url", str(idea.get("githubUrl", "")).strip()),
+                ("idea.updated_at", str(idea.get("updatedAt", "")).strip()),
             ]
         )
     return 0
@@ -4077,17 +9325,21 @@ def cmd_world_show(args: argparse.Namespace) -> int:
         path=f"/api/cli/ideas/{urlparse.quote(args.idea_id)}/world",
         token=str(session.get("token", "")).strip(),
     )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid world payload.")
+    result = _normalize_remote_world_payload(payload)
+    world = result["world"]
     if args.json_output:
-        _print_json(payload)
+        _print_json(result)
     else:
         _print_pairs(
             [
-                ("world.id", str(payload.get("id", "")).strip()),
-                ("world.name", str(payload.get("name", "")).strip()),
-                ("world.project_root", str(payload.get("projectRoot", "")).strip()),
-                ("world.github_url", str(payload.get("githubUrl", "")).strip()),
-                ("world.codex_session_id", str(payload.get("codexSessionId", "")).strip()),
-                ("world.status", str(payload.get("status", "")).strip()),
+                ("world.id", str(world.get("id", "")).strip()),
+                ("world.name", str(world.get("name", "")).strip()),
+                ("world.project_root", str(world.get("projectRoot", "")).strip()),
+                ("world.github_url", str(world.get("githubUrl", "")).strip()),
+                ("world.codex_session_id", str(world.get("codexSessionId", "")).strip()),
+                ("world.status", str(world.get("status", "")).strip()),
             ]
         )
     return 0
@@ -4103,18 +9355,1403 @@ def cmd_world_bind(args: argparse.Namespace) -> int:
         token=str(session.get("token", "")).strip(),
         body=body,
     )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid world payload.")
+    result = _normalize_remote_world_payload(payload)
+    world = result["world"]
     if args.json_output:
-        _print_json(payload)
+        _print_json(result)
     else:
         _print_pairs(
             [
-                ("world.id", str(payload.get("id", "")).strip()),
-                ("world.name", str(payload.get("name", "")).strip()),
-                ("world.project_root", str(payload.get("projectRoot", "")).strip()),
-                ("world.codex_session_id", str(payload.get("codexSessionId", "")).strip()),
-                ("world.status", str(payload.get("status", "")).strip()),
+                ("world.id", str(world.get("id", "")).strip()),
+                ("world.name", str(world.get("name", "")).strip()),
+                ("world.project_root", str(world.get("projectRoot", "")).strip()),
+                ("world.codex_session_id", str(world.get("codexSessionId", "")).strip()),
+                ("world.status", str(world.get("status", "")).strip()),
             ]
         )
+    return 0
+
+
+def cmd_secrets_list(args: argparse.Namespace) -> int:
+    params: list[str] = []
+    provider = str(getattr(args, "provider", "") or "").strip()
+    if provider:
+        params.append(f"provider={urlparse.quote(provider)}")
+    world_id, idea_id = _resolve_secret_scope_from_args(args, require_scope=False)
+    if world_id:
+        params.append(f"worldId={urlparse.quote(world_id)}")
+    if idea_id:
+        params.append(f"ideaId={urlparse.quote(idea_id)}")
+    if bool(getattr(args, "archived", False)):
+        params.append("archived=1")
+    query = f"?{'&'.join(params)}" if params else ""
+
+    payload = _request_secret_payload(args, path=f"/api/cli/secrets{query}")
+    items = payload.get("items") if isinstance(payload.get("items"), list) else []
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "items": [row for row in items if isinstance(row, dict)],
+        "provider": provider,
+        "world_id": world_id,
+        "idea_id": idea_id,
+        "archived": bool(getattr(args, "archived", False)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("secrets.count", len(result["items"])),
+                ("filter.provider", provider),
+                ("filter.world_id", world_id),
+                ("filter.idea_id", idea_id),
+                ("filter.archived", str(result["archived"]).lower()),
+            ]
+        )
+        for secret in result["items"]:
+            print("---")
+            _print_secret_human(secret, include_bindings=False)
+    return 0
+
+
+def cmd_secrets_show(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+    payload = _request_secret_payload(
+        args,
+        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+    if not isinstance(secret, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(secret, include_bindings=True)
+    return 0
+
+
+def cmd_secrets_add(args: argparse.Namespace) -> int:
+    _, value = _resolve_secret_value_arg(args, required=True)
+    body: dict[str, Any] = {
+        "alias": str(getattr(args, "alias", "")).strip(),
+        "label": str(getattr(args, "label", "")).strip(),
+        "provider": str(getattr(args, "provider", "")).strip(),
+        "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
+        "value": value,
+    }
+    env_var_name = getattr(args, "env_var_name", None)
+    if env_var_name is not None:
+        text = str(env_var_name).strip()
+        body["envVarName"] = text or None
+    notes = getattr(args, "notes", None)
+    if notes is not None:
+        text = str(notes).strip()
+        body["notes"] = text or None
+    binding = _build_secret_binding_payload_from_args(args)
+    body["bindings"] = [binding] if binding else []
+
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets",
+        method="POST",
+        body=body,
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+    if not isinstance(secret, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(secret, include_bindings=True)
+    return 0
+
+
+def cmd_secrets_update(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+
+    body: dict[str, Any] = {}
+    for attr_name, body_key in (
+        ("alias", "alias"),
+        ("label", "label"),
+        ("provider", "provider"),
+        ("kind", "kind"),
+        ("env_var_name", "envVarName"),
+        ("notes", "notes"),
+        ("status", "status"),
+    ):
+        value = getattr(args, attr_name, None)
+        if value is not None:
+            text = str(value).strip()
+            if body_key in {"envVarName", "notes"}:
+                body[body_key] = text or None
+            else:
+                body[body_key] = text
+
+    value_provided, value = _resolve_secret_value_arg(args, required=False)
+    if value_provided:
+        body["value"] = value
+
+    if not body:
+        raise RuntimeError("Provide at least one field to update.")
+
+    payload = _request_secret_payload(
+        args,
+        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
+        method="PATCH",
+        body=body,
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+    if not isinstance(secret, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(secret, include_bindings=True)
+    return 0
+
+
+def cmd_secrets_archive(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+    payload = _request_secret_payload(
+        args,
+        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
+        method="DELETE",
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+    if not isinstance(secret, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+        "removed_secret_id": str(payload.get("removedSecretId", secret.get("id", ""))).strip(),
+        "archived": bool(payload.get("archived", True)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(secret, include_bindings=True)
+        print(f"removed_secret_id={result['removed_secret_id']}")
+        print(f"archived={str(result['archived']).lower()}")
+    return 0
+
+
+def cmd_secrets_bind(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+    world_id, idea_id = _resolve_secret_scope_from_args(
+        args,
+        require_scope=True,
+        fallback_to_current_project=True,
+    )
+    body: dict[str, Any] = {
+        "secretId" if _looks_like_uuid(secret_ref) else "secretAlias": secret_ref,
+    }
+    if world_id:
+        body["worldId"] = world_id
+    if idea_id:
+        body["ideaId"] = idea_id
+    purpose = str(getattr(args, "purpose", "") or "").strip()
+    if purpose:
+        body["purpose"] = purpose
+    if bool(getattr(args, "primary", False)):
+        body["isPrimary"] = True
+
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets/bindings",
+        method="POST",
+        body=body,
+    )
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else payload
+    if not isinstance(binding, dict):
+        raise RuntimeError("Hosted ORP returned an invalid binding record.")
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "binding": binding,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("binding.id", str(binding.get("id", "")).strip()),
+                ("binding.world_id", str(binding.get("worldId", "")).strip()),
+                ("binding.idea_id", str(binding.get("ideaId", "")).strip()),
+                ("binding.secret_id", str(binding.get("secretId", "")).strip()),
+                ("binding.primary", str(bool(binding.get("isPrimary", False))).lower()),
+            ]
+        )
+    return 0
+
+
+def cmd_secrets_unbind(args: argparse.Namespace) -> int:
+    binding_id = str(getattr(args, "binding_id", "") or "").strip()
+    if not binding_id:
+        raise RuntimeError("Binding id is required.")
+    payload = _request_secret_payload(
+        args,
+        path=f"/api/cli/secrets/bindings/{urlparse.quote(binding_id)}",
+        method="DELETE",
+    )
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else {}
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "removed_binding_id": str(payload.get("removedBindingId", binding_id)).strip(),
+        "binding": binding,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("removed_binding_id", result["removed_binding_id"]),
+                ("binding.secret_id", str(binding.get("secretId", "")).strip()),
+                ("binding.world_id", str(binding.get("worldId", "")).strip()),
+            ]
+        )
+    return 0
+
+
+def cmd_secrets_resolve(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    provider = str(getattr(args, "provider", "") or "").strip()
+    reveal = bool(getattr(args, "reveal", False))
+    world_id, idea_id = _resolve_secret_scope_from_args(
+        args,
+        require_scope=not bool(secret_ref),
+        fallback_to_current_project=not bool(secret_ref),
+    )
+
+    body: dict[str, Any] = {
+        "reveal": reveal,
+    }
+    if secret_ref:
+        body["id" if _looks_like_uuid(secret_ref) else "alias"] = secret_ref
+    elif provider:
+        body["provider"] = provider
+    else:
+        raise RuntimeError("Provide a secret reference or --provider to resolve a secret.")
+    if world_id:
+        body["worldId"] = world_id
+    if idea_id:
+        body["ideaId"] = idea_id
+
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets/resolve",
+        method="POST",
+        body=body,
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else {}
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
+    result = {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+        "binding": binding,
+        "value": payload.get("value"),
+        "matched_by": str(payload.get("matchedBy", "")).strip(),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(
+            secret,
+            include_bindings=False,
+            binding=binding,
+            value=result["value"] if reveal else None,
+            matched_by=result["matched_by"],
+        )
+    return 0
+
+
+def cmd_link_project_bind(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _require_link_root(repo_root)
+    session = _require_hosted_session(args)
+    existing_link = _read_link_project(repo_root)
+    primary_session = next((row for row in _list_link_sessions(repo_root) if row.get("primary")), {})
+    project_root = _require_current_repo_project_root(
+        getattr(args, "project_root", ""),
+        repo_root,
+        context="orp link project bind",
+    )
+    detected_remote_url = _git_stdout(repo_root, ["remote", "get-url", "origin"]) if _git_repo_present(repo_root) else ""
+    github_url = (
+        str(getattr(args, "github_url", "") or "").strip()
+        or str(existing_link.get("github_url", "")).strip()
+        or detected_remote_url
+    )
+    codex_session_id = (
+        str(getattr(args, "codex_session_id", "") or "").strip()
+        or str(primary_session.get("codex_session_id", "")).strip()
+    )
+    world_name = str(getattr(args, "name", "") or "").strip() or str(existing_link.get("world_name", "")).strip() or repo_root.name
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(str(args.idea_id).strip())}/world",
+        method="PUT",
+        token=str(session.get("token", "")).strip(),
+        body={
+            "name": world_name,
+            "projectRoot": project_root,
+            "githubUrl": github_url or None,
+            "codexSessionId": codex_session_id or None,
+        },
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid world payload.")
+    world = _normalize_remote_world_payload(payload)["world"]
+    project_link = {
+        "idea_id": str(args.idea_id).strip(),
+        "idea_title": str(getattr(args, "idea_title", "") or "").strip()
+        or str(existing_link.get("idea_title", "")).strip(),
+        "world_id": str(world.get("id", "")).strip(),
+        "world_name": str(world.get("name", "")).strip() or world_name,
+        "project_root": project_root,
+        "github_url": str(world.get("githubUrl", "")).strip() or github_url,
+        "linked_at_utc": _now_utc(),
+        "linked_email": str(session.get("email", "")).strip(),
+        "source": "cli",
+    }
+    notes = str(getattr(args, "notes", "") or "").strip()
+    if notes:
+        project_link["notes"] = notes
+    path = _write_link_project(repo_root, project_link)
+    result = {
+        "ok": True,
+        "project_link": _read_link_project(repo_root),
+        "project_link_path": _path_for_state(path, repo_root),
+        "world": world,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", result["project_link"].get("idea_id", "")),
+                ("world.id", str(world.get("id", "")).strip()),
+                ("world.name", str(world.get("name", "")).strip()),
+                ("project.link_path", result["project_link_path"]),
+                ("sessions.total", result["session_counts"]["total"]),
+            ]
+        )
+    return 0
+
+
+def cmd_link_project_show(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    project_link = _read_link_project(repo_root)
+    if not project_link:
+        raise RuntimeError("No local project link found. Run `orp link project bind --idea-id <idea-id> --json` first.")
+    path = _link_project_path(repo_root)
+    result = {
+        "ok": True,
+        "project_link": project_link,
+        "project_link_path": _path_for_state(path, repo_root) if path is not None else "",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("idea.id", project_link.get("idea_id", "")),
+                ("idea.title", project_link.get("idea_title", "")),
+                ("world.id", project_link.get("world_id", "")),
+                ("world.name", project_link.get("world_name", "")),
+                ("project.root", project_link.get("project_root", "")),
+                ("project.link_path", result["project_link_path"]),
+            ]
+        )
+    return 0
+
+
+def cmd_link_project_status(args: argparse.Namespace) -> int:
+    return cmd_link_status(args)
+
+
+def cmd_link_project_unbind(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    project_link = _read_link_project(repo_root)
+    path = _delete_link_project(repo_root)
+    sessions = _list_link_sessions(repo_root)
+    warnings: list[str] = []
+    next_actions: list[str] = []
+    if sessions:
+        warnings.append("local session links remain after unbinding the project link.")
+        next_actions.append("orp link session list --json")
+    result = {
+        "ok": True,
+        "removed": path is not None,
+        "removed_project_link": project_link,
+        "project_link_path": _path_for_state(path, repo_root) if path is not None else "",
+        "session_counts": _link_session_counts(sessions),
+        "warnings": warnings,
+        "next_actions": next_actions,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"removed={'true' if result['removed'] else 'false'}")
+        print(f"project.link_path={result['project_link_path']}")
+        for warning in warnings:
+            print(f"warning={warning}")
+        for action_line in next_actions:
+            print(f"next={action_line}")
+    return 0
+
+
+def cmd_link_session_register(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _require_link_root(repo_root)
+    existing = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    project_root = _require_current_repo_project_root(
+        getattr(args, "project_root", ""),
+        repo_root,
+        context="orp link session register",
+    )
+    if (getattr(args, "window_id", None) is None) != (getattr(args, "tab_number", None) is None):
+        raise RuntimeError("Provide both --window-id and --tab-number together.")
+
+    payload: dict[str, Any] = {k: v for k, v in existing.items() if k != "path"}
+    payload["orp_session_id"] = str(args.orp_session_id).strip()
+    payload["label"] = str(args.label).strip()
+    payload["project_root"] = project_root
+    payload["state"] = str(getattr(args, "state", "") or payload.get("state", "active")).strip() or "active"
+    payload["created_at_utc"] = _normalize_timestamp_utc(
+        getattr(args, "created_at", None),
+        fallback=str(payload.get("created_at_utc", "")) or _now_utc(),
+    )
+    payload["last_active_at_utc"] = _normalize_timestamp_utc(
+        getattr(args, "last_active_at", None),
+        fallback=str(payload.get("last_active_at_utc", "")) or payload["created_at_utc"],
+    )
+    archived_arg = getattr(args, "archived", None)
+    payload["archived"] = bool(archived_arg) if archived_arg is not None else bool(payload.get("archived", False))
+    primary_arg = getattr(args, "primary", None)
+    payload["primary"] = (bool(primary_arg) if primary_arg is not None else bool(payload.get("primary", False))) and not payload["archived"]
+    payload["source"] = "cli"
+
+    codex_session_id = getattr(args, "codex_session_id", None)
+    if codex_session_id is not None:
+        text = str(codex_session_id).strip()
+        if text:
+            payload["codex_session_id"] = text
+        else:
+            payload.pop("codex_session_id", None)
+    role = getattr(args, "role", None)
+    if role is not None:
+        text = str(role).strip().lower()
+        if text:
+            payload["role"] = text
+        else:
+            payload.pop("role", None)
+    notes = getattr(args, "notes", None)
+    if notes is not None:
+        text = str(notes).strip()
+        if text:
+            payload["notes"] = text
+        else:
+            payload.pop("notes", None)
+    if getattr(args, "window_id", None) is not None and getattr(args, "tab_number", None) is not None:
+        payload["terminal_target"] = {
+            "window_id": int(args.window_id),
+            "tab_number": int(args.tab_number),
+        }
+
+    path = _write_link_session(repo_root, payload)
+    if payload.get("primary"):
+        _set_primary_link_session(repo_root, payload["orp_session_id"])
+    primary_session = _rebalance_primary_link_session(repo_root)
+    session = _read_link_session(repo_root, payload["orp_session_id"])
+    result = {
+        "ok": True,
+        "created": not bool(existing),
+        "session": session,
+        "primary_session": primary_session,
+        "session_path": _path_for_state(path, repo_root),
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("session.id", session.get("orp_session_id", "")),
+                ("session.label", session.get("label", "")),
+                ("session.codex_session_id", session.get("codex_session_id", "")),
+                ("session.primary", str(bool(session.get("primary"))).lower()),
+                ("session.path", result["session_path"]),
+            ]
+        )
+    return 0
+
+
+def cmd_link_session_list(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    sessions = _list_link_sessions(repo_root)
+    result = {
+        "ok": True,
+        "sessions": sessions,
+        "session_counts": _link_session_counts(sessions),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"sessions.total={result['session_counts']['total']}")
+        for row in sessions:
+            print("---")
+            _print_pairs(
+                [
+                    ("session.id", row.get("orp_session_id", "")),
+                    ("session.label", row.get("label", "")),
+                    ("session.primary", str(bool(row.get("primary"))).lower()),
+                    ("session.archived", str(bool(row.get("archived"))).lower()),
+                    ("session.codex_session_id", row.get("codex_session_id", "")),
+                    ("session.path", row.get("path", "")),
+                ]
+            )
+    return 0
+
+
+def cmd_link_session_show(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    session = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    if not session:
+        raise RuntimeError(f"Linked session not found: {args.orp_session_id}")
+    result = {
+        "ok": True,
+        "session": session,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("session.id", session.get("orp_session_id", "")),
+                ("session.label", session.get("label", "")),
+                ("session.state", session.get("state", "")),
+                ("session.primary", str(bool(session.get("primary"))).lower()),
+                ("session.archived", str(bool(session.get("archived"))).lower()),
+                ("session.codex_session_id", session.get("codex_session_id", "")),
+                ("session.path", session.get("path", "")),
+            ]
+        )
+    return 0
+
+
+def cmd_link_session_set_primary(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    session = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    if not session:
+        raise RuntimeError(f"Linked session not found: {args.orp_session_id}")
+    if session.get("archived"):
+        raise RuntimeError("Archived sessions cannot be marked primary. Unarchive the session first.")
+    _set_primary_link_session(repo_root, str(args.orp_session_id).strip())
+    primary_session = _rebalance_primary_link_session(repo_root)
+    result = {
+        "ok": True,
+        "primary_session": primary_session,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("primary.orp_session_id", primary_session.get("orp_session_id", "")),
+                ("primary.codex_session_id", primary_session.get("codex_session_id", "")),
+            ]
+        )
+    return 0
+
+
+def cmd_link_session_archive(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    session = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    if not session:
+        raise RuntimeError(f"Linked session not found: {args.orp_session_id}")
+    payload = {k: v for k, v in session.items() if k != "path"}
+    payload["archived"] = True
+    payload["primary"] = False
+    _write_link_session(repo_root, payload)
+    primary_session = _rebalance_primary_link_session(repo_root)
+    result = {
+        "ok": True,
+        "session": _read_link_session(repo_root, str(args.orp_session_id).strip()),
+        "primary_session": primary_session,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"archived=true")
+        print(f"session.id={result['session'].get('orp_session_id', '')}")
+    return 0
+
+
+def cmd_link_session_unarchive(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    session = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    if not session:
+        raise RuntimeError(f"Linked session not found: {args.orp_session_id}")
+    payload = {k: v for k, v in session.items() if k != "path"}
+    payload["archived"] = False
+    _write_link_session(repo_root, payload)
+    primary_session = _rebalance_primary_link_session(repo_root)
+    result = {
+        "ok": True,
+        "session": _read_link_session(repo_root, str(args.orp_session_id).strip()),
+        "primary_session": primary_session,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("archived=false")
+        print(f"session.id={result['session'].get('orp_session_id', '')}")
+    return 0
+
+
+def cmd_link_session_remove(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    session = _read_link_session(repo_root, str(args.orp_session_id).strip())
+    if not session:
+        raise RuntimeError(f"Linked session not found: {args.orp_session_id}")
+    path = _delete_link_session(repo_root, str(args.orp_session_id).strip())
+    primary_session = _rebalance_primary_link_session(repo_root)
+    result = {
+        "ok": True,
+        "removed": path is not None,
+        "removed_session": session,
+        "session_path": _path_for_state(path, repo_root) if path is not None else "",
+        "primary_session": primary_session,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"removed={'true' if result['removed'] else 'false'}")
+        print(f"session.id={session.get('orp_session_id', '')}")
+        print(f"session.path={result['session_path']}")
+    return 0
+
+
+def cmd_link_session_import_rust(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _require_link_root(repo_root)
+    rust_project_path = repo_root / ".orp" / "project.json"
+    rust_sessions_dir = repo_root / ".orp" / "sessions"
+    project_metadata = _read_json_if_exists(rust_project_path)
+    if not project_metadata and not rust_sessions_dir.exists():
+        raise RuntimeError("No Rust ORP metadata found under .orp/.")
+
+    imported_project: dict[str, Any] = {}
+    project_link_path = ""
+    hosted_link = project_metadata.get("hosted_link") if isinstance(project_metadata.get("hosted_link"), dict) else {}
+    if hosted_link:
+        idea_id = str(hosted_link.get("idea_id", hosted_link.get("ideaId", ""))).strip()
+        if idea_id:
+            imported_project = {
+                "idea_id": idea_id,
+                "idea_title": str(hosted_link.get("idea_title", hosted_link.get("ideaTitle", ""))).strip(),
+                "world_id": str(hosted_link.get("world_id", hosted_link.get("worldId", ""))).strip(),
+                "world_name": str(hosted_link.get("world_name", hosted_link.get("worldName", ""))).strip(),
+                "project_root": _normalize_local_path(
+                    project_metadata.get("project_path", project_metadata.get("projectPath", str(repo_root))),
+                    repo_root,
+                    fallback=str(repo_root),
+                ),
+                "github_url": str(project_metadata.get("github_remote", project_metadata.get("githubRemote", ""))).strip(),
+                "linked_at_utc": _normalize_timestamp_utc(
+                    hosted_link.get("linked_at", hosted_link.get("linkedAt")),
+                    fallback=_now_utc(),
+                ),
+                "linked_email": str(hosted_link.get("linked_email", hosted_link.get("linkedEmail", ""))).strip(),
+                "source": "import-rust",
+                "notes": "Imported from Rust ORP project metadata.",
+            }
+            project_link_path = _path_for_state(_write_link_project(repo_root, imported_project), repo_root)
+            imported_project = _read_link_project(repo_root)
+
+    archived_session_ids = {
+        str(item).strip()
+        for item in project_metadata.get("archived_session_ids", [])
+        if isinstance(item, str) and str(item).strip()
+    }
+    archived_codex_session_ids = {
+        str(item).strip()
+        for item in project_metadata.get("archived_codex_session_ids", [])
+        if isinstance(item, str) and str(item).strip()
+    }
+    ignored_codex_session_ids = [
+        str(item).strip()
+        for item in project_metadata.get("ignored_codex_session_ids", [])
+        if isinstance(item, str) and str(item).strip()
+    ]
+    session_order = [
+        str(item).strip()
+        for item in project_metadata.get("session_order", [])
+        if isinstance(item, str) and str(item).strip()
+    ]
+
+    imported_sessions: list[dict[str, Any]] = []
+    skipped_paths: list[str] = []
+    rust_session_payloads: list[dict[str, Any]] = []
+    if rust_sessions_dir.exists():
+        for path in sorted(rust_sessions_dir.glob("*.json")):
+            raw = _read_json_if_exists(path)
+            if not raw:
+                skipped_paths.append(_path_for_state(path, repo_root))
+                continue
+            session_id = str(raw.get("session_id", raw.get("sessionId", ""))).strip()
+            label = str(raw.get("label", "")).strip()
+            if not session_id or not label:
+                skipped_paths.append(_path_for_state(path, repo_root))
+                continue
+            codex_session_id = str(raw.get("codex_session_id", raw.get("codexSessionId", ""))).strip()
+            archived = session_id in archived_session_ids or (codex_session_id and codex_session_id in archived_codex_session_ids)
+            rust_session_payloads.append(
+                {
+                    "orp_session_id": session_id,
+                    "label": label,
+                    "state": str(raw.get("state", "active")).strip().lower() or "active",
+                    "project_root": _normalize_local_path(
+                        raw.get("project_path", raw.get("projectPath", str(repo_root))),
+                        repo_root,
+                        fallback=str(repo_root),
+                    ),
+                    "codex_session_id": codex_session_id,
+                    "terminal_target": raw.get("terminal_target", raw.get("terminalTarget")),
+                    "created_at_utc": _normalize_timestamp_utc(
+                        raw.get("created_at", raw.get("createdAt")),
+                        fallback=_now_utc(),
+                    ),
+                    "last_active_at_utc": _normalize_timestamp_utc(
+                        raw.get("last_active_at", raw.get("lastActiveAt")),
+                        fallback=_normalize_timestamp_utc(raw.get("created_at", raw.get("createdAt")), fallback=_now_utc()),
+                    ),
+                    "archived": archived,
+                    "primary": False,
+                    "source": "import-rust",
+                    "notes": "Imported from Rust ORP session metadata.",
+                }
+            )
+
+    primary_session_id = ""
+    session_lookup = {row["orp_session_id"]: row for row in rust_session_payloads}
+    for session_id in session_order:
+        row = session_lookup.get(session_id)
+        if row and not row.get("archived"):
+            primary_session_id = session_id
+            break
+    if not primary_session_id:
+        sorted_candidates = sorted(rust_session_payloads, key=_link_session_sort_key)
+        for row in sorted_candidates:
+            if not row.get("archived"):
+                primary_session_id = row["orp_session_id"]
+                break
+
+    for row in rust_session_payloads:
+        row["primary"] = row["orp_session_id"] == primary_session_id and not row.get("archived")
+        _write_link_session(repo_root, row)
+        imported_sessions.append(_read_link_session(repo_root, row["orp_session_id"]))
+
+    primary_session = _rebalance_primary_link_session(repo_root)
+    result = {
+        "ok": True,
+        "imported_project": bool(imported_project),
+        "project_link": imported_project,
+        "project_link_path": project_link_path,
+        "imported_sessions": imported_sessions,
+        "imported_session_count": len(imported_sessions),
+        "primary_session": primary_session,
+        "session_counts": _link_session_counts(_list_link_sessions(repo_root)),
+        "rust_project_path": _path_for_state(rust_project_path, repo_root),
+        "rust_sessions_dir": _path_for_state(rust_sessions_dir, repo_root),
+        "ignored_codex_session_ids": ignored_codex_session_ids,
+        "skipped_paths": skipped_paths,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"imported_project={'true' if result['imported_project'] else 'false'}")
+        print(f"imported_sessions={result['imported_session_count']}")
+        print(f"primary.orp_session_id={primary_session.get('orp_session_id', '')}")
+        for path in skipped_paths:
+            print(f"warning=skipped invalid Rust session metadata at {path}")
+    return 0
+
+
+def cmd_link_import_rust(args: argparse.Namespace) -> int:
+    if not bool(getattr(args, "all", False)):
+        raise RuntimeError("`orp link import-rust` requires `--all` to confirm importing project and session metadata.")
+    return cmd_link_session_import_rust(args)
+
+
+def cmd_link_status(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    result = _link_status_payload(repo_root, args)
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_link_status_human(result)
+    return 0
+
+
+def cmd_link_doctor(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _link_status_payload(repo_root, args)
+    issues: list[dict[str, Any]] = []
+
+    if not _git_repo_present(repo_root):
+        issues.append(
+            _doctor_issue(
+                severity="error",
+                code="missing_git_repo",
+                message="git repository not detected at repo root.",
+                fixable=False,
+            )
+        )
+
+    project_link_path = _link_project_path(repo_root)
+    project_link = status_payload.get("project_link", {}) if isinstance(status_payload.get("project_link"), dict) else {}
+    if project_link_path is not None and project_link_path.exists() and not project_link:
+        issues.append(
+            _doctor_issue(
+                severity="error",
+                code="invalid_project_link_record",
+                message="local project link file exists but could not be parsed as a valid linked project.",
+                fixable=False,
+                path=_path_for_state(project_link_path, repo_root),
+            )
+        )
+    if project_link:
+        if str(project_link.get("project_root", "")).strip() != str(repo_root):
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="project_root_mismatch",
+                    message="linked project root does not match the current repo root.",
+                    fixable=False,
+                    path=_path_for_state(project_link_path, repo_root) if project_link_path is not None else "",
+                )
+            )
+        if not status_payload.get("hosted_auth", {}).get("connected"):
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="missing_hosted_auth",
+                    message="hosted auth is missing for the linked project.",
+                    fixable=False,
+                )
+            )
+
+    sessions = status_payload.get("sessions", []) if isinstance(status_payload.get("sessions"), list) else []
+    if project_link and not sessions:
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="linked_project_without_sessions",
+                message="project link exists but no linked sessions are registered.",
+                fixable=False,
+            )
+        )
+    if sessions and not project_link:
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="sessions_without_project_link",
+                message="linked sessions exist but the repo is not linked to a hosted idea/world.",
+                fixable=False,
+            )
+        )
+
+    primary_sessions = [row for row in sessions if row.get("primary")]
+    if len(primary_sessions) > 1:
+        issues.append(
+            _doctor_issue(
+                severity="error",
+                code="multiple_primary_sessions",
+                message="multiple linked sessions are marked primary.",
+                fixable=False,
+            )
+        )
+    elif sessions and not primary_sessions:
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="missing_primary_session",
+                message="no linked session is marked primary.",
+                fixable=False,
+            )
+        )
+
+    sessions_dir = _link_sessions_dir(repo_root)
+    if sessions_dir is not None and sessions_dir.exists():
+        for path in sorted(sessions_dir.glob("*.json")):
+            raw = _read_json_if_exists(path)
+            if not raw:
+                issues.append(
+                    _doctor_issue(
+                        severity="error",
+                        code="invalid_session_link_record",
+                        message="linked session file exists but could not be parsed.",
+                        fixable=False,
+                        path=_path_for_state(path, repo_root),
+                    )
+                )
+                continue
+            try:
+                session = _normalize_link_session_payload(
+                    raw,
+                    repo_root,
+                    default_source=str(raw.get("source", "cli")).strip() or "cli",
+                )
+            except RuntimeError as exc:
+                issues.append(
+                    _doctor_issue(
+                        severity="error",
+                        code="invalid_session_link_record",
+                        message=str(exc),
+                        fixable=False,
+                        path=_path_for_state(path, repo_root),
+                    )
+                )
+                continue
+            if str(session.get("project_root", "")).strip() != str(repo_root):
+                issues.append(
+                    _doctor_issue(
+                        severity="warning",
+                        code="session_project_root_mismatch",
+                        message=f"linked session `{session['orp_session_id']}` points at a different project root.",
+                        fixable=False,
+                        path=_path_for_state(path, repo_root),
+                    )
+                )
+            if not session.get("archived") and str(session.get("state", "active")).strip() == "active" and not str(session.get("codex_session_id", "")).strip():
+                issues.append(
+                    _doctor_issue(
+                        severity="warning",
+                        code="missing_codex_session_id",
+                        message=f"active linked session `{session['orp_session_id']}` is missing a Codex session id.",
+                        fixable=False,
+                        path=_path_for_state(path, repo_root),
+                    )
+                )
+
+    hosted_world = status_payload.get("hosted_world", {}) if isinstance(status_payload.get("hosted_world"), dict) else {}
+    if status_payload.get("hosted_world_error"):
+        issues.append(
+            _doctor_issue(
+                severity="warning",
+                code="hosted_world_unavailable",
+                message=str(status_payload.get("hosted_world_error", "")).strip(),
+                fixable=False,
+            )
+        )
+    if project_link and hosted_world:
+        remote_root = _normalize_local_path(hosted_world.get("projectRoot", ""), repo_root)
+        if remote_root and remote_root != str(project_link.get("project_root", "")).strip():
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="hosted_world_project_root_mismatch",
+                    message="hosted world project root does not match the local linked project root.",
+                    fixable=False,
+                )
+            )
+        remote_world_id = str(hosted_world.get("id", "")).strip()
+        local_world_id = str(project_link.get("world_id", "")).strip()
+        if remote_world_id and local_world_id and remote_world_id != local_world_id:
+            issues.append(
+                _doctor_issue(
+                    severity="warning",
+                    code="hosted_world_id_mismatch",
+                    message="hosted world id does not match the locally recorded world id.",
+                    fixable=False,
+                )
+            )
+
+    errors = sum(1 for issue in issues if issue.get("severity") == "error")
+    warnings_count = sum(1 for issue in issues if issue.get("severity") == "warning")
+    ok = errors == 0 and (warnings_count == 0 or not bool(getattr(args, "strict", False)))
+    result = {
+        "ok": ok,
+        "errors": errors,
+        "warnings": warnings_count,
+        "issues": issues,
+        "status": status_payload,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"ok={'true' if ok else 'false'}")
+        print(f"errors={errors}")
+        print(f"warnings={warnings_count}")
+        for issue in issues:
+            print(
+                "issue="
+                + ",".join(
+                    [
+                        f"severity={issue.get('severity', '')}",
+                        f"code={issue.get('code', '')}",
+                        f"message={issue.get('message', '')}",
+                    ]
+                )
+            )
+    return 0 if ok else 1
+
+
+def cmd_runner_status(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    result = _runner_status_payload(repo_root, args)
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_runner_status_human(result)
+    return 0
+
+
+def cmd_runner_enable(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    hosted_session = _load_hosted_session()
+    machine_update: dict[str, Any] = {
+        "runner_enabled": True,
+    }
+    linked_email = str(hosted_session.get("email", "")).strip()
+    if linked_email:
+        machine_update["linked_email"] = linked_email
+    machine_path = _save_runner_machine(machine_update)
+    machine = _load_runner_machine()
+    repo_runner_path = ""
+    if _git_repo_present(repo_root):
+        repo_runner_path = _path_for_state(_write_runner_repo_state(repo_root, machine), repo_root)
+    result = {
+        "ok": True,
+        "machine": machine,
+        "machine_path": str(machine_path),
+        "repo_runner_path": repo_runner_path,
+        "repo_has_git": _git_repo_present(repo_root),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("runner.enabled=true")
+        print(f"machine.id={machine.get('machine_id', '')}")
+        print(f"machine.path={result['machine_path']}")
+        print(f"repo.runner_path={repo_runner_path}")
+    return 0
+
+
+def cmd_runner_disable(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    machine_path = _save_runner_machine({"runner_enabled": False})
+    machine = _load_runner_machine()
+    repo_runner_path = ""
+    if _git_repo_present(repo_root):
+        repo_runner_path = _path_for_state(_write_runner_repo_state(repo_root, machine), repo_root)
+    result = {
+        "ok": True,
+        "machine": machine,
+        "machine_path": str(machine_path),
+        "repo_runner_path": repo_runner_path,
+        "repo_has_git": _git_repo_present(repo_root),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("runner.enabled=false")
+        print(f"machine.id={machine.get('machine_id', '')}")
+        print(f"machine.path={result['machine_path']}")
+        print(f"repo.runner_path={repo_runner_path}")
+    return 0
+
+
+def cmd_runner_heartbeat(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    machine = _load_runner_machine()
+    if not machine.get("runner_enabled"):
+        raise RuntimeError("Runner is disabled. Run `orp runner enable --json` first.")
+    session = _require_hosted_session(args)
+    result = {
+        "ok": True,
+        **_perform_runner_heartbeat(repo_root, args, session, machine),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("ok=true")
+        print(f"heartbeat_at_utc={result['heartbeat_at_utc']}")
+        print(f"machine.id={result['machine'].get('machine_id', '')}")
+        print(f"machine.path={result['machine_path']}")
+        print(f"repo.runner_path={result['repo_runner_path']}")
+    return 0
+
+
+def cmd_runner_sync(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    machine = _load_runner_machine()
+    if not machine.get("runner_enabled"):
+        raise RuntimeError("Runner is disabled. Run `orp runner enable --json` first.")
+    session = _require_hosted_session(args)
+    candidate_roots = _normalize_runner_sync_roots(
+        repo_root,
+        getattr(args, "linked_project_roots", None),
+    )
+    if not any(_git_repo_present(root) for root in candidate_roots):
+        raise RuntimeError("git repository not detected for any requested sync root. Run `orp init` or `git init` first.")
+    sync_result = _perform_runner_sync_for_roots(
+        repo_root,
+        candidate_roots,
+        args,
+        session,
+        machine,
+    )
+    result = {
+        "ok": True,
+        **sync_result,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("ok=true")
+        print(f"linked_projects={result['linked_projects']}")
+        print(f"sessions={result['sessions']}")
+        print(f"routeable_sessions={result['routeable_sessions']}")
+        print(f"included_project_roots={len(result['included_project_roots'])}")
+        print(f"skipped_project_roots={len(result['skipped_project_roots'])}")
+        print(f"machine.path={result['machine_path']}")
+        print(f"repo.runner_path={result['repo_runner_path']}")
+    return 0
+
+
+def cmd_runner_work(args: argparse.Namespace) -> int:
+    poll_interval = max(1, int(getattr(args, "poll_interval", 30)))
+    if bool(getattr(args, "once", False)):
+        result = _run_runner_work_once(args)
+        if args.json_output:
+            _print_json(result)
+        else:
+            if not result.get("claimed"):
+                print("job.claimed=false")
+                print("job.status=idle")
+            else:
+                print("job.claimed=true")
+                print(f"job.id={str(result.get('job', {}).get('id', '')).strip()}")
+                print(f"job.kind={str(result.get('job', {}).get('kind', '')).strip()}")
+                if result.get("dry_run"):
+                    print("job.mode=dry-run")
+                else:
+                    session = result.get("selected_session", {}) if isinstance(result.get("selected_session"), dict) else {}
+                    selected_repo_root = str(result.get("selected_repo_root", "")).strip()
+                    lease = result.get("lease", {}) if isinstance(result.get("lease"), dict) else {}
+                    if selected_repo_root:
+                        print(f"repo.root={selected_repo_root}")
+                    print(f"lease.id={str(lease.get('lease_id', '')).strip()}")
+                    print(f"session.id={str(session.get('orp_session_id', '')).strip()}")
+                    print(f"session.codex_session_id={str(session.get('codex_session_id', '')).strip()}")
+                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+                    if result.get("runtime_path"):
+                        print(f"runtime.path={str(result.get('runtime_path', '')).strip()}")
+                    if result.get("error"):
+                        print(f"error={str(result.get('error', '')).strip()}")
+                    if result.get("heartbeat_error"):
+                        print(f"heartbeat_error={str(result.get('heartbeat_error', '')).strip()}")
+        return 0 if result.get("ok", True) else 1
+
+    while True:
+        result = _run_runner_work_once(args)
+        if args.json_output:
+            _print_json(result)
+        else:
+            if not result.get("claimed"):
+                print("job.claimed=false")
+                print("job.status=idle")
+            else:
+                print("job.claimed=true")
+                print(f"job.id={str(result.get('job', {}).get('id', '')).strip()}")
+                print(f"job.kind={str(result.get('job', {}).get('kind', '')).strip()}")
+                if result.get("dry_run"):
+                    print("job.mode=dry-run")
+                else:
+                    session = result.get("selected_session", {}) if isinstance(result.get("selected_session"), dict) else {}
+                    selected_repo_root = str(result.get("selected_repo_root", "")).strip()
+                    lease = result.get("lease", {}) if isinstance(result.get("lease"), dict) else {}
+                    if selected_repo_root:
+                        print(f"repo.root={selected_repo_root}")
+                    print(f"lease.id={str(lease.get('lease_id', '')).strip()}")
+                    print(f"session.id={str(session.get('orp_session_id', '')).strip()}")
+                    print(f"session.codex_session_id={str(session.get('codex_session_id', '')).strip()}")
+                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+                    if result.get("runtime_path"):
+                        print(f"runtime.path={str(result.get('runtime_path', '')).strip()}")
+                    if result.get("error"):
+                        print(f"error={str(result.get('error', '')).strip()}")
+                    if result.get("heartbeat_error"):
+                        print(f"heartbeat_error={str(result.get('heartbeat_error', '')).strip()}")
+        sys.stdout.flush()
+        if not result.get("ok", True):
+            return 1
+        if result.get("claimed"):
+            continue
+        _wait_for_next_runner_cycle(args, poll_interval)
+
+
+def _runner_control_job_payload(target: dict[str, Any], job_id: str) -> dict[str, Any]:
+    job = target.get("job", {}) if isinstance(target.get("job"), dict) else {}
+    payload: dict[str, Any] = {
+        "id": str(job.get("job_id", job.get("id", job_id))).strip() or job_id,
+    }
+    job_kind = str(job.get("job_kind", job.get("kind", ""))).strip()
+    if job_kind:
+        payload["kind"] = job_kind
+    idea_id = str(job.get("idea_id", "")).strip()
+    if idea_id:
+        payload["ideaId"] = idea_id
+    world_id = str(job.get("world_id", "")).strip()
+    if world_id:
+        payload["worldId"] = world_id
+    project_root = str(job.get("project_root", "")).strip()
+    if project_root:
+        payload["payload"] = {"projectRoot": project_root}
+    return payload
+
+
+def cmd_runner_cancel(args: argparse.Namespace) -> int:
+    requested_repo_root = Path(args.repo_root).resolve()
+    candidate_roots = _normalize_runner_sync_roots(
+        requested_repo_root,
+        getattr(args, "linked_project_roots", None),
+    )
+    repo_root, target = _resolve_runner_control_target_for_roots(
+        candidate_roots,
+        job_id=str(getattr(args, "job_id", "") or "").strip(),
+        lease_id=str(getattr(args, "lease_id", "") or "").strip(),
+        prefer_last_job=False,
+    )
+    job_id = str(target.get("job_id", "")).strip()
+    lease_id = str(target.get("lease_id", "")).strip()
+    if not job_id:
+        raise RuntimeError("No active runner job is recorded locally. Provide a job id explicitly or run `orp runner status --json` first.")
+    session = _require_hosted_session(args)
+    machine = _load_runner_machine()
+    reason = str(getattr(args, "reason", "") or "").strip()
+    response = _runner_post_job_update(
+        args=args,
+        session=session,
+        path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/cancel",
+        body={
+            "machineId": str(machine.get("machine_id", "")).strip(),
+            "leaseId": lease_id or None,
+            "reason": reason or None,
+        },
+    )
+    runtime, runtime_path = _record_runner_finish(
+        repo_root,
+        _runner_control_job_payload(target, job_id),
+        final_status="cancelled",
+        lease_id=lease_id,
+        summary="Hosted runner job cancelled.",
+        error=reason,
+    )
+    result = {
+        "ok": True,
+        "job_id": job_id,
+        "lease_id": lease_id,
+        "repo_root": str(repo_root),
+        "target_source": str(target.get("source", "")).strip(),
+        "response": response if isinstance(response, dict) else {},
+        "runtime": runtime,
+        "runtime_path": _path_for_state(runtime_path, repo_root),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("ok=true")
+        print(f"job.id={job_id}")
+        print(f"lease.id={lease_id}")
+        print(f"repo.root={result['repo_root']}")
+        print(f"runtime.path={result['runtime_path']}")
+    return 0
+
+
+def cmd_runner_retry(args: argparse.Namespace) -> int:
+    requested_repo_root = Path(args.repo_root).resolve()
+    candidate_roots = _normalize_runner_sync_roots(
+        requested_repo_root,
+        getattr(args, "linked_project_roots", None),
+    )
+    repo_root, target = _resolve_runner_control_target_for_roots(
+        candidate_roots,
+        job_id=str(getattr(args, "job_id", "") or "").strip(),
+        lease_id=str(getattr(args, "lease_id", "") or "").strip(),
+        prefer_last_job=True,
+    )
+    job_id = str(target.get("job_id", "")).strip()
+    lease_id = str(target.get("lease_id", "")).strip()
+    if not job_id:
+        raise RuntimeError("No runner job is recorded locally for retry. Provide a job id explicitly or run `orp runner status --json` first.")
+    session = _require_hosted_session(args)
+    machine = _load_runner_machine()
+    reason = str(getattr(args, "reason", "") or "").strip()
+    response = _runner_post_job_update(
+        args=args,
+        session=session,
+        path=f"/api/cli/runner/jobs/{urlparse.quote(job_id)}/retry",
+        body={
+            "machineId": str(machine.get("machine_id", "")).strip(),
+            "leaseId": lease_id or None,
+            "reason": reason or None,
+        },
+    )
+    runtime, runtime_path = _record_runner_finish(
+        repo_root,
+        _runner_control_job_payload(target, job_id),
+        final_status="retried",
+        lease_id=lease_id,
+        summary="Hosted runner job requeued for retry.",
+        error=reason,
+    )
+    result = {
+        "ok": True,
+        "job_id": job_id,
+        "lease_id": lease_id,
+        "repo_root": str(repo_root),
+        "target_source": str(target.get("source", "")).strip(),
+        "response": response if isinstance(response, dict) else {},
+        "runtime": runtime,
+        "runtime_path": _path_for_state(runtime_path, repo_root),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("ok=true")
+        print(f"job.id={job_id}")
+        print(f"lease.id={lease_id}")
+        print(f"repo.root={result['repo_root']}")
+        print(f"runtime.path={result['runtime_path']}")
     return 0
 
 
@@ -4214,49 +10851,139 @@ def _run_worker_once(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _agent_work_runner_args(args: argparse.Namespace) -> argparse.Namespace:
+    repo_root = str(getattr(args, "repo_root", "")).strip() or str(Path.cwd())
+    return argparse.Namespace(
+        repo_root=repo_root,
+        config=getattr(args, "config", "orp.yml"),
+        base_url=getattr(args, "base_url", ""),
+        json_output=bool(getattr(args, "json_output", False)),
+        once=True,
+        dry_run=bool(getattr(args, "dry_run", False)),
+        poll_interval=int(getattr(args, "poll_interval", 30)),
+        codex_bin=str(getattr(args, "codex_bin", "")).strip(),
+        codex_config_profile=str(getattr(args, "codex_config_profile", "")).strip(),
+        linked_project_roots=None,
+        heartbeat_interval=20,
+    )
+
+
+def _agent_work_should_use_legacy_fallback(args: argparse.Namespace, error: Exception) -> bool:
+    if str(getattr(args, "agent", "")).strip():
+        return True
+    message = str(error).strip().lower()
+    fallback_markers = (
+        "git repository not detected",
+        "runner is disabled",
+        "no linked repo is available for runner work",
+        "no linked repo is available on this machine for runner work",
+        "no active linked session with a codex session id is available for this repo",
+        "selected linked session is missing a codex session id",
+    )
+    return any(marker in message for marker in fallback_markers)
+
+
+def _extract_agent_checkpoint_id(result: dict[str, Any]) -> str:
+    job = result.get("job", {}) if isinstance(result.get("job"), dict) else {}
+    if isinstance(job.get("checkpoint"), dict):
+        return str(job["checkpoint"].get("id", "")).strip()
+    payload = job.get("payload", {}) if isinstance(job.get("payload"), dict) else {}
+    return (
+        str(job.get("checkpointId", job.get("checkpoint_id", ""))).strip()
+        or str(payload.get("checkpointId", payload.get("checkpoint_id", ""))).strip()
+    )
+
+
+def _print_agent_work_result(result: dict[str, Any]) -> None:
+    if not result.get("claimed"):
+        print("job.claimed=false")
+        print("job.status=idle")
+        return
+
+    job = result.get("job", {}) if isinstance(result.get("job"), dict) else {}
+    checkpoint_id = _extract_agent_checkpoint_id(result)
+    job_kind = str(job.get("kind", "")).strip() or str(job.get("intent", "")).strip()
+    compatibility = result.get("compatibility", {}) if isinstance(result.get("compatibility"), dict) else {}
+
+    print("job.claimed=true")
+    if job_kind:
+        print(f"job.kind={job_kind}")
+    if checkpoint_id:
+        print(f"checkpoint.id={checkpoint_id}")
+    if result.get("dry_run"):
+        print("job.mode=dry-run")
+        return
+
+    mode = str(compatibility.get("mode", "")).strip()
+    if mode:
+        print(f"job.mode={mode}")
+
+    response = result.get("response", {}) if isinstance(result.get("response"), dict) else {}
+    if response:
+        print(f"response.id={str(response.get('id', '')).strip()}")
+        print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+        return
+
+    print(f"job.ok={str(bool(result.get('ok', False))).lower()}")
+
+
+def _run_agent_work_compat_once(args: argparse.Namespace) -> dict[str, Any]:
+    if str(getattr(args, "agent", "")).strip():
+        result = _run_worker_once(args)
+        result["compatibility"] = {
+            "mode": "legacy-agent-filter",
+            "legacy_fallback": True,
+        }
+        return result
+
+    runner_args = _agent_work_runner_args(args)
+    try:
+        result = _run_runner_work_once(runner_args)
+        result["compatibility"] = {
+            "mode": "runner-primary",
+            "legacy_fallback": False,
+        }
+        return result
+    except RuntimeError as exc:
+        if not _agent_work_should_use_legacy_fallback(args, exc):
+            raise
+        result = _run_worker_once(args)
+        result["compatibility"] = {
+            "mode": "legacy-checkpoint-fallback",
+            "legacy_fallback": True,
+            "reason": str(exc),
+        }
+        return result
+
+
 def cmd_agent_work(args: argparse.Namespace) -> int:
     poll_interval = max(1, int(getattr(args, "poll_interval", 30)))
     if bool(getattr(args, "once", False)):
-        result = _run_worker_once(args)
+        result = _run_agent_work_compat_once(args)
         if args.json_output:
             _print_json(result)
         else:
-            if not result.get("claimed"):
-                print("job.claimed=false")
-                print("job.status=idle")
-            else:
-                checkpoint = result.get("job", {}).get("checkpoint", {}) if isinstance(result.get("job"), dict) else {}
-                print("job.claimed=true")
-                print(f"checkpoint.id={str(checkpoint.get('id', '')).strip()}")
-                if result.get("dry_run"):
-                    print("job.mode=dry-run")
-                else:
-                    response = result.get("response", {}) if isinstance(result.get("response"), dict) else {}
-                    print(f"response.id={str(response.get('id', '')).strip()}")
-                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
+            _print_agent_work_result(result)
         return 0 if result.get("ok", True) else 1
 
     while True:
-        result = _run_worker_once(args)
+        result = _run_agent_work_compat_once(args)
         if args.json_output:
             _print_json(result)
         else:
-            if result.get("claimed"):
-                checkpoint = result.get("job", {}).get("checkpoint", {}) if isinstance(result.get("job"), dict) else {}
-                print("job.claimed=true")
-                print(f"checkpoint.id={str(checkpoint.get('id', '')).strip()}")
-                if result.get("dry_run"):
-                    print("job.mode=dry-run")
-                else:
-                    response = result.get("response", {}) if isinstance(result.get("response"), dict) else {}
-                    print(f"response.id={str(response.get('id', '')).strip()}")
-                    print(f"response.ok={str(bool(result.get('ok', False))).lower()}")
-            else:
-                print("job.claimed=false")
-                print("job.status=idle")
+            _print_agent_work_result(result)
         sys.stdout.flush()
         if not result.get("ok", True):
             return 1
+        if result.get("claimed"):
+            continue
+        compatibility = result.get("compatibility", {}) if isinstance(result.get("compatibility"), dict) else {}
+        if (
+            str(compatibility.get("mode", "")).strip() == "runner-primary"
+            and not bool(compatibility.get("legacy_fallback"))
+        ):
+            _wait_for_next_runner_cycle(args, poll_interval)
+            continue
         time.sleep(poll_interval)
 
 
@@ -4368,6 +11095,15 @@ def build_parser() -> argparse.ArgumentParser:
             help=f"Hosted ORP base URL (default: {DEFAULT_HOSTED_BASE_URL} or saved session)",
         )
 
+    def add_secret_scope_flags(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--world-id", default="", help="Hosted world id")
+        parser.add_argument("--idea-id", default="", help="Hosted idea id")
+        parser.add_argument(
+            "--current-project",
+            action="store_true",
+            help="Use the linked project/world from --repo-root when world/idea ids are omitted",
+        )
+
     def add_feature_body_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--notes", default=None, help="Feature notes/body")
         parser.add_argument("--detail", default=None, help="Primary detail section body")
@@ -4419,6 +11155,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_auth_login = auth_sub.add_parser("login", help="Start hosted workspace login flow")
     s_auth_login.add_argument("--email", default="", help="Hosted account email")
     s_auth_login.add_argument("--password", default="", help="Hosted account password")
+    s_auth_login.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="Read the hosted account password from stdin",
+    )
     add_base_url_flag(s_auth_login)
     add_json_flag(s_auth_login)
     s_auth_login.set_defaults(func=cmd_auth_login, json_output=False)
@@ -4426,6 +11167,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_auth_verify = auth_sub.add_parser("verify", help="Complete hosted workspace verification")
     s_auth_verify.add_argument("--email", default="", help="Hosted account email")
     s_auth_verify.add_argument("--code", default="", help="Verification code")
+    s_auth_verify.add_argument(
+        "--code-stdin",
+        action="store_true",
+        help="Read the verification code from stdin",
+    )
     add_base_url_flag(s_auth_verify)
     add_json_flag(s_auth_verify)
     s_auth_verify.set_defaults(func=cmd_auth_verify, json_output=False)
@@ -4565,8 +11311,442 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_world_bind)
     s_world_bind.set_defaults(func=cmd_world_bind, json_output=False)
 
-    s_checkpoint = sub.add_parser("checkpoint", help="Hosted checkpoint queue operations")
+    s_secrets = sub.add_parser("secrets", help="Hosted secret store and project binding operations")
+    secrets_sub = s_secrets.add_subparsers(dest="secrets_cmd", required=True)
+
+    s_secrets_list = secrets_sub.add_parser("list", help="List hosted secrets for the current user")
+    s_secrets_list.add_argument("--provider", default="", help="Optional provider filter")
+    add_secret_scope_flags(s_secrets_list)
+    s_secrets_list.add_argument(
+        "--archived",
+        action="store_true",
+        help="Include archived secrets",
+    )
+    add_base_url_flag(s_secrets_list)
+    add_json_flag(s_secrets_list)
+    s_secrets_list.set_defaults(func=cmd_secrets_list, json_output=False)
+
+    s_secrets_show = secrets_sub.add_parser("show", help="Show one hosted secret by alias or id")
+    s_secrets_show.add_argument("secret_ref", help="Secret alias or id")
+    add_base_url_flag(s_secrets_show)
+    add_json_flag(s_secrets_show)
+    s_secrets_show.set_defaults(func=cmd_secrets_show, json_output=False)
+
+    s_secrets_add = secrets_sub.add_parser("add", help="Create a hosted secret")
+    s_secrets_add.add_argument("--alias", required=True, help="Stable secret alias")
+    s_secrets_add.add_argument("--label", required=True, help="Human label for the secret")
+    s_secrets_add.add_argument("--provider", required=True, help="Provider slug, for example openai")
+    s_secrets_add.add_argument(
+        "--kind",
+        choices=["api_key", "access_token", "password", "other"],
+        default="api_key",
+        help="Secret kind (default: api_key)",
+    )
+    s_secrets_add.add_argument("--env-var-name", default=None, help="Optional env var name, for example OPENAI_API_KEY")
+    s_secrets_add.add_argument("--value", default=None, help="Secret value")
+    s_secrets_add.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help="Read the secret value from stdin",
+    )
+    s_secrets_add.add_argument("--notes", default=None, help="Optional notes")
+    add_secret_scope_flags(s_secrets_add)
+    s_secrets_add.add_argument("--purpose", default="", help="Optional project usage note when binding")
+    s_secrets_add.add_argument(
+        "--primary",
+        action="store_true",
+        help="Mark the binding as primary for the project when binding during create",
+    )
+    add_base_url_flag(s_secrets_add)
+    add_json_flag(s_secrets_add)
+    s_secrets_add.set_defaults(func=cmd_secrets_add, json_output=False)
+
+    s_secrets_update = secrets_sub.add_parser("update", help="Update one hosted secret")
+    s_secrets_update.add_argument("secret_ref", help="Secret alias or id")
+    s_secrets_update.add_argument("--alias", default=None, help="New alias")
+    s_secrets_update.add_argument("--label", default=None, help="New label")
+    s_secrets_update.add_argument("--provider", default=None, help="Provider slug")
+    s_secrets_update.add_argument(
+        "--kind",
+        choices=["api_key", "access_token", "password", "other"],
+        default=None,
+        help="Secret kind",
+    )
+    s_secrets_update.add_argument("--env-var-name", default=None, help="Updated env var name")
+    s_secrets_update.add_argument("--value", default=None, help="New secret value")
+    s_secrets_update.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help="Read the new secret value from stdin",
+    )
+    s_secrets_update.add_argument("--notes", default=None, help="Updated notes")
+    s_secrets_update.add_argument(
+        "--status",
+        choices=["active", "archived", "revoked"],
+        default=None,
+        help="Update the secret status",
+    )
+    add_base_url_flag(s_secrets_update)
+    add_json_flag(s_secrets_update)
+    s_secrets_update.set_defaults(func=cmd_secrets_update, json_output=False)
+
+    s_secrets_archive = secrets_sub.add_parser("archive", help="Archive one hosted secret")
+    s_secrets_archive.add_argument("secret_ref", help="Secret alias or id")
+    add_base_url_flag(s_secrets_archive)
+    add_json_flag(s_secrets_archive)
+    s_secrets_archive.set_defaults(func=cmd_secrets_archive, json_output=False)
+
+    s_secrets_bind = secrets_sub.add_parser("bind", help="Bind one secret to a hosted project/world")
+    s_secrets_bind.add_argument("secret_ref", help="Secret alias or id")
+    add_secret_scope_flags(s_secrets_bind)
+    s_secrets_bind.add_argument("--purpose", default="", help="Optional project usage note")
+    s_secrets_bind.add_argument(
+        "--primary",
+        action="store_true",
+        help="Mark the binding as primary for the target project",
+    )
+    add_base_url_flag(s_secrets_bind)
+    add_json_flag(s_secrets_bind)
+    s_secrets_bind.set_defaults(func=cmd_secrets_bind, json_output=False)
+
+    s_secrets_unbind = secrets_sub.add_parser("unbind", help="Remove one hosted secret binding")
+    s_secrets_unbind.add_argument("binding_id", help="Hosted binding id")
+    add_base_url_flag(s_secrets_unbind)
+    add_json_flag(s_secrets_unbind)
+    s_secrets_unbind.set_defaults(func=cmd_secrets_unbind, json_output=False)
+
+    s_secrets_resolve = secrets_sub.add_parser(
+        "resolve",
+        help="Resolve one hosted secret by alias/id or by provider plus project scope",
+    )
+    s_secrets_resolve.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
+    s_secrets_resolve.add_argument("--provider", default="", help="Provider slug for project-scoped resolution")
+    add_secret_scope_flags(s_secrets_resolve)
+    s_secrets_resolve.add_argument(
+        "--reveal",
+        action="store_true",
+        help="Return the plaintext value in the command output",
+    )
+    add_base_url_flag(s_secrets_resolve)
+    add_json_flag(s_secrets_resolve)
+    s_secrets_resolve.set_defaults(func=cmd_secrets_resolve, json_output=False)
+
+    s_link = sub.add_parser(
+        "link",
+        help="Machine-local project and session linking for hosted ORP routing",
+    )
+    link_sub = s_link.add_subparsers(dest="link_cmd", required=True)
+
+    s_link_project = link_sub.add_parser("project", help="Project-level link operations")
+    link_project_sub = s_link_project.add_subparsers(dest="link_project_cmd", required=True)
+
+    s_link_project_bind = link_project_sub.add_parser(
+        "bind",
+        help="Bind the current repo to a hosted idea/world and save local link metadata",
+    )
+    s_link_project_bind.add_argument("--idea-id", required=True, help="Hosted idea id")
+    s_link_project_bind.add_argument("--idea-title", default="", help="Optional hosted idea title")
+    s_link_project_bind.add_argument("--name", default="", help="Optional world name override")
+    s_link_project_bind.add_argument(
+        "--project-root",
+        default="",
+        help="Project root override; must match the current --repo-root",
+    )
+    s_link_project_bind.add_argument("--github-url", default="", help="Optional GitHub/web URL override")
+    s_link_project_bind.add_argument("--codex-session-id", default="", help="Primary Codex session id override")
+    s_link_project_bind.add_argument("--notes", default="", help="Optional local notes stored with the link")
+    add_base_url_flag(s_link_project_bind)
+    add_json_flag(s_link_project_bind)
+    s_link_project_bind.set_defaults(func=cmd_link_project_bind, json_output=False)
+
+    s_link_project_show = link_project_sub.add_parser(
+        "show",
+        help="Show the locally stored linked-project record",
+    )
+    add_json_flag(s_link_project_show)
+    s_link_project_show.set_defaults(func=cmd_link_project_show, json_output=False)
+
+    s_link_project_status = link_project_sub.add_parser(
+        "status",
+        help="Show linked-project status with local sessions and hosted refresh info",
+    )
+    add_base_url_flag(s_link_project_status)
+    add_json_flag(s_link_project_status)
+    s_link_project_status.set_defaults(func=cmd_link_project_status, json_output=False)
+
+    s_link_project_unbind = link_project_sub.add_parser(
+        "unbind",
+        help="Remove the local linked-project record without deleting hosted state",
+    )
+    add_json_flag(s_link_project_unbind)
+    s_link_project_unbind.set_defaults(func=cmd_link_project_unbind, json_output=False)
+
+    s_link_session = link_sub.add_parser("session", help="Machine-local linked session operations")
+    link_session_sub = s_link_session.add_subparsers(dest="link_session_cmd", required=True)
+
+    s_link_session_register = link_session_sub.add_parser(
+        "register",
+        help="Register or update a linked ORP session for this repo",
+    )
+    s_link_session_register.add_argument("--orp-session-id", required=True, help="ORP session id")
+    s_link_session_register.add_argument("--label", required=True, help="Human label for the session")
+    s_link_session_register.add_argument("--codex-session-id", default=None, help="Linked Codex session id")
+    s_link_session_register.add_argument(
+        "--project-root",
+        default="",
+        help="Project root override; must match the current --repo-root",
+    )
+    s_link_session_register.add_argument(
+        "--state",
+        choices=["active", "closed"],
+        default="active",
+        help="Linked session state (default: active)",
+    )
+    s_link_session_register.add_argument(
+        "--role",
+        choices=["primary", "secondary", "review", "exploration", "other"],
+        default=None,
+        help="Optional local role hint",
+    )
+    s_link_session_register.add_argument("--created-at", default=None, help="Optional creation timestamp override")
+    s_link_session_register.add_argument(
+        "--last-active-at",
+        default=None,
+        help="Optional last-active timestamp override",
+    )
+    s_link_session_register.add_argument("--window-id", type=int, default=None, help="Optional terminal window id")
+    s_link_session_register.add_argument("--tab-number", type=int, default=None, help="Optional terminal tab number")
+    s_link_session_register.add_argument(
+        "--archived",
+        action="store_true",
+        default=None,
+        help="Register the session as archived",
+    )
+    s_link_session_register.add_argument(
+        "--primary",
+        action="store_true",
+        default=None,
+        help="Mark this session as the primary linked session",
+    )
+    s_link_session_register.add_argument("--notes", default=None, help="Optional local notes stored with the session")
+    add_json_flag(s_link_session_register)
+    s_link_session_register.set_defaults(func=cmd_link_session_register, json_output=False)
+
+    s_link_session_list = link_session_sub.add_parser("list", help="List linked sessions for this repo")
+    add_json_flag(s_link_session_list)
+    s_link_session_list.set_defaults(func=cmd_link_session_list, json_output=False)
+
+    s_link_session_show = link_session_sub.add_parser("show", help="Show one linked session")
+    s_link_session_show.add_argument("orp_session_id", help="Linked ORP session id")
+    add_json_flag(s_link_session_show)
+    s_link_session_show.set_defaults(func=cmd_link_session_show, json_output=False)
+
+    s_link_session_set_primary = link_session_sub.add_parser(
+        "set-primary",
+        help="Set the primary linked session for this repo",
+    )
+    s_link_session_set_primary.add_argument("orp_session_id", help="Linked ORP session id")
+    add_json_flag(s_link_session_set_primary)
+    s_link_session_set_primary.set_defaults(func=cmd_link_session_set_primary, json_output=False)
+
+    s_link_session_archive = link_session_sub.add_parser("archive", help="Archive one linked session")
+    s_link_session_archive.add_argument("orp_session_id", help="Linked ORP session id")
+    add_json_flag(s_link_session_archive)
+    s_link_session_archive.set_defaults(func=cmd_link_session_archive, json_output=False)
+
+    s_link_session_unarchive = link_session_sub.add_parser("unarchive", help="Unarchive one linked session")
+    s_link_session_unarchive.add_argument("orp_session_id", help="Linked ORP session id")
+    add_json_flag(s_link_session_unarchive)
+    s_link_session_unarchive.set_defaults(func=cmd_link_session_unarchive, json_output=False)
+
+    s_link_session_remove = link_session_sub.add_parser("remove", help="Remove one linked session")
+    s_link_session_remove.add_argument("orp_session_id", help="Linked ORP session id")
+    add_json_flag(s_link_session_remove)
+    s_link_session_remove.set_defaults(func=cmd_link_session_remove, json_output=False)
+
+    s_link_session_import_rust = link_session_sub.add_parser(
+        "import-rust",
+        help="Import Rust desktop app .orp metadata into CLI link storage",
+    )
+    add_json_flag(s_link_session_import_rust)
+    s_link_session_import_rust.set_defaults(func=cmd_link_session_import_rust, json_output=False)
+
+    s_link_import_rust = link_sub.add_parser(
+        "import-rust",
+        help="Import Rust desktop app project and session metadata into CLI link storage",
+    )
+    s_link_import_rust.add_argument(
+        "--all",
+        action="store_true",
+        help="Import both .orp/project.json and .orp/sessions/*.json into CLI link storage",
+    )
+    add_json_flag(s_link_import_rust)
+    s_link_import_rust.set_defaults(func=cmd_link_import_rust, json_output=False)
+
+    s_link_status = link_sub.add_parser("status", help="Show linked project/session status for this repo")
+    add_base_url_flag(s_link_status)
+    add_json_flag(s_link_status)
+    s_link_status.set_defaults(func=cmd_link_status, json_output=False)
+
+    s_link_doctor = link_sub.add_parser("doctor", help="Validate local project/session link health")
+    s_link_doctor.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when warnings are present",
+    )
+    add_base_url_flag(s_link_doctor)
+    add_json_flag(s_link_doctor)
+    s_link_doctor.set_defaults(func=cmd_link_doctor, json_output=False)
+
+    s_runner = sub.add_parser("runner", help="Machine runner identity and hosted sync operations")
+    runner_sub = s_runner.add_subparsers(dest="runner_cmd", required=True)
+
+    s_runner_status = runner_sub.add_parser("status", help="Show machine runner state for this repo")
+    add_base_url_flag(s_runner_status)
+    add_json_flag(s_runner_status)
+    s_runner_status.set_defaults(func=cmd_runner_status, json_output=False)
+
+    s_runner_enable = runner_sub.add_parser("enable", help="Enable the machine runner locally")
+    add_json_flag(s_runner_enable)
+    s_runner_enable.set_defaults(func=cmd_runner_enable, json_output=False)
+
+    s_runner_disable = runner_sub.add_parser("disable", help="Disable the machine runner locally")
+    add_json_flag(s_runner_disable)
+    s_runner_disable.set_defaults(func=cmd_runner_disable, json_output=False)
+
+    s_runner_heartbeat = runner_sub.add_parser(
+        "heartbeat",
+        help="Send one hosted runner heartbeat and persist the local heartbeat timestamp",
+    )
+    add_base_url_flag(s_runner_heartbeat)
+    add_json_flag(s_runner_heartbeat)
+    s_runner_heartbeat.set_defaults(func=cmd_runner_heartbeat, json_output=False)
+
+    s_runner_sync = runner_sub.add_parser(
+        "sync",
+        help="Sync the current repo's linked project/session inventory to the hosted app",
+    )
+    s_runner_sync.add_argument(
+        "--linked-project-root",
+        dest="linked_project_roots",
+        action="append",
+        default=[],
+        help="Additional linked project root to include in this machine sync; repeat for multiple repos",
+    )
+    add_base_url_flag(s_runner_sync)
+    add_json_flag(s_runner_sync)
+    s_runner_sync.set_defaults(func=cmd_runner_sync, json_output=False)
+
+    s_runner_work = runner_sub.add_parser(
+        "work",
+        help="Poll and process hosted runner jobs for the current linked repo",
+    )
+    s_runner_work.add_argument("--codex-bin", default="", help="Codex executable path")
+    s_runner_work.add_argument(
+        "--codex-config-profile",
+        default="",
+        help="Optional Codex config profile passed via CODEX_PROFILE",
+    )
+    s_runner_work.add_argument(
+        "--poll-interval",
+        type=int,
+        default=30,
+        help="Poll interval in seconds for continuous mode (default: 30)",
+    )
+    s_runner_work.add_argument(
+        "--transport",
+        choices=["auto", "poll", "sse"],
+        default="auto",
+        help="Wait strategy between idle runner cycles (default: auto)",
+    )
+    s_runner_work.add_argument(
+        "--heartbeat-interval",
+        type=int,
+        default=20,
+        help="Heartbeat interval in seconds while waiting or executing (default: 20)",
+    )
+    s_runner_work.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Claim jobs but do not start or execute them",
+    )
+    s_runner_work.add_argument(
+        "--linked-project-root",
+        dest="linked_project_roots",
+        action="append",
+        default=[],
+        help="Additional linked project root to include in this machine worker; repeat for multiple repos",
+    )
+    s_runner_work.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single poll/claim cycle and exit",
+    )
+    s_runner_work.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Explicitly keep polling until interrupted (default behavior when --once is omitted)",
+    )
+    add_base_url_flag(s_runner_work)
+    add_json_flag(s_runner_work)
+    s_runner_work.set_defaults(func=cmd_runner_work, json_output=False)
+
+    s_runner_cancel = runner_sub.add_parser(
+        "cancel",
+        help="Cancel the active hosted runner job for this repo or one explicit job id",
+    )
+    s_runner_cancel.add_argument("job_id", nargs="?", default="", help="Optional hosted runner job id")
+    s_runner_cancel.add_argument("--lease-id", default="", help="Optional hosted lease id override")
+    s_runner_cancel.add_argument("--reason", default="", help="Optional cancellation reason")
+    s_runner_cancel.add_argument(
+        "--linked-project-root",
+        dest="linked_project_roots",
+        action="append",
+        default=[],
+        help="Additional linked project root to search for an active runner lease; repeat for multiple repos",
+    )
+    add_base_url_flag(s_runner_cancel)
+    add_json_flag(s_runner_cancel)
+    s_runner_cancel.set_defaults(func=cmd_runner_cancel, json_output=False)
+
+    s_runner_retry = runner_sub.add_parser(
+        "retry",
+        help="Retry the most recent hosted runner job for this repo or one explicit job id",
+    )
+    s_runner_retry.add_argument("job_id", nargs="?", default="", help="Optional hosted runner job id")
+    s_runner_retry.add_argument("--lease-id", default="", help="Optional hosted lease id override")
+    s_runner_retry.add_argument("--reason", default="", help="Optional retry reason")
+    s_runner_retry.add_argument(
+        "--linked-project-root",
+        dest="linked_project_roots",
+        action="append",
+        default=[],
+        help="Additional linked project root to search for a retry target; repeat for multiple repos",
+    )
+    add_base_url_flag(s_runner_retry)
+    add_json_flag(s_runner_retry)
+    s_runner_retry.set_defaults(func=cmd_runner_retry, json_output=False)
+
+    s_checkpoint = sub.add_parser("checkpoint", help="Checkpoint operations")
     checkpoint_sub = s_checkpoint.add_subparsers(dest="checkpoint_cmd", required=True)
+
+    s_checkpoint_create = checkpoint_sub.add_parser(
+        "create",
+        help="Stage changes and create a local governance checkpoint commit",
+    )
+    s_checkpoint_create.add_argument(
+        "-m",
+        "--message",
+        required=True,
+        help="Checkpoint note used in the commit message and ORP checkpoint log",
+    )
+    s_checkpoint_create.add_argument(
+        "--allow-protected-branch",
+        action="store_true",
+        help="Explicitly allow checkpointing while on a protected branch",
+    )
+    add_json_flag(s_checkpoint_create)
+    s_checkpoint_create.set_defaults(func=cmd_checkpoint_create, json_output=False)
 
     s_checkpoint_queue = checkpoint_sub.add_parser("queue", help="Queue a hosted checkpoint review")
     s_checkpoint_queue.add_argument("--idea-id", required=True, help="Hosted idea id")
@@ -4613,10 +11793,13 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_checkpoint_queue)
     s_checkpoint_queue.set_defaults(func=cmd_checkpoint_queue, json_output=False)
 
-    s_agent = sub.add_parser("agent", help="Hosted checkpoint worker operations")
+    s_agent = sub.add_parser("agent", help="Compatibility worker commands with runner-first fallback behavior")
     agent_sub = s_agent.add_subparsers(dest="agent_cmd", required=True)
 
-    s_agent_work = agent_sub.add_parser("work", help="Poll and process hosted checkpoint jobs")
+    s_agent_work = agent_sub.add_parser(
+        "work",
+        help="Compatibility alias for runner work with legacy checkpoint fallback",
+    )
     s_agent_work.add_argument("--agent", default="", help="Optional agent/world selector")
     s_agent_work.add_argument("--codex-bin", default="", help="Codex executable path")
     s_agent_work.add_argument(
@@ -4629,6 +11812,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=30,
         help="Poll interval in seconds for continuous mode (default: 30)",
+    )
+    s_agent_work.add_argument(
+        "--transport",
+        choices=["auto", "poll", "sse"],
+        default="auto",
+        help="Wait strategy between idle runner-primary cycles (default: auto)",
     )
     s_agent_work.add_argument(
         "--dry-run",
@@ -4871,7 +12060,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_collab_run.set_defaults(func=cmd_collaborate_run, json_output=False)
 
-    s_init = sub.add_parser("init", help="Initialize runtime folders and starter config")
+    s_init = sub.add_parser("init", help="Make this repo ORP-governed with local-first git safety")
+    s_init.add_argument(
+        "--default-branch",
+        default="main",
+        help="Protected/default branch expectation (default: main)",
+    )
+    s_init.add_argument(
+        "--github-repo",
+        default="",
+        help="Optional GitHub repo context as owner/repo",
+    )
+    s_init.add_argument(
+        "--remote-url",
+        default="",
+        help="Optional remote URL to record in ORP governance metadata",
+    )
+    s_init.add_argument(
+        "--allow-protected-branch-work",
+        action="store_true",
+        help="Allow ORP governance to treat protected-branch work as explicitly permitted",
+    )
     s_init.add_argument(
         "--json",
         dest="json_output",
@@ -4879,6 +12088,98 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print machine-readable JSON",
     )
     s_init.set_defaults(func=cmd_init, json_output=False)
+
+    s_status = sub.add_parser("status", help="Show ORP repo governance safety and runtime status")
+    add_json_flag(s_status)
+    s_status.set_defaults(func=cmd_status, json_output=False)
+
+    s_branch = sub.add_parser("branch", help="ORP repo governance branch operations")
+    branch_sub = s_branch.add_subparsers(dest="branch_cmd", required=True)
+    s_branch_start = branch_sub.add_parser(
+        "start",
+        help="Create or switch to a safe work branch for meaningful edits",
+    )
+    s_branch_start.add_argument("name", help="Work branch name")
+    s_branch_start.add_argument(
+        "--from",
+        dest="from_ref",
+        default="",
+        help="Base ref for new branch creation (default: current branch or HEAD)",
+    )
+    s_branch_start.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Allow branch creation/switching when the working tree is dirty",
+    )
+    add_json_flag(s_branch_start)
+    s_branch_start.set_defaults(func=cmd_branch_start, json_output=False)
+
+    s_backup = sub.add_parser(
+        "backup",
+        help="Create a safe checkpointed backup and push it to a dedicated remote ref when possible",
+    )
+    s_backup.add_argument(
+        "-m",
+        "--message",
+        default="",
+        help="Optional checkpoint note when dirty local changes need to be captured before backup",
+    )
+    s_backup.add_argument(
+        "--remote",
+        default="",
+        help="Optional remote name override (default: upstream remote or origin when configured)",
+    )
+    s_backup.add_argument(
+        "--prefix",
+        default="orp/backup",
+        help="Remote branch prefix for pushed backup refs (default: orp/backup)",
+    )
+    s_backup.add_argument(
+        "--allow-protected-branch",
+        action="store_true",
+        help="Allow checkpointing directly on a protected branch instead of auto-creating a backup work branch",
+    )
+    add_json_flag(s_backup)
+    s_backup.set_defaults(func=cmd_backup, json_output=False)
+
+    s_ready = sub.add_parser("ready", help="Mark the repo locally ready after validation and checkpointing")
+    s_ready.add_argument("--run-id", default="", help="Optional validation run id override")
+    s_ready.add_argument("--run-json", default="", help="Optional validation RUN.json path override")
+    s_ready.add_argument(
+        "--require-remote-ready",
+        action="store_true",
+        help="Fail unless remote-aware readiness conditions are also satisfied",
+    )
+    add_json_flag(s_ready)
+    s_ready.set_defaults(func=cmd_ready, json_output=False)
+
+    s_doctor = sub.add_parser("doctor", help="Inspect and optionally repair ORP governance health")
+    s_doctor.add_argument(
+        "--fix",
+        action="store_true",
+        help="Repair missing governance runtime files when safe to do so",
+    )
+    s_doctor.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when warnings are present",
+    )
+    add_json_flag(s_doctor)
+    s_doctor.set_defaults(func=cmd_doctor, json_output=False)
+
+    s_cleanup = sub.add_parser("cleanup", help="Inspect or apply safe stale-branch cleanup operations")
+    s_cleanup.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply the requested cleanup operations instead of only reporting them",
+    )
+    s_cleanup.add_argument(
+        "--delete-merged",
+        action="store_true",
+        help="Delete local branches that are already merged into the protected default branch",
+    )
+    add_json_flag(s_cleanup)
+    s_cleanup.set_defaults(func=cmd_cleanup, json_output=False)
 
     s_gate = sub.add_parser("gate", help="Gate operations")
     gate_sub = s_gate.add_subparsers(dest="gate_cmd", required=True)

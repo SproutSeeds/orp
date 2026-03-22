@@ -21,6 +21,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `PROTOCOL.md` — the protocol to copy into a project
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
+- `docs/CANONICAL_CLI_BOUNDARY.md` — canonical source-of-truth boundary between CLI, Rust, and web
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates
@@ -39,6 +40,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 ORP should feel like one CLI with built-in abilities:
 
 - `workspace` for hosted auth, idea, feature, world, checkpoint, and worker operations
+- `governance` for local-first repo initialization, branch safety, checkpoint commits, backup refs, readiness, repair, and cleanup
 - `discover` for profile-based GitHub scanning and opportunity selection
 - `collaborate` for repository collaboration setup and workflow execution
 - `erdos` for Erdos-specific data and workflow support
@@ -68,7 +70,13 @@ Fresh-directory smoke test:
 mkdir test-orp && cd test-orp
 npm i -g open-research-protocol
 orp init
+orp status --json
+orp branch start work/bootstrap --allow-dirty --json
+orp checkpoint create -m "bootstrap governance" --json
+orp backup -m "backup bootstrap work" --json
 orp gate run --profile default
+orp checkpoint create -m "capture passing validation" --json
+orp ready --json
 orp packet emit --profile default
 orp report summary
 find orp -maxdepth 3 -type f | sort
@@ -78,8 +86,10 @@ What this proves:
 
 - the global `orp` binary resolves,
 - running bare `orp` opens the CLI home screen with packs and quick actions,
-- the runtime can initialize a repo-local ORP workspace,
+- the runtime can initialize a repo-local ORP-governed workspace,
+- branch safety and checkpoint mechanics are available locally from day one,
 - a gate run writes `RUN.json`,
+- readiness can be marked explicitly after validation plus checkpointing,
 - packet emit writes process metadata to `orp/packets/`,
 - and report summary renders a one-page digest from the last run.
 
@@ -100,7 +110,16 @@ orp whoami --json
 orp ideas list --json
 orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
 orp checkpoint queue --idea-id <idea-id> --json
-orp agent work --once --json
+orp runner work --once --json
+orp runner work --continuous --transport auto --json
+orp agent work --once --json   # compatibility alias with legacy checkpoint fallback
+orp status --json
+orp branch start work/<topic> --json
+orp checkpoint create -m "describe completed unit" --json
+orp backup -m "backup current work" --json
+orp ready --json
+orp doctor --json
+orp cleanup --json
 orp discover profile init --json
 orp discover github scan --profile orp.profile.default.json --json
 orp collaborate workflows --json
@@ -118,7 +137,8 @@ These surfaces are meant to help automated systems discover ORP quickly:
 
 - bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
 - `orp home --json` returns the same landing context in machine-readable form
-- `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
+- `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
+- `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
 - `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
 - `llms.txt` gives a concise repo/package map for agents that scan documentation.
@@ -146,15 +166,21 @@ Release process:
 1. Copy this folder into your repo (recommended location: `orp/`).
 2. Link to `orp/PROTOCOL.md` from your repo `README.md`.
 3. Customize **Canonical Paths** inside `orp/PROTOCOL.md` to match your repo layout.
-4. Use the templates for all new claims and verifications.
-5. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
+4. Run `orp init` in the repo root to establish ORP governance.
+5. Use `orp status`, `orp branch start`, `orp checkpoint create`, and `orp backup` as the default implementation loop.
+6. Use the templates for all new claims and verifications.
+7. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
 
 ## Quick start (new project)
 
 1. Copy this folder into a new project directory.
-2. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
-3. Start by adding one small claim + verification record using the templates.
-4. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
+2. Run `orp init` immediately so the repo starts ORP-governed.
+3. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
+4. Start implementation on a work branch with `orp branch start`.
+5. Create regular checkpoint commits with `orp checkpoint create`.
+6. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
+7. Start by adding one small claim + verification record using the templates.
+8. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
 
 **Activation is procedural/social, not runtime:** nothing “turns on” automatically. ORP works only if contributors follow it.
 
@@ -175,9 +201,16 @@ orp auth login
 orp ideas list --json
 orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
 orp checkpoint queue --idea-id <idea-id> --json
-orp agent work --once --json
+orp runner work --once --json
+orp runner work --continuous --transport auto --json
+orp agent work --once --json   # compatibility alias with legacy checkpoint fallback
 orp init
+orp status --json
+orp branch start work/<topic> --json
+orp checkpoint create -m "describe completed unit" --json
+orp backup -m "backup current work" --json
 orp gate run --profile default
+orp ready --json
 orp packet emit --profile default
 orp report summary --run-id <run_id>
 orp erdos sync
