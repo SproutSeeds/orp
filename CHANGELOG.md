@@ -6,6 +6,21 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.5 - 2026-03-22
+
+This follow-up release folds the new in-repo changelog into a published npm/tag
+artifact, so GitHub, npm, and tagged source all carry the same release notes.
+
+### Added
+
+- Added the first in-repo `CHANGELOG.md` to the published package and tagged
+  release artifact.
+
+### Changed
+
+- Tightened the release flow so the changelog now ships with the public npm
+  package instead of only living on `main` after the release.
+
 ## v0.4.4 - 2026-03-22
 
 This release establishes ORP as a CLI-first governance and hosted-workspace
