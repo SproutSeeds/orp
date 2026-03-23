@@ -8,6 +8,11 @@ The supporting benchmark artifact for this document is:
 
 - [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json)
 
+For the honest claim-by-claim evidence status and remaining research gaps, see:
+
+- [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
+- [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
+
 ## 1. Definition
 
 The ORP Reasoning Kernel is the typed artifact grammar and validation layer

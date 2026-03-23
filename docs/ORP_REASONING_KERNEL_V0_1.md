@@ -15,6 +15,11 @@ For the supporting benchmark evidence and alternatives analysis behind this
 design, see
 [docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md).
 
+For the explicit evidence gaps and next comparative experiments, see:
+
+- [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
+- [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
+
 It should make three things true at once:
 
 - humans can speak naturally at the boundary
