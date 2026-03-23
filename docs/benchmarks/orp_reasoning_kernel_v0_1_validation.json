@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_validation_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T04:42:53Z",
+    "repo_commit": "5c87faf4fbd54d203cc0ca05683544355c306d55",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "node_version": "v24.10.0",
+    "platform": "macOS-26.3-arm64-arm-64bit"
+  },
+  "benchmarks": {
+    "init_starter_kernel": {
+      "iterations": 5,
+      "observed": {
+        "init": {
+          "mean_ms": 245.853,
+          "median_ms": 242.029,
+          "min_ms": 239.454,
+          "max_ms": 257.57
+        },
+        "validate": {
+          "mean_ms": 169.097,
+          "median_ms": 167.938,
+          "min_ms": 165.273,
+          "max_ms": 173.245
+        },
+        "gate_run": {
+          "mean_ms": 242.618,
+          "median_ms": 239.599,
+          "min_ms": 238.174,
+          "max_ms": 252.913
+        }
+      },
+      "targets": {
+        "init_mean_lt_ms": 350.0,
+        "validate_mean_lt_ms": 200.0,
+        "gate_mean_lt_ms": 300.0
+      },
+      "meets_targets": {
+        "init": true,
+        "validate": true,
+        "gate_run": true
+      },
+      "sample_run_records": [
+        "orp/artifacts/run-20260323-044247-956825/RUN.json",
+        "orp/artifacts/run-20260323-044248-621472/RUN.json"
+      ]
+    },
+    "artifact_roundtrip": {
+      "artifact_classes_total": 7,
+      "rows": [
+        {
+          "artifact_class": "task",
+          "scaffold_ms": 162.963,
+          "validate_ms": 161.02
+        },
+        {
+          "artifact_class": "decision",
+          "scaffold_ms": 162.639,
+          "validate_ms": 161.466
+        },
+        {
+          "artifact_class": "hypothesis",
+          "scaffold_ms": 162.337,
+          "validate_ms": 165.228
+        },
+        {
+          "artifact_class": "experiment",
+          "scaffold_ms": 171.011,
+          "validate_ms": 160.825
+        },
+        {
+          "artifact_class": "checkpoint",
+          "scaffold_ms": 161.705,
+          "validate_ms": 163.51
+        },
+        {
+          "artifact_class": "policy",
+          "scaffold_ms": 160.807,
+          "validate_ms": 163.85
+        },
+        {
+          "artifact_class": "result",
+          "scaffold_ms": 163.882,
+          "validate_ms": 162.509
+        }
+      ],
+      "observed": {
+        "scaffold": {
+          "mean_ms": 163.621,
+          "median_ms": 162.639,
+          "min_ms": 160.807,
+          "max_ms": 171.011
+        },
+        "validate": {
+          "mean_ms": 162.63,
+          "median_ms": 162.509,
+          "min_ms": 160.825,
+          "max_ms": 165.228
+        }
+      },
+      "targets": {
+        "scaffold_mean_lt_ms": 200.0,
+        "validate_mean_lt_ms": 200.0
+      },
+      "meets_targets": {
+        "scaffold": true,
+        "validate": true
+      }
+    },
+    "gate_modes": {
+      "hard_mode": {
+        "ms": 174.339,
+        "exit_code": 1,
+        "overall": "FAIL",
+        "kernel_valid": false,
+        "missing_fields": [
+          "constraints",
+          "success_criteria"
+        ]
+      },
+      "soft_mode": {
+        "ms": 173.082,
+        "exit_code": 0,
+        "overall": "PASS",
+        "kernel_valid": false
+      },
+      "legacy_compatibility": {
+        "ms": 172.431,
+        "exit_code": 0,
+        "overall": "PASS",
+        "has_kernel_validation": false
+      },
+      "meets_expectations": {
+        "hard_blocks_invalid_artifact": true,
+        "soft_allows_invalid_artifact_with_advisory": true,
+        "legacy_structure_kernel_remains_compatible": true
+      }
+    }
+  },
+  "claims": [
+    {
+      "id": "starter_kernel_bootstrap",
+      "claim": "orp init seeds a valid starter kernel artifact and a passing default structure_kernel gate.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.init_starter_kernel",
+        "cli/orp.py",
+        "tests/test_orp_init.py"
+      ]
+    },
+    {
+      "id": "typed_artifact_roundtrip",
+      "claim": "All seven v0.1 artifact classes can be scaffolded and validated through the CLI.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.artifact_roundtrip",
+        "spec/v1/kernel.schema.json",
+        "tests/test_orp_kernel.py"
+      ]
+    },
+    {
+      "id": "promotion_enforcement_modes",
+      "claim": "Hard mode blocks invalid promotable artifacts, while soft mode records advisory issues without blocking.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.gate_modes",
+        "tests/test_orp_kernel.py"
+      ]
+    },
+    {
+      "id": "legacy_structure_kernel_compatibility",
+      "claim": "Existing structure_kernel gates without explicit kernel config remain compatible.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.gate_modes",
+        "cli/orp.py"
+      ]
+    },
+    {
+      "id": "local_cli_kernel_ergonomics",
+      "claim": "One-shot kernel CLI operations remain within human-scale local ergonomics targets on the reference machine.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.init_starter_kernel",
+        "benchmarks.artifact_roundtrip"
+      ]
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "artifact_classes_total": 7,
+    "all_performance_targets_met": true
+  }
+}

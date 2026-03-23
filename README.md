@@ -23,6 +23,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
 - `docs/CANONICAL_CLI_BOUNDARY.md` — canonical source-of-truth boundary between CLI, Rust, and web
 - `docs/ORP_REASONING_KERNEL_V0_1.md` — draft kernel model for turning loose intent into promotable canonical artifacts
+- `docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md` — technical rationale, benchmarks, and alternatives analysis for the kernel
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates

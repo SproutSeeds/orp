@@ -6,6 +6,31 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.7 - 2026-03-22
+
+This release adds the technical validation package for the ORP Reasoning
+Kernel, so the kernel ships with explicit evidence, benchmark data, and a
+repeatable validation harness rather than only conceptual docs.
+
+### Added
+
+- Added a technical validation note for the kernel:
+  - `docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md`
+- Added a repeatable benchmark and validation harness:
+  - `scripts/orp-kernel-benchmark.py`
+- Added a recorded benchmark artifact:
+  - `docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json`
+- Added a regression test for the benchmark harness:
+  - `tests/test_orp_kernel_benchmark.py`
+
+### Changed
+
+- Linked the kernel design note and README to the new technical validation
+  package.
+- Added explicit measured support for the kernel's bootstrap behavior,
+  artifact-class roundtrips, hard vs soft enforcement semantics, and local CLI
+  ergonomics.
+
 ## v0.4.6 - 2026-03-22
 
 This release turns the ORP Reasoning Kernel into a real CLI surface instead of

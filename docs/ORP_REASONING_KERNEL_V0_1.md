@@ -11,6 +11,10 @@ The ORP Reasoning Kernel is the artifact-shaping grammar that interprets
 intent, validates structure, and governs promotion into canonical repository
 truth.
 
+For the supporting benchmark evidence and alternatives analysis behind this
+design, see
+[docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md).
+
 It should make three things true at once:
 
 - humans can speak naturally at the boundary
