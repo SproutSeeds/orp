@@ -17,6 +17,11 @@ design, see
 
 For the explicit evidence gaps and next comparative experiments, see:
 
+- [docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_EVOLUTION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVOLUTION.md)
 - [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
 - [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
 
@@ -446,6 +451,7 @@ Rust and web should reflect the kernel, not redefine it.
 That means:
 
 - kernel schema and validation rules belong in the CLI
+- kernel observation, proposal, and migration rules belong in the CLI
 - Rust may expose kernel views, prompts, or editing affordances
 - web may expose kernel-backed artifact cards and review surfaces
 - neither Rust nor web should invent competing kernel semantics

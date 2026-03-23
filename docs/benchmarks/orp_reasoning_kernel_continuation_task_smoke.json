@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_continuation_pilot_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T07:51:38Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "codex_version": "codex-cli 0.116.0",
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "model": "default"
+  },
+  "corpus": {
+    "cases_total": 1,
+    "domains": [
+      "software"
+    ],
+    "artifact_classes": [
+      "task"
+    ]
+  },
+  "conditions": {
+    "freeform": {
+      "condition": "freeform",
+      "cases_total": 1,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 0.889,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.333,
+          "next_action_present": true,
+          "answers": {
+            "object": "terminal trace widget for lane monitoring",
+            "constraints": "stay terminal-first and low friction",
+            "success_criteria": "let operators tell quickly when a lane is drifting"
+          },
+          "explicitly_missing_count": 2,
+          "recommended_next_action": "Sketch the event inputs and a compact terminal panel layout for the lane-monitoring trace widget."
+        }
+      ],
+      "mean_continuation_score": 0.889,
+      "mean_carry_forward_score": 1.0,
+      "mean_invention_rate": 0.333,
+      "mean_confidence": 0.96,
+      "mean_elapsed_ms": 14495.965
+    },
+    "generic_checklist": {
+      "condition": "generic_checklist",
+      "cases_total": 1,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "object": "Build the terminal trace widget for lane monitoring, focused on terminal-first lane visibility in active ORP sessions.",
+            "constraints": "low friction; no GUI dependency",
+            "success_criteria": "An operator can identify a drifting lane quickly."
+          },
+          "explicitly_missing_count": 6,
+          "recommended_next_action": "Define the event schema for lane-monitoring inputs, then implement a first terminal rendering pass centered on a compact summary row that helps operators spot drifting lanes quickly without surfacing every event."
+        }
+      ],
+      "mean_continuation_score": 1.0,
+      "mean_carry_forward_score": 1.0,
+      "mean_invention_rate": 0.0,
+      "mean_confidence": 0.9,
+      "mean_elapsed_ms": 12499.244
+    },
+    "kernel": {
+      "condition": "kernel",
+      "cases_total": 1,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "object": "terminal trace widget",
+            "constraints": "[\"low friction\",\"no GUI dependency\"]",
+            "success_criteria": "[\"an operator can identify a drifting lane within 10 seconds\",\"the widget does not overload the terminal surface\"]"
+          },
+          "explicitly_missing_count": 5,
+          "recommended_next_action": "Locate the existing terminal trace widget surface or draft a minimal terminal-first widget spec for active ORP sessions, with explicit representations for lane drift and state that can be scanned in under 10 seconds without cluttering the terminal."
+        }
+      ],
+      "mean_continuation_score": 1.0,
+      "mean_carry_forward_score": 1.0,
+      "mean_invention_rate": 0.0,
+      "mean_confidence": 0.92,
+      "mean_elapsed_ms": 22262.331
+    }
+  },
+  "pairwise": {
+    "kernel_vs_generic_checklist": {
+      "left": "kernel",
+      "right": "generic_checklist",
+      "wins": 0,
+      "ties": 1,
+      "losses": 0,
+      "mean_continuation_score_delta": 0.0
+    },
+    "kernel_vs_freeform": {
+      "left": "kernel",
+      "right": "freeform",
+      "wins": 1,
+      "ties": 0,
+      "losses": 0,
+      "mean_continuation_score_delta": 0.111
+    }
+  },
+  "claims": [
+    {
+      "id": "kernel_outscores_generic_checklist_on_continuation",
+      "claim": "On the matched live continuation simulation, kernel artifacts support a downstream continuation score that meets or exceeds generic checklist artifacts without a higher invention rate.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_freeform_on_continuation",
+      "claim": "On the matched live continuation simulation, kernel artifacts support a stronger downstream continuation score than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_minimizes_continuation_invention",
+      "claim": "On the matched live continuation simulation, kernel artifacts minimize unsupported carry-forward invention.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_continuation_score": 1.0,
+    "generic_checklist_mean_continuation_score": 1.0,
+    "freeform_mean_continuation_score": 0.889,
+    "kernel_mean_invention_rate": 0.0,
+    "generic_checklist_mean_invention_rate": 0.0,
+    "freeform_mean_invention_rate": 0.333
+  }
+}

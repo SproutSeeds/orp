@@ -1,0 +1,688 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_comparison_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T06:06:17Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "node_version": "v24.10.0",
+    "platform": "macOS-26.3-arm64-arm-64bit"
+  },
+  "corpus": {
+    "source": "examples/kernel/comparison/comparison-corpus.json",
+    "cases_total": 7,
+    "domains_total": 5,
+    "domains": [
+      "operations",
+      "product",
+      "research",
+      "software",
+      "writing"
+    ],
+    "artifact_classes_total": 7,
+    "artifact_classes": [
+      "checkpoint",
+      "decision",
+      "experiment",
+      "hypothesis",
+      "policy",
+      "result",
+      "task"
+    ]
+  },
+  "conditions": {
+    "freeform": {
+      "condition": "freeform",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "total_score": 0.208,
+          "class_specific_completeness": 0.27,
+          "ambiguity_remaining": 0.73,
+          "present_fields": [
+            "constraints",
+            "goal",
+            "object"
+          ],
+          "missing_fields": [
+            "boundary",
+            "success_criteria"
+          ]
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "total_score": 0.323,
+          "class_specific_completeness": 0.36,
+          "ambiguity_remaining": 0.64,
+          "present_fields": [
+            "chosen_path",
+            "consequences",
+            "question",
+            "rationale"
+          ],
+          "missing_fields": [
+            "rejected_alternatives"
+          ]
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "total_score": 0.323,
+          "class_specific_completeness": 0.36,
+          "ambiguity_remaining": 0.64,
+          "present_fields": [
+            "assumptions",
+            "boundary",
+            "claim",
+            "test_path"
+          ],
+          "missing_fields": [
+            "falsifiers"
+          ]
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "total_score": 0.2,
+          "class_specific_completeness": 0.225,
+          "ambiguity_remaining": 0.775,
+          "present_fields": [
+            "interpretation_limits",
+            "method",
+            "objective"
+          ],
+          "missing_fields": [
+            "inputs",
+            "outputs",
+            "evidence_expectations"
+          ]
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "total_score": 0.285,
+          "class_specific_completeness": 0.36,
+          "ambiguity_remaining": 0.64,
+          "present_fields": [
+            "completed_unit",
+            "current_state",
+            "next_handoff_target",
+            "risks"
+          ],
+          "missing_fields": [
+            "artifact_refs"
+          ]
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "total_score": 0.298,
+          "class_specific_completeness": 0.36,
+          "ambiguity_remaining": 0.64,
+          "present_fields": [
+            "invariants",
+            "rationale",
+            "rule",
+            "scope"
+          ],
+          "missing_fields": [
+            "enforcement_surface"
+          ]
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "total_score": 0.285,
+          "class_specific_completeness": 0.36,
+          "ambiguity_remaining": 0.64,
+          "present_fields": [
+            "claim",
+            "evidence_paths",
+            "next_follow_up",
+            "status"
+          ],
+          "missing_fields": [
+            "interpretation_limits"
+          ]
+        }
+      ],
+      "mean_total_score": 0.275,
+      "mean_class_specific_completeness": 0.328,
+      "mean_ambiguity_remaining": 0.672,
+      "mean_dimension_scores": {
+        "artifact_type_clarity": 0.0,
+        "objective_clarity": 0.45,
+        "limits_clarity": 0.289,
+        "evaluation_clarity": 0.193,
+        "handoff_readiness": 0.386,
+        "class_specific_completeness": 0.328
+      }
+    },
+    "generic_checklist": {
+      "condition": "generic_checklist",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "total_score": 0.697,
+          "class_specific_completeness": 0.68,
+          "ambiguity_remaining": 0.32,
+          "present_fields": [
+            "boundary",
+            "constraints",
+            "goal",
+            "object",
+            "success_criteria"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "total_score": 0.627,
+          "class_specific_completeness": 0.58,
+          "ambiguity_remaining": 0.42,
+          "present_fields": [
+            "chosen_path",
+            "consequences",
+            "question",
+            "rationale",
+            "rejected_alternatives"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "total_score": 0.675,
+          "class_specific_completeness": 0.64,
+          "ambiguity_remaining": 0.36,
+          "present_fields": [
+            "assumptions",
+            "boundary",
+            "claim",
+            "falsifiers",
+            "test_path"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "total_score": 0.711,
+          "class_specific_completeness": 0.692,
+          "ambiguity_remaining": 0.308,
+          "present_fields": [
+            "evidence_expectations",
+            "inputs",
+            "interpretation_limits",
+            "method",
+            "objective",
+            "outputs"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "total_score": 0.679,
+          "class_specific_completeness": 0.65,
+          "ambiguity_remaining": 0.35,
+          "present_fields": [
+            "artifact_refs",
+            "completed_unit",
+            "current_state",
+            "next_handoff_target",
+            "risks"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "total_score": 0.713,
+          "class_specific_completeness": 0.67,
+          "ambiguity_remaining": 0.33,
+          "present_fields": [
+            "enforcement_surface",
+            "invariants",
+            "rationale",
+            "rule",
+            "scope"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "total_score": 0.708,
+          "class_specific_completeness": 0.69,
+          "ambiguity_remaining": 0.31,
+          "present_fields": [
+            "claim",
+            "evidence_paths",
+            "interpretation_limits",
+            "next_follow_up",
+            "status"
+          ],
+          "missing_fields": []
+        }
+      ],
+      "mean_total_score": 0.687,
+      "mean_class_specific_completeness": 0.657,
+      "mean_ambiguity_remaining": 0.343,
+      "mean_dimension_scores": {
+        "artifact_type_clarity": 0.85,
+        "objective_clarity": 0.596,
+        "limits_clarity": 0.693,
+        "evaluation_clarity": 0.671,
+        "handoff_readiness": 0.655,
+        "class_specific_completeness": 0.657
+      }
+    },
+    "kernel": {
+      "condition": "kernel",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "boundary",
+            "constraints",
+            "goal",
+            "object",
+            "success_criteria"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "chosen_path",
+            "consequences",
+            "question",
+            "rationale",
+            "rejected_alternatives"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "assumptions",
+            "boundary",
+            "claim",
+            "falsifiers",
+            "test_path"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "evidence_expectations",
+            "inputs",
+            "interpretation_limits",
+            "method",
+            "objective",
+            "outputs"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "artifact_refs",
+            "completed_unit",
+            "current_state",
+            "next_handoff_target",
+            "risks"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "enforcement_surface",
+            "invariants",
+            "rationale",
+            "rule",
+            "scope"
+          ],
+          "missing_fields": []
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "total_score": 1.0,
+          "class_specific_completeness": 1.0,
+          "ambiguity_remaining": 0.0,
+          "present_fields": [
+            "claim",
+            "evidence_paths",
+            "interpretation_limits",
+            "next_follow_up",
+            "status"
+          ],
+          "missing_fields": []
+        }
+      ],
+      "mean_total_score": 1.0,
+      "mean_class_specific_completeness": 1.0,
+      "mean_ambiguity_remaining": 0.0,
+      "mean_dimension_scores": {
+        "artifact_type_clarity": 1.0,
+        "objective_clarity": 1.0,
+        "limits_clarity": 1.0,
+        "evaluation_clarity": 1.0,
+        "handoff_readiness": 1.0,
+        "class_specific_completeness": 1.0
+      }
+    }
+  },
+  "pairwise": {
+    "kernel_vs_generic_checklist": {
+      "left": "kernel",
+      "right": "generic_checklist",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_total_score_delta": 0.313,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.697,
+          "delta": 0.303,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.627,
+          "delta": 0.373,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.675,
+          "delta": 0.325,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.711,
+          "delta": 0.289,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.679,
+          "delta": 0.321,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.713,
+          "delta": 0.287,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.708,
+          "delta": 0.292,
+          "outcome": "win"
+        }
+      ]
+    },
+    "kernel_vs_freeform": {
+      "left": "kernel",
+      "right": "freeform",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_total_score_delta": 0.725,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.208,
+          "delta": 0.792,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.323,
+          "delta": 0.677,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.323,
+          "delta": 0.677,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.2,
+          "delta": 0.8,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.285,
+          "delta": 0.715,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.298,
+          "delta": 0.702,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.285,
+          "delta": 0.715,
+          "outcome": "win"
+        }
+      ]
+    },
+    "generic_checklist_vs_freeform": {
+      "left": "generic_checklist",
+      "right": "freeform",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_total_score_delta": 0.413,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 0.697,
+          "right_score": 0.208,
+          "delta": 0.489,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 0.627,
+          "right_score": 0.323,
+          "delta": 0.304,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 0.675,
+          "right_score": 0.323,
+          "delta": 0.352,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 0.711,
+          "right_score": 0.2,
+          "delta": 0.511,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 0.679,
+          "right_score": 0.285,
+          "delta": 0.394,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 0.713,
+          "right_score": 0.298,
+          "delta": 0.415,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 0.708,
+          "right_score": 0.285,
+          "delta": 0.423,
+          "outcome": "win"
+        }
+      ]
+    }
+  },
+  "claims": [
+    {
+      "id": "matched_internal_corpus_exists",
+      "claim": "ORP has a matched internal comparison corpus spanning multiple domains and all seven kernel artifact classes.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_generic_checklist_on_matched_corpus",
+      "claim": "On the matched internal comparison corpus, kernel artifacts achieve higher mean structural scores than generic checklist artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_freeform_on_matched_corpus",
+      "claim": "On the matched internal comparison corpus, kernel artifacts achieve higher mean structural scores than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "generic_checklist_improves_on_freeform_for_structure",
+      "claim": "On the matched internal comparison corpus, a generic checklist condition improves structural scores over free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_preserves_full_required_coverage",
+      "claim": "On the matched internal comparison corpus, kernel artifacts preserve full class-specific required-field coverage.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_total_score": 1.0,
+    "generic_checklist_mean_total_score": 0.687,
+    "freeform_mean_total_score": 0.275
+  }
+}

@@ -1,0 +1,12 @@
+schema_version: "1.0.0"
+artifact_class: checkpoint
+completed_unit: restored canonical Habanero world binding and runner routing
+current_state: linked project and primary session are synchronized for hosted runner pickup
+risks:
+  - stale hosted sessions may still exist on inactive machines
+  - queued jobs created before rebinding may remain stranded
+next_handoff_target: rerun runner sync on active machines and verify the next queued job routes cleanly
+artifact_refs:
+  - .git/orp/link/project.json
+  - .git/orp/link/sessions
+  - orp/HANDOFF.md

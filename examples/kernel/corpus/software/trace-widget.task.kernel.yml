@@ -1,0 +1,13 @@
+schema_version: "1.0.0"
+artifact_class: task
+object: terminal trace widget for ORP lane sessions
+goal: let an operator detect lane drift and stalled work from a terminal-first view
+boundary:
+  - lane status visibility inside terminal workflow
+  - drift summaries and recent event traces
+constraints:
+  - must remain terminal-native
+  - must not alter lane execution semantics
+success_criteria:
+  - operator can identify a stalled or drifting lane within ten seconds
+  - widget can be used without opening the desktop UI

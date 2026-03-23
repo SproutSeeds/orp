@@ -1,0 +1,337 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_comparison_corpus",
+  "generic_checklist_fields": [
+    "artifact_type",
+    "summary",
+    "scope",
+    "constraints",
+    "approach",
+    "checks",
+    "risks",
+    "evidence",
+    "handoff",
+    "notes"
+  ],
+  "cases": [
+    {
+      "id": "software_trace_widget",
+      "domain": "software",
+      "artifact_class": "task",
+      "prompt": "Build the trace widget for terminal sessions so I can watch what lanes are doing and quickly tell if one is drifting.",
+      "freeform_markdown": "# Trace widget\nObject: terminal trace widget for lane monitoring.\nGoal: let operators tell quickly when a lane is drifting.\nConstraints: stay terminal-first and low friction.\nNext: sketch the event inputs and compact panel layout.\n",
+      "generic_checklist": {
+        "artifact_type": "task",
+        "summary": "Build the terminal trace widget for lane monitoring.",
+        "scope": "Terminal-first lane visibility in active ORP sessions.",
+        "constraints": [
+          "low friction",
+          "no GUI dependency"
+        ],
+        "approach": "Start with the event inputs and a compact summary row.",
+        "checks": [
+          "An operator can identify a drifting lane quickly."
+        ],
+        "risks": [
+          "Too much noise if every event is surfaced."
+        ],
+        "evidence": [
+          "sample lane logs"
+        ],
+        "handoff": "Define the event schema and first rendering pass.",
+        "notes": "Use the trace widget as a first debugging surface."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "task",
+        "object": "terminal trace widget",
+        "goal": "surface lane drift and state clearly for operators",
+        "boundary": [
+          "terminal-first lane visibility",
+          "active ORP sessions only"
+        ],
+        "constraints": [
+          "low friction",
+          "no GUI dependency"
+        ],
+        "success_criteria": [
+          "an operator can identify a drifting lane within 10 seconds",
+          "the widget does not overload the terminal surface"
+        ]
+      }
+    },
+    {
+      "id": "product_project_home",
+      "domain": "product",
+      "artifact_class": "decision",
+      "prompt": "Decide whether the web app home should lead with linked projects or the old idea board.",
+      "freeform_markdown": "# Home surface direction\nQuestion: should the web app lead with linked projects or the old idea board?\nDecision: lead with linked projects first.\nWhy: active work should be foregrounded and idea browsing can move into Pensieve.\nTradeoffs: the old idea board becomes secondary navigation.\n",
+      "generic_checklist": {
+        "artifact_type": "decision",
+        "summary": "Choose the linked-project home instead of the old idea-board-first home.",
+        "scope": "Default logged-in dashboard experience.",
+        "constraints": [
+          "keep the home calm",
+          "preserve access to the full idea library"
+        ],
+        "approach": "Lead with linked projects and move broader idea browsing into Pensieve.",
+        "checks": [
+          "Users can reach active work in one click."
+        ],
+        "risks": [
+          "Idea discovery becomes less prominent on the home screen."
+        ],
+        "evidence": [
+          "Rust app home flow",
+          "current web redesign branch"
+        ],
+        "handoff": "Implement the linked-project home shell and lower-right Pensieve access.",
+        "notes": "Alternative considered: keep the idea board as the front door."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "decision",
+        "question": "Should the web app home foreground linked projects or the old idea board?",
+        "chosen_path": "Foreground linked projects and move broad idea browsing into Pensieve.",
+        "rejected_alternatives": [
+          "keep the old idea board as the default home",
+          "split the home evenly between ideas and projects"
+        ],
+        "rationale": "Active work should be reachable immediately, while the idea library can stay available as secondary navigation.",
+        "consequences": [
+          "linked projects become the primary home object",
+          "idea browsing becomes one click deeper"
+        ]
+      }
+    },
+    {
+      "id": "research_drift_hypothesis",
+      "domain": "research",
+      "artifact_class": "hypothesis",
+      "prompt": "Hypothesize whether drift summaries will help operators notice stalled lanes faster.",
+      "freeform_markdown": "# Drift summary hypothesis\nClaim: short drift summaries will help operators notice stalled lanes faster.\nScope: terminal-first multi-lane work.\nAssumptions: operators glance at summaries while they work.\nTest: compare stalled-lane pickup with and without summaries.\n",
+      "generic_checklist": {
+        "artifact_type": "hypothesis",
+        "summary": "Drift summaries will improve stalled-lane pickup speed.",
+        "scope": "Terminal-first multi-lane workflows.",
+        "constraints": [
+          "operators cannot be flooded with noise"
+        ],
+        "approach": "Add summaries and compare pickup behavior against a no-summary baseline.",
+        "checks": [
+          "Measure stalled-lane detection time."
+        ],
+        "risks": [
+          "Summaries may be ignored if they are too verbose."
+        ],
+        "evidence": [
+          "pickup timing logs"
+        ],
+        "handoff": "Design the comparison fixture and timing capture.",
+        "notes": "Assumes operators actually consult the summary lane."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "hypothesis",
+        "claim": "Short drift summaries reduce the time needed to identify stalled lanes.",
+        "boundary": [
+          "terminal-first multi-lane workflows",
+          "operators already monitoring active lanes"
+        ],
+        "assumptions": [
+          "operators glance at summaries while they work",
+          "summaries do not introduce excessive noise"
+        ],
+        "test_path": "Run matched stalled-lane pickup trials with and without summaries and compare detection time.",
+        "falsifiers": [
+          "pickup time does not improve materially",
+          "operators ignore the summaries"
+        ]
+      }
+    },
+    {
+      "id": "research_handoff_experiment",
+      "domain": "research",
+      "artifact_class": "experiment",
+      "prompt": "Design an experiment to compare kernel tasks versus free-form tasks for handoff pickup.",
+      "freeform_markdown": "# Kernel handoff experiment\nObjective: compare free-form tasks, checklist tasks, and kernel tasks during handoff pickup.\nMethod: give matched task artifacts to a second operator and time correct interpretation.\nEvidence: collect scores and clarification counts.\nLimits: internal sample only.\n",
+      "generic_checklist": {
+        "artifact_type": "experiment",
+        "summary": "Compare handoff pickup across free-form, checklist, and kernel task artifacts.",
+        "scope": "Internal ORP operator handoffs.",
+        "constraints": [
+          "small internal sample",
+          "matched prompt set"
+        ],
+        "approach": "Give a second operator one artifact at a time and record time to correct interpretation.",
+        "checks": [
+          "Capture time to correct interpretation.",
+          "Capture clarification counts."
+        ],
+        "risks": [
+          "Small sample may limit interpretation."
+        ],
+        "evidence": [
+          "pickup timings",
+          "clarification counts"
+        ],
+        "handoff": "Prepare the prompt set and reviewer score sheet.",
+        "notes": "This is a first comparative signal, not a final outcome study."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "experiment",
+        "objective": "Measure whether kernel task artifacts improve handoff pickup quality over free-form and generic checklist alternatives.",
+        "method": "Run matched handoff trials where a second operator receives one artifact at a time and explains the task, constraints, and next action.",
+        "inputs": [
+          "matched prompt set",
+          "second-operator reviewers",
+          "three artifact conditions"
+        ],
+        "outputs": [
+          "pickup scores",
+          "clarification counts",
+          "time to correct interpretation"
+        ],
+        "evidence_expectations": [
+          "score sheets",
+          "timing logs",
+          "artifact corpus"
+        ],
+        "interpretation_limits": [
+          "internal sample size is small",
+          "the pilot measures structural pickup, not full downstream outcomes"
+        ]
+      }
+    },
+    {
+      "id": "operations_habanero_checkpoint",
+      "domain": "operations",
+      "artifact_class": "checkpoint",
+      "prompt": "Record the current state after stabilizing runner routing for Habanero.",
+      "freeform_markdown": "# Habanero routing checkpoint\nCompleted: restored linked-project routing for Habanero.\nCurrent state: the repo is bound and the primary session is routable again.\nRisks: other machines may still need a sync.\nNext: rerun runner sync on active machines.\n",
+      "generic_checklist": {
+        "artifact_type": "checkpoint",
+        "summary": "Restored the Habanero linked-project routing path.",
+        "scope": "Habanero runner routing and session availability.",
+        "constraints": [
+          "avoid duplicate world bindings"
+        ],
+        "approach": "Normalize the local link state and resync runner state.",
+        "checks": [
+          "The linked project is routable again."
+        ],
+        "risks": [
+          "Other active machines may still carry stale routing state."
+        ],
+        "evidence": [
+          ".git/orp/link/project.json",
+          "runner sync output"
+        ],
+        "handoff": "Rerun runner sync on active machines and verify live pickup.",
+        "notes": "The local repo, primary session, and hosted world are aligned again."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "checkpoint",
+        "completed_unit": "Restored canonical runner routing for Habanero.",
+        "current_state": "The local project link, primary session, and hosted world are synchronized and routable again.",
+        "risks": [
+          "inactive machines may still hold stale routing state",
+          "older queued jobs may need a fresh sync before pickup"
+        ],
+        "next_handoff_target": "Rerun runner sync on active machines and verify one fresh hosted job pickup.",
+        "artifact_refs": [
+          ".git/orp/link/project.json",
+          ".git/orp/link/sessions",
+          "orp/artifacts"
+        ]
+      }
+    },
+    {
+      "id": "operations_runner_policy",
+      "domain": "operations",
+      "artifact_class": "policy",
+      "prompt": "Define the routing policy for hosted runner jobs so they only target routeable linked sessions.",
+      "freeform_markdown": "# Runner routing policy\nRule: only claim hosted jobs for linked projects that have a routeable local session.\nScope: hosted runner pickup.\nWhy: avoid claiming work with nowhere real to execute.\nInvariants: a claimed job must resolve to an actual local session.\n",
+      "generic_checklist": {
+        "artifact_type": "policy",
+        "summary": "Only claim hosted jobs for linked projects that have a routeable local session.",
+        "scope": "Hosted runner job pickup.",
+        "constraints": [
+          "do not claim unroutable jobs"
+        ],
+        "approach": "Require synced linked-project state and a live local session before claiming work.",
+        "checks": [
+          "Runner pickup rejects unroutable jobs."
+        ],
+        "risks": [
+          "Stale sync state can hide a routeable session."
+        ],
+        "evidence": [
+          "runner sync payload",
+          "job poll behavior"
+        ],
+        "handoff": "Audit pickup behavior against stale-session and missing-session cases.",
+        "notes": "The rule exists to prevent dead-end job claims."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "policy",
+        "scope": "Hosted runner job pickup and claim behavior.",
+        "rule": "Only claim a hosted job when the linked project has a routeable local session on the current machine.",
+        "rationale": "Jobs should only be claimed when the runner can execute them against a real local target.",
+        "invariants": [
+          "a claimed job must resolve to an actual local session",
+          "runner routing must stay machine-scoped"
+        ],
+        "enforcement_surface": "runner sync, poll, and work lifecycle"
+      }
+    },
+    {
+      "id": "writing_kernel_launch_result",
+      "domain": "writing",
+      "artifact_class": "result",
+      "prompt": "Summarize the result of shipping the first reasoning kernel release and what still needs follow-up.",
+      "freeform_markdown": "# Kernel launch result\nClaim: ORP shipped the first reasoning kernel release.\nEvidence: validation docs, benchmarks, and shipped CLI commands.\nStatus: shipped in the CLI.\nNext: run comparative studies against free-form artifacts and checklist artifacts.\n",
+      "generic_checklist": {
+        "artifact_type": "result",
+        "summary": "ORP shipped the first reasoning kernel release in the CLI.",
+        "scope": "Kernel schema, scaffold, validate, and gate support.",
+        "constraints": [
+          "comparative superiority is still unproven"
+        ],
+        "approach": "Document the shipped surface and the next validation studies.",
+        "checks": [
+          "Release shipped",
+          "validation docs published"
+        ],
+        "risks": [
+          "The current evidence is still stronger for implementation validity than outcome superiority."
+        ],
+        "evidence": [
+          "docs/ORP_REASONING_KERNEL_V0_1.md",
+          "docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md"
+        ],
+        "handoff": "Run comparative artifact and handoff studies next.",
+        "notes": "The release is solid as a protocol surface but not yet a proven superior methodology."
+      },
+      "kernel_artifact": {
+        "schema_version": "1.0.0",
+        "artifact_class": "result",
+        "claim": "ORP shipped the first reasoning kernel release as a real CLI protocol surface.",
+        "evidence_paths": [
+          "docs/ORP_REASONING_KERNEL_V0_1.md",
+          "docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md",
+          "spec/v1/kernel.schema.json"
+        ],
+        "status": "shipped in the ORP CLI and published to npm",
+        "interpretation_limits": [
+          "comparative superiority over free-form and checklist alternatives is not yet proven",
+          "the current evidence is strongest on internal validity"
+        ],
+        "next_follow_up": "Run the comparative artifact, pickup, and corpus-fit studies."
+      }
+    }
+  ]
+}

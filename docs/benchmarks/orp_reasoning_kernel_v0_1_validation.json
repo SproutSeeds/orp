@@ -2,8 +2,8 @@
   "schema_version": "1.0.0",
   "kind": "orp_reasoning_kernel_validation_report",
   "metadata": {
-    "generated_at_utc": "2026-03-23T04:42:53Z",
-    "repo_commit": "5c87faf4fbd54d203cc0ca05683544355c306d55",
+    "generated_at_utc": "2026-03-23T05:47:03Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
     "repo_branch": "main",
     "package_version": "0.4.7",
     "python_version": "3.9.6",
@@ -15,22 +15,22 @@
       "iterations": 5,
       "observed": {
         "init": {
-          "mean_ms": 245.853,
-          "median_ms": 242.029,
-          "min_ms": 239.454,
-          "max_ms": 257.57
+          "mean_ms": 242.098,
+          "median_ms": 241.566,
+          "min_ms": 239.332,
+          "max_ms": 246.235
         },
         "validate": {
-          "mean_ms": 169.097,
-          "median_ms": 167.938,
-          "min_ms": 165.273,
-          "max_ms": 173.245
+          "mean_ms": 162.684,
+          "median_ms": 163.009,
+          "min_ms": 160.644,
+          "max_ms": 164.874
         },
         "gate_run": {
-          "mean_ms": 242.618,
-          "median_ms": 239.599,
-          "min_ms": 238.174,
-          "max_ms": 252.913
+          "mean_ms": 239.282,
+          "median_ms": 239.591,
+          "min_ms": 235.63,
+          "max_ms": 242.402
         }
       },
       "targets": {
@@ -44,8 +44,8 @@
         "gate_run": true
       },
       "sample_run_records": [
-        "orp/artifacts/run-20260323-044247-956825/RUN.json",
-        "orp/artifacts/run-20260323-044248-621472/RUN.json"
+        "orp/artifacts/run-20260323-054649-399519/RUN.json",
+        "orp/artifacts/run-20260323-054650-067823/RUN.json"
       ]
     },
     "artifact_roundtrip": {
@@ -53,52 +53,52 @@
       "rows": [
         {
           "artifact_class": "task",
-          "scaffold_ms": 162.963,
-          "validate_ms": 161.02
+          "scaffold_ms": 163.862,
+          "validate_ms": 161.249
         },
         {
           "artifact_class": "decision",
-          "scaffold_ms": 162.639,
-          "validate_ms": 161.466
+          "scaffold_ms": 160.34,
+          "validate_ms": 160.534
         },
         {
           "artifact_class": "hypothesis",
-          "scaffold_ms": 162.337,
-          "validate_ms": 165.228
+          "scaffold_ms": 160.201,
+          "validate_ms": 162.374
         },
         {
           "artifact_class": "experiment",
-          "scaffold_ms": 171.011,
-          "validate_ms": 160.825
+          "scaffold_ms": 161.288,
+          "validate_ms": 161.434
         },
         {
           "artifact_class": "checkpoint",
-          "scaffold_ms": 161.705,
-          "validate_ms": 163.51
+          "scaffold_ms": 161.496,
+          "validate_ms": 161.043
         },
         {
           "artifact_class": "policy",
-          "scaffold_ms": 160.807,
-          "validate_ms": 163.85
+          "scaffold_ms": 161.216,
+          "validate_ms": 162.252
         },
         {
           "artifact_class": "result",
-          "scaffold_ms": 163.882,
-          "validate_ms": 162.509
+          "scaffold_ms": 161.431,
+          "validate_ms": 162.602
         }
       ],
       "observed": {
         "scaffold": {
-          "mean_ms": 163.621,
-          "median_ms": 162.639,
-          "min_ms": 160.807,
-          "max_ms": 171.011
+          "mean_ms": 161.405,
+          "median_ms": 161.288,
+          "min_ms": 160.201,
+          "max_ms": 163.862
         },
         "validate": {
-          "mean_ms": 162.63,
-          "median_ms": 162.509,
-          "min_ms": 160.825,
-          "max_ms": 165.228
+          "mean_ms": 161.641,
+          "median_ms": 161.434,
+          "min_ms": 160.534,
+          "max_ms": 162.602
         }
       },
       "targets": {
@@ -112,7 +112,7 @@
     },
     "gate_modes": {
       "hard_mode": {
-        "ms": 174.339,
+        "ms": 172.719,
         "exit_code": 1,
         "overall": "FAIL",
         "kernel_valid": false,
@@ -122,13 +122,13 @@
         ]
       },
       "soft_mode": {
-        "ms": 173.082,
+        "ms": 166.79,
         "exit_code": 0,
         "overall": "PASS",
         "kernel_valid": false
       },
       "legacy_compatibility": {
-        "ms": 172.431,
+        "ms": 175.379,
         "exit_code": 0,
         "overall": "PASS",
         "has_kernel_validation": false
@@ -138,9 +138,701 @@
         "soft_allows_invalid_artifact_with_advisory": true,
         "legacy_structure_kernel_remains_compatible": true
       }
+    },
+    "schema_alignment": {
+      "schema_requirements": {
+        "task": [
+          "object",
+          "goal",
+          "boundary",
+          "constraints",
+          "success_criteria"
+        ],
+        "decision": [
+          "question",
+          "chosen_path",
+          "rejected_alternatives",
+          "rationale",
+          "consequences"
+        ],
+        "hypothesis": [
+          "claim",
+          "boundary",
+          "assumptions",
+          "test_path",
+          "falsifiers"
+        ],
+        "experiment": [
+          "objective",
+          "method",
+          "inputs",
+          "outputs",
+          "evidence_expectations",
+          "interpretation_limits"
+        ],
+        "checkpoint": [
+          "completed_unit",
+          "current_state",
+          "risks",
+          "next_handoff_target",
+          "artifact_refs"
+        ],
+        "policy": [
+          "scope",
+          "rule",
+          "rationale",
+          "invariants",
+          "enforcement_surface"
+        ],
+        "result": [
+          "claim",
+          "evidence_paths",
+          "status",
+          "interpretation_limits",
+          "next_follow_up"
+        ]
+      },
+      "cli_requirements": {
+        "task": [
+          "object",
+          "goal",
+          "boundary",
+          "constraints",
+          "success_criteria"
+        ],
+        "decision": [
+          "question",
+          "chosen_path",
+          "rejected_alternatives",
+          "rationale",
+          "consequences"
+        ],
+        "hypothesis": [
+          "claim",
+          "boundary",
+          "assumptions",
+          "test_path",
+          "falsifiers"
+        ],
+        "experiment": [
+          "objective",
+          "method",
+          "inputs",
+          "outputs",
+          "evidence_expectations",
+          "interpretation_limits"
+        ],
+        "checkpoint": [
+          "completed_unit",
+          "current_state",
+          "risks",
+          "next_handoff_target",
+          "artifact_refs"
+        ],
+        "policy": [
+          "scope",
+          "rule",
+          "rationale",
+          "invariants",
+          "enforcement_surface"
+        ],
+        "result": [
+          "claim",
+          "evidence_paths",
+          "status",
+          "interpretation_limits",
+          "next_follow_up"
+        ]
+      },
+      "schema_fields_total": 37,
+      "cli_fields_total": 37,
+      "meets_expectations": {
+        "requirements_match": true,
+        "fields_match": true
+      }
+    },
+    "cross_domain_corpus": {
+      "fixtures_total": 7,
+      "domains_total": 5,
+      "artifact_classes_total": 7,
+      "rows": [
+        {
+          "fixture": "operations/habanero-routing.checkpoint.kernel.yml",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "validate_ms": 170.231
+        },
+        {
+          "fixture": "operations/runner-routing.policy.kernel.yml",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "validate_ms": 172.243
+        },
+        {
+          "fixture": "product/project-home.decision.kernel.yml",
+          "domain": "product",
+          "artifact_class": "decision",
+          "validate_ms": 171.039
+        },
+        {
+          "fixture": "research/kernel-handoff.experiment.kernel.yml",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "validate_ms": 170.106
+        },
+        {
+          "fixture": "research/lane-drift.hypothesis.kernel.yml",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "validate_ms": 170.106
+        },
+        {
+          "fixture": "software/trace-widget.task.kernel.yml",
+          "domain": "software",
+          "artifact_class": "task",
+          "validate_ms": 170.004
+        },
+        {
+          "fixture": "writing/kernel-launch.result.kernel.yml",
+          "domain": "writing",
+          "artifact_class": "result",
+          "validate_ms": 165.422
+        }
+      ],
+      "observed": {
+        "validate": {
+          "mean_ms": 169.879,
+          "median_ms": 170.106,
+          "min_ms": 165.422,
+          "max_ms": 172.243
+        }
+      },
+      "targets": {
+        "domains_min": 5,
+        "fixtures_min": 7,
+        "validate_mean_lt_ms": 200.0
+      },
+      "meets_targets": {
+        "domains": true,
+        "fixtures": true,
+        "validate": true
+      }
+    },
+    "requirement_enforcement": {
+      "cases_total": 36,
+      "rows": [
+        {
+          "artifact_class": "task",
+          "removed_field": "object",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "object"
+          ],
+          "validate_ms": 151.206
+        },
+        {
+          "artifact_class": "task",
+          "removed_field": "goal",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "goal"
+          ],
+          "validate_ms": 149.479
+        },
+        {
+          "artifact_class": "task",
+          "removed_field": "boundary",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "boundary"
+          ],
+          "validate_ms": 153.563
+        },
+        {
+          "artifact_class": "task",
+          "removed_field": "constraints",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "constraints"
+          ],
+          "validate_ms": 153.891
+        },
+        {
+          "artifact_class": "task",
+          "removed_field": "success_criteria",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "success_criteria"
+          ],
+          "validate_ms": 153.669
+        },
+        {
+          "artifact_class": "decision",
+          "removed_field": "question",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "question"
+          ],
+          "validate_ms": 154.283
+        },
+        {
+          "artifact_class": "decision",
+          "removed_field": "chosen_path",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "chosen_path"
+          ],
+          "validate_ms": 153.467
+        },
+        {
+          "artifact_class": "decision",
+          "removed_field": "rejected_alternatives",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "rejected_alternatives"
+          ],
+          "validate_ms": 153.983
+        },
+        {
+          "artifact_class": "decision",
+          "removed_field": "rationale",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "rationale"
+          ],
+          "validate_ms": 154.418
+        },
+        {
+          "artifact_class": "decision",
+          "removed_field": "consequences",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "consequences"
+          ],
+          "validate_ms": 154.753
+        },
+        {
+          "artifact_class": "hypothesis",
+          "removed_field": "claim",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "claim"
+          ],
+          "validate_ms": 154.362
+        },
+        {
+          "artifact_class": "hypothesis",
+          "removed_field": "boundary",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "boundary"
+          ],
+          "validate_ms": 154.27
+        },
+        {
+          "artifact_class": "hypothesis",
+          "removed_field": "assumptions",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "assumptions"
+          ],
+          "validate_ms": 153.622
+        },
+        {
+          "artifact_class": "hypothesis",
+          "removed_field": "test_path",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "test_path"
+          ],
+          "validate_ms": 154.244
+        },
+        {
+          "artifact_class": "hypothesis",
+          "removed_field": "falsifiers",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "falsifiers"
+          ],
+          "validate_ms": 157.235
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "objective",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "objective"
+          ],
+          "validate_ms": 160.037
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "method",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "method"
+          ],
+          "validate_ms": 157.138
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "inputs",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "inputs"
+          ],
+          "validate_ms": 153.241
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "outputs",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "outputs"
+          ],
+          "validate_ms": 154.474
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "evidence_expectations",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "evidence_expectations"
+          ],
+          "validate_ms": 154.047
+        },
+        {
+          "artifact_class": "experiment",
+          "removed_field": "interpretation_limits",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "interpretation_limits"
+          ],
+          "validate_ms": 154.142
+        },
+        {
+          "artifact_class": "checkpoint",
+          "removed_field": "completed_unit",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "completed_unit"
+          ],
+          "validate_ms": 154.101
+        },
+        {
+          "artifact_class": "checkpoint",
+          "removed_field": "current_state",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "current_state"
+          ],
+          "validate_ms": 154.003
+        },
+        {
+          "artifact_class": "checkpoint",
+          "removed_field": "risks",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "risks"
+          ],
+          "validate_ms": 153.065
+        },
+        {
+          "artifact_class": "checkpoint",
+          "removed_field": "next_handoff_target",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "next_handoff_target"
+          ],
+          "validate_ms": 161.153
+        },
+        {
+          "artifact_class": "checkpoint",
+          "removed_field": "artifact_refs",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "artifact_refs"
+          ],
+          "validate_ms": 157.553
+        },
+        {
+          "artifact_class": "policy",
+          "removed_field": "scope",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "scope"
+          ],
+          "validate_ms": 153.638
+        },
+        {
+          "artifact_class": "policy",
+          "removed_field": "rule",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "rule"
+          ],
+          "validate_ms": 153.723
+        },
+        {
+          "artifact_class": "policy",
+          "removed_field": "rationale",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "rationale"
+          ],
+          "validate_ms": 153.539
+        },
+        {
+          "artifact_class": "policy",
+          "removed_field": "invariants",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "invariants"
+          ],
+          "validate_ms": 153.346
+        },
+        {
+          "artifact_class": "policy",
+          "removed_field": "enforcement_surface",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "enforcement_surface"
+          ],
+          "validate_ms": 153.484
+        },
+        {
+          "artifact_class": "result",
+          "removed_field": "claim",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "claim"
+          ],
+          "validate_ms": 152.901
+        },
+        {
+          "artifact_class": "result",
+          "removed_field": "evidence_paths",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "evidence_paths"
+          ],
+          "validate_ms": 153.866
+        },
+        {
+          "artifact_class": "result",
+          "removed_field": "status",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "status"
+          ],
+          "validate_ms": 155.082
+        },
+        {
+          "artifact_class": "result",
+          "removed_field": "interpretation_limits",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "interpretation_limits"
+          ],
+          "validate_ms": 151.325
+        },
+        {
+          "artifact_class": "result",
+          "removed_field": "next_follow_up",
+          "exit_code": 1,
+          "valid": false,
+          "missing_fields": [
+            "next_follow_up"
+          ],
+          "validate_ms": 154.766
+        }
+      ],
+      "observed": {
+        "validate": {
+          "mean_ms": 154.307,
+          "median_ms": 153.993,
+          "min_ms": 149.479,
+          "max_ms": 161.153
+        }
+      },
+      "targets": {
+        "all_cases_detected": 36,
+        "validate_mean_lt_ms": 200.0
+      },
+      "meets_targets": {
+        "all_cases_detected": true,
+        "validate": true
+      }
+    },
+    "representation_invariance": {
+      "yaml_ms": 164.585,
+      "json_ms": 153.267,
+      "yaml_result": {
+        "path": "analysis/task.kernel.yml",
+        "exists": true,
+        "required": true,
+        "optional_skipped": false,
+        "artifact_class": "task",
+        "expected_artifact_class": "",
+        "valid": true,
+        "missing_fields": [],
+        "issues": []
+      },
+      "json_result": {
+        "path": "analysis/task.kernel.json",
+        "exists": true,
+        "required": true,
+        "optional_skipped": false,
+        "artifact_class": "task",
+        "expected_artifact_class": "",
+        "valid": true,
+        "missing_fields": [],
+        "issues": []
+      },
+      "meets_expectations": {
+        "both_valid": true,
+        "equivalent_results": true
+      }
+    },
+    "mutation_stress": {
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "unexpected_field",
+          "exit_code": 1,
+          "issues": [
+            "unexpected field: `mystery_field`."
+          ],
+          "validate_ms": 148.036,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "whitespace_only_text",
+          "exit_code": 1,
+          "issues": [
+            "field `object` must be a non-empty string or a non-empty list of non-empty strings.",
+            "missing required fields: object"
+          ],
+          "validate_ms": 151.943,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "wrong_text_list_type",
+          "exit_code": 1,
+          "issues": [
+            "field `constraints` must be a non-empty string or a non-empty list of non-empty strings.",
+            "missing required fields: constraints"
+          ],
+          "validate_ms": 153.881,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "non_string_list_item",
+          "exit_code": 1,
+          "issues": [
+            "field `evidence_paths` must be a non-empty list of non-empty strings.",
+            "missing required fields: evidence_paths"
+          ],
+          "validate_ms": 157.17,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "unsupported_artifact_class",
+          "exit_code": 1,
+          "issues": [
+            "field `artifact_class` must be one of: task, decision, hypothesis, experiment, checkpoint, policy, result.",
+            "unsupported artifact_class: memo.",
+            "artifact_class mismatch: expected `task`, found `memo`.",
+            "field `artifact_class` must be one of: task, decision, hypothesis, experiment, checkpoint, policy, result."
+          ],
+          "validate_ms": 156.95,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "wrong_schema_version",
+          "exit_code": 1,
+          "issues": [
+            "field `schema_version` must equal `1.0.0`.",
+            "field `schema_version` must equal `1.0.0`."
+          ],
+          "validate_ms": 150.621,
+          "matched_expected_issue": true
+        },
+        {
+          "id": "empty_list",
+          "exit_code": 1,
+          "issues": [
+            "field `boundary` must be a non-empty string or a non-empty list of non-empty strings.",
+            "missing required fields: boundary"
+          ],
+          "validate_ms": 149.948,
+          "matched_expected_issue": true
+        }
+      ],
+      "observed": {
+        "validate": {
+          "mean_ms": 152.65,
+          "median_ms": 151.943,
+          "min_ms": 148.036,
+          "max_ms": 157.17
+        }
+      },
+      "targets": {
+        "cases_total": 7,
+        "validate_mean_lt_ms": 200.0
+      },
+      "meets_targets": {
+        "all_cases_detected": true,
+        "validate": true
+      }
     }
   },
   "claims": [
+    {
+      "id": "schema_validator_alignment",
+      "claim": "The CLI kernel requirements and allowed fields stay aligned with the published kernel schema.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.schema_alignment",
+        "spec/v1/kernel.schema.json",
+        "cli/orp.py"
+      ]
+    },
     {
       "id": "starter_kernel_bootstrap",
       "claim": "orp init seeds a valid starter kernel artifact and a passing default structure_kernel gate.",
@@ -187,11 +879,47 @@
         "benchmarks.init_starter_kernel",
         "benchmarks.artifact_roundtrip"
       ]
+    },
+    {
+      "id": "cross_domain_corpus_fit",
+      "claim": "The current v0.1 kernel class set fits a small cross-domain reference corpus cleanly.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.cross_domain_corpus",
+        "examples/kernel/corpus"
+      ]
+    },
+    {
+      "id": "class_specific_requirement_enforcement",
+      "claim": "Each kernel artifact class rejects a candidate artifact when a required field is removed.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.requirement_enforcement",
+        "spec/v1/kernel.schema.json"
+      ]
+    },
+    {
+      "id": "representation_invariance",
+      "claim": "Equivalent YAML and JSON kernel artifacts validate to the same semantic result.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.representation_invariance"
+      ]
+    },
+    {
+      "id": "adversarial_mutation_detection",
+      "claim": "The validator rejects adversarial near-miss artifacts such as unknown fields, wrong types, whitespace-only text, and bad schema metadata.",
+      "status": "pass",
+      "evidence": [
+        "benchmarks.mutation_stress",
+        "spec/v1/kernel.schema.json"
+      ]
     }
   ],
   "summary": {
     "all_claims_pass": true,
     "artifact_classes_total": 7,
+    "cross_domain_corpus_domains_total": 5,
     "all_performance_targets_met": true
   }
 }

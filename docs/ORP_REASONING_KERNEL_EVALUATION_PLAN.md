@@ -13,6 +13,12 @@ to:
 
 Supporting references:
 
+- [docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md)
+- [docs/ORP_REASONING_KERNEL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CONTINUATION_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
 - [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
 - [docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md)
 
@@ -31,7 +37,22 @@ The main alternatives to compare against are:
 2. Generic checklist artifact writing
 3. ORP typed kernel artifact writing
 
+The current internal package now includes:
+
+- deterministic structural comparison
+- deterministic pickup proxy
+- live fresh-agent recoverability simulation
+- live fresh-agent replication
+- softer downstream continuation
+- harder canonical downstream continuation
+- CI threshold checks over the committed benchmark package
+
 ## Experiment 1: Artifact Clarity And Completeness
+
+Status:
+
+- a first deterministic internal comparison harness now exists
+- what remains is blinded human scoring and a larger prompt set
 
 ### Question
 
@@ -73,6 +94,13 @@ Blind-review each artifact against:
 
 ## Experiment 2: Handoff Pickup Study
 
+Status:
+
+- a first deterministic pickup proxy now exists
+- a first live Codex pickup simulation now exists
+- a `10`-repeat live Codex replication layer now exists with per-field stability tables
+- what remains is live human pickup measurement and broader cross-model replication
+
 ### Question
 
 Does the ORP kernel improve pickup quality for another human or agent?
@@ -101,6 +129,13 @@ Does the ORP kernel improve pickup quality for another human or agent?
 - kernel artifacts reduce clarifying questions and increase correct pickup rate
 
 ## Experiment 3: Downstream Execution Quality
+
+Status:
+
+- a softer live continuation benchmark exists
+- a harder canonical continuation benchmark now exists
+- what remains is repeated canonical continuation, cross-model continuation,
+  and true downstream execution quality beyond artifact production
 
 ### Question
 

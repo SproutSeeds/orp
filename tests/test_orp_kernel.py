@@ -297,6 +297,122 @@ class OrpKernelTests(unittest.TestCase):
             self.assertFalse(result["kernel_validation"]["valid"])
             self.assertEqual(result["kernel_validation"]["mode"], "soft")
 
+    def test_kernel_stats_reports_observed_missing_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _write_json(
+                root / "orp" / "artifacts" / "run-kernel-stats" / "RUN.json",
+                {
+                    "run_id": "run-kernel-stats",
+                    "results": [
+                        {
+                            "phase": "structure_kernel",
+                            "kernel_validation": {
+                                "mode": "hard",
+                                "valid": False,
+                                "artifacts": [
+                                    {
+                                        "path": "analysis/task.kernel.yml",
+                                        "valid": False,
+                                        "artifact_class": "task",
+                                        "expected_artifact_class": "task",
+                                        "missing_fields": ["constraints", "success_criteria"],
+                                        "issues": [
+                                            "missing required fields: constraints, success_criteria",
+                                        ],
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+            )
+
+            proc = _run_cli(root, "kernel", "stats", "--json")
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["runs_scanned"], 1)
+            self.assertEqual(payload["runs_with_kernel_validation"], 1)
+            self.assertEqual(payload["artifacts_invalid"], 1)
+            self.assertEqual(payload["artifact_class_counts"]["task"], 1)
+            top_missing = {row["field"]: row["count"] for row in payload["top_missing_fields"]}
+            self.assertEqual(top_missing["constraints"], 1)
+            self.assertEqual(top_missing["success_criteria"], 1)
+
+    def test_kernel_propose_scaffolds_default_proposal_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            proc = _run_cli(
+                root,
+                "kernel",
+                "propose",
+                "--kind",
+                "add_field",
+                "--title",
+                "Add rollback path",
+                "--artifact-class",
+                "policy",
+                "--field",
+                "rollback_path",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["proposal_kind"], "add_field")
+            self.assertEqual(payload["path"], "analysis/kernel-proposals/add-rollback-path.yml")
+            proposal_path = root / "analysis" / "kernel-proposals" / "add-rollback-path.yml"
+            self.assertTrue(proposal_path.exists())
+            proposal = _run_cli(root, "kernel", "validate", "analysis/kernel-proposals/add-rollback-path.yml", "--json")
+            self.assertEqual(proposal.returncode, 1)
+            text = proposal_path.read_text(encoding="utf-8")
+            self.assertIn("proposal_kind: add_field", text)
+            self.assertIn("rollback_path", text)
+
+    def test_kernel_migrate_canonicalizes_and_drops_unknown_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            artifact_path = root / "analysis" / "decision.kernel.json"
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(
+                json.dumps(
+                    {
+                        "rationale": "keep active work front and center",
+                        "artifact_class": "decision",
+                        "unknown_field": "drop me",
+                        "consequences": ["linked projects become the home"],
+                        "question": "what should the home screen foreground?",
+                        "schema_version": "0.9.0",
+                        "chosen_path": "foreground linked projects",
+                        "rejected_alternatives": ["keep the old idea board"],
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            proc = _run_cli(
+                root,
+                "kernel",
+                "migrate",
+                "analysis/decision.kernel.json",
+                "--drop-unknown-fields",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["schema_version_updated"])
+            self.assertEqual(payload["schema_version_after"], "1.0.0")
+            self.assertEqual(payload["dropped_unknown_fields"], ["unknown_field"])
+            self.assertTrue(payload["validation"]["valid"])
+
+            migrated = json.loads(artifact_path.read_text(encoding="utf-8"))
+            self.assertEqual(list(migrated.keys())[:3], ["schema_version", "artifact_class", "question"])
+            self.assertNotIn("unknown_field", migrated)
+            self.assertEqual(migrated["schema_version"], "1.0.0")
+
 
 if __name__ == "__main__":
     unittest.main()

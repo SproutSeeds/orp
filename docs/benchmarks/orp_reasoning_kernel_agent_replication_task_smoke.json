@@ -1,0 +1,487 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_agent_replication_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T07:53:55Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "codex_version": "codex-cli 0.116.0",
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "model": "default",
+    "repeats": 2
+  },
+  "runs": [
+    {
+      "run_index": 1,
+      "summary": {
+        "all_claims_pass": true,
+        "kernel_mean_pickup_score": 1.0,
+        "generic_checklist_mean_pickup_score": 0.8,
+        "freeform_mean_pickup_score": 0.6,
+        "kernel_mean_invention_rate": 0.0,
+        "generic_checklist_mean_invention_rate": 0.0,
+        "freeform_mean_invention_rate": 0.0
+      },
+      "conditions": {
+        "freeform": {
+          "condition": "freeform",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 0.6,
+              "ambiguity_remaining": 0.4,
+              "answered_targets": 3,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "constraints",
+                "goal",
+                "object"
+              ],
+              "answers": {
+                "object": "terminal trace widget for lane monitoring",
+                "goal": "let operators tell quickly when a lane is drifting",
+                "boundary": null,
+                "constraints": "stay terminal-first and low friction",
+                "success_criteria": null
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "lightweight design brief",
+              "confidence": 0.97,
+              "ambiguities_count": 2,
+              "elapsed_ms": 15054.326,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 0.6,
+          "mean_ambiguity_remaining": 0.4,
+          "mean_answered_target_rate": 0.6,
+          "mean_confidence": 0.97,
+          "mean_ambiguities_count": 2.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 15054.326,
+          "mean_tokens_used": null
+        },
+        "generic_checklist": {
+          "condition": "generic_checklist",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 0.8,
+              "ambiguity_remaining": 0.2,
+              "answered_targets": 4,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "boundary",
+                "constraints",
+                "goal",
+                "object",
+                "success_criteria"
+              ],
+              "answers": {
+                "object": null,
+                "goal": "Build the terminal trace widget for lane monitoring.",
+                "boundary": "Terminal-first lane visibility in active ORP sessions.",
+                "constraints": "[\"low friction\", \"no GUI dependency\"]",
+                "success_criteria": "[\"An operator can identify a drifting lane quickly.\"]"
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "task",
+              "confidence": 0.84,
+              "ambiguities_count": 2,
+              "elapsed_ms": 62306.677,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 0.8,
+          "mean_ambiguity_remaining": 0.2,
+          "mean_answered_target_rate": 0.8,
+          "mean_confidence": 0.84,
+          "mean_ambiguities_count": 2.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 62306.677,
+          "mean_tokens_used": null
+        },
+        "kernel": {
+          "condition": "kernel",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 1.0,
+              "ambiguity_remaining": 0.0,
+              "answered_targets": 5,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "boundary",
+                "constraints",
+                "goal",
+                "object",
+                "success_criteria"
+              ],
+              "answers": {
+                "object": "terminal trace widget",
+                "goal": "surface lane drift and state clearly for operators",
+                "boundary": "[\"terminal-first lane visibility\",\"active ORP sessions only\"]",
+                "constraints": "[\"low friction\",\"no GUI dependency\"]",
+                "success_criteria": "[\"an operator can identify a drifting lane within 10 seconds\",\"the widget does not overload the terminal surface\"]"
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "task",
+              "confidence": 0.99,
+              "ambiguities_count": 0,
+              "elapsed_ms": 26515.229,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 1.0,
+          "mean_ambiguity_remaining": 0.0,
+          "mean_answered_target_rate": 1.0,
+          "mean_confidence": 0.99,
+          "mean_ambiguities_count": 0.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 26515.229,
+          "mean_tokens_used": null
+        }
+      },
+      "pairwise": {
+        "kernel_vs_generic_checklist": {
+          "left": "kernel",
+          "right": "generic_checklist",
+          "wins": 1,
+          "ties": 0,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.2,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 1.0,
+              "right_score": 0.8,
+              "delta": 0.2,
+              "outcome": "win"
+            }
+          ]
+        },
+        "kernel_vs_freeform": {
+          "left": "kernel",
+          "right": "freeform",
+          "wins": 1,
+          "ties": 0,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.4,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 1.0,
+              "right_score": 0.6,
+              "delta": 0.4,
+              "outcome": "win"
+            }
+          ]
+        },
+        "generic_checklist_vs_freeform": {
+          "left": "generic_checklist",
+          "right": "freeform",
+          "wins": 1,
+          "ties": 0,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.2,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 0.8,
+              "right_score": 0.6,
+              "delta": 0.2,
+              "outcome": "win"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "run_index": 2,
+      "summary": {
+        "all_claims_pass": false,
+        "kernel_mean_pickup_score": 1.0,
+        "generic_checklist_mean_pickup_score": 1.0,
+        "freeform_mean_pickup_score": 0.6,
+        "kernel_mean_invention_rate": 0.0,
+        "generic_checklist_mean_invention_rate": 0.0,
+        "freeform_mean_invention_rate": 0.0
+      },
+      "conditions": {
+        "freeform": {
+          "condition": "freeform",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 0.6,
+              "ambiguity_remaining": 0.4,
+              "answered_targets": 3,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "constraints",
+                "goal",
+                "object"
+              ],
+              "answers": {
+                "object": "terminal trace widget for lane monitoring.",
+                "goal": "let operators tell quickly when a lane is drifting.",
+                "boundary": null,
+                "constraints": "stay terminal-first and low friction.",
+                "success_criteria": null
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "design brief",
+              "confidence": 0.94,
+              "ambiguities_count": 2,
+              "elapsed_ms": 15578.968,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 0.6,
+          "mean_ambiguity_remaining": 0.4,
+          "mean_answered_target_rate": 0.6,
+          "mean_confidence": 0.94,
+          "mean_ambiguities_count": 2.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 15578.968,
+          "mean_tokens_used": null
+        },
+        "generic_checklist": {
+          "condition": "generic_checklist",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 1.0,
+              "ambiguity_remaining": 0.0,
+              "answered_targets": 5,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "boundary",
+                "constraints",
+                "goal",
+                "object",
+                "success_criteria"
+              ],
+              "answers": {
+                "object": "terminal trace widget for lane monitoring",
+                "goal": "Build the terminal trace widget for lane monitoring.",
+                "boundary": "Terminal-first lane visibility in active ORP sessions.",
+                "constraints": "low friction; no GUI dependency",
+                "success_criteria": "An operator can identify a drifting lane quickly."
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "task",
+              "confidence": 0.86,
+              "ambiguities_count": 2,
+              "elapsed_ms": 39661.065,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 1.0,
+          "mean_ambiguity_remaining": 0.0,
+          "mean_answered_target_rate": 1.0,
+          "mean_confidence": 0.86,
+          "mean_ambiguities_count": 2.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 39661.065,
+          "mean_tokens_used": null
+        },
+        "kernel": {
+          "condition": "kernel",
+          "cases_total": 1,
+          "rows": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "pickup_score": 1.0,
+              "ambiguity_remaining": 0.0,
+              "answered_targets": 5,
+              "pickup_targets_total": 5,
+              "expected_present_fields": [
+                "boundary",
+                "constraints",
+                "goal",
+                "object",
+                "success_criteria"
+              ],
+              "answers": {
+                "object": "terminal trace widget",
+                "goal": "surface lane drift and state clearly for operators",
+                "boundary": "[\"terminal-first lane visibility\",\"active ORP sessions only\"]",
+                "constraints": "[\"low friction\",\"no GUI dependency\"]",
+                "success_criteria": "[\"an operator can identify a drifting lane within 10 seconds\",\"the widget does not overload the terminal surface\"]"
+              },
+              "invented_fields": [],
+              "invention_rate": 0.0,
+              "artifact_type_guess": "task",
+              "confidence": 0.99,
+              "ambiguities_count": 0,
+              "elapsed_ms": 26937.578,
+              "tokens_used": null,
+              "session_id": ""
+            }
+          ],
+          "mean_pickup_score": 1.0,
+          "mean_ambiguity_remaining": 0.0,
+          "mean_answered_target_rate": 1.0,
+          "mean_confidence": 0.99,
+          "mean_ambiguities_count": 0.0,
+          "mean_invention_rate": 0.0,
+          "mean_elapsed_ms": 26937.578,
+          "mean_tokens_used": null
+        }
+      },
+      "pairwise": {
+        "kernel_vs_generic_checklist": {
+          "left": "kernel",
+          "right": "generic_checklist",
+          "wins": 0,
+          "ties": 1,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.0,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 1.0,
+              "right_score": 1.0,
+              "delta": 0.0,
+              "outcome": "tie"
+            }
+          ]
+        },
+        "kernel_vs_freeform": {
+          "left": "kernel",
+          "right": "freeform",
+          "wins": 1,
+          "ties": 0,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.4,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 1.0,
+              "right_score": 0.6,
+              "delta": 0.4,
+              "outcome": "win"
+            }
+          ]
+        },
+        "generic_checklist_vs_freeform": {
+          "left": "generic_checklist",
+          "right": "freeform",
+          "wins": 1,
+          "ties": 0,
+          "losses": 0,
+          "mean_pickup_score_delta": 0.4,
+          "by_case": [
+            {
+              "id": "software_trace_widget",
+              "domain": "software",
+              "artifact_class": "task",
+              "left_score": 1.0,
+              "right_score": 0.6,
+              "delta": 0.4,
+              "outcome": "win"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "conditions": {
+    "freeform": {
+      "mean_pickup_score": 0.6,
+      "pickup_score_stdev": 0.0,
+      "mean_invention_rate": 0.0,
+      "invention_rate_stdev": 0.0,
+      "mean_confidence": 0.955,
+      "confidence_stdev": 0.015,
+      "mean_elapsed_ms": 15316.647,
+      "elapsed_ms_stdev": 262.321
+    },
+    "generic_checklist": {
+      "mean_pickup_score": 0.9,
+      "pickup_score_stdev": 0.1,
+      "mean_invention_rate": 0.0,
+      "invention_rate_stdev": 0.0,
+      "mean_confidence": 0.85,
+      "confidence_stdev": 0.01,
+      "mean_elapsed_ms": 50983.871,
+      "elapsed_ms_stdev": 11322.806
+    },
+    "kernel": {
+      "mean_pickup_score": 1.0,
+      "pickup_score_stdev": 0.0,
+      "mean_invention_rate": 0.0,
+      "invention_rate_stdev": 0.0,
+      "mean_confidence": 0.99,
+      "confidence_stdev": 0.0,
+      "mean_elapsed_ms": 26726.404,
+      "elapsed_ms_stdev": 211.175
+    }
+  },
+  "claims": [
+    {
+      "id": "kernel_stays_above_generic_checklist_across_replication",
+      "claim": "Across repeated live Codex runs, kernel mean pickup stays at or above generic checklist mean pickup, and above it on the aggregated sample.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_stays_above_freeform_across_replication",
+      "claim": "Across repeated live Codex runs, kernel mean pickup stays above free-form mean pickup.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_keeps_lowest_or_equal_invention_rate_across_replication",
+      "claim": "Across repeated live Codex runs, kernel mean invention rate stays at or below the other conditions.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_pickup_score": 1.0,
+    "generic_checklist_mean_pickup_score": 0.9,
+    "freeform_mean_pickup_score": 0.6,
+    "kernel_mean_invention_rate": 0.0,
+    "generic_checklist_mean_invention_rate": 0.0,
+    "freeform_mean_invention_rate": 0.0
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_next_task_continuation",
+  "cases": {
+    "software_trace_widget": {
+      "object": "terminal trace widget",
+      "goal": "surface lane drift and state clearly for operators",
+      "boundary": "terminal-first lane visibility in active ORP sessions",
+      "constraints": "low friction and no GUI dependency",
+      "success_criteria": "operators identify a drifting lane within 10 seconds without overloading the terminal surface"
+    },
+    "product_project_home": {
+      "object": "linked-project home shell",
+      "goal": "implement the decision to foreground linked projects on the web app home",
+      "boundary": "default logged-in dashboard experience",
+      "constraints": "keep the home calm and preserve access to the full idea library through Pensieve",
+      "success_criteria": "users reach active linked work in one click and broad idea browsing remains one step deeper"
+    },
+    "research_drift_hypothesis": {
+      "object": "stalled-lane pickup comparison fixture",
+      "goal": "test whether short drift summaries reduce the time needed to identify stalled lanes",
+      "boundary": "terminal-first multi-lane workflows where operators are already monitoring active lanes",
+      "constraints": "matched with-versus-without summary trials and no excessive summary noise",
+      "success_criteria": "the fixture captures detection-time differences clearly enough to support or falsify the hypothesis"
+    },
+    "research_handoff_experiment": {
+      "object": "handoff comparison trial kit",
+      "goal": "run matched handoff trials across free-form, checklist, and kernel task artifacts",
+      "boundary": "internal ORP operator handoffs",
+      "constraints": "small internal sample with a matched prompt set and reviewer score sheet",
+      "success_criteria": "pickup scores, clarification counts, and time-to-correct-interpretation are all captured"
+    },
+    "operations_habanero_checkpoint": {
+      "object": "runner resync verification pass",
+      "goal": "confirm active Habanero machines are resynced and a fresh hosted job pickup succeeds",
+      "boundary": "active Habanero runner machines",
+      "constraints": "avoid stale routing state and duplicate world bindings",
+      "success_criteria": "one fresh hosted job is picked up successfully after rerunning runner sync on active machines"
+    },
+    "operations_runner_policy": {
+      "object": "hosted runner claim gate enforcement",
+      "goal": "enforce the rule that only routeable local sessions can be targeted by hosted claims",
+      "boundary": "runner sync, poll, and work lifecycle",
+      "constraints": "do not claim unroutable jobs and keep routing machine-scoped",
+      "success_criteria": "unroutable jobs are rejected before claim and routeable jobs continue through the normal work lifecycle"
+    },
+    "writing_kernel_launch_result": {
+      "object": "kernel comparative validation study",
+      "goal": "run the comparative artifact, pickup, and corpus-fit studies needed after the first kernel launch",
+      "boundary": "post-launch kernel evaluation work",
+      "constraints": "current evidence is strongest on internal validity and comparative superiority is not yet proven",
+      "success_criteria": "comparative artifact, pickup, and corpus-fit studies are completed and recorded as canonical evidence"
+    }
+  }
+}

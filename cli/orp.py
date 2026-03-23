@@ -111,6 +111,7 @@ ORP_PACKAGE_NAME = _tool_package_name()
 DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
 DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
 DEFAULT_HOSTED_BASE_URL = "https://orp.earth"
+KERNEL_SCHEMA_VERSION = "1.0.0"
 
 
 class HostedApiError(RuntimeError):
@@ -4802,6 +4803,11 @@ def _unique_strings(values: list[str]) -> list[str]:
     return out
 
 
+def _slug_token(text: str, *, fallback: str = "item") -> str:
+    token = re.sub(r"[^a-z0-9]+", "-", str(text or "").strip().lower()).strip("-")
+    return token or fallback
+
+
 def _resolve_config_paths(raw_paths: Any, repo_root: Path, vars_map: dict[str, str]) -> list[str]:
     out: list[str] = []
     if not isinstance(raw_paths, list):
@@ -5138,6 +5144,8 @@ def _about_payload() -> dict[str, Any]:
             "config": "spec/v1/orp.config.schema.json",
             "packet": "spec/v1/packet.schema.json",
             "kernel": "spec/v1/kernel.schema.json",
+            "kernel_proposal": "spec/v1/kernel-proposal.schema.json",
+            "kernel_extension": "spec/v1/kernel-extension.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
             "link_project": "spec/v1/link-project.schema.json",
             "link_session": "spec/v1/link-session.schema.json",
@@ -5147,10 +5155,13 @@ def _about_payload() -> dict[str, Any]:
         "abilities": [
             {
                 "id": "kernel",
-                "description": "Reasoning-kernel artifact scaffolding and validation for promotable repository truth.",
+                "description": "Reasoning-kernel artifact scaffolding, validation, observation, proposal, and migration for promotable repository truth.",
                 "entrypoints": [
                     ["kernel", "validate"],
                     ["kernel", "scaffold"],
+                    ["kernel", "stats"],
+                    ["kernel", "propose"],
+                    ["kernel", "migrate"],
                 ],
             },
             {
@@ -5243,6 +5254,9 @@ def _about_payload() -> dict[str, Any]:
             {"name": "about", "path": ["about"], "json_output": True},
             {"name": "kernel_validate", "path": ["kernel", "validate"], "json_output": True},
             {"name": "kernel_scaffold", "path": ["kernel", "scaffold"], "json_output": True},
+            {"name": "kernel_stats", "path": ["kernel", "stats"], "json_output": True},
+            {"name": "kernel_propose", "path": ["kernel", "propose"], "json_output": True},
+            {"name": "kernel_migrate", "path": ["kernel", "migrate"], "json_output": True},
             {"name": "auth_login", "path": ["auth", "login"], "json_output": True},
             {"name": "auth_verify", "path": ["auth", "verify"], "json_output": True},
             {"name": "auth_logout", "path": ["auth", "logout"], "json_output": True},
@@ -5311,6 +5325,7 @@ def _about_payload() -> dict[str, Any]:
             "Canonical evidence lives in repo artifact paths outside ORP docs.",
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
             "Reasoning-kernel artifacts shape promotable repository truth for tasks, decisions, hypotheses, experiments, checkpoints, policies, and results.",
+            "Kernel evolution in ORP should stay explicit: observe real usage, propose changes, and migrate artifacts through versioned CLI surfaces rather than silent agent mutation.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
@@ -5508,12 +5523,19 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             5,
             {
+                "label": "Inspect kernel validation pressure across recorded runs",
+                "command": "orp kernel stats --json",
+            },
+        )
+        quick_actions.insert(
+            6,
+            {
                 "label": "Mark the repo locally ready after validation",
                 "command": "orp ready --json",
             },
         )
         quick_actions.insert(
-            6,
+            7,
             {
                 "label": "Inspect local project/session link state",
                 "command": "orp link status --json",
@@ -7256,25 +7278,278 @@ def _gate_map(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
-KERNEL_ARTIFACT_CLASS_REQUIREMENTS: dict[str, list[str]] = {
-    "task": ["object", "goal", "boundary", "constraints", "success_criteria"],
-    "decision": ["question", "chosen_path", "rejected_alternatives", "rationale", "consequences"],
-    "hypothesis": ["claim", "boundary", "assumptions", "test_path", "falsifiers"],
-    "experiment": ["objective", "method", "inputs", "outputs", "evidence_expectations", "interpretation_limits"],
-    "checkpoint": ["completed_unit", "current_state", "risks", "next_handoff_target", "artifact_refs"],
-    "policy": ["scope", "rule", "rationale", "invariants", "enforcement_surface"],
-    "result": ["claim", "evidence_paths", "status", "interpretation_limits", "next_follow_up"],
-}
+def _kernel_schema_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "spec" / "v1" / "kernel.schema.json"
 
 
-def _kernel_field_present(value: Any) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, list):
-        return any(_kernel_field_present(item) for item in value)
-    if isinstance(value, dict):
-        return len(value) > 0
+def _kernel_proposal_schema_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "spec" / "v1" / "kernel-proposal.schema.json"
+
+
+def _kernel_extension_schema_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "spec" / "v1" / "kernel-extension.schema.json"
+
+
+def _load_kernel_schema() -> dict[str, Any]:
+    path = _kernel_schema_path()
+    if not path.exists():
+        raise RuntimeError(f"kernel schema is missing: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError("kernel schema root must be an object")
+    return payload
+
+
+def _kernel_schema_metadata() -> tuple[dict[str, list[str]], dict[str, dict[str, Any]], set[str], list[str]]:
+    schema = _load_kernel_schema()
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise RuntimeError("kernel schema is missing object properties")
+    ordered_fields = [str(field).strip() for field in properties.keys() if str(field).strip()]
+
+    field_kinds: dict[str, dict[str, Any]] = {}
+    for field, raw in properties.items():
+        if not isinstance(raw, dict):
+            continue
+        if "const" in raw:
+            field_kinds[field] = {"kind": "const", "value": raw.get("const")}
+            continue
+        if "enum" in raw and isinstance(raw.get("enum"), list):
+            field_kinds[field] = {"kind": "enum", "value": list(raw.get("enum", []))}
+            continue
+        ref = raw.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            field_kinds[field] = {"kind": ref.split("/")[-1]}
+
+    requirements: dict[str, list[str]] = {}
+    raw_all_of = schema.get("allOf")
+    if isinstance(raw_all_of, list):
+        for clause in raw_all_of:
+            if not isinstance(clause, dict):
+                continue
+            raw_if = clause.get("if")
+            raw_then = clause.get("then")
+            if not isinstance(raw_if, dict) or not isinstance(raw_then, dict):
+                continue
+            const = (
+                raw_if.get("properties", {})
+                .get("artifact_class", {})
+                .get("const")
+            )
+            required_fields = raw_then.get("required")
+            if isinstance(const, str) and isinstance(required_fields, list):
+                requirements[const] = [
+                    str(field).strip()
+                    for field in required_fields
+                    if isinstance(field, str) and str(field).strip()
+                ]
+    return requirements, field_kinds, set(field_kinds.keys()), ordered_fields
+
+
+(
+    KERNEL_ARTIFACT_CLASS_REQUIREMENTS,
+    KERNEL_FIELD_KINDS,
+    KERNEL_ALLOWED_FIELDS,
+    KERNEL_FIELD_ORDER,
+) = _kernel_schema_metadata()
+
+
+def _kernel_ordered_fields_for_class(artifact_class: str, present_fields: Sequence[str] | None = None) -> list[str]:
+    ordered: list[str] = ["schema_version", "artifact_class"]
+    required_fields = KERNEL_ARTIFACT_CLASS_REQUIREMENTS.get(str(artifact_class).strip(), [])
+    for field in required_fields:
+        if field not in ordered:
+            ordered.append(field)
+    for field in KERNEL_FIELD_ORDER:
+        if field not in ordered:
+            ordered.append(field)
+    if present_fields is None:
+        return ordered
+    present_set = {str(field).strip() for field in present_fields if str(field).strip()}
+    return [field for field in ordered if field in present_set]
+
+
+def _kernel_text_valid(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _kernel_text_list_valid(value: Any) -> bool:
+    return isinstance(value, list) and len(value) > 0 and all(_kernel_text_valid(item) for item in value)
+
+
+def _kernel_field_present(field: str, value: Any) -> bool:
+    kind = str(KERNEL_FIELD_KINDS.get(field, {}).get("kind", ""))
+    if kind == "non_empty_text":
+        return _kernel_text_valid(value)
+    if kind == "text_list":
+        return _kernel_text_list_valid(value)
+    if kind == "text_or_text_list":
+        return _kernel_text_valid(value) or _kernel_text_list_valid(value)
+    if kind == "const":
+        return value is not None
+    if kind == "enum":
+        return value is not None
     return value is not None
+
+
+def _kernel_field_shape_issues(field: str, value: Any) -> list[str]:
+    meta = KERNEL_FIELD_KINDS.get(field, {})
+    kind = str(meta.get("kind", ""))
+    if kind == "const":
+        expected = meta.get("value")
+        return [] if value == expected else [f"must equal `{expected}`."]
+    if kind == "enum":
+        allowed = [str(x) for x in meta.get("value", [])]
+        return [] if value in allowed else [f"must be one of: {', '.join(allowed)}."]
+    if kind == "non_empty_text":
+        return [] if _kernel_text_valid(value) else ["must be a non-empty string."]
+    if kind == "text_list":
+        return [] if _kernel_text_list_valid(value) else ["must be a non-empty list of non-empty strings."]
+    if kind == "text_or_text_list":
+        return [] if (_kernel_text_valid(value) or _kernel_text_list_valid(value)) else [
+            "must be a non-empty string or a non-empty list of non-empty strings."
+        ]
+    return []
+
+
+def _validate_kernel_payload(
+    payload: dict[str, Any],
+    *,
+    expected_class: str = "",
+    extra_required_fields: Sequence[str] = (),
+) -> dict[str, Any]:
+    artifact_issues: list[str] = []
+    missing_fields: list[str] = []
+
+    for field in sorted(str(key) for key in payload.keys() if str(key) not in KERNEL_ALLOWED_FIELDS):
+        artifact_issues.append(f"unexpected field: `{field}`.")
+
+    schema_version = payload.get("schema_version")
+    artifact_issues.extend(
+        [f"field `schema_version` {issue}" for issue in _kernel_field_shape_issues("schema_version", schema_version)]
+    )
+
+    actual_class = str(payload.get("artifact_class", "")).strip()
+    artifact_issues.extend(
+        [f"field `artifact_class` {issue}" for issue in _kernel_field_shape_issues("artifact_class", payload.get("artifact_class"))]
+    )
+    if actual_class not in KERNEL_ARTIFACT_CLASS_REQUIREMENTS:
+        artifact_issues.append(f"unsupported artifact_class: {actual_class or '(missing)'}.")
+
+    if expected_class and actual_class and expected_class != actual_class:
+        artifact_issues.append(
+            f"artifact_class mismatch: expected `{expected_class}`, found `{actual_class}`."
+        )
+
+    field_class = actual_class or expected_class
+    required_fields = list(KERNEL_ARTIFACT_CLASS_REQUIREMENTS.get(field_class, []))
+    for field in _unique_strings([str(x).strip() for x in extra_required_fields if str(x).strip()]):
+        if field not in required_fields:
+            required_fields.append(field)
+    for field, value in payload.items():
+        if not isinstance(field, str) or field not in KERNEL_ALLOWED_FIELDS:
+            continue
+        for issue in _kernel_field_shape_issues(field, value):
+            artifact_issues.append(f"field `{field}` {issue}")
+    for field in required_fields:
+        if not _kernel_field_present(field, payload.get(field)):
+            missing_fields.append(field)
+    if missing_fields:
+        artifact_issues.append("missing required fields: " + ", ".join(missing_fields))
+
+    return {
+        "artifact_class": actual_class,
+        "expected_artifact_class": expected_class,
+        "valid": not artifact_issues,
+        "missing_fields": missing_fields,
+        "issues": artifact_issues,
+    }
+
+
+def _kernel_canonical_payload(
+    payload: dict[str, Any],
+    *,
+    drop_unknown_fields: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    unknown_fields = sorted(str(key) for key in payload.keys() if str(key) not in KERNEL_ALLOWED_FIELDS)
+    if unknown_fields and not drop_unknown_fields:
+        raise RuntimeError(
+            "kernel artifact has unknown fields: " + ", ".join(unknown_fields) + ". Re-run with --drop-unknown-fields to discard them."
+        )
+
+    artifact_class = str(payload.get("artifact_class", "")).strip()
+    if artifact_class not in KERNEL_ARTIFACT_CLASS_REQUIREMENTS:
+        raise RuntimeError(f"unsupported artifact_class: {artifact_class or '(missing)'}")
+
+    known_payload = {
+        str(key): value
+        for key, value in payload.items()
+        if str(key) in KERNEL_ALLOWED_FIELDS
+    }
+    known_payload["schema_version"] = KERNEL_SCHEMA_VERSION
+    known_payload["artifact_class"] = artifact_class
+
+    ordered_fields = _kernel_ordered_fields_for_class(artifact_class, present_fields=list(known_payload.keys()))
+    canonical: dict[str, Any] = {}
+    for field in ordered_fields:
+        if field in known_payload:
+            canonical[field] = known_payload[field]
+    return canonical, unknown_fields
+
+
+def _kernel_proposal_template(
+    *,
+    proposal_kind: str,
+    title: str,
+    target_artifact_classes: Sequence[str],
+    target_fields: Sequence[str],
+) -> dict[str, Any]:
+    clean_classes = _unique_strings([str(x).strip() for x in target_artifact_classes if str(x).strip()])
+    clean_fields = _unique_strings([str(x).strip() for x in target_fields if str(x).strip()])
+    return {
+        "schema_version": KERNEL_SCHEMA_VERSION,
+        "proposal_kind": proposal_kind,
+        "title": title,
+        "status": "draft",
+        "summary": "describe the kernel evolution being proposed",
+        "target_scope": {
+            "artifact_classes": clean_classes,
+            "fields": clean_fields,
+        },
+        "proposed_change": [
+            "describe the exact structural change",
+        ],
+        "rationale": [
+            "describe why the current kernel is insufficient",
+        ],
+        "evidence_refs": [
+            "docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md",
+        ],
+        "compatibility_notes": [
+            "describe backward-compatibility expectations",
+        ],
+        "migration_plan": [
+            "describe how existing artifacts will be preserved or migrated",
+        ],
+        "evaluation_plan": [
+            "describe what new evidence should justify promotion into the core kernel",
+        ],
+    }
+
+
+def _kernel_observation_stats_from_run(run: dict[str, Any]) -> dict[str, Any]:
+    results = run.get("results", [])
+    if not isinstance(results, list):
+        results = []
+    kernel_rows = [
+        row.get("kernel_validation")
+        for row in results
+        if isinstance(row, dict) and isinstance(row.get("kernel_validation"), dict)
+    ]
+    return {
+        "run_id": str(run.get("run_id", "")).strip(),
+        "kernel_validations": kernel_rows,
+    }
 
 
 def _kernel_validation_mode(gate: dict[str, Any]) -> str:
@@ -7371,31 +7646,14 @@ def _validate_kernel_gate(
 
         actual_class = ""
         if payload:
-            schema_version = str(payload.get("schema_version", "")).strip()
-            if schema_version != "1.0.0":
-                artifact_issues.append("schema_version must be `1.0.0`.")
-
-            actual_class = str(payload.get("artifact_class", "")).strip()
-            if actual_class not in KERNEL_ARTIFACT_CLASS_REQUIREMENTS:
-                artifact_issues.append(
-                    f"unsupported artifact_class: {actual_class or '(missing)'}."
-                )
-
-            if expected_class and actual_class and expected_class != actual_class:
-                artifact_issues.append(
-                    f"artifact_class mismatch: expected `{expected_class}`, found `{actual_class}`."
-                )
-
-            field_class = actual_class or expected_class
-            required_fields = list(KERNEL_ARTIFACT_CLASS_REQUIREMENTS.get(field_class, []))
-            for field in extra_required_fields:
-                if field not in required_fields:
-                    required_fields.append(field)
-            for field in required_fields:
-                if not _kernel_field_present(payload.get(field)):
-                    missing_fields.append(field)
-            if missing_fields:
-                artifact_issues.append("missing required fields: " + ", ".join(missing_fields))
+            validation = _validate_kernel_payload(
+                payload,
+                expected_class=expected_class,
+                extra_required_fields=extra_required_fields,
+            )
+            actual_class = str(validation.get("artifact_class", "")).strip()
+            missing_fields = list(validation.get("missing_fields", []))
+            artifact_issues.extend([str(issue) for issue in validation.get("issues", []) if isinstance(issue, str)])
 
         valid = optional_skipped or (exists and not artifact_issues)
         path_state = _path_for_state(path, repo_root)
@@ -7573,6 +7831,273 @@ def cmd_kernel_scaffold(args: argparse.Namespace) -> int:
         print(f"path={result['path']}")
         print(f"artifact_class={result['artifact_class']}")
         print(f"format={result['format']}")
+    return 0
+
+
+def _resolve_kernel_run_json_paths(
+    *,
+    repo_root: Path,
+    run_ids: Sequence[str],
+    run_jsons: Sequence[str],
+) -> list[Path]:
+    resolved: list[Path] = []
+    if run_jsons:
+        for raw in run_jsons:
+            if not str(raw).strip():
+                continue
+            _, path = _resolve_run_json_path(repo_root=repo_root, run_id_arg="", run_json_arg=str(raw))
+            resolved.append(path)
+        return resolved
+    if run_ids:
+        for raw in run_ids:
+            if not str(raw).strip():
+                continue
+            _, path = _resolve_run_json_path(repo_root=repo_root, run_id_arg=str(raw), run_json_arg="")
+            resolved.append(path)
+        return resolved
+
+    seen: set[Path] = set()
+    state_path = repo_root / "orp" / "state.json"
+    if state_path.exists():
+        try:
+            state = _read_json(state_path)
+        except Exception:
+            state = {}
+        runs = state.get("runs")
+        if isinstance(runs, dict):
+            for value in runs.values():
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                candidate = (repo_root / value).resolve()
+                if candidate.exists() and candidate not in seen:
+                    seen.add(candidate)
+                    resolved.append(candidate)
+    artifacts_root = repo_root / "orp" / "artifacts"
+    if artifacts_root.exists():
+        for candidate in sorted(artifacts_root.glob("*/RUN.json")):
+            candidate = candidate.resolve()
+            if candidate not in seen:
+                seen.add(candidate)
+                resolved.append(candidate)
+    return resolved
+
+
+def _kernel_stats_payload(
+    repo_root: Path,
+    run_json_paths: Sequence[Path],
+) -> dict[str, Any]:
+    runs_scanned = 0
+    runs_with_kernel_validation = 0
+    gate_rows_total = 0
+    artifacts_total = 0
+    artifacts_valid = 0
+    artifacts_invalid = 0
+    mode_counts: dict[str, int] = {}
+    artifact_class_counts: dict[str, int] = {}
+    missing_field_counts: dict[str, int] = {}
+    issue_counts: dict[str, int] = {}
+    path_counts: dict[str, int] = {}
+    per_run: list[dict[str, Any]] = []
+
+    for run_json in run_json_paths:
+        run = _read_json(run_json)
+        stats = _kernel_observation_stats_from_run(run)
+        kernel_rows = stats["kernel_validations"]
+        runs_scanned += 1
+        if kernel_rows:
+            runs_with_kernel_validation += 1
+        per_run.append(
+            {
+                "run_id": stats["run_id"] or run_json.parent.name,
+                "run_json": _path_for_state(run_json, repo_root),
+                "kernel_validations": len(kernel_rows),
+            }
+        )
+        for row in kernel_rows:
+            if not isinstance(row, dict):
+                continue
+            gate_rows_total += 1
+            mode = str(row.get("mode", "")).strip() or "unknown"
+            mode_counts[mode] = mode_counts.get(mode, 0) + 1
+            for artifact in row.get("artifacts", []) if isinstance(row.get("artifacts"), list) else []:
+                if not isinstance(artifact, dict):
+                    continue
+                artifacts_total += 1
+                if artifact.get("valid"):
+                    artifacts_valid += 1
+                else:
+                    artifacts_invalid += 1
+                artifact_class = str(
+                    artifact.get("artifact_class") or artifact.get("expected_artifact_class") or "unknown"
+                ).strip() or "unknown"
+                artifact_class_counts[artifact_class] = artifact_class_counts.get(artifact_class, 0) + 1
+                artifact_path = str(artifact.get("path", "")).strip()
+                if artifact_path:
+                    path_counts[artifact_path] = path_counts.get(artifact_path, 0) + 1
+                for field in artifact.get("missing_fields", []) if isinstance(artifact.get("missing_fields"), list) else []:
+                    key = str(field).strip()
+                    if key:
+                        missing_field_counts[key] = missing_field_counts.get(key, 0) + 1
+                for issue in artifact.get("issues", []) if isinstance(artifact.get("issues"), list) else []:
+                    key = str(issue).strip()
+                    if key:
+                        issue_counts[key] = issue_counts.get(key, 0) + 1
+
+    top_missing_fields = [
+        {"field": key, "count": count}
+        for key, count in sorted(missing_field_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
+    ]
+    top_issue_signals = [
+        {"issue": key, "count": count}
+        for key, count in sorted(issue_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
+    ]
+    top_paths = [
+        {"path": key, "count": count}
+        for key, count in sorted(path_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
+    ]
+    observations: list[str] = []
+    if runs_scanned == 0:
+        observations.append("No RUN.json artifacts were found. Run `orp gate run` with a structure_kernel gate to collect kernel observations.")
+    elif runs_with_kernel_validation == 0:
+        observations.append("RUN.json artifacts exist, but none recorded kernel_validation. Add a structure_kernel gate with a kernel.artifacts block.")
+    else:
+        if top_missing_fields:
+            focus = ", ".join(f"{row['field']} ({row['count']})" for row in top_missing_fields[:5])
+            observations.append(f"Most repeated missing fields: {focus}.")
+        if artifacts_invalid == 0:
+            observations.append("All observed kernel artifacts validated successfully across scanned runs.")
+        else:
+            observations.append(
+                f"{artifacts_invalid} of {artifacts_total} observed kernel artifacts failed validation."
+            )
+    return {
+        "ok": True,
+        "repo_root": str(repo_root),
+        "runs_scanned": runs_scanned,
+        "runs_with_kernel_validation": runs_with_kernel_validation,
+        "kernel_validation_rows": gate_rows_total,
+        "artifacts_total": artifacts_total,
+        "artifacts_valid": artifacts_valid,
+        "artifacts_invalid": artifacts_invalid,
+        "artifact_validation_rate": round((artifacts_valid / artifacts_total), 3) if artifacts_total else None,
+        "mode_counts": mode_counts,
+        "artifact_class_counts": artifact_class_counts,
+        "top_missing_fields": top_missing_fields,
+        "top_issue_signals": top_issue_signals,
+        "top_paths": top_paths,
+        "observations": observations,
+        "runs": per_run,
+    }
+
+
+def cmd_kernel_stats(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    run_json_paths = _resolve_kernel_run_json_paths(
+        repo_root=repo_root,
+        run_ids=list(getattr(args, "run_id", []) or []),
+        run_jsons=list(getattr(args, "run_json", []) or []),
+    )
+    payload = _kernel_stats_payload(repo_root, run_json_paths)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"runs_scanned={payload['runs_scanned']}")
+        print(f"runs_with_kernel_validation={payload['runs_with_kernel_validation']}")
+        print(f"artifacts_total={payload['artifacts_total']}")
+        print(f"artifacts_valid={payload['artifacts_valid']}")
+        print(f"artifacts_invalid={payload['artifacts_invalid']}")
+        for row in payload.get("top_missing_fields", []):
+            print(f"missing_field={row['field']} count={row['count']}")
+        for note in payload.get("observations", []):
+            print(f"note={note}")
+    return 0
+
+
+def cmd_kernel_propose(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    title = str(args.title or "").strip()
+    if not title:
+        raise RuntimeError("proposal title is required.")
+    slug = _slug_token(getattr(args, "slug", "") or title, fallback="kernel-proposal")
+    out_raw = str(getattr(args, "out", "") or "").strip()
+    if out_raw:
+        out_path = _resolve_cli_path(out_raw, repo_root)
+    else:
+        out_path = repo_root / "analysis" / "kernel-proposals" / f"{slug}.yml"
+    if out_path.exists() and not args.force:
+        raise RuntimeError(
+            f"kernel proposal already exists: {_path_for_state(out_path, repo_root)}. Use --force to overwrite."
+        )
+    payload = _kernel_proposal_template(
+        proposal_kind=str(args.kind).strip(),
+        title=title,
+        target_artifact_classes=list(getattr(args, "artifact_class", []) or []),
+        target_fields=list(getattr(args, "field", []) or []),
+    )
+    emitted_format = _write_structured_payload(out_path, payload, format_hint=args.format)
+    result = {
+        "ok": True,
+        "path": _path_for_state(out_path, repo_root),
+        "format": emitted_format,
+        "proposal_kind": payload["proposal_kind"],
+        "title": payload["title"],
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"path={result['path']}")
+        print(f"proposal_kind={result['proposal_kind']}")
+        print(f"title={result['title']}")
+        print(f"format={result['format']}")
+    return 0
+
+
+def cmd_kernel_migrate(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    artifact_path = _resolve_cli_path(args.artifact, repo_root)
+    if not artifact_path.exists():
+        raise RuntimeError(f"kernel artifact not found: {_path_for_state(artifact_path, repo_root)}")
+    loaded_payload = _load_config(artifact_path)
+    if not isinstance(loaded_payload, dict):
+        raise RuntimeError("kernel artifact root must be an object.")
+    out_raw = str(getattr(args, "out", "") or "").strip()
+    out_path = _resolve_cli_path(out_raw, repo_root) if out_raw else artifact_path
+    if out_path.exists() and out_path != artifact_path and not args.force:
+        raise RuntimeError(
+            f"output path already exists: {_path_for_state(out_path, repo_root)}. Use --force to overwrite."
+        )
+
+    original_schema_version = str(loaded_payload.get("schema_version", "") or "").strip()
+    canonical_payload, dropped_unknown_fields = _kernel_canonical_payload(
+        loaded_payload,
+        drop_unknown_fields=bool(getattr(args, "drop_unknown_fields", False)),
+    )
+    emitted_format = _write_structured_payload(out_path, canonical_payload, format_hint=args.format)
+    validation = _validate_kernel_payload(canonical_payload, expected_class=str(canonical_payload.get("artifact_class", "")).strip())
+    result = {
+        "ok": True,
+        "artifact": _path_for_state(artifact_path, repo_root),
+        "path": _path_for_state(out_path, repo_root),
+        "format": emitted_format,
+        "schema_version_before": original_schema_version or "(missing)",
+        "schema_version_after": str(canonical_payload.get("schema_version", "")),
+        "schema_version_updated": (original_schema_version or "") != str(canonical_payload.get("schema_version", "")),
+        "artifact_class": str(canonical_payload.get("artifact_class", "")),
+        "dropped_unknown_fields": dropped_unknown_fields,
+        "validation": validation,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"path={result['path']}")
+        print(f"artifact_class={result['artifact_class']}")
+        print(f"schema_version_before={result['schema_version_before']}")
+        print(f"schema_version_after={result['schema_version_after']}")
+        if dropped_unknown_fields:
+            print("dropped_unknown_fields=" + ",".join(dropped_unknown_fields))
+        print(f"valid={'true' if validation.get('valid') else 'false'}")
+        for issue in validation.get("issues", []):
+            print(f"issue={issue}")
     return 0
 
 
@@ -12657,6 +13182,106 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_kernel_scaffold)
     s_kernel_scaffold.set_defaults(func=cmd_kernel_scaffold, json_output=False)
+
+    s_kernel_stats = kernel_sub.add_parser(
+        "stats",
+        help="Summarize observed kernel validation pressure from RUN.json artifacts",
+    )
+    s_kernel_stats.add_argument(
+        "--run-id",
+        action="append",
+        default=[],
+        help="Specific run id to include (repeatable). Defaults to all discovered runs.",
+    )
+    s_kernel_stats.add_argument(
+        "--run-json",
+        action="append",
+        default=[],
+        help="Explicit RUN.json path to include (repeatable). Defaults to all discovered runs.",
+    )
+    add_json_flag(s_kernel_stats)
+    s_kernel_stats.set_defaults(func=cmd_kernel_stats, json_output=False)
+
+    s_kernel_propose = kernel_sub.add_parser(
+        "propose",
+        help="Scaffold a governed kernel-evolution proposal artifact",
+    )
+    s_kernel_propose.add_argument(
+        "--kind",
+        required=True,
+        choices=["add_field", "new_class", "requirement_change", "deprecate_field"],
+        help="Type of kernel evolution proposal",
+    )
+    s_kernel_propose.add_argument(
+        "--title",
+        required=True,
+        help="Proposal title",
+    )
+    s_kernel_propose.add_argument(
+        "--artifact-class",
+        action="append",
+        default=[],
+        choices=sorted(KERNEL_ARTIFACT_CLASS_REQUIREMENTS.keys()),
+        help="Affected kernel artifact class (repeatable)",
+    )
+    s_kernel_propose.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        help="Affected kernel field name (repeatable)",
+    )
+    s_kernel_propose.add_argument(
+        "--slug",
+        default="",
+        help="Optional output slug override",
+    )
+    s_kernel_propose.add_argument(
+        "--out",
+        default="",
+        help="Optional output path (default: analysis/kernel-proposals/<slug>.yml)",
+    )
+    s_kernel_propose.add_argument(
+        "--format",
+        default="",
+        choices=["", "yaml", "json"],
+        help="Optional explicit output format",
+    )
+    s_kernel_propose.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing proposal at the output path",
+    )
+    add_json_flag(s_kernel_propose)
+    s_kernel_propose.set_defaults(func=cmd_kernel_propose, json_output=False)
+
+    s_kernel_migrate = kernel_sub.add_parser(
+        "migrate",
+        help="Rewrite a kernel artifact into the current canonical field order and schema version",
+    )
+    s_kernel_migrate.add_argument("artifact", help="Kernel artifact path (.yml, .yaml, or .json)")
+    s_kernel_migrate.add_argument(
+        "--out",
+        default="",
+        help="Optional output path (default: rewrite in place)",
+    )
+    s_kernel_migrate.add_argument(
+        "--format",
+        default="",
+        choices=["", "yaml", "json"],
+        help="Optional explicit output format",
+    )
+    s_kernel_migrate.add_argument(
+        "--drop-unknown-fields",
+        action="store_true",
+        help="Drop unknown fields instead of failing migration",
+    )
+    s_kernel_migrate.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow overwriting an existing --out path",
+    )
+    add_json_flag(s_kernel_migrate)
+    s_kernel_migrate.set_defaults(func=cmd_kernel_migrate, json_output=False)
 
     s_gate = sub.add_parser("gate", help="Gate operations")
     gate_sub = s_gate.add_subparsers(dest="gate_cmd", required=True)

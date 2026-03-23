@@ -1,0 +1,12 @@
+schema_version: "1.0.0"
+artifact_class: result
+claim: ORP now ships a real reasoning kernel with enforceable promotion semantics
+evidence_paths:
+  - docs/ORP_REASONING_KERNEL_V0_1.md
+  - docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md
+  - docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json
+status: shipped in open-research-protocol 0.4.x
+interpretation_limits:
+  - current evidence is implementation-focused rather than outcome-comparative
+  - cross-domain superiority is not yet proven
+next_follow_up: run comparative artifact and handoff studies

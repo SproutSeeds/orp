@@ -27,6 +27,12 @@ class OrpKernelBenchmarkTests(unittest.TestCase):
         self.assertIn("init_starter_kernel", payload["benchmarks"])
         self.assertIn("artifact_roundtrip", payload["benchmarks"])
         self.assertIn("gate_modes", payload["benchmarks"])
+        self.assertIn("schema_alignment", payload["benchmarks"])
+        self.assertIn("cross_domain_corpus", payload["benchmarks"])
+        self.assertIn("requirement_enforcement", payload["benchmarks"])
+        self.assertIn("representation_invariance", payload["benchmarks"])
+        self.assertIn("mutation_stress", payload["benchmarks"])
+        self.assertGreaterEqual(payload["summary"]["cross_domain_corpus_domains_total"], 5)
 
 
 if __name__ == "__main__":

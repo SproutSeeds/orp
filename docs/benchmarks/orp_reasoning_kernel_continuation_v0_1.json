@@ -1,0 +1,448 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_continuation_pilot_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T08:18:34Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "codex_version": "codex-cli 0.116.0",
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "model": "default"
+  },
+  "corpus": {
+    "cases_total": 7,
+    "domains": [
+      "operations",
+      "product",
+      "research",
+      "software",
+      "writing"
+    ],
+    "artifact_classes": [
+      "checkpoint",
+      "decision",
+      "experiment",
+      "hypothesis",
+      "policy",
+      "result",
+      "task"
+    ]
+  },
+  "conditions": {
+    "freeform": {
+      "condition": "freeform",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 0.889,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.333,
+          "next_action_present": true,
+          "answers": {
+            "object": "terminal trace widget for lane monitoring",
+            "constraints": "stay terminal-first and low friction",
+            "success_criteria": "let operators tell quickly when a lane is drifting"
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Sketch the event inputs the widget should consume and draft a compact terminal panel layout that makes lane drift obvious at a glance."
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "question": "should the web app lead with linked projects or the old idea board?",
+            "chosen_path": "lead with linked projects first.",
+            "consequences": "active work is foregrounded, while idea browsing moves into Pensieve and the old idea board becomes secondary navigation."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Update the home surface plan/spec so linked projects are the primary entry point, and define the old idea board as secondary navigation within Pensieve."
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "short drift summaries will help operators notice stalled lanes faster.",
+            "boundary": "terminal-first multi-lane work.",
+            "test_path": "compare stalled-lane pickup with and without summaries."
+          },
+          "explicitly_missing_count": 4,
+          "recommended_next_action": "Convert the hypothesis into a minimal experiment brief by preserving the stated scope and claim, then defining how 'stalled-lane pickup' will be measured in the with-vs-without-summaries comparison."
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "objective": "compare free-form tasks, checklist tasks, and kernel tasks during handoff pickup",
+            "method": "give matched task artifacts to a second operator and time correct interpretation",
+            "outputs": "scores and clarification counts"
+          },
+          "explicitly_missing_count": 4,
+          "recommended_next_action": "Define the rubric for \"correct interpretation,\" prepare the matched free-form/checklist/kernel task artifacts, and set up a simple log to time the second operator and record scores plus clarification counts."
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "current_state": "the repo is bound and the primary session is routable again",
+            "risks": "other machines may still need a sync",
+            "next_handoff_target": "active machines"
+          },
+          "explicitly_missing_count": 2,
+          "recommended_next_action": "Rerun runner sync on active machines."
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "continuation_score": 0.889,
+          "carry_forward_score": 0.667,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "scope": "hosted runner pickup",
+            "rule": "only claim hosted jobs for linked projects that have a routeable local session",
+            "enforcement_surface": null
+          },
+          "explicitly_missing_count": 1,
+          "recommended_next_action": "Locate the hosted runner pickup or claim path and verify this policy is enforced before any hosted job is claimed."
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release.",
+            "status": "shipped in the CLI",
+            "next_follow_up": "run comparative studies against free-form artifacts and checklist artifacts."
+          },
+          "explicitly_missing_count": 0,
+          "recommended_next_action": "Run comparative studies against free-form artifacts and checklist artifacts."
+        }
+      ],
+      "mean_continuation_score": 0.968,
+      "mean_carry_forward_score": 0.952,
+      "mean_invention_rate": 0.048,
+      "mean_confidence": 0.953,
+      "mean_elapsed_ms": 18133.067
+    },
+    "generic_checklist": {
+      "condition": "generic_checklist",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "object": "Build the terminal trace widget for lane monitoring.",
+            "constraints": "low friction; no GUI dependency",
+            "success_criteria": "An operator can identify a drifting lane quickly."
+          },
+          "explicitly_missing_count": 6,
+          "recommended_next_action": "Define the event schema for lane-monitoring inputs, then implement a first terminal rendering pass with a compact summary row focused on quickly spotting lane drift."
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "question": "What should the default logged-in dashboard home be: the linked-project home or the old idea-board-first home?",
+            "chosen_path": "Use the linked-project home as the default logged-in dashboard, and move broader idea browsing into Pensieve.",
+            "consequences": "The home experience stays calm and focused on linked projects with one-click access to active work, while idea discovery becomes less prominent on the home screen but the full idea library remains available via Pensieve."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Implement the linked-project home shell as the default logged-in dashboard and add lower-right Pensieve access, then verify active work is reachable in one click and the full idea library remains accessible."
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "continuation_score": 0.889,
+          "carry_forward_score": 0.667,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "Drift summaries will improve stalled-lane pickup speed.",
+            "boundary": "Terminal-first multi-lane workflows; operators cannot be flooded with noise.",
+            "test_path": null
+          },
+          "explicitly_missing_count": 4,
+          "recommended_next_action": "Design the summary-vs-no-summary comparison fixture and timing capture, with stalled-lane detection time as the primary measurement."
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "objective": "Compare handoff pickup across free-form, checklist, and kernel task artifacts for internal ORP operator handoffs.",
+            "method": "Use a matched prompt set, give a second operator one artifact at a time, and record time to correct interpretation and clarification counts.",
+            "outputs": "Pickup timings and clarification counts."
+          },
+          "explicitly_missing_count": 5,
+          "recommended_next_action": "Prepare the matched prompt set and reviewer score sheet for the internal ORP handoff comparison, with explicit scoring rules for when an interpretation counts as correct and how clarification counts are recorded."
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "current_state": "Restored the Habanero linked-project routing path; the local repo, primary session, and hosted world are aligned again, and the linked project is routable again.",
+            "risks": "Other active machines may still carry stale routing state.",
+            "next_handoff_target": "Rerun runner sync on active machines and verify live pickup."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Rerun runner sync on each active machine, avoiding duplicate world bindings, then verify the linked project is picked up live."
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "scope": "Hosted runner job pickup.",
+            "rule": "Only claim hosted jobs for linked projects that have a routeable local session.",
+            "enforcement_surface": "Runner pickup."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Audit pickup behavior against stale-session and missing-session cases."
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release in the CLI.",
+            "status": "Release shipped; validation docs published; comparative superiority remains unproven.",
+            "next_follow_up": "Run comparative artifact and handoff studies next."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Run the comparative artifact and handoff studies next."
+        }
+      ],
+      "mean_continuation_score": 0.984,
+      "mean_carry_forward_score": 0.952,
+      "mean_invention_rate": 0.0,
+      "mean_confidence": 0.929,
+      "mean_elapsed_ms": 30277.013
+    },
+    "kernel": {
+      "condition": "kernel",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "object": "terminal trace widget",
+            "constraints": "low friction; no GUI dependency",
+            "success_criteria": "an operator can identify a drifting lane within 10 seconds; the widget does not overload the terminal surface"
+          },
+          "explicitly_missing_count": 6,
+          "recommended_next_action": "Draft a minimal terminal-only widget spec for active ORP sessions that defines how lane drift and session state are displayed, then validate that the layout supports drift detection within 10 seconds without adding terminal clutter."
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "question": "Should the web app home foreground linked projects or the old idea board?",
+            "chosen_path": "Foreground linked projects and move broad idea browsing into Pensieve.",
+            "consequences": "linked projects become the primary home object; idea browsing becomes one click deeper"
+          },
+          "explicitly_missing_count": 2,
+          "recommended_next_action": "Implement the information architecture decision: make linked projects the primary focus of the web app home, move broad idea browsing under Pensieve, and verify the new navigation preserves quick access to ideas one level deeper."
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "Short drift summaries reduce the time needed to identify stalled lanes.",
+            "boundary": "[\"terminal-first multi-lane workflows\",\"operators already monitoring active lanes\"]",
+            "test_path": "Run matched stalled-lane pickup trials with and without summaries and compare detection time."
+          },
+          "explicitly_missing_count": 5,
+          "recommended_next_action": "Convert this hypothesis into a runnable experiment spec: define the exact drift summary intervention, the stalled-lane detection metric, and the success threshold, then execute matched stalled-lane pickup trials within the stated boundary."
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "objective": "Measure whether kernel task artifacts improve handoff pickup quality over free-form and generic checklist alternatives.",
+            "method": "Run matched handoff trials where a second operator receives one artifact at a time and explains the task, constraints, and next action.",
+            "outputs": "pickup scores; clarification counts; time to correct interpretation"
+          },
+          "explicitly_missing_count": 6,
+          "recommended_next_action": "Prepare the trial runbook and data-collection materials, then run the matched handoff trials across the three artifact conditions while capturing score sheets, clarification counts, and timing logs."
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "current_state": "The local project link, primary session, and hosted world are synchronized and routable again.",
+            "risks": "inactive machines may still hold stale routing state; older queued jobs may need a fresh sync before pickup",
+            "next_handoff_target": "Rerun runner sync on active machines and verify one fresh hosted job pickup."
+          },
+          "explicitly_missing_count": 3,
+          "recommended_next_action": "Rerun runner sync on the active machines, then verify that one fresh hosted job is picked up successfully before handing off again."
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "scope": "Hosted runner job pickup and claim behavior.",
+            "rule": "Only claim a hosted job when the linked project has a routeable local session on the current machine.",
+            "enforcement_surface": "runner sync, poll, and work lifecycle"
+          },
+          "explicitly_missing_count": 5,
+          "recommended_next_action": "Audit the hosted runner claim path and enforce the claim gate across runner sync, poll, and work lifecycle so a hosted job is only claimed if the linked project resolves to a routeable local session on the current machine."
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "continuation_score": 1.0,
+          "carry_forward_score": 1.0,
+          "invention_rate": 0.0,
+          "next_action_present": true,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release as a real CLI protocol surface.",
+            "status": "shipped in the ORP CLI and published to npm",
+            "next_follow_up": "Run the comparative artifact, pickup, and corpus-fit studies."
+          },
+          "explicitly_missing_count": 0,
+          "recommended_next_action": "Run the comparative artifact, pickup, and corpus-fit studies before making stronger comparative claims, since the artifact says comparative superiority is not yet proven and current evidence is strongest on internal validity."
+        }
+      ],
+      "mean_continuation_score": 1.0,
+      "mean_carry_forward_score": 1.0,
+      "mean_invention_rate": 0.0,
+      "mean_confidence": 0.954,
+      "mean_elapsed_ms": 15364.95
+    }
+  },
+  "pairwise": {
+    "kernel_vs_generic_checklist": {
+      "left": "kernel",
+      "right": "generic_checklist",
+      "wins": 1,
+      "ties": 6,
+      "losses": 0,
+      "mean_continuation_score_delta": 0.016
+    },
+    "kernel_vs_freeform": {
+      "left": "kernel",
+      "right": "freeform",
+      "wins": 2,
+      "ties": 5,
+      "losses": 0,
+      "mean_continuation_score_delta": 0.032
+    }
+  },
+  "claims": [
+    {
+      "id": "kernel_outscores_generic_checklist_on_continuation",
+      "claim": "On the matched live continuation simulation, kernel artifacts support a downstream continuation score that meets or exceeds generic checklist artifacts without a higher invention rate.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_freeform_on_continuation",
+      "claim": "On the matched live continuation simulation, kernel artifacts support a stronger downstream continuation score than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_minimizes_continuation_invention",
+      "claim": "On the matched live continuation simulation, kernel artifacts minimize unsupported carry-forward invention.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_continuation_score": 1.0,
+    "generic_checklist_mean_continuation_score": 0.984,
+    "freeform_mean_continuation_score": 0.968,
+    "kernel_mean_invention_rate": 0.0,
+    "generic_checklist_mean_invention_rate": 0.0,
+    "freeform_mean_invention_rate": 0.048
+  }
+}

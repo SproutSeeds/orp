@@ -1,0 +1,16 @@
+schema_version: "1.0.0"
+artifact_class: experiment
+objective: measure whether kernel-structured tasks improve handoff pickup quality
+method: run matched handoff trials across free-form, checklist, and kernel artifacts
+inputs:
+  - 20 matched task prompts
+  - blind reviewers or operators
+outputs:
+  - pickup accuracy scores
+  - clarification counts
+evidence_expectations:
+  - scored review sheets
+  - artifact corpus and rating summary
+interpretation_limits:
+  - the initial study may be small and internal
+  - results may not generalize across all domains

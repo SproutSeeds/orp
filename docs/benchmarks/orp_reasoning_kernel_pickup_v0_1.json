@@ -1,0 +1,594 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_pickup_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T06:15:21Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "node_version": "v24.10.0",
+    "platform": "macOS-26.3-arm64-arm-64bit"
+  },
+  "corpus": {
+    "source": "examples/kernel/comparison/comparison-corpus.json",
+    "cases_total": 7
+  },
+  "conditions": {
+    "freeform": {
+      "condition": "freeform",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 0.333,
+          "ambiguity_remaining": 0.667,
+          "answered_targets": 2,
+          "pickup_targets_total": 3,
+          "answers": {
+            "object": "terminal trace widget for lane monitoring.",
+            "constraints": "stay terminal-first and low friction.",
+            "success_criteria": null
+          }
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 0.5,
+          "ambiguity_remaining": 0.5,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "question": "should the web app lead with linked projects or the old idea board?",
+            "chosen_path": "lead with linked projects first.",
+            "consequences": "the old idea board becomes secondary navigation."
+          }
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 0.5,
+          "ambiguity_remaining": 0.5,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "short drift summaries will help operators notice stalled lanes faster.",
+            "boundary": "terminal-first multi-lane work.",
+            "test_path": "compare stalled-lane pickup with and without summaries."
+          }
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 0.5,
+          "ambiguity_remaining": 0.5,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "objective": "compare free-form tasks, checklist tasks, and kernel tasks during handoff pickup.",
+            "method": "give matched task artifacts to a second operator and time correct interpretation.",
+            "outputs": "collect scores and clarification counts."
+          }
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 0.5,
+          "ambiguity_remaining": 0.5,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "current_state": "the repo is bound and the primary session is routable again.",
+            "risks": "other machines may still need a sync.",
+            "next_handoff_target": "rerun runner sync on active machines."
+          }
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 0.333,
+          "ambiguity_remaining": 0.667,
+          "answered_targets": 2,
+          "pickup_targets_total": 3,
+          "answers": {
+            "scope": "hosted runner pickup.",
+            "rule": "only claim hosted jobs for linked projects that have a routeable local session.",
+            "enforcement_surface": null
+          }
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 0.5,
+          "ambiguity_remaining": 0.5,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release.",
+            "status": "shipped in the CLI.",
+            "next_follow_up": "run comparative studies against free-form artifacts and checklist artifacts."
+          }
+        }
+      ],
+      "mean_pickup_score": 0.452,
+      "mean_ambiguity_remaining": 0.548,
+      "mean_answered_target_rate": 0.905
+    },
+    "generic_checklist": {
+      "condition": "generic_checklist",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 0.75,
+          "ambiguity_remaining": 0.25,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "object": "Build the terminal trace widget for lane monitoring.",
+            "constraints": "low friction; no GUI dependency",
+            "success_criteria": "An operator can identify a drifting lane quickly."
+          }
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 0.717,
+          "ambiguity_remaining": 0.283,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "question": "Choose the linked-project home instead of the old idea-board-first home.",
+            "chosen_path": "Lead with linked projects and move broader idea browsing into Pensieve.",
+            "consequences": "Idea discovery becomes less prominent on the home screen."
+          }
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 0.75,
+          "ambiguity_remaining": 0.25,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "Drift summaries will improve stalled-lane pickup speed.",
+            "boundary": "Terminal-first multi-lane workflows.",
+            "test_path": "Measure stalled-lane detection time."
+          }
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 0.717,
+          "ambiguity_remaining": 0.283,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "objective": "Compare handoff pickup across free-form, checklist, and kernel task artifacts.",
+            "method": "Give a second operator one artifact at a time and record time to correct interpretation.",
+            "outputs": "Capture time to correct interpretation.; Capture clarification counts."
+          }
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 0.75,
+          "ambiguity_remaining": 0.25,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "current_state": "The local repo, primary session, and hosted world are aligned again.",
+            "risks": "Other active machines may still carry stale routing state.",
+            "next_handoff_target": "Rerun runner sync on active machines and verify live pickup."
+          }
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 0.75,
+          "ambiguity_remaining": 0.25,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "scope": "Hosted runner job pickup.",
+            "rule": "Only claim hosted jobs for linked projects that have a routeable local session.",
+            "enforcement_surface": "Runner pickup rejects unroutable jobs."
+          }
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 0.767,
+          "ambiguity_remaining": 0.233,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release in the CLI.",
+            "status": "Release shipped; validation docs published",
+            "next_follow_up": "Run comparative artifact and handoff studies next."
+          }
+        }
+      ],
+      "mean_pickup_score": 0.743,
+      "mean_ambiguity_remaining": 0.257,
+      "mean_answered_target_rate": 1.0
+    },
+    "kernel": {
+      "condition": "kernel",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "object": "terminal trace widget",
+            "constraints": "low friction; no GUI dependency",
+            "success_criteria": "an operator can identify a drifting lane within 10 seconds; the widget does not overload the terminal surface"
+          }
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "question": "Should the web app home foreground linked projects or the old idea board?",
+            "chosen_path": "Foreground linked projects and move broad idea browsing into Pensieve.",
+            "consequences": "linked projects become the primary home object; idea browsing becomes one click deeper"
+          }
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "Short drift summaries reduce the time needed to identify stalled lanes.",
+            "boundary": "terminal-first multi-lane workflows; operators already monitoring active lanes",
+            "test_path": "Run matched stalled-lane pickup trials with and without summaries and compare detection time."
+          }
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "objective": "Measure whether kernel task artifacts improve handoff pickup quality over free-form and generic checklist alternatives.",
+            "method": "Run matched handoff trials where a second operator receives one artifact at a time and explains the task, constraints, and next action.",
+            "outputs": "pickup scores; clarification counts; time to correct interpretation"
+          }
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "current_state": "The local project link, primary session, and hosted world are synchronized and routable again.",
+            "risks": "inactive machines may still hold stale routing state; older queued jobs may need a fresh sync before pickup",
+            "next_handoff_target": "Rerun runner sync on active machines and verify one fresh hosted job pickup."
+          }
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "scope": "Hosted runner job pickup and claim behavior.",
+            "rule": "Only claim a hosted job when the linked project has a routeable local session on the current machine.",
+            "enforcement_surface": "runner sync, poll, and work lifecycle"
+          }
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 3,
+          "pickup_targets_total": 3,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release as a real CLI protocol surface.",
+            "status": "shipped in the ORP CLI and published to npm",
+            "next_follow_up": "Run the comparative artifact, pickup, and corpus-fit studies."
+          }
+        }
+      ],
+      "mean_pickup_score": 1.0,
+      "mean_ambiguity_remaining": 0.0,
+      "mean_answered_target_rate": 1.0
+    }
+  },
+  "pairwise": {
+    "kernel_vs_generic_checklist": {
+      "left": "kernel",
+      "right": "generic_checklist",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_pickup_score_delta": 0.257,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.75,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.717,
+          "delta": 0.283,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.75,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.717,
+          "delta": 0.283,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.75,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.75,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.767,
+          "delta": 0.233,
+          "outcome": "win"
+        }
+      ]
+    },
+    "kernel_vs_freeform": {
+      "left": "kernel",
+      "right": "freeform",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_pickup_score_delta": 0.548,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.333,
+          "delta": 0.667,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.5,
+          "delta": 0.5,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.5,
+          "delta": 0.5,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.5,
+          "delta": 0.5,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.5,
+          "delta": 0.5,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.333,
+          "delta": 0.667,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.5,
+          "delta": 0.5,
+          "outcome": "win"
+        }
+      ]
+    },
+    "generic_checklist_vs_freeform": {
+      "left": "generic_checklist",
+      "right": "freeform",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_pickup_score_delta": 0.291,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 0.75,
+          "right_score": 0.333,
+          "delta": 0.417,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 0.717,
+          "right_score": 0.5,
+          "delta": 0.217,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 0.75,
+          "right_score": 0.5,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 0.717,
+          "right_score": 0.5,
+          "delta": 0.217,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 0.75,
+          "right_score": 0.5,
+          "delta": 0.25,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 0.75,
+          "right_score": 0.333,
+          "delta": 0.417,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 0.767,
+          "right_score": 0.5,
+          "delta": 0.267,
+          "outcome": "win"
+        }
+      ]
+    }
+  },
+  "claims": [
+    {
+      "id": "matched_pickup_corpus_exists",
+      "claim": "ORP has a matched internal pickup corpus spanning all seven kernel artifact classes.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_generic_checklist_on_pickup_proxy",
+      "claim": "On the matched internal pickup proxy, kernel artifacts preserve more explicit pickup-ready information than generic checklist artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_freeform_on_pickup_proxy",
+      "claim": "On the matched internal pickup proxy, kernel artifacts preserve more explicit pickup-ready information than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "generic_checklist_improves_on_freeform_on_pickup_proxy",
+      "claim": "On the matched internal pickup proxy, a generic checklist preserves more explicit pickup-ready information than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_preserves_full_pickup_targets",
+      "claim": "On the matched internal pickup proxy, kernel artifacts keep all pickup targets explicitly answerable.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_pickup_score": 1.0,
+    "generic_checklist_mean_pickup_score": 0.743,
+    "freeform_mean_pickup_score": 0.452
+  }
+}

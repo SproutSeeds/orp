@@ -10,6 +10,12 @@ The supporting benchmark artifact for this document is:
 
 For the honest claim-by-claim evidence status and remaining research gaps, see:
 
+- [docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md)
+- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_EVOLUTION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVOLUTION.md)
 - [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
 - [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
 
@@ -156,6 +162,9 @@ The kernel currently exposes:
 
 - `orp kernel scaffold`
 - `orp kernel validate`
+- `orp kernel stats`
+- `orp kernel propose`
+- `orp kernel migrate`
 
 ### Gate integration
 
@@ -192,14 +201,22 @@ The harness benchmarks and validates:
    `orp kernel scaffold` + `orp kernel validate` for every artifact class
 3. Enforcement path
    hard mode, soft mode, and legacy compatibility
+4. Cross-domain corpus path
+   validate a small reference corpus spanning software, product, research,
+   operations, and writing
+5. Class-specific requirement path
+   remove every required field, one at a time, across every artifact class and
+   verify rejection
+6. Schema alignment path
+   confirm the CLI validator and published kernel schema stay synchronized
+7. Representation invariance path
+   confirm equivalent YAML and JSON artifacts validate to the same result
+8. Mutation stress path
+   reject adversarial near-miss artifacts such as wrong types, whitespace-only
+   text, bad schema metadata, and unexpected fields
 
-The benchmark report was generated on:
-
-- commit `5c87faf4fbd54d203cc0ca05683544355c306d55`
-- package version `0.4.6`
-- Python `3.9.6`
-- Node `v24.10.0`
-- `macOS-26.3-arm64-arm-64bit`
+The precise environment metadata for the current recorded benchmark run lives in
+the benchmark artifact itself.
 
 ## 6. What The Benchmarks Show
 
@@ -207,9 +224,9 @@ The benchmark report was generated on:
 
 Reference run, 5 iterations:
 
-- `orp init` mean: `245.958 ms`
-- starter `orp kernel validate` mean: `165.837 ms`
-- default `orp gate run` mean: `240.768 ms`
+- `orp init` mean: `242.098 ms`
+- starter `orp kernel validate` mean: `162.684 ms`
+- default `orp gate run` mean: `239.282 ms`
 
 Interpretation:
 
@@ -225,8 +242,8 @@ All seven artifact classes successfully scaffolded and validated.
 
 Observed means:
 
-- scaffold mean: `157.864 ms`
-- validate mean: `156.060 ms`
+- scaffold mean: `161.405 ms`
+- validate mean: `161.641 ms`
 
 Interpretation:
 
@@ -238,9 +255,9 @@ Interpretation:
 
 Reference single-run timings:
 
-- hard mode invalid artifact: `164.938 ms`, `FAIL`
-- soft mode invalid artifact: `163.174 ms`, `PASS` with advisory invalid state
-- legacy compatibility gate: `161.567 ms`, `PASS` without `kernel_validation`
+- hard mode invalid artifact: `172.719 ms`, `FAIL`
+- soft mode invalid artifact: `166.790 ms`, `PASS` with advisory invalid state
+- legacy compatibility gate: `175.379 ms`, `PASS` without `kernel_validation`
 
 Interpretation:
 
@@ -248,27 +265,119 @@ Interpretation:
 - existing `structure_kernel` surfaces do not regress when no explicit kernel
   config is present
 
+### D. Cross-domain corpus fit
+
+Reference corpus run:
+
+- fixtures: `7`
+- domains: `5`
+- artifact classes covered: `7`
+- corpus validate mean: `169.879 ms`
+
+Interpretation:
+
+- The kernel now has a small but explicit cross-domain reference corpus, not
+  just abstract cross-domain claims.
+- This does not prove universal fit, but it does show that the current class
+  set can represent a concrete spread of software, product, research,
+  operations, and writing artifacts cleanly.
+
+### E. Class-specific requirement enforcement
+
+Reference enforcement run:
+
+- cases: `36`
+- mean validation time: `154.307 ms`
+- every required field across every class triggered rejection when removed
+
+Interpretation:
+
+- The class requirements are not only documented; they are actively enforced.
+- ORP now has evidence that each current artifact class rejects an incomplete
+  candidate when a required field is missing.
+
+### F. Schema-to-validator alignment
+
+Reference alignment run:
+
+- schema required-field map matches the CLI required-field map
+- schema field set total: `37`
+- CLI field set total: `37`
+
+Interpretation:
+
+- The validator is now auditable against the published schema rather than
+  drifting as a separate undocumented ruleset.
+
+### G. Representation invariance
+
+Reference invariance run:
+
+- YAML artifact: valid
+- JSON artifact: valid
+- semantic validation result: equivalent
+
+Interpretation:
+
+- The kernel behaves as a structural protocol rather than a formatting
+  preference.
+
+### H. Adversarial mutation detection
+
+Reference mutation run:
+
+- cases: `7`
+- mean validation time: `152.650 ms`
+- all cases rejected correctly
+
+Covered mutations:
+
+- unexpected field
+- whitespace-only required text
+- wrong field type
+- non-string list item
+- unsupported artifact class
+- wrong schema version
+- empty required list
+
+Interpretation:
+
+- The validator now has evidence against adversarial near-miss inputs, not only
+  against missing fields.
+
 ## 7. Claims And Evidence
 
-The benchmark report records five claims, all currently passing:
+The benchmark report now records ten claims, all currently passing:
 
-1. `starter_kernel_bootstrap`
+1. `schema_validator_alignment`
+   The CLI validator stays aligned with the published kernel schema.
+2. `starter_kernel_bootstrap`
    ORP seeds a valid starter artifact and a passing default kernel gate.
-2. `typed_artifact_roundtrip`
+3. `typed_artifact_roundtrip`
    All seven artifact classes scaffold and validate successfully.
-3. `promotion_enforcement_modes`
+4. `promotion_enforcement_modes`
    Hard mode blocks invalid artifacts; soft mode records advisory invalidity.
-4. `legacy_structure_kernel_compatibility`
+5. `legacy_structure_kernel_compatibility`
    Older `structure_kernel` gates remain compatible.
-5. `local_cli_kernel_ergonomics`
+6. `local_cli_kernel_ergonomics`
    One-shot kernel operations remain within human-scale local latency
    thresholds on the reference machine.
+7. `cross_domain_corpus_fit`
+   The current kernel class set fits a small cross-domain reference corpus
+   cleanly.
+8. `class_specific_requirement_enforcement`
+   Each artifact class rejects a candidate when a required field is removed.
+9. `representation_invariance`
+   Equivalent YAML and JSON artifacts validate to the same semantic result.
+10. `adversarial_mutation_detection`
+   The validator rejects adversarial near-miss artifacts.
 
 These claims are backed by:
 
 - [tests/test_orp_kernel.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel.py)
 - [tests/test_orp_init.py](/Volumes/Code_2TB/code/orp/tests/test_orp_init.py)
 - [tests/test_orp_kernel_benchmark.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel_benchmark.py)
+- [tests/test_orp_kernel_corpus.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel_corpus.py)
 - [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json)
 
 ## 8. Why This Applies To All Project Types
@@ -352,6 +461,10 @@ The current evidence supports that claim:
 - it works across all current artifact classes
 - it enforces hard vs soft promotion semantics correctly
 - it preserves compatibility with pre-kernel `structure_kernel` gates
+- it stays aligned with the published schema
+- it fits a small cross-domain reference corpus
+- it behaves consistently across YAML and JSON
+- it rejects malformed near-miss artifacts
 - it stays within human-scale local CLI latency targets
 
 That makes it a good `v0.1` kernel: minimal, general, validated, and already

@@ -10,6 +10,8 @@ Additional v1 runtime draft examples:
 
 - `orp.reasoning-kernel.starter.yml` — minimal kernel-aware profile showing a real `structure_kernel` gate.
 - `kernel/trace-widget.task.kernel.yml` — example typed kernel artifact for a promotable task.
+- `kernel/corpus/` — small cross-domain reference corpus used by the kernel validation benchmarks.
+- `kernel/comparison/` — matched prompt corpus used by the kernel comparison pilot harness.
 - `orp.sunflower-coda.atomic.yml` — discovery-first profile for atomic board workflows.
 - `orp.sunflower-coda.live-compare.yml` — side-by-side gate-compare profiles for sunflower Problems 857/20/367.
 - `orp.sunflower-coda.pr-governance.yml` — local-first PR governance profile set (pre-open, draft-readiness, full flow).

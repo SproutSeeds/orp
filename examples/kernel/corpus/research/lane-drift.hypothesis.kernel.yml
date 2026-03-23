@@ -1,0 +1,11 @@
+schema_version: "1.0.0"
+artifact_class: hypothesis
+claim: exposing lane drift summaries will reduce missed stalled sessions during multi-agent work
+boundary: applies to terminal-first lane orchestration with multiple concurrent sessions
+assumptions:
+  - operators check summary views during active work
+  - stalled lanes emit enough signal to summarize
+test_path: compare operator pickup of stalled lanes with and without a drift summary surface
+falsifiers:
+  - operators do not detect stalled lanes faster
+  - the drift summary produces too many false positives

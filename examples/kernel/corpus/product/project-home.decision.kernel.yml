@@ -1,0 +1,11 @@
+schema_version: "1.0.0"
+artifact_class: decision
+question: what should the web home surface emphasize first for active operators?
+chosen_path: make linked projects the primary home surface and move idea browsing into Pensieve
+rejected_alternatives:
+  - keep the ideas board as the default landing page
+  - show linked projects and idea browsing with equal visual weight on first load
+rationale: linked projects map directly to active operator work and reduce dashboard noise
+consequences:
+  - idea browsing becomes secondary navigation
+  - the home screen becomes calmer but less exploratory by default

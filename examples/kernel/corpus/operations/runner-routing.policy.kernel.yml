@@ -1,0 +1,9 @@
+schema_version: "1.0.0"
+artifact_class: policy
+scope: hosted runner job pickup and execution
+rule: only route runner jobs to linked projects with routeable registered sessions on the owning machine
+rationale: prevent jobs from being claimed by machines or sessions that cannot actually execute them
+invariants:
+  - a claimed job must have an unambiguous local execution target
+  - stale session targets must fall back safely or fail clearly
+enforcement_surface: runner sync poll and work lifecycle

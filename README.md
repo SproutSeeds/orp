@@ -23,7 +23,14 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
 - `docs/CANONICAL_CLI_BOUNDARY.md` — canonical source-of-truth boundary between CLI, Rust, and web
 - `docs/ORP_REASONING_KERNEL_V0_1.md` — draft kernel model for turning loose intent into promotable canonical artifacts
+- `docs/ORP_REASONING_KERNEL_EVOLUTION.md` — stable-core, observable-pressure, explicit-evolution model for growing the kernel over time
 - `docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md` — technical rationale, benchmarks, and alternatives analysis for the kernel
+- `docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md` — first matched comparison between free-form, checklist, and kernel artifacts
+- `docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md` — first explicit pickup/handoff proxy across free-form, checklist, and kernel artifacts
+- `docs/ORP_REASONING_KERNEL_AGENT_PILOT.md` — first live fresh-agent Codex recoverability simulation across free-form, checklist, and kernel artifacts
+- `docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md` — `10`-repeat fresh-agent replication study for live kernel recoverability and per-field stability
+- `docs/ORP_REASONING_KERNEL_CONTINUATION_PILOT.md` — first live downstream continuation smoke for kernel, checklist, and free-form artifacts
+- `docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md` — harder live downstream benchmark where the agent must produce the next canonical task artifact
 - `docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md` — honest map of what the kernel proves, only suggests, or still leaves unproven
 - `docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md` — comparative experiment plan for upgrading kernel evidence beyond implementation validity
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work

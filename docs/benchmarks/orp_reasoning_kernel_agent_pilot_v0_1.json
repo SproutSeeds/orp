@@ -1,0 +1,796 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "orp_reasoning_kernel_agent_pilot_report",
+  "metadata": {
+    "generated_at_utc": "2026-03-23T07:30:36Z",
+    "repo_commit": "c2f7f2a52744a00fb719d37de583da1f4ae615bd",
+    "repo_branch": "main",
+    "package_version": "0.4.7",
+    "python_version": "3.9.6",
+    "codex_version": "codex-cli 0.116.0",
+    "platform": "macOS-26.3-arm64-arm-64bit",
+    "model": "default"
+  },
+  "corpus": {
+    "source": "examples/kernel/comparison/comparison-corpus.json",
+    "cases_total": 7,
+    "domains_total": 5,
+    "domains": [
+      "operations",
+      "product",
+      "research",
+      "software",
+      "writing"
+    ],
+    "artifact_classes_total": 7,
+    "artifact_classes": [
+      "checkpoint",
+      "decision",
+      "experiment",
+      "hypothesis",
+      "policy",
+      "result",
+      "task"
+    ]
+  },
+  "conditions": {
+    "freeform": {
+      "condition": "freeform",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 0.6,
+          "ambiguity_remaining": 0.4,
+          "answered_targets": 3,
+          "pickup_targets_total": 5,
+          "answers": {
+            "object": "terminal trace widget for lane monitoring.",
+            "goal": "let operators tell quickly when a lane is drifting.",
+            "boundary": null,
+            "constraints": "stay terminal-first and low friction.",
+            "success_criteria": null
+          },
+          "artifact_type_guess": "design brief fragment",
+          "confidence": 0.97,
+          "ambiguities_count": 3,
+          "elapsed_ms": 15953.354,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 0.8,
+          "ambiguity_remaining": 0.2,
+          "answered_targets": 4,
+          "pickup_targets_total": 5,
+          "answers": {
+            "question": "should the web app lead with linked projects or the old idea board?",
+            "chosen_path": "lead with linked projects first.",
+            "rejected_alternatives": null,
+            "rationale": "active work should be foregrounded and idea browsing can move into Pensieve.",
+            "consequences": "the old idea board becomes secondary navigation."
+          },
+          "artifact_type_guess": "product direction decision note",
+          "confidence": 0.96,
+          "ambiguities_count": 2,
+          "elapsed_ms": 26351.99,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 0.8,
+          "ambiguity_remaining": 0.2,
+          "answered_targets": 4,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "short drift summaries will help operators notice stalled lanes faster.",
+            "boundary": "terminal-first multi-lane work.",
+            "assumptions": "operators glance at summaries while they work.",
+            "test_path": "compare stalled-lane pickup with and without summaries.",
+            "falsifiers": null
+          },
+          "artifact_type_guess": "hypothesis",
+          "confidence": 0.95,
+          "ambiguities_count": 2,
+          "elapsed_ms": 15395.471,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 0.667,
+          "ambiguity_remaining": 0.333,
+          "answered_targets": 4,
+          "pickup_targets_total": 6,
+          "answers": {
+            "objective": "compare free-form tasks, checklist tasks, and kernel tasks during handoff pickup.",
+            "method": "give matched task artifacts to a second operator and time correct interpretation.",
+            "inputs": null,
+            "outputs": null,
+            "evidence_expectations": "collect scores and clarification counts.",
+            "interpretation_limits": "internal sample only."
+          },
+          "artifact_type_guess": "experiment handoff note",
+          "confidence": 0.96,
+          "ambiguities_count": 3,
+          "elapsed_ms": 15591.971,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 0.6,
+          "ambiguity_remaining": 0.4,
+          "answered_targets": 3,
+          "pickup_targets_total": 5,
+          "answers": {
+            "completed_unit": "restored linked-project routing for Habanero",
+            "current_state": "the repo is bound and the primary session is routable again",
+            "risks": "other machines may still need a sync",
+            "next_handoff_target": null,
+            "artifact_refs": null
+          },
+          "artifact_type_guess": "routing checkpoint",
+          "confidence": 0.97,
+          "ambiguities_count": 2,
+          "elapsed_ms": 16398.78,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 0.8,
+          "ambiguity_remaining": 0.2,
+          "answered_targets": 4,
+          "pickup_targets_total": 5,
+          "answers": {
+            "scope": "hosted runner pickup",
+            "rule": "only claim hosted jobs for linked projects that have a routeable local session",
+            "rationale": "avoid claiming work with nowhere real to execute",
+            "invariants": "a claimed job must resolve to an actual local session",
+            "enforcement_surface": null
+          },
+          "artifact_type_guess": "routing policy",
+          "confidence": 0.98,
+          "ambiguities_count": 1,
+          "elapsed_ms": 15252.915,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 0.6,
+          "ambiguity_remaining": 0.4,
+          "answered_targets": 3,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release.",
+            "evidence_paths": null,
+            "status": "shipped in the CLI.",
+            "interpretation_limits": null,
+            "next_follow_up": "run comparative studies against free-form artifacts and checklist artifacts."
+          },
+          "artifact_type_guess": "kernel launch result note",
+          "confidence": 0.96,
+          "ambiguities_count": 3,
+          "elapsed_ms": 12702.155,
+          "tokens_used": null,
+          "session_id": ""
+        }
+      ],
+      "mean_pickup_score": 0.695,
+      "mean_ambiguity_remaining": 0.305,
+      "mean_answered_target_rate": 0.695,
+      "mean_confidence": 0.964,
+      "mean_ambiguities_count": 2.286,
+      "mean_elapsed_ms": 16806.662,
+      "mean_tokens_used": null
+    },
+    "generic_checklist": {
+      "condition": "generic_checklist",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 0.8,
+          "ambiguity_remaining": 0.2,
+          "answered_targets": 4,
+          "pickup_targets_total": 5,
+          "answers": {
+            "object": null,
+            "goal": "Build the terminal trace widget for lane monitoring.",
+            "boundary": "Terminal-first lane visibility in active ORP sessions.",
+            "constraints": "[\"low friction\", \"no GUI dependency\"]",
+            "success_criteria": "An operator can identify a drifting lane quickly."
+          },
+          "artifact_type_guess": "task",
+          "confidence": 0.84,
+          "ambiguities_count": 2,
+          "elapsed_ms": 57354.579,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 0.4,
+          "ambiguity_remaining": 0.6,
+          "answered_targets": 2,
+          "pickup_targets_total": 5,
+          "answers": {
+            "question": null,
+            "chosen_path": "Lead with linked projects and move broader idea browsing into Pensieve.",
+            "rejected_alternatives": "keep the idea board as the front door",
+            "rationale": null,
+            "consequences": null
+          },
+          "artifact_type_guess": "decision",
+          "confidence": 0.95,
+          "ambiguities_count": 3,
+          "elapsed_ms": 42033.35,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 0.8,
+          "ambiguity_remaining": 0.2,
+          "answered_targets": 4,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "Drift summaries will improve stalled-lane pickup speed.",
+            "boundary": "Terminal-first multi-lane workflows.",
+            "assumptions": "Assumes operators actually consult the summary lane.",
+            "test_path": "Add summaries and compare pickup behavior against a no-summary baseline.",
+            "falsifiers": null
+          },
+          "artifact_type_guess": "hypothesis",
+          "confidence": 0.9,
+          "ambiguities_count": 3,
+          "elapsed_ms": 33550.468,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 0.667,
+          "ambiguity_remaining": 0.333,
+          "answered_targets": 4,
+          "pickup_targets_total": 6,
+          "answers": {
+            "objective": "Compare handoff pickup across free-form, checklist, and kernel task artifacts.",
+            "method": "Give a second operator one artifact at a time and record time to correct interpretation.",
+            "inputs": null,
+            "outputs": null,
+            "evidence_expectations": "pickup timings; clarification counts",
+            "interpretation_limits": "Small sample may limit interpretation."
+          },
+          "artifact_type_guess": "experiment",
+          "confidence": 0.95,
+          "ambiguities_count": 3,
+          "elapsed_ms": 55295.468,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "completed_unit": "Restored the Habanero linked-project routing path.",
+            "current_state": "The local repo, primary session, and hosted world are aligned again.",
+            "risks": "Other active machines may still carry stale routing state.",
+            "next_handoff_target": "Rerun runner sync on active machines and verify live pickup.",
+            "artifact_refs": "[\".git/orp/link/project.json\", \"runner sync output\"]"
+          },
+          "artifact_type_guess": "checkpoint",
+          "confidence": 0.84,
+          "ambiguities_count": 2,
+          "elapsed_ms": 64657.69,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "scope": "Hosted runner job pickup.",
+            "rule": "Only claim hosted jobs for linked projects that have a routeable local session.",
+            "rationale": "The rule exists to prevent dead-end job claims.",
+            "invariants": "do not claim unroutable jobs",
+            "enforcement_surface": "Runner pickup rejects unroutable jobs."
+          },
+          "artifact_type_guess": "policy",
+          "confidence": 0.88,
+          "ambiguities_count": 3,
+          "elapsed_ms": 60614.735,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release in the CLI.",
+            "evidence_paths": "[\"docs/ORP_REASONING_KERNEL_V0_1.md\",\"docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md\"]",
+            "status": "Release shipped",
+            "interpretation_limits": "comparative superiority is still unproven",
+            "next_follow_up": "Run comparative artifact and handoff studies next."
+          },
+          "artifact_type_guess": "result",
+          "confidence": 0.93,
+          "ambiguities_count": 3,
+          "elapsed_ms": 52923.437,
+          "tokens_used": null,
+          "session_id": ""
+        }
+      ],
+      "mean_pickup_score": 0.81,
+      "mean_ambiguity_remaining": 0.19,
+      "mean_answered_target_rate": 0.81,
+      "mean_confidence": 0.899,
+      "mean_ambiguities_count": 2.714,
+      "mean_elapsed_ms": 52347.104,
+      "mean_tokens_used": null
+    },
+    "kernel": {
+      "condition": "kernel",
+      "cases_total": 7,
+      "rows": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "object": "terminal trace widget",
+            "goal": "surface lane drift and state clearly for operators",
+            "boundary": "[\"terminal-first lane visibility\",\"active ORP sessions only\"]",
+            "constraints": "[\"low friction\",\"no GUI dependency\"]",
+            "success_criteria": "[\"an operator can identify a drifting lane within 10 seconds\",\"the widget does not overload the terminal surface\"]"
+          },
+          "artifact_type_guess": "task",
+          "confidence": 0.99,
+          "ambiguities_count": 1,
+          "elapsed_ms": 49576.61,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "question": "Should the web app home foreground linked projects or the old idea board?",
+            "chosen_path": "Foreground linked projects and move broad idea browsing into Pensieve.",
+            "rejected_alternatives": "[\"keep the old idea board as the default home\",\"split the home evenly between ideas and projects\"]",
+            "rationale": "Active work should be reachable immediately, while the idea library can stay available as secondary navigation.",
+            "consequences": "[\"linked projects become the primary home object\",\"idea browsing becomes one click deeper\"]"
+          },
+          "artifact_type_guess": "decision",
+          "confidence": 0.99,
+          "ambiguities_count": 0,
+          "elapsed_ms": 49520.688,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "Short drift summaries reduce the time needed to identify stalled lanes.",
+            "boundary": "[\"terminal-first multi-lane workflows\",\"operators already monitoring active lanes\"]",
+            "assumptions": "[\"operators glance at summaries while they work\",\"summaries do not introduce excessive noise\"]",
+            "test_path": "Run matched stalled-lane pickup trials with and without summaries and compare detection time.",
+            "falsifiers": "[\"pickup time does not improve materially\",\"operators ignore the summaries\"]"
+          },
+          "artifact_type_guess": "hypothesis",
+          "confidence": 0.99,
+          "ambiguities_count": 1,
+          "elapsed_ms": 22959.467,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 6,
+          "pickup_targets_total": 6,
+          "answers": {
+            "objective": "Measure whether kernel task artifacts improve handoff pickup quality over free-form and generic checklist alternatives.",
+            "method": "Run matched handoff trials where a second operator receives one artifact at a time and explains the task, constraints, and next action.",
+            "inputs": "[\"matched prompt set\", \"second-operator reviewers\", \"three artifact conditions\"]",
+            "outputs": "[\"pickup scores\", \"clarification counts\", \"time to correct interpretation\"]",
+            "evidence_expectations": "[\"score sheets\", \"timing logs\", \"artifact corpus\"]",
+            "interpretation_limits": "[\"internal sample size is small\", \"the pilot measures structural pickup, not full downstream outcomes\"]"
+          },
+          "artifact_type_guess": "experiment",
+          "confidence": 0.99,
+          "ambiguities_count": 1,
+          "elapsed_ms": 30498.682,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "completed_unit": "Restored canonical runner routing for Habanero.",
+            "current_state": "The local project link, primary session, and hosted world are synchronized and routable again.",
+            "risks": "[\"inactive machines may still hold stale routing state\",\"older queued jobs may need a fresh sync before pickup\"]",
+            "next_handoff_target": "Rerun runner sync on active machines and verify one fresh hosted job pickup.",
+            "artifact_refs": "[\".git/orp/link/project.json\",\".git/orp/link/sessions\",\"orp/artifacts\"]"
+          },
+          "artifact_type_guess": "checkpoint",
+          "confidence": 0.99,
+          "ambiguities_count": 0,
+          "elapsed_ms": 14397.524,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "scope": "Hosted runner job pickup and claim behavior.",
+            "rule": "Only claim a hosted job when the linked project has a routeable local session on the current machine.",
+            "rationale": "Jobs should only be claimed when the runner can execute them against a real local target.",
+            "invariants": "[\"a claimed job must resolve to an actual local session\",\"runner routing must stay machine-scoped\"]",
+            "enforcement_surface": "runner sync, poll, and work lifecycle"
+          },
+          "artifact_type_guess": "policy",
+          "confidence": 0.98,
+          "ambiguities_count": 0,
+          "elapsed_ms": 17085.649,
+          "tokens_used": null,
+          "session_id": ""
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "pickup_score": 1.0,
+          "ambiguity_remaining": 0.0,
+          "answered_targets": 5,
+          "pickup_targets_total": 5,
+          "answers": {
+            "claim": "ORP shipped the first reasoning kernel release as a real CLI protocol surface.",
+            "evidence_paths": "[\"docs/ORP_REASONING_KERNEL_V0_1.md\",\"docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md\",\"spec/v1/kernel.schema.json\"]",
+            "status": "shipped in the ORP CLI and published to npm",
+            "interpretation_limits": "[\"comparative superiority over free-form and checklist alternatives is not yet proven\",\"the current evidence is strongest on internal validity\"]",
+            "next_follow_up": "Run the comparative artifact, pickup, and corpus-fit studies."
+          },
+          "artifact_type_guess": "result",
+          "confidence": 0.99,
+          "ambiguities_count": 1,
+          "elapsed_ms": 32627.913,
+          "tokens_used": null,
+          "session_id": ""
+        }
+      ],
+      "mean_pickup_score": 1.0,
+      "mean_ambiguity_remaining": 0.0,
+      "mean_answered_target_rate": 1.0,
+      "mean_confidence": 0.989,
+      "mean_ambiguities_count": 0.571,
+      "mean_elapsed_ms": 30952.362,
+      "mean_tokens_used": null
+    }
+  },
+  "pairwise": {
+    "kernel_vs_generic_checklist": {
+      "left": "kernel",
+      "right": "generic_checklist",
+      "wins": 4,
+      "ties": 3,
+      "losses": 0,
+      "mean_pickup_score_delta": 0.19,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.4,
+          "delta": 0.6,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.667,
+          "delta": 0.333,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 1.0,
+          "delta": 0.0,
+          "outcome": "tie"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 1.0,
+          "delta": 0.0,
+          "outcome": "tie"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 1.0,
+          "delta": 0.0,
+          "outcome": "tie"
+        }
+      ]
+    },
+    "kernel_vs_freeform": {
+      "left": "kernel",
+      "right": "freeform",
+      "wins": 7,
+      "ties": 0,
+      "losses": 0,
+      "mean_pickup_score_delta": 0.305,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 1.0,
+          "right_score": 0.6,
+          "delta": 0.4,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 1.0,
+          "right_score": 0.667,
+          "delta": 0.333,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.6,
+          "delta": 0.4,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.6,
+          "delta": 0.4,
+          "outcome": "win"
+        }
+      ]
+    },
+    "generic_checklist_vs_freeform": {
+      "left": "generic_checklist",
+      "right": "freeform",
+      "wins": 4,
+      "ties": 2,
+      "losses": 1,
+      "mean_pickup_score_delta": 0.114,
+      "by_case": [
+        {
+          "id": "software_trace_widget",
+          "domain": "software",
+          "artifact_class": "task",
+          "left_score": 0.8,
+          "right_score": 0.6,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "product_project_home",
+          "domain": "product",
+          "artifact_class": "decision",
+          "left_score": 0.4,
+          "right_score": 0.8,
+          "delta": -0.4,
+          "outcome": "loss"
+        },
+        {
+          "id": "research_drift_hypothesis",
+          "domain": "research",
+          "artifact_class": "hypothesis",
+          "left_score": 0.8,
+          "right_score": 0.8,
+          "delta": 0.0,
+          "outcome": "tie"
+        },
+        {
+          "id": "research_handoff_experiment",
+          "domain": "research",
+          "artifact_class": "experiment",
+          "left_score": 0.667,
+          "right_score": 0.667,
+          "delta": 0.0,
+          "outcome": "tie"
+        },
+        {
+          "id": "operations_habanero_checkpoint",
+          "domain": "operations",
+          "artifact_class": "checkpoint",
+          "left_score": 1.0,
+          "right_score": 0.6,
+          "delta": 0.4,
+          "outcome": "win"
+        },
+        {
+          "id": "operations_runner_policy",
+          "domain": "operations",
+          "artifact_class": "policy",
+          "left_score": 1.0,
+          "right_score": 0.8,
+          "delta": 0.2,
+          "outcome": "win"
+        },
+        {
+          "id": "writing_kernel_launch_result",
+          "domain": "writing",
+          "artifact_class": "result",
+          "left_score": 1.0,
+          "right_score": 0.6,
+          "delta": 0.4,
+          "outcome": "win"
+        }
+      ]
+    }
+  },
+  "claims": [
+    {
+      "id": "matched_agent_pilot_corpus_exists",
+      "claim": "ORP ran a matched Codex pickup simulation corpus spanning the requested artifact classes and domains.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_generic_checklist_on_agent_pickup",
+      "claim": "On the matched Codex recoverability simulation, kernel artifacts preserve more explicit required-field recoverability than generic checklist artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_outscores_freeform_on_agent_pickup",
+      "claim": "On the matched Codex recoverability simulation, kernel artifacts preserve more explicit required-field recoverability than free-form artifacts.",
+      "status": "pass"
+    },
+    {
+      "id": "generic_checklist_improves_on_freeform_on_agent_pickup",
+      "claim": "On the matched Codex recoverability simulation, a generic checklist preserves more explicit required-field recoverability on average than free-form artifacts, but not uniformly case by case.",
+      "status": "pass"
+    },
+    {
+      "id": "kernel_preserves_full_pickup_targets_in_agent_simulation",
+      "claim": "On the matched Codex recoverability simulation, kernel artifacts keep all required fields explicitly recoverable.",
+      "status": "pass"
+    }
+  ],
+  "summary": {
+    "all_claims_pass": true,
+    "kernel_mean_pickup_score": 1.0,
+    "generic_checklist_mean_pickup_score": 0.81,
+    "freeform_mean_pickup_score": 0.695
+  }
+}
