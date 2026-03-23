@@ -101,6 +101,7 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(payload["files"]["agent_policy"]["path"], "orp/agent-policy.json")
             self.assertEqual(payload["files"]["handoff"]["path"], "orp/HANDOFF.md")
             self.assertEqual(payload["files"]["checkpoint_log"]["path"], "orp/checkpoints/CHECKPOINT_LOG.md")
+            self.assertEqual(payload["files"]["starter_kernel"]["path"], "analysis/orp.kernel.task.yml")
             self.assertTrue(any("protected" in row for row in payload["warnings"]))
             self.assertTrue(any("dirty" in row for row in payload["warnings"]))
 
@@ -109,6 +110,7 @@ class OrpInitTests(unittest.TestCase):
             self.assertTrue((root / "orp" / "agent-policy.json").exists())
             self.assertTrue((root / "orp" / "HANDOFF.md").exists())
             self.assertTrue((root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md").exists())
+            self.assertTrue((root / "analysis" / "orp.kernel.task.yml").exists())
 
             state = json.loads((root / "orp" / "state.json").read_text(encoding="utf-8"))
             self.assertTrue(state["governance"]["orp_governed"])
@@ -367,6 +369,12 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(run_proc.returncode, 0, msg=run_proc.stderr + "\n" + run_proc.stdout)
             run_payload = json.loads(run_proc.stdout)
             self.assertEqual(run_payload["overall"], "PASS")
+            run_record = json.loads((root / run_payload["run_record"]).read_text(encoding="utf-8"))
+            kernel_result = next(
+                row for row in run_record["results"] if row.get("phase") == "structure_kernel"
+            )
+            self.assertTrue(kernel_result["kernel_validation"]["valid"])
+            self.assertEqual(kernel_result["kernel_validation"]["mode"], "hard")
 
             ready_checkpoint = _run_cli(
                 root,
@@ -409,6 +417,7 @@ class OrpInitTests(unittest.TestCase):
 
             (root / "orp" / "HANDOFF.md").unlink()
             (root / "orp" / "agent-policy.json").unlink()
+            (root / "analysis" / "orp.kernel.task.yml").unlink()
 
             doctor_proc = _run_cli(root, "doctor", "--json")
             self.assertEqual(doctor_proc.returncode, 1, msg=doctor_proc.stderr + "\n" + doctor_proc.stdout)
@@ -423,8 +432,10 @@ class OrpInitTests(unittest.TestCase):
             self.assertTrue(fix_payload["ok"])
             self.assertIn("created_handoff", fix_payload["fixes_applied"])
             self.assertIn("synced_agent_policy", fix_payload["fixes_applied"])
+            self.assertIn("created_starter_kernel", fix_payload["fixes_applied"])
             self.assertTrue((root / "orp" / "HANDOFF.md").exists())
             self.assertTrue((root / "orp" / "agent-policy.json").exists())
+            self.assertTrue((root / "analysis" / "orp.kernel.task.yml").exists())
 
     def test_cleanup_suggests_and_deletes_merged_work_branch(self) -> None:
         with tempfile.TemporaryDirectory() as td:

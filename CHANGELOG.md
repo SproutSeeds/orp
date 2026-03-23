@@ -6,6 +6,35 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.6 - 2026-03-22
+
+This release turns the ORP Reasoning Kernel into a real CLI surface instead of
+just a design note.
+
+### Added
+
+- Added the machine-readable kernel schema:
+  - `spec/v1/kernel.schema.json`
+- Added the first kernel command surface:
+  - `orp kernel validate`
+  - `orp kernel scaffold`
+- Added starter kernel scaffolding to `orp init`:
+  - `analysis/orp.kernel.task.yml`
+- Added kernel-aware starter/example configs:
+  - `examples/orp.reasoning-kernel.starter.yml`
+  - `examples/kernel/trace-widget.task.kernel.yml`
+- Added focused kernel command and gate tests.
+
+### Changed
+
+- Made `structure_kernel` a real ORP gate validation lane when a gate declares a
+  `kernel` block.
+- Added soft vs hard kernel validation behavior to gate results and run records.
+- Added kernel discovery to `orp about --json`, the home quick actions, the
+  canonical boundary doc, and the agent loop.
+- Kept legacy `structure_kernel` phase usage compatible when no explicit kernel
+  artifact config is present.
+
 ## v0.4.5 - 2026-03-22
 
 This follow-up release folds the new in-repo changelog into a published npm/tag

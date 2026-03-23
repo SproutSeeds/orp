@@ -1,0 +1,61 @@
+version: "1"
+
+project:
+  name: reasoning-kernel-starter
+  repo_root: .
+  canonical_paths:
+    code: src/
+    analysis: analysis/
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    In review: ready
+    Verified: reviewed
+    Blocked: blocked
+    Retracted: retracted
+  atom_status_map:
+    todo: draft
+    in_progress: ready
+    blocked: blocked
+    done: reviewed
+
+gates:
+  - id: trace_widget_task_shape
+    description: Validate that the trace-widget request has been promoted into a solid task artifact.
+    phase: structure_kernel
+    command: echo ORP_KERNEL_OK
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ORP_KERNEL_OK
+    kernel:
+      mode: hard
+      artifacts:
+        - path: examples/kernel/trace-widget.task.kernel.yml
+          artifact_class: task
+    evidence:
+      status: process_only
+      note: The kernel artifact captures task structure for promotion, not evidence.
+      paths:
+        - examples/kernel/trace-widget.task.kernel.yml
+    on_fail: stop
+
+  - id: smoke
+    description: Basic starter smoke gate.
+    phase: verification
+    command: echo ORP_SMOKE
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - ORP_SMOKE
+    on_fail: stop
+
+profiles:
+  default:
+    description: Minimal kernel-aware starter profile.
+    mode: discovery
+    packet_kind: problem_scope
+    gate_ids:
+      - trace_widget_task_shape
+      - smoke

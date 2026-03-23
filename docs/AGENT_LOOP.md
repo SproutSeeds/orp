@@ -43,6 +43,8 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 
 ## 6. Checkpoint
 
+- Before promoting a task/decision/hypothesis/experiment artifact into repo truth, validate its kernel shape:
+  - `orp kernel validate <artifact-path> --json`
 - Before handoff, compaction, or any meaningful git transition, write a checkpoint:
   - `orp checkpoint create -m "checkpoint note" --json`
 - If the current state should exist off-machine before you stop, hand off, or compact:

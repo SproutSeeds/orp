@@ -22,6 +22,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
 - `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
 - `docs/CANONICAL_CLI_BOUNDARY.md` — canonical source-of-truth boundary between CLI, Rust, and web
+- `docs/ORP_REASONING_KERNEL_V0_1.md` — draft kernel model for turning loose intent into promotable canonical artifacts
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates
@@ -179,8 +180,9 @@ Release process:
 4. Start implementation on a work branch with `orp branch start`.
 5. Create regular checkpoint commits with `orp checkpoint create`.
 6. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
-7. Start by adding one small claim + verification record using the templates.
-8. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
+7. Validate promotable task/decision/hypothesis artifacts with `orp kernel validate <path> --json`.
+8. Start by adding one small claim + verification record using the templates.
+9. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
 
 **Activation is procedural/social, not runtime:** nothing “turns on” automatically. ORP works only if contributors follow it.
 
@@ -191,8 +193,10 @@ ORP remains docs-first by default. For teams that want local gate execution and 
 - Overview: `docs/ORP_V1_ATOMIC_DISCOVERY_EVOLUTION.md`
 - Packet schema: `spec/v1/packet.schema.json`
 - Config schema: `spec/v1/orp.config.schema.json`
+- Kernel schema: `spec/v1/kernel.schema.json`
 - Lifecycle mapping: `spec/v1/LIFECYCLE_MAPPING.md`
 - Sunflower atomic profile example: `examples/orp.sunflower-coda.atomic.yml`
+- Kernel starter example: `examples/orp.reasoning-kernel.starter.yml`
 
 Minimal CLI skeleton:
 
@@ -208,6 +212,7 @@ orp init
 orp status --json
 orp branch start work/<topic> --json
 orp checkpoint create -m "describe completed unit" --json
+orp kernel validate analysis/orp.kernel.task.yml --json
 orp backup -m "backup current work" --json
 orp gate run --profile default
 orp ready --json
@@ -217,6 +222,13 @@ orp erdos sync
 ```
 
 Equivalent local-repo commands are available via `./scripts/orp ...` when developing ORP itself.
+
+Kernel helper surfaces:
+
+```bash
+orp kernel scaffold --artifact-class task --out analysis/trace-widget.kernel.yml --json
+orp kernel validate analysis/trace-widget.kernel.yml --json
+```
 
 Run summaries are one-page markdown reports generated from `RUN.json` and intended for fast teammate review:
 

@@ -4170,11 +4170,38 @@ def _effective_remote_context(
     }
 
 
-def _init_config_starter() -> str:
+def _init_kernel_task_template(repo_name: str) -> str:
+    safe_name = str(repo_name or "").strip() or "my-project"
+    return (
+        'schema_version: "1.0.0"\n'
+        "artifact_class: task\n"
+        f"object: bootstrap ORP governance for {safe_name}\n"
+        "goal: establish a local-first ORP workflow with a promotable starter task artifact\n"
+        "boundary:\n"
+        "  - repository bootstrap and governance setup\n"
+        "  - initial ORP validation and readiness loop\n"
+        "constraints:\n"
+        "  - keep evidence in canonical artifact paths instead of ORP process metadata\n"
+        "  - preserve a clean handoff and checkpoint discipline from day one\n"
+        "success_criteria:\n"
+        "  - default ORP gate profile passes\n"
+        "  - repo is ready for a first meaningful work branch and checkpoint sequence\n"
+        "canonical_target:\n"
+        "  - orp/HANDOFF.md\n"
+        "  - orp/checkpoints/CHECKPOINT_LOG.md\n"
+        "artifact_refs:\n"
+        "  - orp.yml\n"
+        "  - orp/HANDOFF.md\n"
+        "  - orp/checkpoints/CHECKPOINT_LOG.md\n"
+    )
+
+
+def _init_config_starter(repo_name: str = "my-project") -> str:
+    safe_name = str(repo_name or "").strip() or "my-project"
     return (
         'version: "1"\n'
         "project:\n"
-        "  name: my-project\n"
+        f"  name: {safe_name}\n"
         "  repo_root: .\n"
         "  canonical_paths:\n"
         "    code: src/\n"
@@ -4192,6 +4219,25 @@ def _init_config_starter() -> str:
         "    blocked: blocked\n"
         "    done: reviewed\n"
         "gates:\n"
+        "  - id: starter_kernel\n"
+        "    description: Validate the starter ORP reasoning-kernel task artifact\n"
+        "    phase: structure_kernel\n"
+        "    command: echo ORP_KERNEL_STARTER\n"
+        "    pass:\n"
+        "      exit_codes: [0]\n"
+        "      stdout_must_contain:\n"
+        "        - ORP_KERNEL_STARTER\n"
+        "    kernel:\n"
+        "      mode: hard\n"
+        "      artifacts:\n"
+        "        - path: analysis/orp.kernel.task.yml\n"
+        "          artifact_class: task\n"
+        "    evidence:\n"
+        "      status: process_only\n"
+        "      note: Starter kernel artifact records task structure, not evidence.\n"
+        "      paths:\n"
+        "        - analysis/orp.kernel.task.yml\n"
+        "    on_fail: stop\n"
         "  - id: smoke\n"
         "    description: Basic smoke gate\n"
         "    phase: verification\n"
@@ -4206,6 +4252,7 @@ def _init_config_starter() -> str:
         "    mode: discovery\n"
         "    packet_kind: problem_scope\n"
         "    gate_ids:\n"
+        "      - starter_kernel\n"
         "      - smoke\n"
     )
 
@@ -5090,6 +5137,7 @@ def _about_payload() -> dict[str, Any]:
         "schemas": {
             "config": "spec/v1/orp.config.schema.json",
             "packet": "spec/v1/packet.schema.json",
+            "kernel": "spec/v1/kernel.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
             "link_project": "spec/v1/link-project.schema.json",
             "link_session": "spec/v1/link-session.schema.json",
@@ -5097,6 +5145,14 @@ def _about_payload() -> dict[str, Any]:
             "runner_runtime": "spec/v1/runner-runtime.schema.json",
         },
         "abilities": [
+            {
+                "id": "kernel",
+                "description": "Reasoning-kernel artifact scaffolding and validation for promotable repository truth.",
+                "entrypoints": [
+                    ["kernel", "validate"],
+                    ["kernel", "scaffold"],
+                ],
+            },
             {
                 "id": "workspace",
                 "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and worker operations.",
@@ -5185,6 +5241,8 @@ def _about_payload() -> dict[str, Any]:
         "commands": [
             {"name": "home", "path": ["home"], "json_output": True},
             {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "kernel_validate", "path": ["kernel", "validate"], "json_output": True},
+            {"name": "kernel_scaffold", "path": ["kernel", "scaffold"], "json_output": True},
             {"name": "auth_login", "path": ["auth", "login"], "json_output": True},
             {"name": "auth_verify", "path": ["auth", "verify"], "json_output": True},
             {"name": "auth_logout", "path": ["auth", "logout"], "json_output": True},
@@ -5252,6 +5310,7 @@ def _about_payload() -> dict[str, Any]:
             "ORP files are process-only and are not evidence.",
             "Canonical evidence lives in repo artifact paths outside ORP docs.",
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
+            "Reasoning-kernel artifacts shape promotable repository truth for tasks, decisions, hypotheses, experiments, checkpoints, policies, and results.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
@@ -5435,40 +5494,47 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             3,
             {
+                "label": "Validate the starter kernel artifact",
+                "command": "orp kernel validate analysis/orp.kernel.task.yml --json",
+            },
+        )
+        quick_actions.insert(
+            4,
+            {
                 "label": "Checkpoint and back up current work to a dedicated remote ref",
                 "command": 'orp backup -m "backup current work" --json',
             },
         )
         quick_actions.insert(
-            4,
+            5,
             {
                 "label": "Mark the repo locally ready after validation",
                 "command": "orp ready --json",
             },
         )
         quick_actions.insert(
-            5,
+            6,
             {
                 "label": "Inspect local project/session link state",
                 "command": "orp link status --json",
             },
         )
         quick_actions.insert(
-            6,
+            7,
             {
                 "label": "Inspect machine runner state",
                 "command": "orp runner status --json",
             },
         )
         quick_actions.insert(
-            7,
+            8,
             {
                 "label": "Inspect and repair governance health",
                 "command": "orp doctor --json",
             },
         )
         quick_actions.insert(
-            8,
+            9,
             {
                 "label": "Inspect safe cleanup candidates",
                 "command": "orp cleanup --json",
@@ -5929,6 +5995,7 @@ def _perform_github_discovery_scan(
 def cmd_init(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     repo_root.mkdir(parents=True, exist_ok=True)
+    repo_name = repo_root.name or "my-project"
 
     default_branch = str(getattr(args, "default_branch", "main") or "main").strip() or "main"
     allow_protected_branch_work = bool(getattr(args, "allow_protected_branch_work", False))
@@ -5941,8 +6008,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     config_path = repo_root / args.config
     config_action = "kept"
     if not config_path.exists():
-        config_path.write_text(_init_config_starter(), encoding="utf-8")
+        config_path.write_text(_init_config_starter(repo_name), encoding="utf-8")
         config_action = "created"
+    kernel_starter_path = repo_root / "analysis" / "orp.kernel.task.yml"
 
     initialized_at_utc = _now_utc()
     git_snapshot = _git_governance_snapshot(
@@ -5971,7 +6039,9 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     if git_snapshot["dirty"]:
         warnings.append("working tree is dirty; create an explicit checkpoint commit before agent work.")
-        next_actions.append('git add orp.yml orp && git commit -m "checkpoint: bootstrap ORP governance"')
+        next_actions.append(
+            'git add orp.yml orp analysis/orp.kernel.task.yml && git commit -m "checkpoint: bootstrap ORP governance"'
+        )
 
     if not git_snapshot["has_commits"]:
         notes.append("repo has no commits yet; treat the first commit as the initial ORP checkpoint.")
@@ -6012,6 +6082,10 @@ def cmd_init(args: argparse.Namespace) -> int:
     files["checkpoint_log"] = {
         "path": _path_for_state(checkpoint_log_path, repo_root),
         "action": _write_text_if_missing(checkpoint_log_path, _init_checkpoint_log_template()),
+    }
+    files["starter_kernel"] = {
+        "path": _path_for_state(kernel_starter_path, repo_root),
+        "action": _write_text_if_missing(kernel_starter_path, _init_kernel_task_template(repo_name)),
     }
 
     agent_policy_exists = agent_policy_path.exists()
@@ -6658,6 +6732,7 @@ def _apply_doctor_fixes(repo_root: Path, config_arg: str, status_payload: dict[s
     state_path = repo_root / "orp" / "state.json"
     state = _read_json_if_exists(state_path)
     governance_state = state.get("governance") if isinstance(state.get("governance"), dict) else {}
+    repo_name = repo_root.name or "my-project"
 
     default_branch = str(governance_state.get("default_branch", "main")).strip() or "main"
     allow_protected_branch_work = bool(governance_state.get("allow_protected_branch_work", False))
@@ -6669,7 +6744,7 @@ def _apply_doctor_fixes(repo_root: Path, config_arg: str, status_payload: dict[s
         config_path = config_path.resolve()
 
     if not config_path.exists():
-        config_path.write_text(_init_config_starter(), encoding="utf-8")
+        config_path.write_text(_init_config_starter(repo_name), encoding="utf-8")
 
     git_snapshot = _git_governance_snapshot(
         repo_root,
@@ -6685,6 +6760,7 @@ def _apply_doctor_fixes(repo_root: Path, config_arg: str, status_payload: dict[s
 
     handoff_path = repo_root / "orp" / "HANDOFF.md"
     checkpoint_log_path = repo_root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md"
+    kernel_starter_path = repo_root / "analysis" / "orp.kernel.task.yml"
     governance_path = repo_root / "orp" / "governance.json"
     agent_policy_path = repo_root / "orp" / "agent-policy.json"
 
@@ -6700,6 +6776,8 @@ def _apply_doctor_fixes(repo_root: Path, config_arg: str, status_payload: dict[s
         fixes_applied.append("created_handoff")
     if _write_text_if_missing(checkpoint_log_path, _init_checkpoint_log_template()) == "created":
         fixes_applied.append("created_checkpoint_log")
+    if _write_text_if_missing(kernel_starter_path, _init_kernel_task_template(repo_name)) == "created":
+        fixes_applied.append("created_starter_kernel")
 
     _write_json(
         agent_policy_path,
@@ -7178,6 +7256,326 @@ def _gate_map(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+KERNEL_ARTIFACT_CLASS_REQUIREMENTS: dict[str, list[str]] = {
+    "task": ["object", "goal", "boundary", "constraints", "success_criteria"],
+    "decision": ["question", "chosen_path", "rejected_alternatives", "rationale", "consequences"],
+    "hypothesis": ["claim", "boundary", "assumptions", "test_path", "falsifiers"],
+    "experiment": ["objective", "method", "inputs", "outputs", "evidence_expectations", "interpretation_limits"],
+    "checkpoint": ["completed_unit", "current_state", "risks", "next_handoff_target", "artifact_refs"],
+    "policy": ["scope", "rule", "rationale", "invariants", "enforcement_surface"],
+    "result": ["claim", "evidence_paths", "status", "interpretation_limits", "next_follow_up"],
+}
+
+
+def _kernel_field_present(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return any(_kernel_field_present(item) for item in value)
+    if isinstance(value, dict):
+        return len(value) > 0
+    return value is not None
+
+
+def _kernel_validation_mode(gate: dict[str, Any]) -> str:
+    kernel_cfg = gate.get("kernel") if isinstance(gate.get("kernel"), dict) else {}
+    default_mode = "hard" if str(gate.get("phase", "")).strip() == "structure_kernel" else "soft"
+    mode = str(kernel_cfg.get("mode", default_mode)).strip().lower()
+    if mode in {"soft", "hard"}:
+        return mode
+    return default_mode
+
+
+def _kernel_artifact_specs(
+    gate: dict[str, Any],
+    repo_root: Path,
+    vars_map: dict[str, str],
+) -> list[dict[str, Any]]:
+    kernel_cfg = gate.get("kernel") if isinstance(gate.get("kernel"), dict) else {}
+    raw_artifacts = kernel_cfg.get("artifacts")
+    if not isinstance(raw_artifacts, list):
+        return []
+
+    specs: list[dict[str, Any]] = []
+    for raw in raw_artifacts:
+        if not isinstance(raw, dict):
+            continue
+        path_raw = str(raw.get("path", "")).strip()
+        if not path_raw:
+            continue
+        replaced = _replace_vars(path_raw, vars_map)
+        path = Path(replaced)
+        if not path.is_absolute():
+            path = repo_root / path
+        specs.append(
+            {
+                "path": path.resolve(),
+                "expected_artifact_class": str(raw.get("artifact_class", "")).strip(),
+                "required": bool(raw.get("required", True)),
+                "extra_required_fields": _unique_strings(
+                    [str(x).strip() for x in raw.get("extra_required_fields", []) if isinstance(x, str)]
+                ),
+            }
+        )
+    return specs
+
+
+def _validate_kernel_gate(
+    gate: dict[str, Any],
+    repo_root: Path,
+    vars_map: dict[str, str],
+) -> dict[str, Any] | None:
+    if str(gate.get("phase", "")).strip() != "structure_kernel":
+        return None
+    if not isinstance(gate.get("kernel"), dict):
+        return None
+
+    mode = _kernel_validation_mode(gate)
+    specs = _kernel_artifact_specs(gate, repo_root, vars_map)
+    issues: list[str] = []
+    artifact_results: list[dict[str, Any]] = []
+
+    if not specs:
+        issues.append("structure_kernel gate requires kernel.artifacts.")
+
+    for spec in specs:
+        path = spec["path"]
+        expected_class = str(spec.get("expected_artifact_class", "")).strip()
+        required = bool(spec.get("required", True))
+        extra_required_fields = [
+            str(x).strip()
+            for x in spec.get("extra_required_fields", [])
+            if isinstance(x, str) and str(x).strip()
+        ]
+
+        artifact_issues: list[str] = []
+        missing_fields: list[str] = []
+        exists = path.exists()
+        optional_skipped = False
+        payload: dict[str, Any] = {}
+
+        if not exists:
+            if required:
+                artifact_issues.append("kernel artifact file is missing.")
+            else:
+                optional_skipped = True
+        else:
+            try:
+                loaded_payload = _load_config(path)
+                if isinstance(loaded_payload, dict):
+                    payload = loaded_payload
+                else:
+                    artifact_issues.append("kernel artifact root must be an object.")
+            except Exception as exc:
+                artifact_issues.append(f"failed to parse kernel artifact: {exc}")
+
+        actual_class = ""
+        if payload:
+            schema_version = str(payload.get("schema_version", "")).strip()
+            if schema_version != "1.0.0":
+                artifact_issues.append("schema_version must be `1.0.0`.")
+
+            actual_class = str(payload.get("artifact_class", "")).strip()
+            if actual_class not in KERNEL_ARTIFACT_CLASS_REQUIREMENTS:
+                artifact_issues.append(
+                    f"unsupported artifact_class: {actual_class or '(missing)'}."
+                )
+
+            if expected_class and actual_class and expected_class != actual_class:
+                artifact_issues.append(
+                    f"artifact_class mismatch: expected `{expected_class}`, found `{actual_class}`."
+                )
+
+            field_class = actual_class or expected_class
+            required_fields = list(KERNEL_ARTIFACT_CLASS_REQUIREMENTS.get(field_class, []))
+            for field in extra_required_fields:
+                if field not in required_fields:
+                    required_fields.append(field)
+            for field in required_fields:
+                if not _kernel_field_present(payload.get(field)):
+                    missing_fields.append(field)
+            if missing_fields:
+                artifact_issues.append("missing required fields: " + ", ".join(missing_fields))
+
+        valid = optional_skipped or (exists and not artifact_issues)
+        path_state = _path_for_state(path, repo_root)
+        artifact_results.append(
+            {
+                "path": path_state,
+                "exists": exists,
+                "required": required,
+                "optional_skipped": optional_skipped,
+                "artifact_class": actual_class,
+                "expected_artifact_class": expected_class,
+                "valid": valid,
+                "missing_fields": missing_fields,
+                "issues": artifact_issues,
+            }
+        )
+        issues.extend([f"{path_state}: {issue}" for issue in artifact_issues])
+
+    valid = bool(specs) and all(bool(row.get("valid")) for row in artifact_results)
+    return {
+        "mode": mode,
+        "valid": valid,
+        "artifacts_total": len(artifact_results),
+        "artifacts_valid": sum(1 for row in artifact_results if row.get("valid")),
+        "issues": issues,
+        "artifacts": artifact_results,
+    }
+
+
+def _kernel_template_payload(artifact_class: str, name_hint: str = "") -> dict[str, Any]:
+    hint = str(name_hint or "").strip() or "this artifact"
+    templates: dict[str, dict[str, Any]] = {
+        "task": {
+            "object": f"describe the task object for {hint}",
+            "goal": "describe the intended outcome",
+            "boundary": ["define what is in scope", "define what is out of scope"],
+            "constraints": ["list the main constraints"],
+            "success_criteria": ["describe how success will be recognized"],
+        },
+        "decision": {
+            "question": f"describe the decision question for {hint}",
+            "chosen_path": "describe the selected path",
+            "rejected_alternatives": ["list key rejected alternatives"],
+            "rationale": "describe why this path was chosen",
+            "consequences": ["list immediate consequences and tradeoffs"],
+        },
+        "hypothesis": {
+            "claim": f"state the hypothesis for {hint}",
+            "boundary": "describe the domain or conditions where the claim is meant to hold",
+            "assumptions": ["list assumptions the claim depends on"],
+            "test_path": "describe how the hypothesis will be tested",
+            "falsifiers": ["list what would falsify the hypothesis"],
+        },
+        "experiment": {
+            "objective": f"describe the experiment objective for {hint}",
+            "method": "describe the method or procedure",
+            "inputs": ["list the required inputs"],
+            "outputs": ["list the expected outputs"],
+            "evidence_expectations": ["list the evidence this experiment should produce"],
+            "interpretation_limits": ["list limits on interpretation"],
+        },
+        "checkpoint": {
+            "completed_unit": f"describe the completed unit for {hint}",
+            "current_state": "describe the current state of work",
+            "risks": ["list immediate risks or unresolved concerns"],
+            "next_handoff_target": "describe what the next operator or agent should pick up",
+            "artifact_refs": ["list the key artifact paths tied to this checkpoint"],
+        },
+        "policy": {
+            "scope": f"describe the policy scope for {hint}",
+            "rule": "state the rule",
+            "rationale": "describe why the rule exists",
+            "invariants": ["list the invariants the rule protects"],
+            "enforcement_surface": "describe where ORP should enforce or check this policy",
+        },
+        "result": {
+            "claim": f"state the resulting claim for {hint}",
+            "evidence_paths": ["list canonical evidence paths"],
+            "status": "describe the result status",
+            "interpretation_limits": ["list the limits on what this result means"],
+            "next_follow_up": "describe the next follow-up action",
+        },
+    }
+    if artifact_class not in templates:
+        raise RuntimeError(f"unsupported kernel artifact class: {artifact_class}")
+    return {
+        "schema_version": "1.0.0",
+        "artifact_class": artifact_class,
+        **templates[artifact_class],
+    }
+
+
+def _write_structured_payload(path: Path, payload: dict[str, Any], *, format_hint: str = "") -> str:
+    fmt = str(format_hint or "").strip().lower()
+    if not fmt:
+        if path.suffix.lower() == ".json":
+            fmt = "json"
+        elif path.suffix.lower() in {".yaml", ".yml"}:
+            fmt = "yaml"
+        else:
+            fmt = "yaml"
+
+    if fmt == "json":
+        _write_json(path, payload)
+        return "json"
+
+    try:
+        import yaml  # type: ignore
+    except Exception as exc:
+        raise RuntimeError("YAML output requires PyYAML. Use --format json or install PyYAML.") from exc
+    _write_text(path, yaml.safe_dump(payload, sort_keys=False, allow_unicode=False))
+    return "yaml"
+
+
+def cmd_kernel_validate(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    artifact_path = _resolve_cli_path(args.artifact, repo_root)
+    fake_gate = {
+        "phase": "structure_kernel",
+        "kernel": {
+            "mode": "hard",
+            "artifacts": [
+                {
+                    "path": str(artifact_path),
+                    "artifact_class": str(getattr(args, "artifact_class", "") or "").strip(),
+                    "extra_required_fields": list(getattr(args, "required_field", []) or []),
+                }
+            ],
+        },
+    }
+    validation = _validate_kernel_gate(fake_gate, repo_root, {})
+    if validation is None:
+        raise RuntimeError("failed to construct kernel validation request")
+
+    artifact_result = validation.get("artifacts", [None])[0] if isinstance(validation.get("artifacts"), list) else None
+    result = {
+        "ok": bool(validation.get("valid")),
+        "artifact": _path_for_state(artifact_path, repo_root),
+        "expected_artifact_class": str(getattr(args, "artifact_class", "") or "").strip(),
+        "validation": validation,
+        "artifact_result": artifact_result,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"artifact={result['artifact']}")
+        print(f"valid={'true' if result['ok'] else 'false'}")
+        if artifact_result:
+            print(f"artifact_class={artifact_result.get('artifact_class', '')}")
+            missing = artifact_result.get("missing_fields", [])
+            print("missing_fields=" + (",".join(missing) if missing else "(none)"))
+        for issue in validation.get("issues", []):
+            print(f"issue={issue}")
+    return 0 if result["ok"] else 1
+
+
+def cmd_kernel_scaffold(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    out_path = _resolve_cli_path(args.out, repo_root)
+    if out_path.exists() and not args.force:
+        raise RuntimeError(
+            f"kernel artifact already exists: {_path_for_state(out_path, repo_root)}. Use --force to overwrite."
+        )
+    payload = _kernel_template_payload(args.artifact_class, args.name or repo_root.name)
+    emitted_format = _write_structured_payload(out_path, payload, format_hint=args.format)
+    result = {
+        "ok": True,
+        "artifact_class": args.artifact_class,
+        "path": _path_for_state(out_path, repo_root),
+        "format": emitted_format,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"path={result['path']}")
+        print(f"artifact_class={result['artifact_class']}")
+        print(f"format={result['format']}")
+    return 0
+
+
 def cmd_gate_run(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     _ensure_dirs(repo_root)
@@ -7284,7 +7682,19 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
                 if not (repo_root / rel).exists():
                     file_issues.append(f"required file missing: {rel}")
 
-        passed = ok_exit and ok_out and ok_err and (len(file_issues) == 0) and (exec_status == "ok")
+        kernel_validation = _validate_kernel_gate(gate, repo_root, vars_map)
+        kernel_ok = True
+        if kernel_validation is not None and kernel_validation.get("mode") == "hard":
+            kernel_ok = bool(kernel_validation.get("valid"))
+
+        passed = (
+            ok_exit
+            and ok_out
+            and ok_err
+            and (len(file_issues) == 0)
+            and (exec_status == "ok")
+            and kernel_ok
+        )
         status = "pass" if passed else "fail"
         issues = []
         if not ok_exit:
@@ -7294,6 +7704,14 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
         issues.extend(file_issues)
         if exec_status != "ok":
             issues.append(exec_status)
+        if kernel_validation is not None and not kernel_validation.get("valid"):
+            issues.extend(
+                [
+                    f"kernel validation: {issue}"
+                    for issue in kernel_validation.get("issues", [])
+                    if isinstance(issue, str)
+                ]
+            )
 
         evidence_paths = _resolve_config_paths(
             evidence_cfg.get("paths", []) if isinstance(evidence_cfg, dict) else [],
@@ -7311,22 +7729,24 @@ def cmd_gate_run(args: argparse.Namespace) -> int:
             else ""
         )
 
-        run_results.append(
-            {
-                "gate_id": gate_id,
-                "phase": gate.get("phase", "custom"),
-                "command": cmd,
-                "status": status,
-                "exit_code": rc,
-                "duration_ms": dur_ms,
-                "stdout_path": str(stdout_path.relative_to(repo_root)),
-                "stderr_path": str(stderr_path.relative_to(repo_root)),
-                "rule_issues": issues,
-                "evidence_paths": evidence_paths,
-                "evidence_status": evidence_status,
-                "evidence_note": evidence_note,
-            }
-        )
+        result_row = {
+            "gate_id": gate_id,
+            "phase": gate.get("phase", "custom"),
+            "command": cmd,
+            "status": status,
+            "exit_code": rc,
+            "duration_ms": dur_ms,
+            "stdout_path": str(stdout_path.relative_to(repo_root)),
+            "stderr_path": str(stderr_path.relative_to(repo_root)),
+            "rule_issues": issues,
+            "evidence_paths": evidence_paths,
+            "evidence_status": evidence_status,
+            "evidence_note": evidence_note,
+        }
+        if kernel_validation is not None:
+            result_row["kernel_validation"] = kernel_validation
+
+        run_results.append(result_row)
 
         if not passed:
             on_fail = str(gate.get("on_fail", "stop"))
@@ -7704,6 +8124,7 @@ def cmd_about(args: argparse.Namespace) -> int:
     print(f"artifact.packet_json={payload['artifacts']['packet_json']}")
     print(f"schema.config={payload['schemas']['config']}")
     print(f"schema.packet={payload['schemas']['packet']}")
+    print(f"schema.kernel={payload['schemas']['kernel']}")
     print(f"schema.profile_pack={payload['schemas']['profile_pack']}")
     print(f"packs.count={len(payload['packs'])}")
     for pack in payload["packs"]:
@@ -12180,6 +12601,62 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_cleanup)
     s_cleanup.set_defaults(func=cmd_cleanup, json_output=False)
+
+    s_kernel = sub.add_parser("kernel", help="Reasoning-kernel artifact operations")
+    kernel_sub = s_kernel.add_subparsers(dest="kernel_cmd", required=True)
+
+    s_kernel_validate = kernel_sub.add_parser(
+        "validate",
+        help="Validate one kernel artifact against typed ORP structure rules",
+    )
+    s_kernel_validate.add_argument("artifact", help="Kernel artifact path (.yml, .yaml, or .json)")
+    s_kernel_validate.add_argument(
+        "--artifact-class",
+        default="",
+        help="Optional expected artifact class override",
+    )
+    s_kernel_validate.add_argument(
+        "--required-field",
+        action="append",
+        default=[],
+        help="Extra required field to enforce during validation (repeatable)",
+    )
+    add_json_flag(s_kernel_validate)
+    s_kernel_validate.set_defaults(func=cmd_kernel_validate, json_output=False)
+
+    s_kernel_scaffold = kernel_sub.add_parser(
+        "scaffold",
+        help="Write a starter kernel artifact template for a typed ORP artifact class",
+    )
+    s_kernel_scaffold.add_argument(
+        "--artifact-class",
+        required=True,
+        choices=sorted(KERNEL_ARTIFACT_CLASS_REQUIREMENTS.keys()),
+        help="Typed kernel artifact class to scaffold",
+    )
+    s_kernel_scaffold.add_argument(
+        "--out",
+        required=True,
+        help="Output artifact path (.yml/.yaml or .json)",
+    )
+    s_kernel_scaffold.add_argument(
+        "--name",
+        default="",
+        help="Optional name hint used in scaffold placeholders",
+    )
+    s_kernel_scaffold.add_argument(
+        "--format",
+        default="",
+        choices=["", "yaml", "json"],
+        help="Optional explicit output format (default: infer from file extension)",
+    )
+    s_kernel_scaffold.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing artifact at --out",
+    )
+    add_json_flag(s_kernel_scaffold)
+    s_kernel_scaffold.set_defaults(func=cmd_kernel_scaffold, json_output=False)
 
     s_gate = sub.add_parser("gate", help="Gate operations")
     gate_sub = s_gate.add_subparsers(dest="gate_cmd", required=True)

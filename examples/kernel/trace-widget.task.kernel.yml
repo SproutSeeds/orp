@@ -1,0 +1,18 @@
+schema_version: "1.0.0"
+artifact_class: task
+object: terminal trace widget
+goal: reveal lane state and drift fast enough for a human operator to act
+boundary:
+  - terminal-first orchestration workflow
+  - session and lane visibility only
+constraints:
+  - low friction in the terminal
+  - must not alter lane execution
+  - should remain useful without GUI affordances
+success_criteria:
+  - operator can identify a stalled or drifting lane within ten seconds
+canonical_target:
+  - docs/TRACE_WIDGET_SPEC.md
+artifact_refs:
+  - docs/TRACE_WIDGET_SPEC.md
+  - analysis/trace-widget-sample-output.txt

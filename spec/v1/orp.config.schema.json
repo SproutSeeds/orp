@@ -230,6 +230,9 @@
         "evidence": {
           "$ref": "#/$defs/evidence"
         },
+        "kernel": {
+          "$ref": "#/$defs/kernel_gate"
+        },
         "on_fail": {
           "type": "string",
           "enum": [
@@ -237,6 +240,62 @@
             "continue",
             "mark_blocked"
           ]
+        }
+      }
+    },
+    "kernel_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifacts"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "soft",
+            "hard"
+          ]
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/kernel_artifact_ref"
+          }
+        }
+      }
+    },
+    "kernel_artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "artifact_class": {
+          "type": "string",
+          "enum": [
+            "task",
+            "decision",
+            "hypothesis",
+            "experiment",
+            "checkpoint",
+            "policy",
+            "result"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "extra_required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

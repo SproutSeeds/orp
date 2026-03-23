@@ -12,6 +12,7 @@ Keep one authoritative ORP contract for:
 
 - local repo governance
 - local project/session/runner state
+- reasoning-kernel artifact schemas and validation semantics
 - hosted auth and hosted workspace operations
 - runner delivery, lease, and retry semantics
 - machine-readable JSON surfaces for agents and UI layers
@@ -149,7 +150,25 @@ This is the canonical client for:
 - runner polling/SSE wake-up
 - lease/claim/start/complete/cancel/retry behavior
 
-### 5. Machine-Readable ORP Contract
+### 5. Reasoning Kernel
+
+Commands:
+
+- `orp kernel validate`
+- `orp kernel scaffold`
+
+Canonical schema path:
+
+- `spec/v1/kernel.schema.json`
+
+This surface defines:
+
+- typed promotable artifact classes
+- minimum structural completeness rules
+- soft vs hard kernel validation semantics
+- machine-readable kernel validation results in ORP runs
+
+### 6. Machine-Readable ORP Contract
 
 Preferred discovery surfaces:
 

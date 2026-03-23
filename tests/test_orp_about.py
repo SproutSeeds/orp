@@ -35,11 +35,13 @@ class OrpAboutTests(unittest.TestCase):
         self.assertEqual(payload["discovery"]["agent_loop"], "docs/AGENT_LOOP.md")
         self.assertEqual(payload["discovery"]["discover"], "docs/DISCOVER.md")
         self.assertEqual(payload["schemas"]["packet"], "spec/v1/packet.schema.json")
+        self.assertEqual(payload["schemas"]["kernel"], "spec/v1/kernel.schema.json")
         self.assertEqual(payload["schemas"]["link_project"], "spec/v1/link-project.schema.json")
         self.assertEqual(payload["schemas"]["link_session"], "spec/v1/link-session.schema.json")
         self.assertEqual(payload["schemas"]["runner_machine"], "spec/v1/runner-machine.schema.json")
         self.assertEqual(payload["schemas"]["runner_runtime"], "spec/v1/runner-runtime.schema.json")
         ability_ids = {row["id"] for row in payload["abilities"]}
+        self.assertIn("kernel", ability_ids)
         self.assertIn("workspace", ability_ids)
         self.assertIn("linking", ability_ids)
         self.assertIn("runner", ability_ids)
@@ -51,6 +53,8 @@ class OrpAboutTests(unittest.TestCase):
         command_names = {row["name"] for row in payload["commands"]}
         self.assertIn("home", command_names)
         self.assertIn("about", command_names)
+        self.assertIn("kernel_validate", command_names)
+        self.assertIn("kernel_scaffold", command_names)
         self.assertIn("auth_login", command_names)
         self.assertIn("auth_verify", command_names)
         self.assertIn("auth_logout", command_names)
@@ -110,6 +114,8 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("pack_install", command_names)
         self.assertIn("pack_fetch", command_names)
         json_commands = {row["name"] for row in payload["commands"] if row["json_output"]}
+        self.assertIn("kernel_validate", json_commands)
+        self.assertIn("kernel_scaffold", json_commands)
         self.assertIn("home", json_commands)
         self.assertIn("auth_login", json_commands)
         self.assertIn("auth_verify", json_commands)
@@ -252,6 +258,7 @@ class OrpAboutTests(unittest.TestCase):
 
             payload = json.loads(home_proc.stdout)
             commands = {row["command"] for row in payload["quick_actions"]}
+            self.assertIn("orp kernel validate analysis/orp.kernel.task.yml --json", commands)
             self.assertIn('orp backup -m "backup current work" --json', commands)
 
     def test_cli_without_args_shows_home_screen(self) -> None:

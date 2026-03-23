@@ -430,6 +430,103 @@
         },
         "evidence_note": {
           "type": "string"
+        },
+        "kernel_validation": {
+          "$ref": "#/$defs/kernel_validation"
+        }
+      }
+    },
+    "kernel_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "valid",
+        "artifacts_total",
+        "artifacts_valid",
+        "issues",
+        "artifacts"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "soft",
+            "hard"
+          ]
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "artifacts_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "artifacts_valid": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/kernel_artifact_validation"
+          }
+        }
+      }
+    },
+    "kernel_artifact_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "exists",
+        "required",
+        "optional_skipped",
+        "artifact_class",
+        "expected_artifact_class",
+        "valid",
+        "missing_fields",
+        "issues"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "optional_skipped": {
+          "type": "boolean"
+        },
+        "artifact_class": {
+          "type": "string"
+        },
+        "expected_artifact_class": {
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "missing_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
