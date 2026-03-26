@@ -4,12 +4,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {
+  buildComputePointDecisionPacket,
   buildOrpComputeGateResult,
   buildOrpComputePacket,
   defineComputePacket,
   defineDecision,
   defineImpactRead,
   definePolicy,
+  defineProjectComputeMap,
   defineResultBundle,
   defineRung,
   evaluateDispatch,
@@ -21,7 +23,9 @@ function printHelp() {
 
 Usage:
   orp compute decide --input <path> [--packet-out <path>] [--json]
+  orp compute decide --project-map <path> --point-id <id> [--rung-id <id>] [--success-bar <path>] [--packet-out <path>] [--json]
   orp compute run-local --input <path> --task <path> [--receipt-out <path>] [--packet-out <path>] [--json]
+  orp compute run-local --project-map <path> --point-id <id> --task <path> [--rung-id <id>] [--success-bar <path>] [--receipt-out <path>] [--packet-out <path>] [--json]
 
 Input JSON shape:
   {
@@ -39,6 +43,22 @@ Input JSON shape:
       "artifactRoot": "orp/artifacts"
     }
   }
+
+Project-map mode:
+  {
+    "projectId": "longevity-controller",
+    "repoRoots": ["/abs/path"],
+    "rungs": [...],
+    "defaultPolicy": {...},
+    "computePoints": [...]
+  }
+
+Project-map mode options:
+- --project-map <path> points to a repo compute catalog
+- --point-id <id> selects the compute point
+- --rung-id <id> optionally overrides the point default rung
+- --success-bar <path> optionally points to a JSON object merged into the packet success bar
+- repo/orp context is derived from the project map unless overridden with --repo-root, --board-id, --problem-id, or --artifact-root
 
 Task JSON shape for run-local:
   {
@@ -116,10 +136,70 @@ function buildContext(raw) {
   };
 }
 
+async function loadContext(options) {
+  if (options.input && options.projectMap) {
+    throw new Error("use either --input or --project-map, not both");
+  }
+
+  if (options.projectMap) {
+    if (!options.pointId) {
+      throw new Error("project-map mode requires --point-id <id>");
+    }
+
+    const projectMap = defineProjectComputeMap(await readJson(options.projectMap));
+    const successBar = options.successBar
+      ? await readJson(options.successBar)
+      : undefined;
+    const template = buildComputePointDecisionPacket({
+      projectComputeMap: projectMap,
+      pointId: options.pointId,
+      rungId: options.rungId,
+      successBar,
+    });
+
+    return {
+      raw: {
+        projectMap,
+        repo: {
+          rootPath: options.repoRoot || projectMap.repoRoots[0] || process.cwd(),
+        },
+        orp: {
+          boardId: options.boardId || "targeted_compute",
+          problemId: options.problemId || template.computePoint.id,
+          artifactRoot:
+            options.artifactRoot ||
+            `orp/artifacts/compute/${template.computePoint.id}`,
+        },
+      },
+      projectMap,
+      computePoint: template.computePoint,
+      decision: template.decision,
+      rung: template.rung,
+      policy: template.policy,
+      packet: template.packet,
+    };
+  }
+
+  if (!options.input) {
+    throw new Error("compute command requires --input <path> or --project-map <path>");
+  }
+
+  return buildContext(await readJson(options.input));
+}
+
 function commandLabel(subcommand, options) {
   const parts = ["orp", "compute", subcommand];
   if (options.input) {
     parts.push("--input", options.input);
+  }
+  if (options.projectMap) {
+    parts.push("--project-map", options.projectMap);
+  }
+  if (options.pointId) {
+    parts.push("--point-id", options.pointId);
+  }
+  if (options.rungId) {
+    parts.push("--rung-id", options.rungId);
   }
   if (options.task) {
     parts.push("--task", options.task);
@@ -148,11 +228,7 @@ function summarizeDispatch(dispatchResult) {
 }
 
 async function runDecide(options) {
-  if (!options.input) {
-    throw new Error("compute decide requires --input <path>");
-  }
-
-  const context = buildContext(await readJson(options.input));
+  const context = await loadContext(options);
   const dispatchResult = evaluateDispatch(context);
   const gateResult = buildOrpComputeGateResult({
     gateId: context.packet.rungId,
@@ -195,14 +271,11 @@ async function runDecide(options) {
 }
 
 async function runLocal(options) {
-  if (!options.input) {
-    throw new Error("compute run-local requires --input <path>");
-  }
   if (!options.task) {
     throw new Error("compute run-local requires --task <path>");
   }
 
-  const context = buildContext(await readJson(options.input));
+  const context = await loadContext(options);
   const task = await readJson(options.task);
   const dispatchResult = evaluateDispatch(context);
 

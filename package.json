@@ -1,6 +1,6 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
   "license": "MIT",
   "repository": {
@@ -36,7 +36,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "breakthroughs": "^0.1.0"
+    "breakthroughs": "^0.1.1"
   },
   "scripts": {
     "postinstall": "node scripts/npm-postinstall-check.js",

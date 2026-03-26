@@ -25,6 +25,51 @@ class OrpComputeTests(unittest.TestCase):
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return path
 
+    def _project_compute_map(self) -> dict:
+        return {
+            "projectId": "longevity-controller",
+            "label": "Partial reprogramming controller",
+            "repoRoots": [str(REPO_ROOT)],
+            "rungs": [
+                {
+                    "id": "local-4090-scout",
+                    "label": "Local 4090 scout",
+                    "spendClass": "local_unmetered",
+                    "admitted": True,
+                },
+                {
+                    "id": "paid-h100-transfer",
+                    "label": "Paid H100 transfer",
+                    "spendClass": "paid_metered",
+                    "admitted": True,
+                },
+            ],
+            "defaultPolicy": {
+                "local": {"defaultAction": "allow"},
+                "paid": {
+                    "defaultAction": "require_explicit_approval",
+                    "approvedRungs": [],
+                },
+            },
+            "computePoints": [
+                {
+                    "id": "adult-vs-developmental-rgc-opponent",
+                    "label": "Adult vs developmental RGC opponent lane",
+                    "question": "Can the route generalize on an adult holdout?",
+                    "intent": "classification",
+                    "entrySurfaces": ["controller.phase.350.1", "orp.compute.decide"],
+                    "defaultRungId": "local-4090-scout",
+                    "permittedRungIds": [
+                        "local-4090-scout",
+                        "paid-h100-transfer",
+                    ],
+                    "requiredOutputs": ["metrics.csv", "impact.md"],
+                    "evidenceExpectation": "bounded controller evidence bundle",
+                    "stopConditions": ["Hold if signal collapses on adult holdout."],
+                }
+            ],
+        }
+
     def test_compute_decide_allows_local_unmetered_rung(self) -> None:
         with tempfile.TemporaryDirectory(prefix="orp-compute-decide-local.") as td:
             root = Path(td)
@@ -134,6 +179,41 @@ class OrpComputeTests(unittest.TestCase):
             self.assertEqual(payload["dispatch_result"]["action"], "request_paid_approval")
             self.assertEqual(payload["gate_result"]["status"], "hold")
 
+    def test_compute_decide_accepts_project_compute_map_input(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-compute-decide-map.") as td:
+            root = Path(td)
+            project_map_path = self._write_json(
+                root,
+                "project-compute-map.json",
+                self._project_compute_map(),
+            )
+            packet_out = root / "orp-compute-packet.json"
+            proc = subprocess.run(
+                [
+                    "node",
+                    str(BIN),
+                    "compute",
+                    "decide",
+                    "--project-map",
+                    str(project_map_path),
+                    "--point-id",
+                    "adult-vs-developmental-rgc-opponent",
+                    "--packet-out",
+                    str(packet_out),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["dispatch_result"]["action"], "run_local")
+            packet_payload = json.loads(packet_out.read_text(encoding="utf-8"))
+            self.assertEqual(packet_payload["kind"], "problem_scope")
+            self.assertEqual(packet_payload["summary"]["overall_result"], "PASS")
+
     def test_compute_run_local_executes_command_and_writes_receipts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="orp-compute-run-local.") as td:
             root = Path(td)
@@ -218,6 +298,52 @@ class OrpComputeTests(unittest.TestCase):
             packet_payload = json.loads(packet_out.read_text(encoding="utf-8"))
             self.assertEqual(packet_payload["kind"], "problem_scope")
             self.assertEqual(packet_payload["summary"]["overall_result"], "PASS")
+
+    def test_compute_run_local_accepts_project_compute_map_input(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-compute-run-local-map.") as td:
+            root = Path(td)
+            project_map_path = self._write_json(
+                root,
+                "project-compute-map.json",
+                self._project_compute_map(),
+            )
+            task_path = self._write_json(
+                root,
+                "task.json",
+                {
+                    "command": "node",
+                    "args": ["-e", "process.stdout.write('hello project map')"],
+                    "cwd": str(REPO_ROOT),
+                    "timeoutMs": 5000,
+                },
+            )
+            receipt_out = root / "execution-receipt.json"
+            proc = subprocess.run(
+                [
+                    "node",
+                    str(BIN),
+                    "compute",
+                    "run-local",
+                    "--project-map",
+                    str(project_map_path),
+                    "--point-id",
+                    "adult-vs-developmental-rgc-opponent",
+                    "--task",
+                    str(task_path),
+                    "--receipt-out",
+                    str(receipt_out),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["dispatch_result"]["action"], "run_local")
+            self.assertEqual(payload["execution_receipt"]["stdout"], "hello project map")
+            self.assertTrue(receipt_out.exists())
 
 
 if __name__ == "__main__":

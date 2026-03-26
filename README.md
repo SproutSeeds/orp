@@ -147,7 +147,9 @@ orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json
 orp gate run --profile default --json
 orp packet emit --profile default --json
 orp compute decide --input orp.compute.json --json
+orp compute decide --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --json
 orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
+orp compute run-local --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --task orp.compute.task.json --json
 orp report summary --json
 ```
 
@@ -157,6 +159,7 @@ These surfaces are meant to help automated systems discover ORP quickly:
 - `orp home --json` returns the same landing context in machine-readable form
 - `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
 - `orp compute ...` exposes targeted-compute admission, local execution, and paid-approval gating through a stable ORP wrapper surface
+- `orp compute ...` can now consume either a raw compute packet input or a repo-declared `breakthroughs` project compute map plus a compute-point id
 - `orp youtube inspect ...` exposes public YouTube metadata plus full transcript ingestion through a stable ORP artifact shape for agent use when caption tracks are available
 - `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability

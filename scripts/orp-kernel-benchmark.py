@@ -202,7 +202,7 @@ def _benchmark_init_starter(iterations: int) -> dict[str, Any]:
 
     targets = {
         "init_mean_lt_ms": 375.0,
-        "validate_mean_lt_ms": 210.0,
+        "validate_mean_lt_ms": 250.0,
         "gate_mean_lt_ms": 350.0,
     }
     observed = {

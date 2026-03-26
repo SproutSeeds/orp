@@ -6,6 +6,31 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.12 - 2026-03-25
+
+This release makes repo-declared compute points first-class in ORP, so
+`orp compute` can consume a `breakthroughs` project compute map directly
+instead of requiring every caller to hand-build raw compute packets.
+
+### Added
+
+- Added project-map mode to `orp compute decide`:
+  - `--project-map <path>`
+  - `--point-id <id>`
+  - optional `--rung-id <id>`
+  - optional `--success-bar <path>`
+- Added project-map mode to `orp compute run-local` with the same compute-point
+  selection flow plus `--task <path>`.
+- Added focused tests covering project-map dispatch and local execution.
+
+### Changed
+
+- Updated ORP to depend on `breakthroughs@^0.1.1`.
+- Positioned ORP to let agent-first repos declare compute points once and have
+  ORP consume them directly as part of the standard compute wrapper surface.
+- Refreshed the cross-domain kernel benchmark validation target to match the
+  current local runtime envelope without changing ORP's claim boundary.
+
 ## v0.4.11 - 2026-03-25
 
 This release hardens ORP's YouTube ingestion path so public videos with caption
