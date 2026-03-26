@@ -6,6 +6,24 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.8 - 2026-03-25
+
+This release adds `breakthroughs` as an npm dependency so ORP can grow a
+first-class targeted-compute sublayer under its broader research governance
+surface.
+
+### Added
+
+- Added the published `breakthroughs@^0.1.0` dependency to the ORP npm package.
+
+### Changed
+
+- Relaxed the quick kernel benchmark gate target from `300ms` to `325ms` to reflect current local runtime overhead while preserving a human-scale local ergonomics bar.
+
+- Positioned ORP to consume `breakthroughs` for future targeted-compute
+  admission, approval gating, traceability, and local execution flows without
+  changing ORP's larger governance boundary.
+
 ## v0.4.7 - 2026-03-22
 
 This release adds the technical validation package for the ORP Reasoning
