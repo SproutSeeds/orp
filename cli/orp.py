@@ -115,6 +115,10 @@ DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
 DEFAULT_HOSTED_BASE_URL = "https://orp.earth"
 KERNEL_SCHEMA_VERSION = "1.0.0"
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
+YOUTUBE_ANDROID_CLIENT_VERSION = "20.10.38"
+YOUTUBE_ANDROID_USER_AGENT = (
+    f"com.google.android.youtube/{YOUTUBE_ANDROID_CLIENT_VERSION} (Linux; U; Android 14)"
+)
 
 
 class HostedApiError(RuntimeError):
@@ -362,12 +366,48 @@ def _http_get_json(url: str, *, headers: dict[str, str] | None = None, timeout_s
     raise RuntimeError(f"Response from {url} was not a JSON object.")
 
 
+def _http_post_json(
+    url: str,
+    payload: dict[str, Any],
+    *,
+    headers: dict[str, str] | None = None,
+    timeout_sec: int = 20,
+) -> dict[str, Any]:
+    body = json.dumps(payload).encode("utf-8")
+    merged_headers = {"Content-Type": "application/json"}
+    if headers:
+        merged_headers.update(headers)
+    request = urlrequest.Request(url, data=body, headers=merged_headers, method="POST")
+    try:
+        with urlrequest.urlopen(request, timeout=timeout_sec) as response:
+            text = response.read().decode("utf-8", errors="replace")
+    except urlerror.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"HTTP {exc.code} while fetching {url}: {body_text or exc.reason}") from exc
+    except urlerror.URLError as exc:
+        raise RuntimeError(f"Could not reach {url}: {exc.reason}") from exc
+    try:
+        parsed = json.loads(text)
+    except Exception as exc:
+        raise RuntimeError(f"Response from {url} was not valid JSON.") from exc
+    if isinstance(parsed, dict):
+        return parsed
+    raise RuntimeError(f"Response from {url} was not a JSON object.")
+
+
 def _youtube_request_headers() -> dict[str, str]:
     return {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36"
         ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+
+def _youtube_android_request_headers() -> dict[str, str]:
+    return {
+        "User-Agent": YOUTUBE_ANDROID_USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
     }
 
@@ -459,21 +499,52 @@ def _youtube_track_label(track: dict[str, Any]) -> str:
     return str(track.get("languageCode", "")).strip()
 
 
+def _youtube_track_source(track: dict[str, Any]) -> str:
+    return str(track.get("_orp_source", "") or "unknown").strip()
+
+
+def _youtube_track_inventory(tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for track in tracks:
+        if not isinstance(track, dict):
+            continue
+        language_code = str(track.get("languageCode", "")).strip()
+        label = _youtube_track_label(track)
+        kind = "auto" if str(track.get("kind", "")).strip().lower() == "asr" else "manual"
+        source = _youtube_track_source(track)
+        key = (language_code, label, kind, source)
+        if key in seen:
+            continue
+        seen.add(key)
+        inventory.append(
+            {
+                "language_code": language_code,
+                "name": label,
+                "kind": kind,
+                "source": source,
+            }
+        )
+    return inventory
+
+
+def _youtube_caption_track_sort_key(track: dict[str, Any], preferred_lang: str = "") -> tuple[int, int]:
+    preferred = str(preferred_lang or "").strip().lower()
+    code = str(track.get("languageCode", "")).strip().lower()
+    kind = str(track.get("kind", "")).strip().lower()
+    auto = 1 if kind == "asr" else 0
+    source = _youtube_track_source(track)
+    source_bias = 15 if source == "android_player" else 0
+    exact = 1 if preferred and code == preferred else 0
+    prefix = 1 if preferred and code.startswith(preferred + "-") else 0
+    english = 1 if code.startswith("en") else 0
+    return (exact * 100 + prefix * 80 + english * 20 + source_bias - auto * 5, -auto)
+
+
 def _pick_youtube_caption_track(tracks: list[dict[str, Any]], preferred_lang: str = "") -> dict[str, Any] | None:
     if not tracks:
         return None
-    preferred = str(preferred_lang or "").strip().lower()
-
-    def score(track: dict[str, Any]) -> tuple[int, int]:
-        code = str(track.get("languageCode", "")).strip().lower()
-        kind = str(track.get("kind", "")).strip().lower()
-        auto = 1 if kind == "asr" else 0
-        exact = 1 if preferred and code == preferred else 0
-        prefix = 1 if preferred and code.startswith(preferred + "-") else 0
-        english = 1 if code.startswith("en") else 0
-        return (exact * 100 + prefix * 80 + english * 20 - auto * 5, -auto)
-
-    ranked = sorted(tracks, key=score, reverse=True)
+    ranked = sorted(tracks, key=lambda track: _youtube_caption_track_sort_key(track, preferred_lang), reverse=True)
     return ranked[0] if ranked else None
 
 
@@ -544,6 +615,19 @@ def _parse_youtube_transcript_xml(text: str) -> tuple[str, list[dict[str, Any]]]
                 "text": body,
             }
         )
+    if not segments:
+        for node in root.findall(".//p"):
+            body = html.unescape("".join(node.itertext() or []))
+            body = re.sub(r"\s+", " ", body).strip()
+            if not body:
+                continue
+            segments.append(
+                {
+                    "start_ms": int(node.attrib.get("t", "0") or "0"),
+                    "duration_ms": int(node.attrib.get("d", "0") or "0"),
+                    "text": body,
+                }
+            )
     transcript_text = "\n".join(str(row["text"]) for row in segments)
     return transcript_text, segments
 
@@ -577,6 +661,8 @@ def _youtube_fetch_watch_state(video_id: str) -> dict[str, Any]:
         .get("playerCaptionsTracklistRenderer", {})
         .get("captionTracks", [])
     )
+    tracks = captions if isinstance(captions, list) else []
+    normalized_tracks = [{**row, "_orp_source": "watch_page"} for row in tracks if isinstance(row, dict)]
     return {
         "player_response": player_response,
         "video_details": player_response.get("videoDetails", {}) if isinstance(player_response.get("videoDetails"), dict) else {},
@@ -590,29 +676,110 @@ def _youtube_fetch_watch_state(video_id: str) -> dict[str, Any]:
             if isinstance(player_response.get("playabilityStatus"), dict)
             else {}
         ),
-        "caption_tracks": captions if isinstance(captions, list) else [],
+        "caption_tracks": normalized_tracks,
     }
+
+
+def _youtube_fetch_android_player_state(video_id: str) -> dict[str, Any]:
+    payload = _http_post_json(
+        "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
+        {
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": YOUTUBE_ANDROID_CLIENT_VERSION,
+                }
+            },
+            "videoId": video_id,
+        },
+        headers=_youtube_android_request_headers(),
+        timeout_sec=25,
+    )
+    captions = (
+        payload.get("captions", {})
+        .get("playerCaptionsTracklistRenderer", {})
+        .get("captionTracks", [])
+    )
+    tracks = captions if isinstance(captions, list) else []
+    normalized_tracks = [{**row, "_orp_source": "android_player"} for row in tracks if isinstance(row, dict)]
+    return {
+        "player_response": payload,
+        "video_details": payload.get("videoDetails", {}) if isinstance(payload.get("videoDetails"), dict) else {},
+        "microformat": {},
+        "playability_status": payload.get("playabilityStatus", {}) if isinstance(payload.get("playabilityStatus"), dict) else {},
+        "caption_tracks": normalized_tracks,
+    }
+
+
+def _youtube_ranked_caption_tracks(
+    watch_tracks: list[dict[str, Any]],
+    android_tracks: list[dict[str, Any]],
+    preferred_lang: str = "",
+) -> list[dict[str, Any]]:
+    ranked = sorted(
+        [track for track in android_tracks if isinstance(track, dict)]
+        + [track for track in watch_tracks if isinstance(track, dict)],
+        key=lambda track: _youtube_caption_track_sort_key(track, preferred_lang),
+        reverse=True,
+    )
+    unique: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for track in ranked:
+        key = (
+            str(track.get("languageCode", "")).strip(),
+            _youtube_track_label(track),
+            str(track.get("kind", "")).strip().lower(),
+            _youtube_track_source(track),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(track)
+    return unique
+
+
+def _youtube_parse_transcript_response(text: str) -> tuple[str, list[dict[str, Any]], str]:
+    stripped = str(text or "").lstrip()
+    if not stripped:
+        return ("", [], "empty")
+    if stripped.startswith("{"):
+        try:
+            payload = json.loads(text)
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            transcript_text, segments = _parse_youtube_transcript_json3(payload)
+            if transcript_text:
+                return (transcript_text, segments, "json3")
+    transcript_text, segments = _parse_youtube_transcript_xml(text)
+    if transcript_text:
+        return (transcript_text, segments, "xml")
+    return ("", [], "unparsed")
 
 
 def _youtube_fetch_transcript_from_track(track: dict[str, Any]) -> tuple[str, list[dict[str, Any]], str]:
     base_url = str(track.get("baseUrl", "")).strip()
     if not base_url:
         return ("", [], "missing_track_url")
-    json3_url = _youtube_add_query_param(base_url, "fmt", "json3")
-    try:
-        payload = _http_get_json(json3_url, headers=_youtube_request_headers(), timeout_sec=25)
-        transcript_text, segments = _parse_youtube_transcript_json3(payload)
+    source = _youtube_track_source(track) or "unknown"
+    candidate_urls = [
+        ("base", base_url),
+        ("json3", _youtube_add_query_param(base_url, "fmt", "json3")),
+        ("srv3", _youtube_add_query_param(base_url, "fmt", "srv3")),
+    ]
+    seen_urls: set[str] = set()
+    for mode, candidate_url in candidate_urls:
+        if candidate_url in seen_urls:
+            continue
+        seen_urls.add(candidate_url)
+        try:
+            response_text = _http_get_text(candidate_url, headers=_youtube_request_headers(), timeout_sec=25)
+        except Exception:
+            continue
+        transcript_text, segments, parsed_mode = _youtube_parse_transcript_response(response_text)
         if transcript_text:
-            return transcript_text, segments, "json3"
-    except Exception:
-        pass
-    try:
-        xml_text = _http_get_text(base_url, headers=_youtube_request_headers(), timeout_sec=25)
-        transcript_text, segments = _parse_youtube_transcript_xml(xml_text)
-        if transcript_text:
-            return transcript_text, segments, "xml"
-    except Exception:
-        pass
+            final_mode = parsed_mode if mode == "base" else f"{mode}_{parsed_mode}"
+            return transcript_text, segments, f"{source}_{final_mode}"
     return ("", [], "unavailable")
 
 
@@ -647,28 +814,61 @@ def _youtube_inspect_payload(raw_url: str, preferred_lang: str = "") -> dict[str
         watch_state = _youtube_fetch_watch_state(video_id)
     except Exception as exc:
         warnings.append(str(exc))
+    android_state: dict[str, Any] = {}
+    try:
+        android_state = _youtube_fetch_android_player_state(video_id)
+    except Exception as exc:
+        warnings.append(str(exc))
 
-    video_details = watch_state.get("video_details", {}) if isinstance(watch_state.get("video_details"), dict) else {}
+    watch_video_details = watch_state.get("video_details", {}) if isinstance(watch_state.get("video_details"), dict) else {}
+    android_video_details = (
+        android_state.get("video_details", {}) if isinstance(android_state.get("video_details"), dict) else {}
+    )
+    video_details = watch_video_details or android_video_details
     microformat = watch_state.get("microformat", {}) if isinstance(watch_state.get("microformat"), dict) else {}
     playability = watch_state.get("playability_status", {}) if isinstance(watch_state.get("playability_status"), dict) else {}
-    tracks = [row for row in watch_state.get("caption_tracks", []) if isinstance(row, dict)]
-    chosen_track = _pick_youtube_caption_track(tracks, preferred_lang)
+    if not playability:
+        playability = android_state.get("playability_status", {}) if isinstance(android_state.get("playability_status"), dict) else {}
+    watch_tracks = [row for row in watch_state.get("caption_tracks", []) if isinstance(row, dict)]
+    android_tracks = [row for row in android_state.get("caption_tracks", []) if isinstance(row, dict)]
+    tracks = _youtube_ranked_caption_tracks(watch_tracks, android_tracks, preferred_lang)
+    available_tracks = _youtube_track_inventory(tracks)
     transcript_text = ""
     transcript_segments: list[dict[str, Any]] = []
     transcript_fetch_mode = "none"
     transcript_available = False
     transcript_language = ""
     transcript_track_name = ""
+    transcript_track_source = ""
     transcript_kind = "none"
+    transcript_sources_tried: list[str] = []
+    chosen_track: dict[str, Any] | None = None
+    for candidate in tracks:
+        transcript_sources_tried.append(
+            ":".join(
+                part
+                for part in [
+                    _youtube_track_source(candidate),
+                    str(candidate.get("languageCode", "")).strip(),
+                    _youtube_track_label(candidate),
+                ]
+                if part
+            )
+        )
+        transcript_text, transcript_segments, transcript_fetch_mode = _youtube_fetch_transcript_from_track(candidate)
+        if transcript_text.strip():
+            transcript_available = True
+            chosen_track = candidate
+            break
     if chosen_track is not None:
-        transcript_text, transcript_segments, transcript_fetch_mode = _youtube_fetch_transcript_from_track(chosen_track)
-        transcript_available = bool(transcript_text.strip())
         transcript_language = str(chosen_track.get("languageCode", "")).strip()
         transcript_track_name = _youtube_track_label(chosen_track)
+        transcript_track_source = _youtube_track_source(chosen_track)
         transcript_kind = "auto" if str(chosen_track.get("kind", "")).strip().lower() == "asr" else "manual"
+    if tracks:
         if not transcript_available:
             warnings.append("A caption track was found, but transcript text could not be fetched.")
-    elif watch_state:
+    elif watch_state or android_state:
         warnings.append("No caption tracks were available for this video.")
 
     title = str(video_details.get("title") or oembed.get("title") or "").strip()
@@ -698,13 +898,17 @@ def _youtube_inspect_payload(raw_url: str, preferred_lang: str = "") -> dict[str
         "duration_seconds": duration_seconds or None,
         "published_at": published_at,
         "playability_status": str(playability.get("status", "")).strip(),
+        "transcript_track_count": len(available_tracks),
+        "available_transcript_tracks": available_tracks,
         "transcript_available": transcript_available,
         "transcript_language": transcript_language,
         "transcript_track_name": transcript_track_name,
+        "transcript_track_source": transcript_track_source,
         "transcript_kind": transcript_kind,
         "transcript_fetch_mode": transcript_fetch_mode,
         "transcript_text": transcript_text,
         "transcript_segments": transcript_segments,
+        "transcript_sources_tried": transcript_sources_tried,
         "warnings": _unique_strings(warnings),
     }
     payload["text_bundle"] = _youtube_text_bundle(payload)
@@ -713,6 +917,119 @@ def _youtube_inspect_payload(raw_url: str, preferred_lang: str = "") -> dict[str
 
 def _default_youtube_artifact_path(repo_root: Path, video_id: str) -> Path:
     return repo_root / "orp" / "external" / "youtube" / f"{video_id}.json"
+
+
+def _default_youtube_note_path(repo_root: Path, video_id: str) -> Path:
+    return repo_root / "analysis" / "youtube" / f"{video_id}.md"
+
+
+def _youtube_source_note_markdown(
+    payload: dict[str, Any],
+    repo_root: Path,
+    *,
+    source_artifact_path: str = "",
+) -> str:
+    title = str(payload.get("title", "")).strip() or "YouTube Source Note"
+    canonical_url = str(payload.get("canonical_url", "")).strip()
+    video_id = str(payload.get("video_id", "")).strip()
+    author_name = str(payload.get("author_name", "")).strip()
+    duration_seconds = payload.get("duration_seconds")
+    published_at = str(payload.get("published_at", "")).strip()
+    transcript_available = bool(payload.get("transcript_available", False))
+    transcript_language = str(payload.get("transcript_language", "")).strip()
+    transcript_track_name = str(payload.get("transcript_track_name", "")).strip()
+    transcript_track_source = str(payload.get("transcript_track_source", "")).strip()
+    transcript_fetch_mode = str(payload.get("transcript_fetch_mode", "")).strip()
+    transcript_track_count = payload.get("transcript_track_count") or 0
+    warnings = payload.get("warnings") if isinstance(payload.get("warnings"), list) else []
+    warning_text = ", ".join(str(item).strip() for item in warnings if str(item).strip()) or "none"
+    source_artifact_line = (
+        f"- Source artifact: `{source_artifact_path}`"
+        if source_artifact_path
+        else "- Source artifact: not saved locally yet; rerun with `--save` to persist the structured JSON artifact"
+    )
+
+    lines = [
+        f"# {title}",
+        "",
+        f"Source URL: {canonical_url or '(unknown)'}  ",
+        f"Video ID: `{video_id or '(unknown)'}`",
+        "",
+        "## Source Metadata",
+        "",
+        f"- Title: `{title}`",
+        f"- Channel: `{author_name or '(unknown)'}`",
+        f"- Duration seconds: `{duration_seconds if duration_seconds not in (None, '') else '(unknown)'}`",
+        f"- Published: `{published_at or '(unknown)'}`",
+        source_artifact_line,
+        "",
+        "## ORP Transcript Retrieval",
+        "",
+        f"- Transcript available: `{str(transcript_available).lower()}`",
+        f"- Language: `{transcript_language or '(unknown)'}`",
+        f"- Track name: `{transcript_track_name or '(unknown)'}`",
+        f"- Track source: `{transcript_track_source or '(unknown)'}`",
+        f"- Fetch mode: `{transcript_fetch_mode or '(unknown)'}`",
+        f"- Track count found: `{transcript_track_count}`",
+        f"- Warnings: {warning_text}",
+        "",
+        "This note is an ORP-native working interpretation scaffold generated from `orp youtube inspect`.",
+        "It is for synthesis, momentum, and downstream artifact creation. It is not canonical evidence by itself.",
+        "",
+        "## What This Says",
+        "",
+        "_Write the clearest 1-3 paragraph summary of what the source is actually saying._",
+        "",
+        "## Extracted Claims",
+        "",
+        "- _Claim 1_",
+        "- _Claim 2_",
+        "- _Claim 3_",
+        "",
+        "## Extracted Constraints",
+        "",
+        "- _Constraint 1_",
+        "- _Constraint 2_",
+        "- _Constraint 3_",
+        "",
+        "## Inspiration And Momentum",
+        "",
+        "_What energy, direction, confidence, or strategic clarity does this source give the project?_",
+        "",
+        "## How This Helps Us Right Now",
+        "",
+        "_Explain how this source helps the current repo, product direction, architecture, or research posture._",
+        "",
+        "## Relationship To The Current Project",
+        "",
+        "- _Kernel relevance_",
+        "- _Runner / execution relevance_",
+        "- _Source-ingestion relevance_",
+        "- _CLI / protocol relevance_",
+        "",
+        "## Knowledge Synthesis",
+        "",
+        "_Synthesize the source into a sharper project-level insight, not just a recap._",
+        "",
+        "## Possible Action Paths",
+        "",
+        "_Optional. Capture implied next moves for agent context only. Do not execute them automatically unless explicitly requested._",
+        "",
+        "- _Possible path 1_",
+        "- _Possible path 2_",
+        "",
+        "## Candidate ORP Artifact Conversions",
+        "",
+        "- `decision`: _if this source should sharpen a project decision_",
+        "- `hypothesis`: _if this source suggests something testable_",
+        "- `policy`: _if this source implies a durable operating rule_",
+        "- `checkpoint`: _if this source updates current project understanding_",
+        "",
+        "## Short Excerpts",
+        "",
+        "_Optional. Keep excerpts brief._",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def cmd_youtube_inspect(args: argparse.Namespace) -> int:
@@ -724,6 +1041,9 @@ def cmd_youtube_inspect(args: argparse.Namespace) -> int:
     should_save = bool(getattr(args, "save", False) or out_raw)
     out_path: Path | None = None
     emitted_format = ""
+    note_out_raw = str(getattr(args, "note_out", "") or "").strip()
+    should_save_note = bool(getattr(args, "save_note", False) or note_out_raw)
+    note_path: Path | None = None
     if should_save:
         if out_raw:
             out_path = _resolve_cli_path(out_raw, repo_root)
@@ -734,13 +1054,31 @@ def cmd_youtube_inspect(args: argparse.Namespace) -> int:
             raise RuntimeError(
                 f"output path already exists: {_path_for_state(out_path, repo_root)}. Use --force to overwrite."
             )
+    if should_save_note:
+        if note_out_raw:
+            note_path = _resolve_cli_path(note_out_raw, repo_root)
+        else:
+            note_path = _default_youtube_note_path(repo_root, str(payload.get("video_id", "")).strip())
+        if note_path.exists() and not bool(getattr(args, "force", False)):
+            raise RuntimeError(
+                f"note path already exists: {_path_for_state(note_path, repo_root)}. Use --force to overwrite."
+            )
+    if out_path is not None and note_path is not None and out_path == note_path:
+        raise RuntimeError("source artifact path and note path must be different.")
+    if should_save:
         emitted_format = _write_structured_payload(out_path, payload, format_hint=str(getattr(args, "format", "") or ""))
+    if note_path is not None:
+        source_artifact_ref = _path_for_state(out_path, repo_root) if out_path is not None else ""
+        note_text = _youtube_source_note_markdown(payload, repo_root, source_artifact_path=source_artifact_ref)
+        _write_text(note_path, note_text)
 
     result = {
         "ok": True,
         "saved": out_path is not None,
         "path": _path_for_state(out_path, repo_root) if out_path is not None else "",
         "format": emitted_format,
+        "note_saved": note_path is not None,
+        "note_path": _path_for_state(note_path, repo_root) if note_path is not None else "",
         "schema_path": "spec/v1/youtube-source.schema.json",
         "source": payload,
     }
@@ -754,11 +1092,15 @@ def cmd_youtube_inspect(args: argparse.Namespace) -> int:
                 ("video.title", str(payload.get("title", "")).strip()),
                 ("video.author", str(payload.get("author_name", "")).strip()),
                 ("video.duration_seconds", payload.get("duration_seconds") or ""),
+                ("transcript.track_count", payload.get("transcript_track_count") or 0),
                 ("transcript.available", str(bool(payload.get("transcript_available", False))).lower()),
                 ("transcript.language", str(payload.get("transcript_language", "")).strip()),
+                ("transcript.track_source", str(payload.get("transcript_track_source", "")).strip()),
                 ("transcript.kind", str(payload.get("transcript_kind", "")).strip()),
                 ("saved", str(bool(out_path is not None)).lower()),
                 ("path", _path_for_state(out_path, repo_root) if out_path is not None else ""),
+                ("note.saved", str(bool(note_path is not None)).lower()),
+                ("note.path", _path_for_state(note_path, repo_root) if note_path is not None else ""),
             ]
         )
         bundle = str(payload.get("text_bundle", "")).strip()
@@ -5774,7 +6116,7 @@ def _about_payload() -> dict[str, Any]:
             "Default CLI output is human-readable; listed commands with json_output=true also support --json.",
             "Reasoning-kernel artifacts shape promotable repository truth for tasks, decisions, hypotheses, experiments, checkpoints, policies, and results.",
             "Kernel evolution in ORP should stay explicit: observe real usage, propose changes, and migrate artifacts through versioned CLI surfaces rather than silent agent mutation.",
-            "YouTube inspection is a built-in ORP ability exposed through `orp youtube inspect`, returning public metadata and caption transcript text when available.",
+            "YouTube inspection is a built-in ORP ability exposed through `orp youtube inspect`, returning public metadata plus full transcript text and segments whenever public caption tracks are available.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
@@ -5885,7 +6227,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp whoami --json",
         },
         {
-            "label": "Inspect a YouTube video and public transcript for agent context",
+            "label": "Inspect a YouTube video and ingest full public transcript context",
             "command": "orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json",
         },
         {
@@ -12715,7 +13057,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_youtube_inspect = youtube_sub.add_parser(
         "inspect",
-        help="Inspect a YouTube video and fetch public metadata plus transcript text when captions are available",
+        help="Inspect a YouTube video and fetch public metadata plus full transcript text and segments when caption tracks are available",
     )
     s_youtube_inspect.add_argument("url", help="YouTube watch/share URL or 11-character video id")
     s_youtube_inspect.add_argument(
@@ -12729,9 +13071,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Save the inspected source artifact under orp/external/youtube/<video_id>.json",
     )
     s_youtube_inspect.add_argument(
+        "--save-note",
+        action="store_true",
+        help="Save an ORP-native Markdown source note scaffold under analysis/youtube/<video_id>.md",
+    )
+    s_youtube_inspect.add_argument(
         "--out",
         default="",
         help="Optional output path for the source artifact (.json, .yml, or .yaml)",
+    )
+    s_youtube_inspect.add_argument(
+        "--note-out",
+        default="",
+        help="Optional output path for the Markdown source note (.md)",
     )
     s_youtube_inspect.add_argument(
         "--format",

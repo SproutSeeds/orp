@@ -13,7 +13,7 @@ ORP (Open Research Protocol) is a docs-first, local-first, agent-friendly protoc
 ## Fast Machine Discovery
 
 - Run `orp about --json` for machine-readable tool metadata, artifact paths, schemas, supported commands, and bundled packs.
-- Run `orp youtube inspect <youtube-url> --json` to normalize a public YouTube video into ORP's source artifact shape, including transcript text when public captions are fetchable.
+- Run `orp youtube inspect <youtube-url> --json` to normalize a public YouTube video into ORP's source artifact shape, including full transcript text and timing segments when public caption tracks are available.
 - Run `orp erdos sync --json` for machine-readable Erdos catalog sync results.
 - Run `orp pack list --json` for machine-readable bundled pack inventory.
 - Core runtime commands also support `--json`:

@@ -24,6 +24,7 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 - If the task begins from a public YouTube link, normalize it first:
   - `orp youtube inspect <youtube-url> --json`
   - or `orp youtube inspect <youtube-url> --save --json` when the source artifact should stay with the repo
+  - or `orp youtube inspect <youtube-url> --save --save-note --json` when the agent should also leave behind an ORP-native Markdown source note for project context
 
 ## 3. Run
 

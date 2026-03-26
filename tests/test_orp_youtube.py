@@ -72,6 +72,26 @@ class OrpYoutubeTests(unittest.TestCase):
         self.assertEqual(segments[0]["start_ms"], 0)
         self.assertEqual(segments[1]["duration_ms"], 2000)
 
+    def test_parse_xml_transcript_supports_srv3_paragraphs(self) -> None:
+        module = load_cli_module()
+        transcript_text, segments = module._parse_youtube_transcript_xml(
+            """<?xml version="1.0" encoding="utf-8" ?>
+            <timedtext format="3">
+              <body>
+                <p t="1200" d="2160">All right</p>
+                <p t="5318" d="2656"><s>the cool thing</s><s> about these guys</s></p>
+              </body>
+            </timedtext>"""
+        )
+        self.assertEqual(transcript_text, "All right\nthe cool thing about these guys")
+        self.assertEqual(
+            segments,
+            [
+                {"start_ms": 1200, "duration_ms": 2160, "text": "All right"},
+                {"start_ms": 5318, "duration_ms": 2656, "text": "the cool thing about these guys"},
+            ],
+        )
+
     def test_youtube_inspect_payload_assembles_metadata_and_transcript(self) -> None:
         module = load_cli_module()
 
@@ -96,13 +116,20 @@ class OrpYoutubeTests(unittest.TestCase):
                     "languageCode": "en",
                     "name": {"simpleText": "English"},
                     "baseUrl": "https://example.invalid/en",
+                    "_orp_source": "watch_page",
                 }
             ],
+        }
+        module._youtube_fetch_android_player_state = lambda video_id: {
+            "video_details": {},
+            "microformat": {},
+            "playability_status": {},
+            "caption_tracks": [],
         }
         module._youtube_fetch_transcript_from_track = lambda track: (
             "Hello world",
             [{"start_ms": 0, "duration_ms": 1000, "text": "Hello world"}],
-            "json3",
+            "watch_page_json3",
         )
 
         payload = module._youtube_inspect_payload("https://youtu.be/dQw4w9WgXcQ", preferred_lang="en")
@@ -112,11 +139,74 @@ class OrpYoutubeTests(unittest.TestCase):
         self.assertEqual(payload["title"], "Primary title")
         self.assertEqual(payload["author_name"], "Primary author")
         self.assertEqual(payload["duration_seconds"], 42)
+        self.assertEqual(payload["transcript_track_count"], 1)
+        self.assertEqual(
+            payload["available_transcript_tracks"],
+            [{"language_code": "en", "name": "English", "kind": "manual", "source": "watch_page"}],
+        )
         self.assertTrue(payload["transcript_available"])
         self.assertEqual(payload["transcript_language"], "en")
-        self.assertEqual(payload["transcript_fetch_mode"], "json3")
+        self.assertEqual(payload["transcript_track_source"], "watch_page")
+        self.assertEqual(payload["transcript_fetch_mode"], "watch_page_json3")
         self.assertEqual(payload["transcript_text"], "Hello world")
+        self.assertEqual(payload["transcript_sources_tried"], ["watch_page:en:English"])
         self.assertIn("Transcript:\nHello world", payload["text_bundle"])
+
+    def test_youtube_inspect_payload_falls_back_to_android_player_tracks(self) -> None:
+        module = load_cli_module()
+
+        module._youtube_fetch_oembed = lambda canonical_url: {}
+        module._youtube_fetch_watch_state = lambda video_id: {
+            "video_details": {
+                "title": "Watch title",
+                "author": "Watch author",
+                "lengthSeconds": "42",
+                "shortDescription": "Watch description.",
+                "channelId": "channel_watch",
+            },
+            "microformat": {"publishDate": "2026-03-25"},
+            "playability_status": {"status": "OK"},
+            "caption_tracks": [
+                {
+                    "languageCode": "en",
+                    "name": {"simpleText": "English"},
+                    "baseUrl": "https://example.invalid/watch-en",
+                    "_orp_source": "watch_page",
+                }
+            ],
+        }
+        module._youtube_fetch_android_player_state = lambda video_id: {
+            "video_details": {},
+            "microformat": {},
+            "playability_status": {},
+            "caption_tracks": [
+                {
+                    "languageCode": "en",
+                    "name": {"simpleText": "English"},
+                    "baseUrl": "https://example.invalid/android-en",
+                    "_orp_source": "android_player",
+                }
+            ],
+        }
+
+        def fake_fetch(track):
+            if track.get("_orp_source") == "watch_page":
+                return ("", [], "unavailable")
+            return (
+                "Full transcript",
+                [{"start_ms": 0, "duration_ms": 2000, "text": "Full transcript"}],
+                "android_player_xml",
+            )
+
+        module._youtube_fetch_transcript_from_track = fake_fetch
+        payload = module._youtube_inspect_payload("https://youtu.be/dQw4w9WgXcQ", preferred_lang="en")
+        self.assertTrue(payload["transcript_available"])
+        self.assertEqual(payload["transcript_track_source"], "android_player")
+        self.assertEqual(payload["transcript_fetch_mode"], "android_player_xml")
+        self.assertEqual(
+            payload["transcript_sources_tried"],
+            ["android_player:en:English"],
+        )
 
     def test_cmd_youtube_inspect_json_save_writes_default_artifact(self) -> None:
         module = load_cli_module()
@@ -136,13 +226,19 @@ class OrpYoutubeTests(unittest.TestCase):
             "duration_seconds": 42,
             "published_at": "2026-03-25",
             "playability_status": "OK",
+            "transcript_track_count": 1,
+            "available_transcript_tracks": [
+                {"language_code": "en", "name": "English", "kind": "manual", "source": "android_player"}
+            ],
             "transcript_available": True,
             "transcript_language": "en",
             "transcript_track_name": "English",
+            "transcript_track_source": "android_player",
             "transcript_kind": "manual",
-            "transcript_fetch_mode": "json3",
+            "transcript_fetch_mode": "android_player_xml",
             "transcript_text": "Hello world",
             "transcript_segments": [{"start_ms": 0, "duration_ms": 1000, "text": "Hello world"}],
+            "transcript_sources_tried": ["android_player:en:English"],
             "warnings": [],
             "text_bundle": "Title: Video title\n\nTranscript:\nHello world",
         }
@@ -158,7 +254,9 @@ class OrpYoutubeTests(unittest.TestCase):
                         url="https://youtu.be/dQw4w9WgXcQ",
                         lang="",
                         save=True,
+                        save_note=False,
                         out="",
+                        note_out="",
                         format="",
                         force=False,
                         json_output=True,
@@ -174,6 +272,104 @@ class OrpYoutubeTests(unittest.TestCase):
             saved_payload = json.loads(saved.read_text(encoding="utf-8"))
             self.assertEqual(saved_payload["video_id"], "dQw4w9WgXcQ")
             self.assertEqual(saved_payload["transcript_text"], "Hello world")
+            self.assertFalse(payload["note_saved"])
+            self.assertEqual(payload["note_path"], "")
+
+    def test_youtube_source_note_markdown_contains_orp_native_sections(self) -> None:
+        module = load_cli_module()
+        note = module._youtube_source_note_markdown(
+            {
+                "title": "Video title",
+                "canonical_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                "video_id": "dQw4w9WgXcQ",
+                "author_name": "Author",
+                "duration_seconds": 42,
+                "published_at": "2026-03-25",
+                "transcript_available": True,
+                "transcript_language": "en",
+                "transcript_track_name": "English",
+                "transcript_track_source": "android_player",
+                "transcript_fetch_mode": "android_player_xml",
+                "transcript_track_count": 1,
+                "warnings": [],
+            },
+            REPO_ROOT,
+            source_artifact_path="orp/external/youtube/dQw4w9WgXcQ.json",
+        )
+        self.assertIn("# Video title", note)
+        self.assertIn("## Inspiration And Momentum", note)
+        self.assertIn("## How This Helps Us Right Now", note)
+        self.assertIn("## Relationship To The Current Project", note)
+        self.assertIn("## Possible Action Paths", note)
+        self.assertIn("Do not execute them automatically unless explicitly requested.", note)
+        self.assertIn("`orp/external/youtube/dQw4w9WgXcQ.json`", note)
+
+    def test_cmd_youtube_inspect_json_save_note_writes_default_markdown(self) -> None:
+        module = load_cli_module()
+        fake_payload = {
+            "schema_version": "1.0.0",
+            "kind": "youtube_source",
+            "retrieved_at_utc": "2026-03-25T12:00:00Z",
+            "source_url": "https://youtu.be/dQw4w9WgXcQ",
+            "canonical_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "video_id": "dQw4w9WgXcQ",
+            "title": "Video title",
+            "author_name": "Author",
+            "author_url": "",
+            "thumbnail_url": "",
+            "channel_id": "",
+            "description": "Description",
+            "duration_seconds": 42,
+            "published_at": "2026-03-25",
+            "playability_status": "OK",
+            "transcript_track_count": 1,
+            "available_transcript_tracks": [
+                {"language_code": "en", "name": "English", "kind": "manual", "source": "android_player"}
+            ],
+            "transcript_available": True,
+            "transcript_language": "en",
+            "transcript_track_name": "English",
+            "transcript_track_source": "android_player",
+            "transcript_kind": "manual",
+            "transcript_fetch_mode": "android_player_xml",
+            "transcript_text": "Hello world",
+            "transcript_segments": [{"start_ms": 0, "duration_ms": 1000, "text": "Hello world"}],
+            "transcript_sources_tried": ["android_player:en:English"],
+            "warnings": [],
+            "text_bundle": "Title: Video title\n\nTranscript:\nHello world",
+        }
+        module._youtube_inspect_payload = lambda raw_url, preferred_lang="": fake_payload
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_youtube_inspect(
+                    argparse.Namespace(
+                        repo_root=str(root),
+                        url="https://youtu.be/dQw4w9WgXcQ",
+                        lang="",
+                        save=False,
+                        save_note=True,
+                        out="",
+                        note_out="",
+                        format="",
+                        force=False,
+                        json_output=True,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["saved"])
+            self.assertTrue(payload["note_saved"])
+            self.assertEqual(payload["note_path"], "analysis/youtube/dQw4w9WgXcQ.md")
+            saved = root / payload["note_path"]
+            self.assertTrue(saved.exists())
+            text = saved.read_text(encoding="utf-8")
+            self.assertIn("## Inspiration And Momentum", text)
+            self.assertIn("## How This Helps Us Right Now", text)
+            self.assertIn("Do not execute them automatically unless explicitly requested.", text)
 
     def test_youtube_source_schema_exists(self) -> None:
         module = load_cli_module()

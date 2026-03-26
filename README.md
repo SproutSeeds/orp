@@ -58,6 +58,7 @@ ORP should feel like one CLI with built-in abilities:
 - `collaborate` for repository collaboration setup and workflow execution
 - `erdos` for Erdos-specific data and workflow support
 - `report` and `packet` for ORP artifacts
+- `compute` for targeted compute admission, local execution, and paid approval gating
 
 The `pack` layer still exists, but it is now an advanced/internal surface rather
 than the main product story.
@@ -122,6 +123,7 @@ orp auth login
 orp whoami --json
 orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
 orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --save-note --json
 orp ideas list --json
 orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
 orp checkpoint queue --idea-id <idea-id> --json
@@ -145,6 +147,8 @@ orp pack install --pack-id erdos-open-problems --json
 orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json
 orp gate run --profile default --json
 orp packet emit --profile default --json
+orp compute decide --input orp.compute.json --json
+orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
 orp report summary --json
 ```
 
@@ -153,7 +157,8 @@ These surfaces are meant to help automated systems discover ORP quickly:
 - bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
 - `orp home --json` returns the same landing context in machine-readable form
 - `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
-- `orp youtube inspect ...` exposes public YouTube metadata and transcript retrieval through a stable ORP artifact shape for agent use
+- `orp compute ...` exposes targeted-compute admission, local execution, and paid-approval gating through a stable ORP wrapper surface
+- `orp youtube inspect ...` exposes public YouTube metadata plus full transcript ingestion through a stable ORP artifact shape for agent use when caption tracks are available, and can scaffold ORP-native Markdown source notes for project context with `--save-note`
 - `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
 - `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs

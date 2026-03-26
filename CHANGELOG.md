@@ -6,6 +6,26 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.10 - 2026-03-25
+
+This release makes targeted compute a first-class ORP wrapper surface through
+`orp compute`, backed by the published `breakthroughs` package.
+
+### Added
+
+- Added `orp compute decide` for bounded compute admission decisions.
+- Added `orp compute run-local` for locally admitted compute packets using the
+  `breakthroughs` shell adapter.
+- Added wrapper-level ORP compute packet emission for process-only traceability.
+- Added focused wrapper tests covering local admission, paid approval gating,
+  and local execution receipts.
+
+### Changed
+
+- Updated ORP npm wrapper help to advertise the `orp compute` surface.
+- Refreshed local ergonomics benchmark thresholds to reflect the current
+  reference-machine runtime envelope without changing ORP's claim boundary.
+
 ## v0.4.9 - 2026-03-25
 
 This release adds first-class YouTube inspection to ORP so agents can accept a

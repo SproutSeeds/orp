@@ -6,7 +6,7 @@ YouTube videos.
 It gives agents and users a stable way to turn a YouTube link into:
 
 - normalized video metadata,
-- public caption transcript text when available,
+- full public transcript text and segment timing when caption tracks are available,
 - segment-level timing rows,
 - and one agent-friendly `text_bundle` field that can be handed directly into
   summarization, extraction, comparison, or kernel-shaped artifact creation.
@@ -35,7 +35,9 @@ Optional persistence:
 
 ```bash
 orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --save-note --json
 orp youtube inspect https://www.youtube.com/watch?v=<video_id> --out analysis/source.youtube.json --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --note-out analysis/youtube/source-note.md --json
 ```
 
 ## Output shape
@@ -61,13 +63,17 @@ The command returns:
   - `published_at`
   - `playability_status`
 - transcript fields:
+  - `transcript_track_count`
+  - `available_transcript_tracks`
   - `transcript_available`
   - `transcript_language`
   - `transcript_track_name`
+  - `transcript_track_source`
   - `transcript_kind`
   - `transcript_fetch_mode`
   - `transcript_text`
   - `transcript_segments`
+  - `transcript_sources_tried`
 - agent-ready bundle:
   - `text_bundle`
 - capture notes:
@@ -84,10 +90,32 @@ orp/external/youtube/<video_id>.json
 This keeps YouTube ingestion consistent with ORP's larger local-first artifact
 discipline while staying outside the evidence boundary by default.
 
+`--save-note` writes an ORP-native Markdown working note to:
+
+```text
+analysis/youtube/<video_id>.md
+```
+
+That note is meant for agent and operator context. Its default shape emphasizes:
+
+- what the source says,
+- what it suggests,
+- how it helps the current project,
+- inspiration and momentum,
+- and only optionally any implied action paths.
+
+Implied actions are captured as context for downstream agents and humans. They
+are not instructions to execute automatically unless explicitly requested.
+
 ## Important boundary
 
 `orp youtube inspect` returns public source context. It does **not** make the
 result canonical evidence by itself.
+
+When public caption tracks exist, ORP now attempts full transcript ingestion
+across multiple retrieval strategies and records which track/source succeeded.
+If a video has no accessible caption tracks, ORP reports that honestly instead
+of silently fabricating a transcript.
 
 If a video matters for repo truth, the agent should still:
 

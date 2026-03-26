@@ -20,13 +20,17 @@
     "duration_seconds",
     "published_at",
     "playability_status",
+    "transcript_track_count",
+    "available_transcript_tracks",
     "transcript_available",
     "transcript_language",
     "transcript_track_name",
+    "transcript_track_source",
     "transcript_kind",
     "transcript_fetch_mode",
     "transcript_text",
     "transcript_segments",
+    "transcript_sources_tried",
     "warnings",
     "text_bundle"
   ],
@@ -83,6 +87,41 @@
     "playability_status": {
       "type": "string"
     },
+    "transcript_track_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "available_transcript_tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "language_code",
+          "name",
+          "kind",
+          "source"
+        ],
+        "properties": {
+          "language_code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "auto"
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "transcript_available": {
       "type": "boolean"
     },
@@ -90,6 +129,9 @@
       "type": "string"
     },
     "transcript_track_name": {
+      "type": "string"
+    },
+    "transcript_track_source": {
       "type": "string"
     },
     "transcript_kind": {
@@ -101,14 +143,7 @@
       ]
     },
     "transcript_fetch_mode": {
-      "type": "string",
-      "enum": [
-        "json3",
-        "xml",
-        "unavailable",
-        "none",
-        "missing_track_url"
-      ]
+      "type": "string"
     },
     "transcript_text": {
       "type": "string"
@@ -136,6 +171,12 @@
             "type": "string"
           }
         }
+      }
+    },
+    "transcript_sources_tried": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
     "warnings": {
