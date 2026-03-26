@@ -33,6 +33,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 - `docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md` — harder live downstream benchmark where the agent must produce the next canonical task artifact
 - `docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md` — honest map of what the kernel proves, only suggests, or still leaves unproven
 - `docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md` — comparative experiment plan for upgrading kernel evidence beyond implementation validity
+- `docs/ORP_YOUTUBE_INSPECT.md` — first-class YouTube metadata/transcript ingestion surface for agent-readable external source context
 - `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
 - `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
 - `templates/` — claim, verification, failure, and issue templates
@@ -51,6 +52,7 @@ verification remains independent of framing. See `modules/instruments/README.md`
 ORP should feel like one CLI with built-in abilities:
 
 - `workspace` for hosted auth, idea, feature, world, checkpoint, and worker operations
+- `youtube` for public video metadata and transcript ingestion
 - `governance` for local-first repo initialization, branch safety, checkpoint commits, backup refs, readiness, repair, and cleanup
 - `discover` for profile-based GitHub scanning and opportunity selection
 - `collaborate` for repository collaboration setup and workflow execution
@@ -118,6 +120,8 @@ orp home --json
 orp about --json
 orp auth login
 orp whoami --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --json
 orp ideas list --json
 orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
 orp checkpoint queue --idea-id <idea-id> --json
@@ -149,6 +153,7 @@ These surfaces are meant to help automated systems discover ORP quickly:
 - bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
 - `orp home --json` returns the same landing context in machine-readable form
 - `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
+- `orp youtube inspect ...` exposes public YouTube metadata and transcript retrieval through a stable ORP artifact shape for agent use
 - `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
 - `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
@@ -212,6 +217,7 @@ Minimal CLI skeleton:
 
 ```bash
 orp auth login
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
 orp ideas list --json
 orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
 orp checkpoint queue --idea-id <idea-id> --json

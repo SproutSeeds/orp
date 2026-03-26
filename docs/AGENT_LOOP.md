@@ -21,6 +21,9 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
   - or `orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json`
 - If the workflow depends on public Erdos data, sync it first:
   - `orp erdos sync --problem-id <id> --out-problem-dir <dir> --json`
+- If the task begins from a public YouTube link, normalize it first:
+  - `orp youtube inspect <youtube-url> --json`
+  - or `orp youtube inspect <youtube-url> --save --json` when the source artifact should stay with the repo
 
 ## 3. Run
 

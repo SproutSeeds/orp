@@ -6,6 +6,36 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.9 - 2026-03-25
+
+This release adds first-class YouTube inspection to ORP so agents can accept a
+YouTube link, normalize it into a stable source artifact, and retrieve public
+caption transcript text when available.
+
+### Added
+
+- Added the new command:
+  - `orp youtube inspect`
+- Added the machine-readable YouTube source schema:
+  - `spec/v1/youtube-source.schema.json`
+- Added dedicated YouTube docs:
+  - `docs/ORP_YOUTUBE_INSPECT.md`
+- Added focused YouTube tests covering:
+  - URL normalization
+  - caption-track selection
+  - transcript parsing
+  - command save behavior
+  - schema existence
+
+### Changed
+
+- Expanded `orp about --json` and `orp home --json` so agents can discover the
+  YouTube inspection surface directly.
+- Added agent-ready save behavior for YouTube source artifacts under
+  `orp/external/youtube/<video_id>.json`.
+- Positioned ORP to treat public video links as a first-class external-source
+  context type instead of requiring ad hoc agent scraping.
+
 ## v0.4.8 - 2026-03-25
 
 This release adds `breakthroughs` as an npm dependency so ORP can grow a

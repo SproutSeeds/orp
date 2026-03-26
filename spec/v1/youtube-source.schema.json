@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/youtube-source.schema.json",
+  "title": "ORP YouTube Source Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "retrieved_at_utc",
+    "source_url",
+    "canonical_url",
+    "video_id",
+    "title",
+    "author_name",
+    "author_url",
+    "thumbnail_url",
+    "channel_id",
+    "description",
+    "duration_seconds",
+    "published_at",
+    "playability_status",
+    "transcript_available",
+    "transcript_language",
+    "transcript_track_name",
+    "transcript_kind",
+    "transcript_fetch_mode",
+    "transcript_text",
+    "transcript_segments",
+    "warnings",
+    "text_bundle"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "kind": {
+      "type": "string",
+      "const": "youtube_source"
+    },
+    "retrieved_at_utc": {
+      "type": "string"
+    },
+    "source_url": {
+      "type": "string"
+    },
+    "canonical_url": {
+      "type": "string"
+    },
+    "video_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{11}$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    },
+    "author_url": {
+      "type": "string"
+    },
+    "thumbnail_url": {
+      "type": "string"
+    },
+    "channel_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "published_at": {
+      "type": "string"
+    },
+    "playability_status": {
+      "type": "string"
+    },
+    "transcript_available": {
+      "type": "boolean"
+    },
+    "transcript_language": {
+      "type": "string"
+    },
+    "transcript_track_name": {
+      "type": "string"
+    },
+    "transcript_kind": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "auto",
+        "none"
+      ]
+    },
+    "transcript_fetch_mode": {
+      "type": "string",
+      "enum": [
+        "json3",
+        "xml",
+        "unavailable",
+        "none",
+        "missing_track_url"
+      ]
+    },
+    "transcript_text": {
+      "type": "string"
+    },
+    "transcript_segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_ms",
+          "duration_ms",
+          "text"
+        ],
+        "properties": {
+          "start_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "text_bundle": {
+      "type": "string"
+    }
+  }
+}
