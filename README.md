@@ -59,6 +59,7 @@ ORP should feel like one CLI with built-in abilities:
 - `erdos` for Erdos-specific data and workflow support
 - `report` and `packet` for ORP artifacts
 - `compute` for targeted compute admission, local execution, and paid approval gating
+- `frontier` for exact live-point control, active-milestone views, near-term checklist management, and farther version-stack planning
 
 The `pack` layer still exists, but it is now an advanced/internal surface rather
 than the main product story.
@@ -150,6 +151,16 @@ orp compute decide --input orp.compute.json --json
 orp compute decide --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --json
 orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
 orp compute run-local --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --task orp.compute.task.json --json
+orp frontier init --program-id ocular-controller --json
+orp frontier add-version --id v10 --label "Certified generalization arc" --json
+orp frontier add-milestone --version v10 --id v10.3 --label "Figure specification and data contract freeze" --band exact --json
+orp frontier add-phase --milestone v10.3 --id 395 --label "Figure specification and data contract freeze" --compute-point-id adult-vs-developmental-rgc-opponent --allowed-rung local-4090 --paid-requires-user-approval --json
+orp frontier set-live --version v10 --milestone v10.3 --phase 395 --band exact --next-action "Execute Phase 395" --json
+orp frontier state --json
+orp frontier roadmap --json
+orp frontier checklist --json
+orp frontier stack --json
+orp frontier doctor --json
 orp report summary --json
 ```
 
@@ -160,6 +171,12 @@ These surfaces are meant to help automated systems discover ORP quickly:
 - `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
 - `orp compute ...` exposes targeted-compute admission, local execution, and paid-approval gating through a stable ORP wrapper surface
 - `orp compute ...` can now consume either a raw compute packet input or a repo-declared `breakthroughs` project compute map plus a compute-point id
+- `orp frontier ...` exposes the four-layer planning split directly in ORP:
+  - exact live point
+  - exact active milestone roadmap
+  - near-term structured checklist
+  - farther major-version stack
+- frontier phases can carry bounded compute hooks, so a repo's active frontier can surface where targeted compute belongs without letting compute drift outside the main research loop
 - `orp youtube inspect ...` exposes public YouTube metadata plus full transcript ingestion through a stable ORP artifact shape for agent use when caption tracks are available
 - `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
 - `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability

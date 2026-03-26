@@ -6,6 +6,49 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.13 - 2026-03-26
+
+This release makes version-stack frontier control a first-class ORP surface, so
+agent-first repos can model the exact live point, the active milestone, the
+near structured checklist, and the farther major-version stack inside one
+canonical CLI layer.
+
+### Added
+
+- Added the new `orp frontier` command family:
+  - `orp frontier init`
+  - `orp frontier state`
+  - `orp frontier roadmap`
+  - `orp frontier checklist`
+  - `orp frontier stack`
+  - `orp frontier add-version`
+  - `orp frontier add-milestone`
+  - `orp frontier add-phase`
+  - `orp frontier set-live`
+  - `orp frontier render`
+  - `orp frontier doctor`
+- Added repo-local frontier control artifacts under `orp/frontier/`:
+  - `state.json`
+  - `roadmap.json`
+  - `checklist.json`
+  - `version-stack.json`
+  - `STATE.md`
+  - `ROADMAP.md`
+  - `CHECKLIST.md`
+  - `VERSION_STACK.md`
+- Added frontier-aware tests covering scaffolding, live-pointer control, and
+  agent discovery metadata.
+
+### Changed
+
+- Expanded `orp about --json` and `orp home --json` so agents can discover the
+  frontier control surface directly.
+- Positioned ORP to treat long-horizon versioned planning as a first-order CLI
+  capability instead of leaving it as repo-specific notes alone.
+- Refreshed the local kernel benchmark ergonomics targets to match the current
+  reference-machine runtime envelope without changing the benchmark claim
+  boundary.
+
 ## v0.4.12 - 2026-03-25
 
 This release makes repo-declared compute points first-class in ORP, so

@@ -52,6 +52,7 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("discover", ability_ids)
         self.assertIn("collaborate", ability_ids)
         self.assertIn("governance", ability_ids)
+        self.assertIn("frontier", ability_ids)
         self.assertIn("erdos", ability_ids)
         self.assertIn("packs", ability_ids)
         command_names = {row["name"] for row in payload["commands"]}
@@ -117,6 +118,17 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("ready", command_names)
         self.assertIn("doctor", command_names)
         self.assertIn("cleanup", command_names)
+        self.assertIn("frontier_init", command_names)
+        self.assertIn("frontier_state", command_names)
+        self.assertIn("frontier_roadmap", command_names)
+        self.assertIn("frontier_checklist", command_names)
+        self.assertIn("frontier_stack", command_names)
+        self.assertIn("frontier_add_version", command_names)
+        self.assertIn("frontier_add_milestone", command_names)
+        self.assertIn("frontier_add_phase", command_names)
+        self.assertIn("frontier_set_live", command_names)
+        self.assertIn("frontier_render", command_names)
+        self.assertIn("frontier_doctor", command_names)
         self.assertIn("gate_run", command_names)
         self.assertIn("erdos_sync", command_names)
         self.assertIn("pack_install", command_names)
@@ -183,6 +195,17 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("ready", json_commands)
         self.assertIn("doctor", json_commands)
         self.assertIn("cleanup", json_commands)
+        self.assertIn("frontier_init", json_commands)
+        self.assertIn("frontier_state", json_commands)
+        self.assertIn("frontier_roadmap", json_commands)
+        self.assertIn("frontier_checklist", json_commands)
+        self.assertIn("frontier_stack", json_commands)
+        self.assertIn("frontier_add_version", json_commands)
+        self.assertIn("frontier_add_milestone", json_commands)
+        self.assertIn("frontier_add_phase", json_commands)
+        self.assertIn("frontier_set_live", json_commands)
+        self.assertIn("frontier_render", json_commands)
+        self.assertIn("frontier_doctor", json_commands)
         self.assertIn("erdos_sync", json_commands)
         self.assertIn("pack_install", json_commands)
         self.assertIn("pack_fetch", json_commands)
@@ -224,6 +247,7 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("discover", ability_ids)
             self.assertIn("collaborate", ability_ids)
             self.assertIn("governance", ability_ids)
+            self.assertIn("frontier", ability_ids)
             commands = {row["command"] for row in payload["quick_actions"]}
             self.assertIn("orp auth login", commands)
             self.assertIn("orp whoami --json", commands)
@@ -233,6 +257,7 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("orp runner status --json", commands)
             self.assertIn("orp discover profile init --json", commands)
             self.assertIn("orp status --json", commands)
+            self.assertIn("orp frontier init --program-id <program-id> --json", commands)
             self.assertIn("orp collaborate init", commands)
             self.assertIn("orp collaborate workflows --json", commands)
 
@@ -272,6 +297,8 @@ class OrpAboutTests(unittest.TestCase):
             payload = json.loads(home_proc.stdout)
             commands = {row["command"] for row in payload["quick_actions"]}
             self.assertIn("orp kernel validate analysis/orp.kernel.task.yml --json", commands)
+            self.assertIn("orp frontier state --json", commands)
+            self.assertIn("orp frontier roadmap --json", commands)
             self.assertIn('orp backup -m "backup current work" --json', commands)
 
     def test_cli_without_args_shows_home_screen(self) -> None:
@@ -294,6 +321,7 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("discover", proc.stdout)
             self.assertIn("Collaboration", proc.stdout)
             self.assertIn("orp collaborate init", proc.stdout)
+            self.assertIn("orp frontier init --program-id <program-id> --json", proc.stdout)
             self.assertIn("Quick Actions", proc.stdout)
 
     def test_gate_run_json_is_machine_readable(self) -> None:

@@ -114,6 +114,8 @@ DEFAULT_DISCOVER_PROFILE = "orp.profile.default.json"
 DEFAULT_DISCOVER_SCAN_ROOT = "orp/discovery/github"
 DEFAULT_HOSTED_BASE_URL = "https://orp.earth"
 KERNEL_SCHEMA_VERSION = "1.0.0"
+FRONTIER_SCHEMA_VERSION = "1.0.0"
+FRONTIER_BANDS = ("exact", "structured", "horizon")
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 YOUTUBE_ANDROID_CLIENT_VERSION = "20.10.38"
 YOUTUBE_ANDROID_USER_AGENT = (
@@ -2009,6 +2011,406 @@ def _ensure_dirs(repo_root: Path) -> None:
     state_path = repo_root / "orp" / "state.json"
     if not state_path.exists():
         _write_json(state_path, _default_state_payload())
+
+
+def _frontier_root(repo_root: Path) -> Path:
+    return repo_root / "orp" / "frontier"
+
+
+def _frontier_paths(repo_root: Path) -> dict[str, Path]:
+    root = _frontier_root(repo_root)
+    return {
+        "root": root,
+        "state_json": root / "state.json",
+        "roadmap_json": root / "roadmap.json",
+        "checklist_json": root / "checklist.json",
+        "stack_json": root / "version-stack.json",
+        "state_md": root / "STATE.md",
+        "roadmap_md": root / "ROADMAP.md",
+        "checklist_md": root / "CHECKLIST.md",
+        "stack_md": root / "VERSION_STACK.md",
+    }
+
+
+def _frontier_band_rules() -> dict[str, dict[str, Any]]:
+    return {
+        "exact": {
+            "description": "Only the live milestone should be exact.",
+            "max_active_milestones": 1,
+        },
+        "structured": {
+            "description": "The next 2-3 milestones or versions should be specifically structured but still revisable.",
+        },
+        "horizon": {
+            "description": "Farther milestones keep intent exact while phase detail stays light.",
+        },
+    }
+
+
+def _default_frontier_state_payload() -> dict[str, Any]:
+    return {
+        "schema_version": FRONTIER_SCHEMA_VERSION,
+        "kind": "orp_frontier_state",
+        "active_version": "",
+        "active_milestone": "",
+        "active_phase": "",
+        "band": "",
+        "next_action": "",
+        "blocked_by": [],
+    }
+
+
+def _default_frontier_stack_payload(program_id: str, label: str) -> dict[str, Any]:
+    return {
+        "schema_version": FRONTIER_SCHEMA_VERSION,
+        "kind": "orp_frontier_version_stack",
+        "program_id": str(program_id).strip(),
+        "label": str(label).strip(),
+        "band_rules": _frontier_band_rules(),
+        "current_frontier": {
+            "active_version": "",
+            "active_milestone": "",
+            "active_phase": "",
+            "band": "",
+            "next_action": "",
+            "blocked_by": [],
+        },
+        "versions": [],
+    }
+
+
+def _frontier_load_stack(repo_root: Path) -> dict[str, Any]:
+    payload = _read_json_if_exists(_frontier_paths(repo_root)["stack_json"])
+    if not payload:
+        raise RuntimeError("frontier stack is missing. Run `orp frontier init` first.")
+    return payload
+
+
+def _frontier_load_state(repo_root: Path) -> dict[str, Any]:
+    payload = _read_json_if_exists(_frontier_paths(repo_root)["state_json"])
+    if not payload:
+        raise RuntimeError("frontier state is missing. Run `orp frontier init` first.")
+    return payload
+
+
+def _frontier_find_version(stack: dict[str, Any], version_id: str) -> dict[str, Any] | None:
+    versions = stack.get("versions")
+    if not isinstance(versions, list):
+        return None
+    for version in versions:
+        if isinstance(version, dict) and str(version.get("id", "")).strip() == version_id:
+            return version
+    return None
+
+
+def _frontier_find_milestone(stack: dict[str, Any], milestone_id: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    versions = stack.get("versions")
+    if not isinstance(versions, list):
+        return (None, None)
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+        milestones = version.get("milestones")
+        if not isinstance(milestones, list):
+            continue
+        for milestone in milestones:
+            if isinstance(milestone, dict) and str(milestone.get("id", "")).strip() == milestone_id:
+                return (version, milestone)
+    return (None, None)
+
+
+def _frontier_find_phase(
+    milestone: dict[str, Any],
+    phase_id: str,
+) -> dict[str, Any] | None:
+    phases = milestone.get("phases")
+    if not isinstance(phases, list):
+        return None
+    for phase in phases:
+        if isinstance(phase, dict) and str(phase.get("id", "")).strip() == phase_id:
+            return phase
+    return None
+
+
+def _frontier_set_current_frontier(stack: dict[str, Any], state: dict[str, Any]) -> None:
+    stack["current_frontier"] = {
+        "active_version": str(state.get("active_version", "")).strip(),
+        "active_milestone": str(state.get("active_milestone", "")).strip(),
+        "active_phase": str(state.get("active_phase", "")).strip(),
+        "band": str(state.get("band", "")).strip(),
+        "next_action": str(state.get("next_action", "")).strip(),
+        "blocked_by": _coerce_string_list(state.get("blocked_by")),
+    }
+
+
+def _frontier_build_roadmap_payload(stack: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    active_version = str(state.get("active_version", "")).strip()
+    active_milestone = str(state.get("active_milestone", "")).strip()
+    version = _frontier_find_version(stack, active_version) if active_version else None
+    _, milestone = _frontier_find_milestone(stack, active_milestone) if active_milestone else (None, None)
+    phases = []
+    if isinstance(milestone, dict):
+        for phase in milestone.get("phases", []) if isinstance(milestone.get("phases"), list) else []:
+            if not isinstance(phase, dict):
+                continue
+            phases.append(
+                {
+                    "id": str(phase.get("id", "")).strip(),
+                    "label": str(phase.get("label", "")).strip(),
+                    "status": str(phase.get("status", "")).strip() or "planned",
+                    "goal": str(phase.get("goal", "")).strip(),
+                    "compute_hooks": list(phase.get("compute_hooks", [])) if isinstance(phase.get("compute_hooks"), list) else [],
+                }
+            )
+    return {
+        "schema_version": FRONTIER_SCHEMA_VERSION,
+        "kind": "orp_frontier_roadmap",
+        "program_id": str(stack.get("program_id", "")).strip(),
+        "label": str(stack.get("label", "")).strip(),
+        "active_version": active_version,
+        "active_version_label": str(version.get("label", "")).strip() if isinstance(version, dict) else "",
+        "active_milestone": active_milestone,
+        "active_milestone_label": str(milestone.get("label", "")).strip() if isinstance(milestone, dict) else "",
+        "band": str(state.get("band", "")).strip(),
+        "next_action": str(state.get("next_action", "")).strip(),
+        "phases": phases,
+    }
+
+
+def _frontier_build_checklist_payload(stack: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {band: [] for band in FRONTIER_BANDS}
+    versions = stack.get("versions")
+    if isinstance(versions, list):
+        for version in versions:
+            if not isinstance(version, dict):
+                continue
+            milestones = version.get("milestones")
+            if not isinstance(milestones, list):
+                continue
+            for milestone in milestones:
+                if not isinstance(milestone, dict):
+                    continue
+                band = str(milestone.get("band", "")).strip() or "structured"
+                if band not in grouped:
+                    grouped[band] = []
+                phases = milestone.get("phases")
+                phase_ids = []
+                if isinstance(phases, list):
+                    phase_ids = [
+                        str(phase.get("id", "")).strip()
+                        for phase in phases
+                        if isinstance(phase, dict) and str(phase.get("id", "")).strip()
+                    ]
+                grouped[band].append(
+                    {
+                        "version_id": str(version.get("id", "")).strip(),
+                        "version_label": str(version.get("label", "")).strip(),
+                        "milestone_id": str(milestone.get("id", "")).strip(),
+                        "milestone_label": str(milestone.get("label", "")).strip(),
+                        "band": band,
+                        "status": str(milestone.get("status", "")).strip() or "planned",
+                        "phase_ids": phase_ids,
+                        "is_active": str(milestone.get("id", "")).strip() == str(state.get("active_milestone", "")).strip(),
+                    }
+                )
+    return {
+        "schema_version": FRONTIER_SCHEMA_VERSION,
+        "kind": "orp_frontier_checklist",
+        "program_id": str(stack.get("program_id", "")).strip(),
+        "label": str(stack.get("label", "")).strip(),
+        "active_version": str(state.get("active_version", "")).strip(),
+        "active_milestone": str(state.get("active_milestone", "")).strip(),
+        "exact": grouped.get("exact", []),
+        "structured": grouped.get("structured", []),
+        "horizon": grouped.get("horizon", []),
+    }
+
+
+def _render_frontier_state_md(state: dict[str, Any], stack: dict[str, Any]) -> str:
+    lines = [
+        f"# Frontier State: {str(stack.get('label', '')).strip() or str(stack.get('program_id', '')).strip()}",
+        "",
+        f"- active_version: `{str(state.get('active_version', '')).strip() or '(unset)'}`",
+        f"- active_milestone: `{str(state.get('active_milestone', '')).strip() or '(unset)'}`",
+        f"- active_phase: `{str(state.get('active_phase', '')).strip() or '(unset)'}`",
+        f"- band: `{str(state.get('band', '')).strip() or '(unset)'}`",
+        f"- next_action: `{str(state.get('next_action', '')).strip() or '(unset)'}`",
+    ]
+    blockers = _coerce_string_list(state.get("blocked_by"))
+    lines.append("- blocked_by:")
+    if blockers:
+        lines.extend([f"  - `{item}`" for item in blockers])
+    else:
+        lines.append("  - `(none)`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_frontier_roadmap_md(payload: dict[str, Any]) -> str:
+    lines = [
+        f"# Roadmap: {payload.get('active_milestone_label') or payload.get('active_milestone') or 'Frontier milestone not set'}",
+        "",
+        f"- active_version: `{payload.get('active_version', '') or '(unset)'}`",
+        f"- active_milestone: `{payload.get('active_milestone', '') or '(unset)'}`",
+        f"- band: `{payload.get('band', '') or '(unset)'}`",
+        f"- next_action: `{payload.get('next_action', '') or '(unset)'}`",
+        "",
+        "## Phases",
+        "",
+    ]
+    phases = payload.get("phases", [])
+    if isinstance(phases, list) and phases:
+        for phase in phases:
+            if not isinstance(phase, dict):
+                continue
+            lines.append(
+                f"- [ ] **Phase {phase.get('id', '')}: {phase.get('label', '')}** - {phase.get('goal', '') or 'goal not yet specified'}"
+            )
+    else:
+        lines.append("- `(no active milestone phases yet)`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_frontier_checklist_md(payload: dict[str, Any]) -> str:
+    lines = [
+        f"# Frontier Checklist: {payload.get('label', '') or payload.get('program_id', '')}",
+        "",
+    ]
+    for band in FRONTIER_BANDS:
+        rows = payload.get(band, [])
+        lines.append(f"## {band.title()}")
+        lines.append("")
+        if isinstance(rows, list) and rows:
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                active = " active" if row.get("is_active") else ""
+                lines.append(
+                    f"- [ ] `{row.get('milestone_id', '')}` {row.get('milestone_label', '')} (`{row.get('version_id', '')}` / `{row.get('status', '')}`{active})"
+                )
+        else:
+            lines.append("- `(none)`")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _render_frontier_stack_md(stack: dict[str, Any]) -> str:
+    lines = [
+        f"# Version Stack: {str(stack.get('label', '')).strip() or str(stack.get('program_id', '')).strip()}",
+        "",
+    ]
+    versions = stack.get("versions")
+    if isinstance(versions, list) and versions:
+        for version in versions:
+            if not isinstance(version, dict):
+                continue
+            lines.append(f"## `{version.get('id', '')}` {version.get('label', '')}")
+            lines.append("")
+            lines.append(f"- status: `{version.get('status', '') or 'planned'}`")
+            intent = str(version.get("intent", "")).strip()
+            if intent:
+                lines.append(f"- intent: `{intent}`")
+            milestones = version.get("milestones")
+            lines.append("- milestones:")
+            if isinstance(milestones, list) and milestones:
+                for milestone in milestones:
+                    if not isinstance(milestone, dict):
+                        continue
+                    lines.append(
+                        f"  - `{milestone.get('id', '')}` {milestone.get('label', '')} (`{milestone.get('band', '')}` / `{milestone.get('status', '') or 'planned'}`)"
+                    )
+            else:
+                lines.append("  - `(none)`")
+            lines.append("")
+    else:
+        lines.append("- `(no versions yet)`")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _frontier_write_materialized_views(repo_root: Path, stack: dict[str, Any], state: dict[str, Any]) -> dict[str, str]:
+    paths = _frontier_paths(repo_root)
+    paths["root"].mkdir(parents=True, exist_ok=True)
+    _frontier_set_current_frontier(stack, state)
+    roadmap = _frontier_build_roadmap_payload(stack, state)
+    checklist = _frontier_build_checklist_payload(stack, state)
+    _write_json(paths["state_json"], state)
+    _write_json(paths["stack_json"], stack)
+    _write_json(paths["roadmap_json"], roadmap)
+    _write_json(paths["checklist_json"], checklist)
+    _write_text(paths["state_md"], _render_frontier_state_md(state, stack) + "\n")
+    _write_text(paths["roadmap_md"], _render_frontier_roadmap_md(roadmap) + "\n")
+    _write_text(paths["checklist_md"], _render_frontier_checklist_md(checklist) + "\n")
+    _write_text(paths["stack_md"], _render_frontier_stack_md(stack) + "\n")
+    return {key: _path_for_state(value, repo_root) for key, value in paths.items() if key != "root"}
+
+
+def _frontier_default_label(repo_root: Path, program_id: str) -> str:
+    clean = str(program_id).strip()
+    if clean:
+        return clean.replace("-", " ").replace("_", " ").title()
+    return f"{repo_root.name or 'Repo'} Frontier"
+
+
+def _frontier_doctor_payload(repo_root: Path) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    paths = _frontier_paths(repo_root)
+    stack = _read_json_if_exists(paths["stack_json"])
+    state = _read_json_if_exists(paths["state_json"])
+
+    if not stack:
+        issues.append({"severity": "error", "code": "missing_stack", "message": "frontier version stack is missing."})
+    if not state:
+        issues.append({"severity": "error", "code": "missing_state", "message": "frontier state is missing."})
+
+    if stack and state:
+        active_version = str(state.get("active_version", "")).strip()
+        active_milestone = str(state.get("active_milestone", "")).strip()
+        active_phase = str(state.get("active_phase", "")).strip()
+        version = _frontier_find_version(stack, active_version) if active_version else None
+        _, milestone = _frontier_find_milestone(stack, active_milestone) if active_milestone else (None, None)
+        if active_version and version is None:
+            issues.append(
+                {"severity": "error", "code": "missing_active_version", "message": f"active version `{active_version}` does not exist in version stack."}
+            )
+        if active_milestone and milestone is None:
+            issues.append(
+                {"severity": "error", "code": "missing_active_milestone", "message": f"active milestone `{active_milestone}` does not exist in version stack."}
+            )
+        if active_phase and isinstance(milestone, dict) and _frontier_find_phase(milestone, active_phase) is None:
+            issues.append(
+                {"severity": "error", "code": "missing_active_phase", "message": f"active phase `{active_phase}` does not exist in active milestone `{active_milestone}`."}
+            )
+        versions = stack.get("versions")
+        if isinstance(versions, list):
+            exact_milestones = 0
+            for version_row in versions:
+                if not isinstance(version_row, dict):
+                    continue
+                milestones = version_row.get("milestones")
+                if not isinstance(milestones, list):
+                    continue
+                for milestone_row in milestones:
+                    if not isinstance(milestone_row, dict):
+                        continue
+                    band = str(milestone_row.get("band", "")).strip()
+                    if band and band not in FRONTIER_BANDS:
+                        issues.append(
+                            {"severity": "error", "code": "invalid_band", "message": f"milestone `{milestone_row.get('id', '')}` uses unsupported band `{band}`."}
+                        )
+                    if band == "exact":
+                        exact_milestones += 1
+            if exact_milestones > 1:
+                issues.append(
+                    {"severity": "warning", "code": "multiple_exact_milestones", "message": f"{exact_milestones} milestones are marked exact; the planning rule expects only one live exact milestone."}
+                )
+
+    return {
+        "ok": not any(issue["severity"] == "error" for issue in issues),
+        "issues": issues,
+        "paths": {key: _path_for_state(value, repo_root) for key, value in paths.items()},
+    }
 
 
 def _write_text_if_missing(path: Path, text: str) -> str:
@@ -5872,6 +6274,23 @@ def _about_payload() -> dict[str, Any]:
                 ],
             },
             {
+                "id": "frontier",
+                "description": "Version-stack, milestone, phase, and live-frontier control for long-running agent-first research programs.",
+                "entrypoints": [
+                    ["frontier", "init"],
+                    ["frontier", "state"],
+                    ["frontier", "roadmap"],
+                    ["frontier", "checklist"],
+                    ["frontier", "stack"],
+                    ["frontier", "add-version"],
+                    ["frontier", "add-milestone"],
+                    ["frontier", "add-phase"],
+                    ["frontier", "set-live"],
+                    ["frontier", "render"],
+                    ["frontier", "doctor"],
+                ],
+            },
+            {
                 "id": "governance",
                 "description": "Local-first repo governance, branch safety, checkpoint commits, backup refs, and runtime status.",
                 "entrypoints": [
@@ -5960,6 +6379,17 @@ def _about_payload() -> dict[str, Any]:
             {"name": "collaborate_run", "path": ["collaborate", "run"], "json_output": True},
             {"name": "init", "path": ["init"], "json_output": True},
             {"name": "status", "path": ["status"], "json_output": True},
+            {"name": "frontier_init", "path": ["frontier", "init"], "json_output": True},
+            {"name": "frontier_state", "path": ["frontier", "state"], "json_output": True},
+            {"name": "frontier_roadmap", "path": ["frontier", "roadmap"], "json_output": True},
+            {"name": "frontier_checklist", "path": ["frontier", "checklist"], "json_output": True},
+            {"name": "frontier_stack", "path": ["frontier", "stack"], "json_output": True},
+            {"name": "frontier_add_version", "path": ["frontier", "add-version"], "json_output": True},
+            {"name": "frontier_add_milestone", "path": ["frontier", "add-milestone"], "json_output": True},
+            {"name": "frontier_add_phase", "path": ["frontier", "add-phase"], "json_output": True},
+            {"name": "frontier_set_live", "path": ["frontier", "set-live"], "json_output": True},
+            {"name": "frontier_render", "path": ["frontier", "render"], "json_output": True},
+            {"name": "frontier_doctor", "path": ["frontier", "doctor"], "json_output": True},
             {"name": "branch_start", "path": ["branch", "start"], "json_output": True},
             {"name": "checkpoint_create", "path": ["checkpoint", "create"], "json_output": True},
             {"name": "backup", "path": ["backup"], "json_output": True},
@@ -5983,6 +6413,7 @@ def _about_payload() -> dict[str, Any]:
             "YouTube inspection is a built-in ORP ability exposed through `orp youtube inspect`, returning public metadata plus full transcript text and segments whenever public caption tracks are available.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
+            "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
             "Machine runner identity, heartbeat, hosted sync, prompt-job execution, and lease control are built into ORP through `orp runner status`, `orp runner enable`, `orp runner disable`, `orp runner heartbeat`, `orp runner sync`, `orp runner work`, `orp runner cancel`, and `orp runner retry`.",
             "Repo governance is built into ORP through `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup`.",
@@ -6082,6 +6513,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
     runtime_initialized = state_exists or (repo_root / "orp").exists()
 
     quick_actions = [
+        {
+            "label": "Initialize a frontier version stack for this repo",
+            "command": "orp frontier init --program-id <program-id> --json",
+        },
         {
             "label": "Connect ORP to the hosted workspace",
             "command": "orp auth login",
@@ -6189,33 +6624,47 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             6,
             {
+                "label": "Inspect the exact live frontier point",
+                "command": "orp frontier state --json",
+            },
+        )
+        quick_actions.insert(
+            7,
+            {
+                "label": "Inspect the active milestone roadmap",
+                "command": "orp frontier roadmap --json",
+            },
+        )
+        quick_actions.insert(
+            8,
+            {
                 "label": "Mark the repo locally ready after validation",
                 "command": "orp ready --json",
             },
         )
         quick_actions.insert(
-            7,
+            9,
             {
                 "label": "Inspect local project/session link state",
                 "command": "orp link status --json",
             },
         )
         quick_actions.insert(
-            7,
+            9,
             {
                 "label": "Inspect machine runner state",
                 "command": "orp runner status --json",
             },
         )
         quick_actions.insert(
-            8,
+            10,
             {
                 "label": "Inspect and repair governance health",
                 "command": "orp doctor --json",
             },
         )
         quick_actions.insert(
-            9,
+            11,
             {
                 "label": "Inspect safe cleanup candidates",
                 "command": "orp cleanup --json",
@@ -6303,6 +6752,17 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                     "orp collaborate init",
                     "orp collaborate workflows --json",
                     "orp collaborate run --workflow full_flow --json",
+                ],
+            },
+            {
+                "id": "frontier",
+                "description": "Version-stack, milestone, phase, and exact live-frontier control for long-running agent-first research programs.",
+                "entrypoints": [
+                    "orp frontier init --program-id <program-id> --json",
+                    "orp frontier state --json",
+                    "orp frontier roadmap --json",
+                    "orp frontier checklist --json",
+                    "orp frontier stack --json",
                 ],
             },
             {
@@ -7911,6 +8371,342 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
                 )
             )
     return 0
+
+
+def cmd_frontier_init(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _ensure_dirs(repo_root)
+    paths = _frontier_paths(repo_root)
+    if paths["stack_json"].exists() and not args.force:
+        raise RuntimeError(
+            f"frontier already exists at {_path_for_state(paths['stack_json'], repo_root)}. Use --force to overwrite."
+        )
+
+    program_id = str(args.program_id or "").strip() or (repo_root.name or "research-program")
+    label = str(args.label or "").strip() or _frontier_default_label(repo_root, program_id)
+    stack = _default_frontier_stack_payload(program_id, label)
+    state = _default_frontier_state_payload()
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {
+        "ok": True,
+        "program_id": program_id,
+        "label": label,
+        "paths": written,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"program_id={program_id}")
+        print(f"label={label}")
+        for key, value in written.items():
+            print(f"{key}={value}")
+    return 0
+
+
+def cmd_frontier_state(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    payload = {
+        **state,
+        "program_id": str(stack.get("program_id", "")).strip(),
+        "label": str(stack.get("label", "")).strip(),
+        "paths": {
+            "state_json": _path_for_state(_frontier_paths(repo_root)["state_json"], repo_root),
+            "state_md": _path_for_state(_frontier_paths(repo_root)["state_md"], repo_root),
+        },
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"program_id={payload['program_id']}")
+        print(f"active_version={payload.get('active_version', '')}")
+        print(f"active_milestone={payload.get('active_milestone', '')}")
+        print(f"active_phase={payload.get('active_phase', '')}")
+        print(f"band={payload.get('band', '')}")
+        print(f"next_action={payload.get('next_action', '')}")
+        blockers = _coerce_string_list(payload.get("blocked_by"))
+        print("blocked_by=" + (",".join(blockers) if blockers else "(none)"))
+    return 0
+
+
+def cmd_frontier_stack(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = {
+        **stack,
+        "paths": {
+            "stack_json": _path_for_state(_frontier_paths(repo_root)["stack_json"], repo_root),
+            "stack_md": _path_for_state(_frontier_paths(repo_root)["stack_md"], repo_root),
+        },
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"program_id={payload.get('program_id', '')}")
+        print(f"label={payload.get('label', '')}")
+        print(f"versions={len(payload.get('versions', [])) if isinstance(payload.get('versions'), list) else 0}")
+    return 0
+
+
+def cmd_frontier_roadmap(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _read_json_if_exists(_frontier_paths(repo_root)["roadmap_json"])
+    if not payload:
+        stack = _frontier_load_stack(repo_root)
+        state = _frontier_load_state(repo_root)
+        payload = _frontier_build_roadmap_payload(stack, state)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"active_version={payload.get('active_version', '')}")
+        print(f"active_milestone={payload.get('active_milestone', '')}")
+        print(f"phases={len(payload.get('phases', [])) if isinstance(payload.get('phases'), list) else 0}")
+    return 0
+
+
+def cmd_frontier_checklist(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _read_json_if_exists(_frontier_paths(repo_root)["checklist_json"])
+    if not payload:
+        stack = _frontier_load_stack(repo_root)
+        state = _frontier_load_state(repo_root)
+        payload = _frontier_build_checklist_payload(stack, state)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"active_version={payload.get('active_version', '')}")
+        print(f"active_milestone={payload.get('active_milestone', '')}")
+        print(f"exact={len(payload.get('exact', [])) if isinstance(payload.get('exact'), list) else 0}")
+        print(f"structured={len(payload.get('structured', [])) if isinstance(payload.get('structured'), list) else 0}")
+        print(f"horizon={len(payload.get('horizon', [])) if isinstance(payload.get('horizon'), list) else 0}")
+    return 0
+
+
+def cmd_frontier_add_version(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    version_id = str(args.id).strip()
+    if _frontier_find_version(stack, version_id) is not None:
+        raise RuntimeError(f"frontier version `{version_id}` already exists.")
+    version = {
+        "id": version_id,
+        "label": str(args.label).strip(),
+        "intent": str(args.intent or "").strip(),
+        "status": str(args.status or "planned").strip() or "planned",
+        "milestones": [],
+    }
+    versions = stack.get("versions")
+    if not isinstance(versions, list):
+        versions = []
+        stack["versions"] = versions
+    versions.append(version)
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {"ok": True, "version": version, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"version_id={version_id}")
+        print(f"label={version['label']}")
+    return 0
+
+
+def cmd_frontier_add_milestone(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    version_id = str(args.version).strip()
+    version = _frontier_find_version(stack, version_id)
+    if version is None:
+        raise RuntimeError(f"frontier version `{version_id}` was not found.")
+    milestone_id = str(args.id).strip()
+    _, existing = _frontier_find_milestone(stack, milestone_id)
+    if existing is not None:
+        raise RuntimeError(f"frontier milestone `{milestone_id}` already exists.")
+    band = str(args.band or "structured").strip()
+    if band not in FRONTIER_BANDS:
+        raise RuntimeError(f"frontier band must be one of: {', '.join(FRONTIER_BANDS)}")
+    milestone = {
+        "id": milestone_id,
+        "parent_version": version_id,
+        "label": str(args.label).strip(),
+        "band": band,
+        "status": str(args.status or "planned").strip() or "planned",
+        "depends_on": _coerce_string_list(getattr(args, "depends_on", [])),
+        "success_criteria": _coerce_string_list(getattr(args, "success_criterion", [])),
+        "phases": [],
+    }
+    milestones = version.get("milestones")
+    if not isinstance(milestones, list):
+        milestones = []
+        version["milestones"] = milestones
+    milestones.append(milestone)
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {"ok": True, "milestone": milestone, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"milestone_id={milestone_id}")
+        print(f"version_id={version_id}")
+    return 0
+
+
+def cmd_frontier_add_phase(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    milestone_id = str(args.milestone).strip()
+    _, milestone = _frontier_find_milestone(stack, milestone_id)
+    if milestone is None:
+        raise RuntimeError(f"frontier milestone `{milestone_id}` was not found.")
+    phase_id = str(args.id).strip()
+    if _frontier_find_phase(milestone, phase_id) is not None:
+        raise RuntimeError(f"frontier phase `{phase_id}` already exists in milestone `{milestone_id}`.")
+    compute_hooks: list[dict[str, Any]] = []
+    compute_point_id = str(getattr(args, "compute_point_id", "") or "").strip()
+    if compute_point_id:
+        compute_hooks.append(
+            {
+                "compute_point_id": compute_point_id,
+                "allowed_rungs": _coerce_string_list(getattr(args, "allowed_rung", [])),
+                "paid_requires_user_approval": bool(getattr(args, "paid_requires_user_approval", False)),
+            }
+        )
+    phase = {
+        "id": phase_id,
+        "label": str(args.label).strip(),
+        "status": str(args.status or "planned").strip() or "planned",
+        "goal": str(args.goal or "").strip(),
+        "depends_on": _coerce_string_list(getattr(args, "depends_on", [])),
+        "requirements": _coerce_string_list(getattr(args, "requirement", [])),
+        "success_criteria": _coerce_string_list(getattr(args, "success_criterion", [])),
+        "plans": _coerce_string_list(getattr(args, "plan", [])),
+        "compute_hooks": compute_hooks,
+    }
+    phases = milestone.get("phases")
+    if not isinstance(phases, list):
+        phases = []
+        milestone["phases"] = phases
+    phases.append(phase)
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {"ok": True, "phase": phase, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"phase_id={phase_id}")
+        print(f"milestone_id={milestone_id}")
+    return 0
+
+
+def cmd_frontier_set_live(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    version_id = str(args.version).strip()
+    milestone_id = str(args.milestone).strip()
+    phase_id = str(args.phase or "").strip()
+
+    version = _frontier_find_version(stack, version_id)
+    if version is None:
+        raise RuntimeError(f"frontier version `{version_id}` was not found.")
+    _, milestone = _frontier_find_milestone(stack, milestone_id)
+    if milestone is None:
+        raise RuntimeError(f"frontier milestone `{milestone_id}` was not found.")
+    if str(milestone.get("parent_version", "")).strip() and str(milestone.get("parent_version", "")).strip() != version_id:
+        raise RuntimeError(f"frontier milestone `{milestone_id}` does not belong to version `{version_id}`.")
+    if phase_id and _frontier_find_phase(milestone, phase_id) is None:
+        raise RuntimeError(f"frontier phase `{phase_id}` was not found in milestone `{milestone_id}`.")
+
+    versions = stack.get("versions")
+    if isinstance(versions, list):
+        for version_row in versions:
+            if not isinstance(version_row, dict):
+                continue
+            version_row["status"] = "active" if str(version_row.get("id", "")).strip() == version_id else (
+                str(version_row.get("status", "")).strip() or "planned"
+            )
+            milestones = version_row.get("milestones")
+            if not isinstance(milestones, list):
+                continue
+            for milestone_row in milestones:
+                if not isinstance(milestone_row, dict):
+                    continue
+                if str(milestone_row.get("id", "")).strip() == milestone_id:
+                    milestone_row["status"] = "active"
+                elif str(milestone_row.get("status", "")).strip() == "active":
+                    milestone_row["status"] = "planned"
+                phases = milestone_row.get("phases")
+                if not isinstance(phases, list):
+                    continue
+                for phase_row in phases:
+                    if not isinstance(phase_row, dict):
+                        continue
+                    if phase_id and str(milestone_row.get("id", "")).strip() == milestone_id:
+                        if str(phase_row.get("id", "")).strip() == phase_id:
+                            phase_row["status"] = "active"
+                        elif str(phase_row.get("status", "")).strip() == "active":
+                            phase_row["status"] = "planned"
+
+    band = str(args.band or milestone.get("band", "") or "").strip()
+    if band and band not in FRONTIER_BANDS:
+        raise RuntimeError(f"frontier band must be one of: {', '.join(FRONTIER_BANDS)}")
+    state["active_version"] = version_id
+    state["active_milestone"] = milestone_id
+    state["active_phase"] = phase_id
+    state["band"] = band
+    next_action = str(args.next_action or "").strip()
+    if not next_action:
+        next_action = f"execute phase {phase_id}" if phase_id else f"execute milestone {milestone_id}"
+    state["next_action"] = next_action
+    state["blocked_by"] = _coerce_string_list(getattr(args, "blocked_by", []))
+
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {"ok": True, "state": state, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"active_version={state['active_version']}")
+        print(f"active_milestone={state['active_milestone']}")
+        print(f"active_phase={state['active_phase']}")
+        print(f"next_action={state['next_action']}")
+    return 0
+
+
+def cmd_frontier_render(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    result = {"ok": True, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        for key, value in written.items():
+            print(f"{key}={value}")
+    return 0
+
+
+def cmd_frontier_doctor(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _frontier_doctor_payload(repo_root)
+    fixes_applied: list[str] = []
+    if args.fix and payload["ok"]:
+        stack = _frontier_load_stack(repo_root)
+        state = _frontier_load_state(repo_root)
+        _frontier_write_materialized_views(repo_root, stack, state)
+        fixes_applied.append("rendered_frontier_views")
+    payload["fix"] = bool(args.fix)
+    payload["fixes_applied"] = fixes_applied
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"ok={'true' if payload['ok'] else 'false'}")
+        for issue in payload.get("issues", []):
+            print(f"issue={issue.get('severity','')}:{issue.get('code','')}:{issue.get('message','')}")
+        for fix_name in fixes_applied:
+            print(f"fix={fix_name}")
+    return 0 if payload["ok"] else 1
 
 
 def _load_profile(config: dict[str, Any], name: str) -> dict[str, Any]:
@@ -13822,6 +14618,203 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_cleanup)
     s_cleanup.set_defaults(func=cmd_cleanup, json_output=False)
+
+    s_frontier = sub.add_parser(
+        "frontier",
+        help="Version-stack, milestone, and phase frontier operations for agent-first research programs",
+    )
+    frontier_sub = s_frontier.add_subparsers(dest="frontier_cmd", required=True)
+
+    s_frontier_init = frontier_sub.add_parser(
+        "init",
+        help="Initialize the ORP frontier control surface under orp/frontier/",
+    )
+    s_frontier_init.add_argument("--program-id", default="", help="Frontier program id")
+    s_frontier_init.add_argument("--label", default="", help="Human label for the frontier program")
+    s_frontier_init.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing frontier control surface",
+    )
+    add_json_flag(s_frontier_init)
+    s_frontier_init.set_defaults(func=cmd_frontier_init, json_output=False)
+
+    s_frontier_state = frontier_sub.add_parser(
+        "state",
+        help="Show the exact live frontier point",
+    )
+    add_json_flag(s_frontier_state)
+    s_frontier_state.set_defaults(func=cmd_frontier_state, json_output=False)
+
+    s_frontier_roadmap = frontier_sub.add_parser(
+        "roadmap",
+        help="Show the exact active milestone roadmap",
+    )
+    add_json_flag(s_frontier_roadmap)
+    s_frontier_roadmap.set_defaults(func=cmd_frontier_roadmap, json_output=False)
+
+    s_frontier_checklist = frontier_sub.add_parser(
+        "checklist",
+        help="Show the near-term exact/structured/horizon checklist",
+    )
+    add_json_flag(s_frontier_checklist)
+    s_frontier_checklist.set_defaults(func=cmd_frontier_checklist, json_output=False)
+
+    s_frontier_stack = frontier_sub.add_parser(
+        "stack",
+        help="Show the larger major-version stack",
+    )
+    add_json_flag(s_frontier_stack)
+    s_frontier_stack.set_defaults(func=cmd_frontier_stack, json_output=False)
+
+    s_frontier_add_version = frontier_sub.add_parser(
+        "add-version",
+        help="Add one major version to the frontier stack",
+    )
+    s_frontier_add_version.add_argument("--id", required=True, help="Version id, for example v11")
+    s_frontier_add_version.add_argument("--label", required=True, help="Version label")
+    s_frontier_add_version.add_argument("--intent", default="", help="Optional version intent")
+    s_frontier_add_version.add_argument(
+        "--status",
+        default="planned",
+        choices=["planned", "active", "horizon", "complete"],
+        help="Version status (default: planned)",
+    )
+    add_json_flag(s_frontier_add_version)
+    s_frontier_add_version.set_defaults(func=cmd_frontier_add_version, json_output=False)
+
+    s_frontier_add_milestone = frontier_sub.add_parser(
+        "add-milestone",
+        help="Add one milestone under a major version",
+    )
+    s_frontier_add_milestone.add_argument("--version", required=True, help="Parent version id")
+    s_frontier_add_milestone.add_argument("--id", required=True, help="Milestone id, for example v10.4")
+    s_frontier_add_milestone.add_argument("--label", required=True, help="Milestone label")
+    s_frontier_add_milestone.add_argument(
+        "--band",
+        default="structured",
+        choices=list(FRONTIER_BANDS),
+        help="Planning band (default: structured)",
+    )
+    s_frontier_add_milestone.add_argument(
+        "--status",
+        default="planned",
+        choices=["planned", "active", "horizon", "complete"],
+        help="Milestone status (default: planned)",
+    )
+    s_frontier_add_milestone.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        help="Dependency milestone or phase id (repeatable)",
+    )
+    s_frontier_add_milestone.add_argument(
+        "--success-criterion",
+        action="append",
+        default=[],
+        help="Milestone success criterion (repeatable)",
+    )
+    add_json_flag(s_frontier_add_milestone)
+    s_frontier_add_milestone.set_defaults(func=cmd_frontier_add_milestone, json_output=False)
+
+    s_frontier_add_phase = frontier_sub.add_parser(
+        "add-phase",
+        help="Add one phase under a milestone",
+    )
+    s_frontier_add_phase.add_argument("--milestone", required=True, help="Parent milestone id")
+    s_frontier_add_phase.add_argument("--id", required=True, help="Phase id")
+    s_frontier_add_phase.add_argument("--label", required=True, help="Phase label")
+    s_frontier_add_phase.add_argument(
+        "--status",
+        default="planned",
+        choices=["planned", "active", "complete"],
+        help="Phase status (default: planned)",
+    )
+    s_frontier_add_phase.add_argument("--goal", default="", help="Optional phase goal")
+    s_frontier_add_phase.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        help="Dependency phase or milestone id (repeatable)",
+    )
+    s_frontier_add_phase.add_argument(
+        "--requirement",
+        action="append",
+        default=[],
+        help="Requirement identifier or note (repeatable)",
+    )
+    s_frontier_add_phase.add_argument(
+        "--success-criterion",
+        action="append",
+        default=[],
+        help="Phase success criterion (repeatable)",
+    )
+    s_frontier_add_phase.add_argument(
+        "--plan",
+        action="append",
+        default=[],
+        help="Plan id or plan note (repeatable)",
+    )
+    s_frontier_add_phase.add_argument(
+        "--compute-point-id",
+        default="",
+        help="Optional linked compute point id",
+    )
+    s_frontier_add_phase.add_argument(
+        "--allowed-rung",
+        action="append",
+        default=[],
+        help="Allowed compute rung for the compute hook (repeatable)",
+    )
+    s_frontier_add_phase.add_argument(
+        "--paid-requires-user-approval",
+        action="store_true",
+        help="Mark the attached compute hook as requiring explicit user approval for paid compute",
+    )
+    add_json_flag(s_frontier_add_phase)
+    s_frontier_add_phase.set_defaults(func=cmd_frontier_add_phase, json_output=False)
+
+    s_frontier_set_live = frontier_sub.add_parser(
+        "set-live",
+        help="Update the exact live frontier pointer",
+    )
+    s_frontier_set_live.add_argument("--version", required=True, help="Active version id")
+    s_frontier_set_live.add_argument("--milestone", required=True, help="Active milestone id")
+    s_frontier_set_live.add_argument("--phase", default="", help="Active phase id")
+    s_frontier_set_live.add_argument(
+        "--band",
+        default="",
+        choices=["", *FRONTIER_BANDS],
+        help="Optional explicit band override",
+    )
+    s_frontier_set_live.add_argument("--next-action", default="", help="Optional live next action override")
+    s_frontier_set_live.add_argument(
+        "--blocked-by",
+        action="append",
+        default=[],
+        help="Current blocker id or note (repeatable)",
+    )
+    add_json_flag(s_frontier_set_live)
+    s_frontier_set_live.set_defaults(func=cmd_frontier_set_live, json_output=False)
+
+    s_frontier_render = frontier_sub.add_parser(
+        "render",
+        help="Refresh the materialized frontier JSON and markdown views",
+    )
+    add_json_flag(s_frontier_render)
+    s_frontier_render.set_defaults(func=cmd_frontier_render, json_output=False)
+
+    s_frontier_doctor = frontier_sub.add_parser(
+        "doctor",
+        help="Validate frontier consistency and optionally re-render views",
+    )
+    s_frontier_doctor.add_argument(
+        "--fix",
+        action="store_true",
+        help="Re-render materialized frontier views when the frontier is otherwise consistent",
+    )
+    add_json_flag(s_frontier_doctor)
+    s_frontier_doctor.set_defaults(func=cmd_frontier_doctor, json_output=False)
 
     s_kernel = sub.add_parser("kernel", help="Reasoning-kernel artifact operations")
     kernel_sub = s_kernel.add_subparsers(dest="kernel_cmd", required=True)
