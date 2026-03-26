@@ -1,6 +1,6 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
   "license": "MIT",
   "repository": {

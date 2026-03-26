@@ -72,6 +72,26 @@ class OrpYoutubeTests(unittest.TestCase):
         self.assertEqual(segments[0]["start_ms"], 0)
         self.assertEqual(segments[1]["duration_ms"], 2000)
 
+    def test_parse_xml_transcript_supports_srv3_paragraphs(self) -> None:
+        module = load_cli_module()
+        transcript_text, segments = module._parse_youtube_transcript_xml(
+            """<?xml version="1.0" encoding="utf-8" ?>
+            <timedtext format="3">
+              <body>
+                <p t="1200" d="2160">All right</p>
+                <p t="5318" d="2656"><s>the cool thing</s><s> about these guys</s></p>
+              </body>
+            </timedtext>"""
+        )
+        self.assertEqual(transcript_text, "All right\nthe cool thing about these guys")
+        self.assertEqual(
+            segments,
+            [
+                {"start_ms": 1200, "duration_ms": 2160, "text": "All right"},
+                {"start_ms": 5318, "duration_ms": 2656, "text": "the cool thing about these guys"},
+            ],
+        )
+
     def test_youtube_inspect_payload_assembles_metadata_and_transcript(self) -> None:
         module = load_cli_module()
 
@@ -96,13 +116,20 @@ class OrpYoutubeTests(unittest.TestCase):
                     "languageCode": "en",
                     "name": {"simpleText": "English"},
                     "baseUrl": "https://example.invalid/en",
+                    "_orp_source": "watch_page",
                 }
             ],
+        }
+        module._youtube_fetch_android_player_state = lambda video_id: {
+            "video_details": {},
+            "microformat": {},
+            "playability_status": {},
+            "caption_tracks": [],
         }
         module._youtube_fetch_transcript_from_track = lambda track: (
             "Hello world",
             [{"start_ms": 0, "duration_ms": 1000, "text": "Hello world"}],
-            "json3",
+            "watch_page_json3",
         )
 
         payload = module._youtube_inspect_payload("https://youtu.be/dQw4w9WgXcQ", preferred_lang="en")
@@ -112,11 +139,74 @@ class OrpYoutubeTests(unittest.TestCase):
         self.assertEqual(payload["title"], "Primary title")
         self.assertEqual(payload["author_name"], "Primary author")
         self.assertEqual(payload["duration_seconds"], 42)
+        self.assertEqual(payload["transcript_track_count"], 1)
+        self.assertEqual(
+            payload["available_transcript_tracks"],
+            [{"language_code": "en", "name": "English", "kind": "manual", "source": "watch_page"}],
+        )
         self.assertTrue(payload["transcript_available"])
         self.assertEqual(payload["transcript_language"], "en")
-        self.assertEqual(payload["transcript_fetch_mode"], "json3")
+        self.assertEqual(payload["transcript_track_source"], "watch_page")
+        self.assertEqual(payload["transcript_fetch_mode"], "watch_page_json3")
         self.assertEqual(payload["transcript_text"], "Hello world")
+        self.assertEqual(payload["transcript_sources_tried"], ["watch_page:en:English"])
         self.assertIn("Transcript:\nHello world", payload["text_bundle"])
+
+    def test_youtube_inspect_payload_falls_back_to_android_player_tracks(self) -> None:
+        module = load_cli_module()
+
+        module._youtube_fetch_oembed = lambda canonical_url: {}
+        module._youtube_fetch_watch_state = lambda video_id: {
+            "video_details": {
+                "title": "Watch title",
+                "author": "Watch author",
+                "lengthSeconds": "42",
+                "shortDescription": "Watch description.",
+                "channelId": "channel_watch",
+            },
+            "microformat": {"publishDate": "2026-03-25"},
+            "playability_status": {"status": "OK"},
+            "caption_tracks": [
+                {
+                    "languageCode": "en",
+                    "name": {"simpleText": "English"},
+                    "baseUrl": "https://example.invalid/watch-en",
+                    "_orp_source": "watch_page",
+                }
+            ],
+        }
+        module._youtube_fetch_android_player_state = lambda video_id: {
+            "video_details": {},
+            "microformat": {},
+            "playability_status": {},
+            "caption_tracks": [
+                {
+                    "languageCode": "en",
+                    "name": {"simpleText": "English"},
+                    "baseUrl": "https://example.invalid/android-en",
+                    "_orp_source": "android_player",
+                }
+            ],
+        }
+
+        def fake_fetch(track):
+            if track.get("_orp_source") == "watch_page":
+                return ("", [], "unavailable")
+            return (
+                "Full transcript",
+                [{"start_ms": 0, "duration_ms": 2000, "text": "Full transcript"}],
+                "android_player_xml",
+            )
+
+        module._youtube_fetch_transcript_from_track = fake_fetch
+        payload = module._youtube_inspect_payload("https://youtu.be/dQw4w9WgXcQ", preferred_lang="en")
+        self.assertTrue(payload["transcript_available"])
+        self.assertEqual(payload["transcript_track_source"], "android_player")
+        self.assertEqual(payload["transcript_fetch_mode"], "android_player_xml")
+        self.assertEqual(
+            payload["transcript_sources_tried"],
+            ["android_player:en:English"],
+        )
 
     def test_cmd_youtube_inspect_json_save_writes_default_artifact(self) -> None:
         module = load_cli_module()
@@ -136,13 +226,19 @@ class OrpYoutubeTests(unittest.TestCase):
             "duration_seconds": 42,
             "published_at": "2026-03-25",
             "playability_status": "OK",
+            "transcript_track_count": 1,
+            "available_transcript_tracks": [
+                {"language_code": "en", "name": "English", "kind": "manual", "source": "android_player"}
+            ],
             "transcript_available": True,
             "transcript_language": "en",
             "transcript_track_name": "English",
+            "transcript_track_source": "android_player",
             "transcript_kind": "manual",
-            "transcript_fetch_mode": "json3",
+            "transcript_fetch_mode": "android_player_xml",
             "transcript_text": "Hello world",
             "transcript_segments": [{"start_ms": 0, "duration_ms": 1000, "text": "Hello world"}],
+            "transcript_sources_tried": ["android_player:en:English"],
             "warnings": [],
             "text_bundle": "Title: Video title\n\nTranscript:\nHello world",
         }

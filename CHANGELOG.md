@@ -6,6 +6,31 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.11 - 2026-03-25
+
+This release hardens ORP's YouTube ingestion path so public videos with caption
+tracks reliably yield full transcript text and timing segments instead of
+frequently falling back to metadata-only results.
+
+### Added
+
+- Added transcript track inventory fields to the YouTube source artifact:
+  - `transcript_track_count`
+  - `available_transcript_tracks`
+  - `transcript_track_source`
+  - `transcript_sources_tried`
+
+### Changed
+
+- Added Android-player transcript retrieval as a first-class fallback when the
+  watch-page caption path is incomplete.
+- Expanded transcript parsing to support both classic `<text ...>` captions and
+  YouTube's paragraph-style format-3 `<p t=... d=...>` transcripts.
+- Updated `orp youtube inspect` docs and CLI discovery text to reflect full
+  public transcript ingestion when caption tracks are available.
+- Strengthened YouTube tests to cover srv3 parsing, Android fallback behavior,
+  and richer artifact shape assertions.
+
 ## v0.4.10 - 2026-03-25
 
 This release makes targeted compute a first-class ORP wrapper surface through
