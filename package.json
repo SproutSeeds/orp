@@ -1,8 +1,9 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
   "license": "MIT",
+  "author": "Fractal Research Group <cody@frg.earth>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SproutSeeds/orp.git"

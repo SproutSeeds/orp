@@ -6,6 +6,19 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.14 - 2026-03-28
+
+This release aligns ORP's published npm package metadata with the current
+Fractal Research Group release mark used across the active `sproutseeds`
+package set.
+
+### Changed
+
+- Added the published npm `author` metadata for `open-research-protocol` as
+  `Fractal Research Group <cody@frg.earth>`.
+- Cut a metadata-only patch release so npm package identity matches the current
+  FRG-branded release set without changing ORP runtime behavior.
+
 ## v0.4.13 - 2026-03-26
 
 This release makes version-stack frontier control a first-class ORP surface, so
