@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,6 +10,16 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUARD = REPO_ROOT / "scripts" / "npm-prepublish-guard.js"
+
+
+def _guard_env(**overrides: str | None) -> dict[str, str]:
+    env = os.environ.copy()
+    for key, value in overrides.items():
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
+    return env
 
 
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -77,6 +88,7 @@ class NpmPublishGuardTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=str(root),
+                env=_guard_env(GITHUB_ACTIONS=None),
             )
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("working tree is not clean", proc.stderr)
@@ -96,6 +108,7 @@ class NpmPublishGuardTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=str(root),
+                env=_guard_env(GITHUB_ACTIONS=None),
             )
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("not present on any remote branch", proc.stderr)
@@ -124,6 +137,7 @@ class NpmPublishGuardTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 cwd=str(root),
+                env=_guard_env(GITHUB_ACTIONS=None),
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
 

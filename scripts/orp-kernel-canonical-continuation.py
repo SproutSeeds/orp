@@ -276,7 +276,16 @@ def _gather_metadata(model: str) -> dict[str, Any]:
     package_version = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["version"]
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT), capture_output=True, text=True, check=True).stdout.strip()
     branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=str(REPO_ROOT), capture_output=True, text=True, check=True).stdout.strip()
-    codex_version = subprocess.run(["codex", "--version"], cwd=str(REPO_ROOT), capture_output=True, text=True, check=True).stdout.strip()
+    try:
+        codex_version = subprocess.run(
+            ["codex", "--version"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        codex_version = "unavailable"
     return {
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "repo_commit": commit,
