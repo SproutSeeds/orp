@@ -5,11 +5,11 @@ for the ORP Reasoning Kernel.
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_canonical_continuation_v0_1.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_canonical_continuation_v0_1.json)
+- [docs/benchmarks/orp_reasoning_kernel_canonical_continuation_v0_1.json](./benchmarks/orp_reasoning_kernel_canonical_continuation_v0_1.json)
 
 Supporting harness:
 
-- [scripts/orp-kernel-canonical-continuation.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-canonical-continuation.py)
+- [scripts/orp-kernel-canonical-continuation.py](../scripts/orp-kernel-canonical-continuation.py)
 
 ## What This Pilot Measures
 

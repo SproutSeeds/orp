@@ -51,7 +51,7 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
   - `orp agent work --once --json` remains available as the compatibility path
 - Confirm the checkpoint response lands back in the hosted workspace.
 - Confirm the hosted operator console reflects the same lifecycle at `/dashboard/admin/runners`.
-- Use [RUNNER_INTERNAL_OPERATIONS.md](/Users/codymitchell/Documents/code/orp/docs/RUNNER_INTERNAL_OPERATIONS.md) for the internal rollout and recovery flow.
+- Use [RUNNER_INTERNAL_OPERATIONS.md](./RUNNER_INTERNAL_OPERATIONS.md) for the internal rollout and recovery flow.
 
 ## 4. Package release
 
@@ -89,4 +89,4 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
 - Keep the web app and CLI rollout loosely coupled.
 - Launch the ORP CLI first if the web app/domain transition is still in progress.
 - Do not change domain, auth, runner, and package names all in one step unless all staging checks are green.
-- Follow [ORP_WEB_DOMAIN_TRANSITION_PLAN.md](/Users/codymitchell/Documents/code/orp/docs/ORP_WEB_DOMAIN_TRANSITION_PLAN.md) for the hosted cutover sequence.
+- Follow [ORP_WEB_DOMAIN_TRANSITION_PLAN.md](./ORP_WEB_DOMAIN_TRANSITION_PLAN.md) for the hosted cutover sequence.

@@ -5,12 +5,12 @@ the ORP Reasoning Kernel.
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_agent_pilot_v0_1.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_agent_pilot_v0_1.json)
+- [docs/benchmarks/orp_reasoning_kernel_agent_pilot_v0_1.json](./benchmarks/orp_reasoning_kernel_agent_pilot_v0_1.json)
 
 Supporting corpus and harness:
 
-- [examples/kernel/comparison/comparison-corpus.json](/Volumes/Code_2TB/code/orp/examples/kernel/comparison/comparison-corpus.json)
-- [scripts/orp-kernel-agent-pilot.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-agent-pilot.py)
+- [examples/kernel/comparison/comparison-corpus.json](../examples/kernel/comparison/comparison-corpus.json)
+- [scripts/orp-kernel-agent-pilot.py](../scripts/orp-kernel-agent-pilot.py)
 
 ## What This Pilot Measures
 

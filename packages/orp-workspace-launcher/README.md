@@ -10,7 +10,7 @@ Create a local workspace ledger with no hosted account required:
 
 ```bash
 orp workspace create main-cody-1
-orp workspace create research-lab --path /Volumes/Code_2TB/code/research-lab --resume-tool claude --resume-session-id 469d99b2-2997-42bf-a8f5-3812c808ef29
+orp workspace create research-lab --path /absolute/path/to/research-lab --resume-tool claude --resume-session-id 469d99b2-2997-42bf-a8f5-3812c808ef29
 ```
 
 Inspect the saved ledger:
@@ -30,21 +30,21 @@ orp workspace tabs main --json
 Add a new saved tab manually:
 
 ```bash
-orp workspace ledger add main --path /Volumes/Code_2TB/code/frg-site --resume-command "codex resume 019d348d-5031-78e1-9840-a66deaac33ae"
-orp workspace add-tab main --path /Volumes/Code_2TB/code/anthropic-lab --resume-tool claude --resume-session-id claude-456
+orp workspace ledger add main --path /absolute/path/to/frg-site --resume-command "codex resume 019d348d-5031-78e1-9840-a66deaac33ae"
+orp workspace add-tab main --path /absolute/path/to/anthropic-lab --resume-tool claude --resume-session-id claude-456
 ```
 
 Remove a saved tab manually:
 
 ```bash
-orp workspace ledger remove main --path /Volumes/Code_2TB/code/frg-site
+orp workspace ledger remove main --path /absolute/path/to/frg-site
 orp workspace remove-tab main --resume-session-id claude-456 --resume-tool claude
 ```
 
 Work directly with a local manifest file:
 
 ```bash
-orp workspace add-tab --workspace-file ./workspace.json --path /Volumes/Code_2TB/code/orp
+orp workspace add-tab --workspace-file ./workspace.json --path /absolute/path/to/orp
 orp workspace tabs --workspace-file ./workspace.json
 orp workspace tabs --workspace-file ./workspace.json --json
 ```

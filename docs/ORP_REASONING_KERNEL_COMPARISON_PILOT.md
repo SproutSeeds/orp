@@ -9,12 +9,12 @@ artifact styles:
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_comparison_v0_1.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_comparison_v0_1.json)
+- [docs/benchmarks/orp_reasoning_kernel_comparison_v0_1.json](./benchmarks/orp_reasoning_kernel_comparison_v0_1.json)
 
 Supporting corpus and harness:
 
-- [examples/kernel/comparison/comparison-corpus.json](/Volumes/Code_2TB/code/orp/examples/kernel/comparison/comparison-corpus.json)
-- [scripts/orp-kernel-comparison.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-comparison.py)
+- [examples/kernel/comparison/comparison-corpus.json](../examples/kernel/comparison/comparison-corpus.json)
+- [scripts/orp-kernel-comparison.py](../scripts/orp-kernel-comparison.py)
 
 ## What This Pilot Measures
 
@@ -91,7 +91,7 @@ This pilot does **not** prove that the kernel:
 - is universally superior across all teams or domains
 
 Those still require the larger studies in
-[docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md).
+[docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](./ORP_REASONING_KERNEL_EVALUATION_PLAN.md).
 
 ## Why The Scoring Is Structured This Way
 

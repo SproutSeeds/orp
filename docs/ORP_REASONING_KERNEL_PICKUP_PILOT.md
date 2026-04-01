@@ -5,12 +5,12 @@ Reasoning Kernel.
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_pickup_v0_1.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_pickup_v0_1.json)
+- [docs/benchmarks/orp_reasoning_kernel_pickup_v0_1.json](./benchmarks/orp_reasoning_kernel_pickup_v0_1.json)
 
 Supporting corpus and harness:
 
-- [examples/kernel/comparison/comparison-corpus.json](/Volumes/Code_2TB/code/orp/examples/kernel/comparison/comparison-corpus.json)
-- [scripts/orp-kernel-pickup.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-pickup.py)
+- [examples/kernel/comparison/comparison-corpus.json](../examples/kernel/comparison/comparison-corpus.json)
+- [scripts/orp-kernel-pickup.py](../scripts/orp-kernel-pickup.py)
 
 ## What This Pilot Measures
 
@@ -96,7 +96,7 @@ methodology.
 It is stronger evidence than a rationale-only claim, but it remains an
 internal, deterministic proxy. The next step after this is still a live
 human/agent pickup study as described in
-[docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md).
+[docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](./ORP_REASONING_KERNEL_EVALUATION_PLAN.md).
 
 ## Bottom Line
 

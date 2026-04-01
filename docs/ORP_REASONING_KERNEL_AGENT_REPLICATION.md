@@ -5,11 +5,11 @@ pilot for the live ORP kernel agent evaluation.
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_agent_replication_v0_2.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_agent_replication_v0_2.json)
+- [docs/benchmarks/orp_reasoning_kernel_agent_replication_v0_2.json](./benchmarks/orp_reasoning_kernel_agent_replication_v0_2.json)
 
 Supporting harness:
 
-- [scripts/orp-kernel-agent-replication.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-agent-replication.py)
+- [scripts/orp-kernel-agent-replication.py](../scripts/orp-kernel-agent-replication.py)
 
 The harness now supports:
 

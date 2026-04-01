@@ -497,9 +497,9 @@ Options:
   -h, --help             Show this help text
 
 Examples:
-  orp workspace add-tab main --path /Volumes/Code_2TB/code/new-project
-  orp workspace add-tab main --path /Volumes/Code_2TB/code/new-project --resume-command "codex resume 019d..."
-  orp workspace add-tab main --path /Volumes/Code_2TB/code/new-project --resume-tool claude --resume-session-id claude-456
+  orp workspace add-tab main --path /absolute/path/to/new-project
+  orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
+  orp workspace add-tab main --path /absolute/path/to/new-project --resume-tool claude --resume-session-id claude-456
 `);
 }
 
@@ -523,8 +523,8 @@ Options:
 Examples:
   orp workspace create main-cody-1
   orp workspace create main-cody-1 --slot main
-  orp workspace create research-lab --path /Volumes/Code_2TB/code/research-lab
-  orp workspace create research-lab --path /Volumes/Code_2TB/code/research-lab --resume-tool claude --resume-session-id 469d99b2-2997-42bf-a8f5-3812c808ef29
+  orp workspace create research-lab --path /absolute/path/to/research-lab
+  orp workspace create research-lab --path /absolute/path/to/research-lab --resume-tool claude --resume-session-id 469d99b2-2997-42bf-a8f5-3812c808ef29
 `);
 }
 
@@ -551,7 +551,7 @@ Options:
 
 Examples:
   orp workspace remove-tab main --index 11
-  orp workspace remove-tab main --path /Volumes/Code_2TB/code/frg-site --resume-session-id 019d348d-5031-78e1-9840-a66deaac33ae
+  orp workspace remove-tab main --path /absolute/path/to/frg-site --resume-session-id 019d348d-5031-78e1-9840-a66deaac33ae
   orp workspace remove-tab main --title frg-site
 `);
 }

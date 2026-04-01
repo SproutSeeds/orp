@@ -243,10 +243,10 @@ Behavior:
 
 Formal schemas live in:
 
-- [link-project.schema.json](/Users/codymitchell/Documents/code/orp/spec/v1/link-project.schema.json)
-- [link-session.schema.json](/Users/codymitchell/Documents/code/orp/spec/v1/link-session.schema.json)
-- [runner-machine.schema.json](/Users/codymitchell/Documents/code/orp/spec/v1/runner-machine.schema.json)
-- [runner-runtime.schema.json](/Users/codymitchell/Documents/code/orp/spec/v1/runner-runtime.schema.json)
+- [link-project.schema.json](../spec/v1/link-project.schema.json)
+- [link-session.schema.json](../spec/v1/link-session.schema.json)
+- [runner-machine.schema.json](../spec/v1/runner-machine.schema.json)
+- [runner-runtime.schema.json](../spec/v1/runner-runtime.schema.json)
 
 Planned file locations and schema usage:
 
@@ -454,14 +454,14 @@ The CLI and Rust app now share one client-side project/session/runner contract, 
 - [x] Add route/helper logging for failed poll/start/complete flows, lease mismatches, missing-routeable-session failures, and repeated retry patterns.
 - [x] Surface runner health in the Rust desktop app so operators can see online/syncing/working/error states locally.
 - [x] Add an internal rollout and recovery runbook:
-  - [RUNNER_INTERNAL_OPERATIONS.md](/Users/codymitchell/Documents/code/orp/docs/RUNNER_INTERNAL_OPERATIONS.md)
+  - [RUNNER_INTERNAL_OPERATIONS.md](./RUNNER_INTERNAL_OPERATIONS.md)
 - [x] Deploy the hosted runner backend changes to the real internal environment.
 - [x] Run a live internal smoke on deployed infrastructure.
   - Completed on March 16, 2026 against `https://orp.earth`.
   - Verified `orp link project bind`, `orp link session register`, `orp runner enable`, `orp runner sync`, `orp checkpoint queue`, `orp runner work --once`, and `orp agent work --once`.
   - Confirmed the production `orp` checkpoint job `78cd459a-fc0b-451b-af06-be2d27379169` completed successfully and produced checkpoint response `41087b8b-9556-4ec1-90c6-eefb69bac585`.
 - [x] Add and verify a reusable Rust-side smoke harness for the desktop wrapper path.
-  - Implemented at [runner_smoke.rs](/Users/codymitchell/Documents/code/orp-rust/src/bin/runner_smoke.rs).
+  - Implemented in the companion Rust workspace at `orp-rust/src/bin/runner_smoke.rs`.
   - Verified on March 16, 2026 against `https://orp.earth`.
   - Confirmed Rust-side smoke job `853a55f9-b0e5-42f7-8f2f-cdc8db1a354c` completed successfully and produced checkpoint response `6b5aee77-f176-4249-a127-978b987da946`.
 

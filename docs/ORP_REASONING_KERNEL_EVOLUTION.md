@@ -28,8 +28,8 @@ The current core kernel remains the canonical source of truth for:
 
 Those semantics live in:
 
-- [spec/v1/kernel.schema.json](/Volumes/Code_2TB/code/orp/spec/v1/kernel.schema.json)
-- [cli/orp.py](/Volumes/Code_2TB/code/orp/cli/orp.py)
+- [spec/v1/kernel.schema.json](../spec/v1/kernel.schema.json)
+- [cli/orp.py](../cli/orp.py)
 
 The kernel should not self-mutate from a single chat, a single agent guess, or
 one repo’s habits.
@@ -74,7 +74,7 @@ Use it for changes like:
 
 Proposal shape is governed by:
 
-- [spec/v1/kernel-proposal.schema.json](/Volumes/Code_2TB/code/orp/spec/v1/kernel-proposal.schema.json)
+- [spec/v1/kernel-proposal.schema.json](../spec/v1/kernel-proposal.schema.json)
 
 ### `orp kernel migrate`
 
@@ -93,7 +93,7 @@ It should begin as an extension or proposal before becoming universal.
 
 Extension shape is defined in:
 
-- [spec/v1/kernel-extension.schema.json](/Volumes/Code_2TB/code/orp/spec/v1/kernel-extension.schema.json)
+- [spec/v1/kernel-extension.schema.json](../spec/v1/kernel-extension.schema.json)
 
 That gives ORP a place to trial domain-specific structure without forcing it
 into every project prematurely.

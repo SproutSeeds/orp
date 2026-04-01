@@ -6,18 +6,18 @@ for `v0.1`.
 
 The supporting benchmark artifact for this document is:
 
-- [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json)
+- [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](./benchmarks/orp_reasoning_kernel_v0_1_validation.json)
 
 For the honest claim-by-claim evidence status and remaining research gaps, see:
 
-- [docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md)
-- [docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md)
-- [docs/ORP_REASONING_KERNEL_AGENT_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_PILOT.md)
-- [docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md)
-- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
-- [docs/ORP_REASONING_KERNEL_EVOLUTION.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVOLUTION.md)
-- [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
-- [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
+- [docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md](./ORP_REASONING_KERNEL_COMPARISON_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md](./ORP_REASONING_KERNEL_PICKUP_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_PILOT.md](./ORP_REASONING_KERNEL_AGENT_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md](./ORP_REASONING_KERNEL_AGENT_REPLICATION.md)
+- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](./ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_EVOLUTION.md](./ORP_REASONING_KERNEL_EVOLUTION.md)
+- [docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md](./ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md)
+- [docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md](./ORP_REASONING_KERNEL_EVALUATION_PLAN.md)
 
 ## 1. Definition
 
@@ -38,10 +38,10 @@ It operates in three roles:
 
 The kernel is implemented through:
 
-- [spec/v1/kernel.schema.json](/Volumes/Code_2TB/code/orp/spec/v1/kernel.schema.json)
+- [spec/v1/kernel.schema.json](../spec/v1/kernel.schema.json)
 - `orp kernel scaffold`
 - `orp kernel validate`
-- `structure_kernel` gate enforcement in [cli/orp.py](/Volumes/Code_2TB/code/orp/cli/orp.py)
+- `structure_kernel` gate enforcement in [cli/orp.py](../cli/orp.py)
 
 ## 2. What Problem It Solves
 
@@ -153,8 +153,8 @@ The schema currently supports:
 
 Each class has a minimum required field set in:
 
-- [kernel.schema.json](/Volumes/Code_2TB/code/orp/spec/v1/kernel.schema.json)
-- [cli/orp.py](/Volumes/Code_2TB/code/orp/cli/orp.py)
+- [kernel.schema.json](../spec/v1/kernel.schema.json)
+- [cli/orp.py](../cli/orp.py)
 
 ### CLI operations
 
@@ -191,7 +191,7 @@ and the default profile validates it in hard mode.
 
 The repeatable harness is:
 
-- [scripts/orp-kernel-benchmark.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-benchmark.py)
+- [scripts/orp-kernel-benchmark.py](../scripts/orp-kernel-benchmark.py)
 
 The harness benchmarks and validates:
 
@@ -374,11 +374,11 @@ The benchmark report now records ten claims, all currently passing:
 
 These claims are backed by:
 
-- [tests/test_orp_kernel.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel.py)
-- [tests/test_orp_init.py](/Volumes/Code_2TB/code/orp/tests/test_orp_init.py)
-- [tests/test_orp_kernel_benchmark.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel_benchmark.py)
-- [tests/test_orp_kernel_corpus.py](/Volumes/Code_2TB/code/orp/tests/test_orp_kernel_corpus.py)
-- [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json)
+- [tests/test_orp_kernel.py](../tests/test_orp_kernel.py)
+- [tests/test_orp_init.py](../tests/test_orp_init.py)
+- [tests/test_orp_kernel_benchmark.py](../tests/test_orp_kernel_benchmark.py)
+- [tests/test_orp_kernel_corpus.py](../tests/test_orp_kernel_corpus.py)
+- [docs/benchmarks/orp_reasoning_kernel_v0_1_validation.json](./benchmarks/orp_reasoning_kernel_v0_1_validation.json)
 
 ## 8. Why This Applies To All Project Types
 

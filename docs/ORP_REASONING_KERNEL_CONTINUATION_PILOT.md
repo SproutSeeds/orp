@@ -5,15 +5,15 @@ Reasoning Kernel.
 
 Supporting artifact:
 
-- [docs/benchmarks/orp_reasoning_kernel_continuation_v0_1.json](/Volumes/Code_2TB/code/orp/docs/benchmarks/orp_reasoning_kernel_continuation_v0_1.json)
+- [docs/benchmarks/orp_reasoning_kernel_continuation_v0_1.json](./benchmarks/orp_reasoning_kernel_continuation_v0_1.json)
 
 Supporting harness:
 
-- [scripts/orp-kernel-continuation-pilot.py](/Volumes/Code_2TB/code/orp/scripts/orp-kernel-continuation-pilot.py)
+- [scripts/orp-kernel-continuation-pilot.py](../scripts/orp-kernel-continuation-pilot.py)
 
 Related harder benchmark:
 
-- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](/Volumes/Code_2TB/code/orp/docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
+- [docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md](./ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md)
 
 ## What This Pilot Measures
 

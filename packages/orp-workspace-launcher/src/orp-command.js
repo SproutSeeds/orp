@@ -48,11 +48,11 @@ Examples:
   orp workspace create main-cody-1
   orp workspace create main-cody-1 --slot main
   orp workspace ledger main
-  orp workspace ledger add main --path /Volumes/Code_2TB/code/new-project --resume-command "codex resume 019d..."
+  orp workspace ledger add main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
   orp workspace ledger remove main --title frg-site
   orp workspace tabs main-cody-1
-  orp workspace add-tab main --path /Volumes/Code_2TB/code/new-project --resume-command "codex resume 019d..."
-  orp workspace remove-tab main --path /Volumes/Code_2TB/code/frg-site --resume-session-id 019d348d-5031-78e1-9840-a66deaac33ae
+  orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
+  orp workspace remove-tab main --path /absolute/path/to/frg-site --resume-session-id 019d348d-5031-78e1-9840-a66deaac33ae
   orp workspace slot set main main-cody-1
   orp workspace slot set offhand research-lab
   orp workspace slot list
