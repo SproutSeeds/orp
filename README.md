@@ -1,68 +1,54 @@
-# ORP — Open Research Protocol (template pack)
+# ORP — Open Research Protocol
 
-ORP is a **project-agnostic, docs-first, agent-friendly protocol** for doing research (or research-like engineering) with:
+Maintained by Fractal Research Group (`frg.earth`).
 
-- explicit claim levels,
-- reproducible verification hooks,
-- dispute handling that resolves disagreements by **verification or downgrade** (not argument),
-- first-class “failed paths” (dead ends recorded as assets),
-- and a non-blocking **Alignment/Polish Log** for optional wording/clarity suggestions.
+[![npm version](https://img.shields.io/npm/v/open-research-protocol?color=111111&label=npm)](https://www.npmjs.com/package/open-research-protocol)
+[![npm downloads](https://img.shields.io/npm/dm/open-research-protocol?color=111111&label=downloads)](https://www.npmjs.com/package/open-research-protocol)
+[![GitHub stars](https://img.shields.io/github/stars/SproutSeeds/orp?style=flat&color=111111&label=stars)](https://github.com/SproutSeeds/orp/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/SproutSeeds/orp?color=111111&label=issues)](https://github.com/SproutSeeds/orp/issues)
+[![license](https://img.shields.io/npm/l/open-research-protocol?color=111111&label=license)](./LICENSE)
+[![node](https://img.shields.io/node/v/open-research-protocol?color=111111&label=node)](https://www.npmjs.com/package/open-research-protocol)
 
-**Boundary (non-negotiable):** ORP files are **process-only**. They are **not evidence** and must **not** be cited as proof for
-results. Evidence lives in your project’s **canonical artifact paths** (data, code, paper, proofs, logs, etc.).
+> Agent-first CLI for workspace ledgers, local governance, secrets, scheduling, packets, reports, and research workflows.
 
-ORP also supports optional, modular **Instruments** for framing inquiry upstream of claims. Instruments are process-only and
-verification remains independent of framing. See `modules/instruments/README.md` and `docs/WHY_INSTRUMENTS.md`.
+**Links:** [GitHub](https://github.com/SproutSeeds/orp) · [npm](https://www.npmjs.com/package/open-research-protocol) · [frg.earth](https://frg.earth)
 
-## What’s in this folder
+ORP is a unified CLI for research and research-like engineering. It helps humans and agents:
 
-- `AGENT_INTEGRATION.md` — optional: integrate ORP into an AI agent’s primary instruction file
-- `llms.txt` — concise discovery guide for LLM and agentic systems
-- `PROTOCOL.md` — the protocol to copy into a project
-- `INSTALL.md` — how to adopt ORP in an existing repo or start a new project from it
-- `docs/AGENT_LOOP.md` — canonical operating loop when an agent is the primary ORP user
-- `docs/CANONICAL_CLI_BOUNDARY.md` — canonical source-of-truth boundary between CLI, Rust, and web
-- `docs/ORP_REASONING_KERNEL_V0_1.md` — draft kernel model for turning loose intent into promotable canonical artifacts
-- `docs/ORP_REASONING_KERNEL_EVOLUTION.md` — stable-core, observable-pressure, explicit-evolution model for growing the kernel over time
-- `docs/ORP_REASONING_KERNEL_TECHNICAL_VALIDATION.md` — technical rationale, benchmarks, and alternatives analysis for the kernel
-- `docs/ORP_REASONING_KERNEL_COMPARISON_PILOT.md` — first matched comparison between free-form, checklist, and kernel artifacts
-- `docs/ORP_REASONING_KERNEL_PICKUP_PILOT.md` — first explicit pickup/handoff proxy across free-form, checklist, and kernel artifacts
-- `docs/ORP_REASONING_KERNEL_AGENT_PILOT.md` — first live fresh-agent Codex recoverability simulation across free-form, checklist, and kernel artifacts
-- `docs/ORP_REASONING_KERNEL_AGENT_REPLICATION.md` — `10`-repeat fresh-agent replication study for live kernel recoverability and per-field stability
-- `docs/ORP_REASONING_KERNEL_CONTINUATION_PILOT.md` — first live downstream continuation smoke for kernel, checklist, and free-form artifacts
-- `docs/ORP_REASONING_KERNEL_CANONICAL_CONTINUATION_PILOT.md` — harder live downstream benchmark where the agent must produce the next canonical task artifact
-- `docs/ORP_REASONING_KERNEL_EVIDENCE_MATRIX.md` — honest map of what the kernel proves, only suggests, or still leaves unproven
-- `docs/ORP_REASONING_KERNEL_EVALUATION_PLAN.md` — comparative experiment plan for upgrading kernel evidence beyond implementation validity
-- `docs/ORP_YOUTUBE_INSPECT.md` — first-class YouTube metadata/transcript ingestion surface for agent-readable external source context
-- `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` — canonical local-first workflow for external OSS PR work
-- `docs/OSS_CONTRIBUTION_AGENT_LOOP.md` — agent operating rhythm for external contribution workflows
-- `templates/` — claim, verification, failure, and issue templates
-- `examples/` — minimal examples (illustrative, not exhaustive)
-- `scripts/` — optional helper scripts (no dependencies beyond standard shell tools)
-- `modules/` — optional modules (including Instruments)
-- `docs/` — optional docs (including Instruments overview + presentation)
-  - includes standardized external PR governance: `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md`
-  - includes sunflower-coda PR governance mapping: `docs/SUNFLOWER_CODA_PR_GOVERNANCE_MAPPING.md`
-- `cone/` — optional process-only context log (agentic handoff/compaction)
-- `spec/` — optional v1 runtime draft schemas (packets/config/lifecycle mapping)
-- `packs/` — optional downloadable profile packs (domain templates + metadata)
+- keep a durable workspace ledger
+- resolve the right secret
+- schedule the next loop
+- checkpoint and protect progress
+- emit packets and reports
+- keep hosted and local state aligned
 
-## Product Shape
+**Boundary (non-negotiable):** ORP files are process-only. They are not evidence and must not be cited as proof. Evidence lives in canonical project artifacts such as code, data, papers, proofs, and logs.
 
-ORP should feel like one CLI with built-in abilities:
+ORP also supports optional modular **Instruments** for shaping inquiry upstream of claims. Instruments are process-only and do not change the verification boundary. See `modules/instruments/README.md` and `docs/WHY_INSTRUMENTS.md`.
 
-- `workspace` for hosted auth, idea, feature, world, checkpoint, and worker operations
-- `youtube` for public video metadata and transcript ingestion
-- `governance` for local-first repo initialization, branch safety, checkpoint commits, backup refs, readiness, repair, and cleanup
-- `discover` for profile-based GitHub scanning and opportunity selection
-- `collaborate` for repository collaboration setup and workflow execution
-- `erdos` for Erdos-specific data and workflow support
-- `report` and `packet` for ORP artifacts
-- `compute` for targeted compute admission, local execution, and paid approval gating
-- `frontier` for exact live-point control, active-milestone views, near-term checklist management, and farther version-stack planning
+## Watch It Run
 
-The `pack` layer still exists, but it is now an advanced/internal surface rather
-than the main product story.
+A short ORP command-family walkthrough:
+
+![open-research-protocol terminal demo](https://raw.githubusercontent.com/SproutSeeds/orp/main/assets/terminal-demo.gif)
+
+The current animation intentionally uses the same human-facing command surfaces ORP prints in the terminal. It is not a fabricated UI layer. It currently shows ORP from multiple angles:
+
+- `home` for discovery and next actions
+- `hosted` for ideas, workspaces, runners, and the control plane
+- `secrets` for create-or-reuse plus local Keychain sync
+- `workspace` for the hosted + local saved workspace ledger and recovery commands
+- `schedule` for recurring Codex jobs
+- `governance` for local checkpoints and repo safety
+- `planning` for frontier, compute, packet, and report surfaces
+- `synthesis` for discover, exchange, collaborate, and YouTube ingestion
+- `mode` for optional perspective-shift nudges
+
+Maintainer asset generation:
+
+```bash
+npm run render:terminal-demo
+```
 
 ## Install CLI (npm)
 
@@ -79,57 +65,205 @@ Prerequisites:
 - Python 3 available on `PATH`
 - `PyYAML` in that Python environment (`python3 -m pip install pyyaml`)
 
-Fresh-directory smoke test:
-
-```bash
-mkdir test-orp && cd test-orp
-npm i -g open-research-protocol
-orp init
-orp status --json
-orp branch start work/bootstrap --allow-dirty --json
-orp checkpoint create -m "bootstrap governance" --json
-orp backup -m "backup bootstrap work" --json
-orp gate run --profile default
-orp checkpoint create -m "capture passing validation" --json
-orp ready --json
-orp packet emit --profile default
-orp report summary
-find orp -maxdepth 3 -type f | sort
-```
-
-What this proves:
-
-- the global `orp` binary resolves,
-- running bare `orp` opens the CLI home screen with packs and quick actions,
-- the runtime can initialize a repo-local ORP-governed workspace,
-- branch safety and checkpoint mechanics are available locally from day one,
-- a gate run writes `RUN.json`,
-- readiness can be marked explicitly after validation plus checkpointing,
-- packet emit writes process metadata to `orp/packets/`,
-- and report summary renders a one-page digest from the last run.
-
 Local repo usage still works:
 
 ```bash
 ./scripts/orp -h
 ```
 
-Agent-first discovery surfaces:
+## Start Here
+
+If you are new to ORP, use one canonical onboarding path:
+
+- [docs/START_HERE.md](docs/START_HERE.md)
+
+That guide now follows the same clearer rhythm we liked in `erdos-problems`:
+
+- a fast `Start In 60 Seconds` path
+- a zero-assumption `Beginner Flow`
+- a practical `Daily Loop`
+- a compact `Minimum Working Loop` for agents and operators
+- the checkpoint governance loop in plain English
+
+It walks through:
+
+- `orp init`
+- local-first workspace ledgers
+- saved Codex and Claude resume commands
+- secrets setup
+- the checkpoint and governance loop
+- optional hosted sync later
+
+## Daily ORP Operating System
+
+If you want the shortest honest map of day-to-day ORP, start here:
+
+```bash
+orp
+orp home
+orp workspace tabs main
+orp secrets ensure --alias openai-primary --provider openai --current-project
+orp checkpoint create -m "capture loop state"
+orp packet emit --profile default
+orp report summary
+orp frontier state
+orp schedule list
+orp mode nudge sleek-minimal-progressive
+```
+
+That sequence covers discovery, workspace recovery, secret resolution, governance, artifacts, planning, automation, and perspective-shift support.
+
+The shorter rule is:
+
+- recover the workspace
+- inspect repo safety
+- resolve the right secret
+- inspect the current frontier
+- do the next honest move
+- checkpoint at honest boundaries
+
+## Secrets Quick Start
+
+Today, ORP secrets use the hosted ORP secret inventory as the canonical store, with optional local macOS Keychain caching. That means the real first step for secrets is:
+
+```bash
+orp auth login
+```
+
+After that, there are two normal ways to save a secret.
+
+For a human at the terminal, use the interactive path:
+
+```bash
+orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai
+```
+
+ORP then prompts:
+
+```text
+Secret value:
+```
+
+That is where you paste the real key.
+
+For an agent or script, use stdin:
+
+```bash
+printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai --value-stdin
+```
+
+After that:
+
+```bash
+orp secrets list
+orp secrets show openai-primary
+orp secrets resolve openai-primary --reveal
+```
+
+If you want the convenience command, `ensure` means:
+
+```text
+use this saved key if it already exists, otherwise prompt for it and save it
+```
+
+So this command:
+
+```bash
+orp secrets ensure --alias openai-primary --provider openai --current-project
+```
+
+does not contain the key itself. It means:
+
+- look for a saved secret called `openai-primary`
+- if it exists, reuse it
+- if it does not exist, prompt for the key and save it
+- attach it to the current project if needed
+
+For secrets, the simplest plain-English rule is:
+
+- `orp secrets add ...` = save a new key
+- `orp secrets list` = see what is saved
+- `orp secrets show ...` = inspect one saved key record
+- `orp secrets resolve ...` = get the key value for use right now
+- `orp secrets ensure ...` = use the saved key if it exists, otherwise create it
+- `orp secrets sync-keychain ...` = keep a secure local Mac copy too
+
+You can ignore `--env-var-name` at first. It is optional metadata like `OPENAI_API_KEY`, not the key itself.
+
+## Product Map
+
+Think of ORP as one CLI with a few major lanes:
+
+- `home`, `about`, `mode`, `update`, `maintenance`
+  Discovery, status, creativity overlays, and ORP self-upkeep.
+- `auth`, `ideas`, `world`, `workspaces`, `checkpoint queue`, `runner`, `agent`
+  Hosted control-plane operations.
+- `workspace`, `secrets`, `schedule`
+  Workspace ledger recovery, API-key management, and recurring Codex jobs.
+- `init`, `status`, `branch`, `checkpoint create`, `backup`, `ready`, `doctor`, `cleanup`
+  Local repo governance and safe operator flow.
+- `packet`, `report`, `frontier`, `compute`
+  Structured artifacts, planning, and bounded compute control.
+- `discover`, `exchange`, `collaborate`, `youtube`, `erdos`
+  Scanning, synthesis, workflow scaffolding, external source ingestion, and domain-specific support.
+
+The `pack` layer still exists, but it is now an advanced/internal surface rather than the main product story.
+
+For agents and machine integrations, the `--json` variants remain the canonical structured interface. The public demo and launch materials use the human-facing command output on purpose so the walkthrough matches what a person actually sees.
+
+## Command Families
+
+Landing and discovery:
 
 ```bash
 orp
 orp home --json
 orp about --json
+orp mode list --json
+orp mode show sleek-minimal-progressive --json
+orp mode nudge sleek-minimal-progressive --json
+orp update --json
+orp maintenance status --json
+```
+
+Hosted control plane:
+
+```bash
 orp auth login
 orp whoami --json
-orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
-orp youtube inspect https://www.youtube.com/watch?v=<video_id> --save --json
 orp ideas list --json
-orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
+orp workspaces list --json
+orp workspaces show <workspace-id> --json
 orp checkpoint queue --idea-id <idea-id> --json
 orp runner work --once --json
-orp runner work --continuous --transport auto --json
-orp agent work --once --json   # compatibility alias with legacy checkpoint fallback
+orp agent work --once --json
+```
+
+Local desk and automation:
+
+```bash
+orp workspace create main-cody-1
+orp workspace list
+orp workspace tabs main
+orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"
+orp workspace remove-tab main --path /absolute/path/to/project
+orp workspace sync main
+orp secrets list --json
+orp secrets ensure --alias openai-primary --provider openai --current-project --json
+orp secrets sync-keychain openai-primary --json
+orp schedule add codex --name morning-summary --prompt "Summarize this repo" --json
+```
+
+For secrets, the simplest plain-English rule is:
+
+- `orp secrets ensure ...` = use the saved key if it already exists, or ask for it and create it if it does not
+- `orp secrets resolve ...` = return the actual key value for use right now
+- you can ignore `--env-var-name` at first; it is optional metadata, not the key itself
+
+Local governance:
+
+```bash
+orp init
 orp status --json
 orp branch start work/<topic> --json
 orp checkpoint create -m "describe completed unit" --json
@@ -137,56 +271,57 @@ orp backup -m "backup current work" --json
 orp ready --json
 orp doctor --json
 orp cleanup --json
-orp discover profile init --json
-orp discover github scan --profile orp.profile.default.json --json
-orp collaborate workflows --json
-orp collaborate gates --workflow full_flow --json
-orp erdos sync --json
-orp pack list --json
-orp pack install --pack-id erdos-open-problems --json
-orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json
-orp gate run --profile default --json
+```
+
+Artifacts, planning, and compute:
+
+```bash
 orp packet emit --profile default --json
-orp compute decide --input orp.compute.json --json
-orp compute decide --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --json
-orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
-orp compute run-local --project-map orp.compute-map.json --point-id adult-vs-developmental-rgc-opponent --task orp.compute.task.json --json
-orp frontier init --program-id ocular-controller --json
-orp frontier add-version --id v10 --label "Certified generalization arc" --json
-orp frontier add-milestone --version v10 --id v10.3 --label "Figure specification and data contract freeze" --band exact --json
-orp frontier add-phase --milestone v10.3 --id 395 --label "Figure specification and data contract freeze" --compute-point-id adult-vs-developmental-rgc-opponent --allowed-rung local-4090 --paid-requires-user-approval --json
-orp frontier set-live --version v10 --milestone v10.3 --phase 395 --band exact --next-action "Execute Phase 395" --json
+orp report summary --json
 orp frontier state --json
 orp frontier roadmap --json
 orp frontier checklist --json
-orp frontier stack --json
-orp frontier doctor --json
-orp report summary --json
+orp compute decide --input orp.compute.json --json
+orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
 ```
 
-These surfaces are meant to help automated systems discover ORP quickly:
+Scanning, synthesis, and collaboration:
 
-- bare `orp` opens a home screen with repo/runtime status, available packs, and next commands
-- `orp home --json` returns the same landing context in machine-readable form
-- `orp auth ...`, `orp ideas ...`, `orp world ...`, `orp checkpoint ...`, `orp runner ...`, and `orp agent ...` expose the hosted workspace surface directly through ORP
-- `orp compute ...` exposes targeted-compute admission, local execution, and paid-approval gating through a stable ORP wrapper surface
-- `orp compute ...` can now consume either a raw compute packet input or a repo-declared `breakthroughs` project compute map plus a compute-point id
-- `orp frontier ...` exposes the four-layer planning split directly in ORP:
-  - exact live point
-  - exact active milestone roadmap
-  - near-term structured checklist
-  - farther major-version stack
-- frontier phases can carry bounded compute hooks, so a repo's active frontier can surface where targeted compute belongs without letting compute drift outside the main research loop
-- `orp youtube inspect ...` exposes public YouTube metadata plus full transcript ingestion through a stable ORP artifact shape for agent use when caption tracks are available
-- `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup` expose the local-first repo governance surface directly through ORP
-- `orp discover ...` exposes profile-based GitHub scanning as a built-in ORP ability
-- `orp collaborate ...` exposes built-in collaboration setup and workflow execution without asking users to think in terms of separate governance packs
-- `llms.txt` gives a concise repo/package map for agents that scan documentation.
-- `docs/AGENT_LOOP.md` gives agents one intended operating rhythm instead of leaving them to invent one.
-- `docs/DISCOVER.md` explains the portable discovery profile model and scan artifacts.
-- `orp about --json` returns machine-readable capability, artifact, schema, and pack metadata.
-- Core runtime and pack commands can emit JSON so agents do not need to scrape human text.
-- Stable artifact paths make it easy to follow outputs across runs:
+```bash
+orp discover github scan --profile orp.profile.default.json --json
+orp exchange repo synthesize /path/to/source --json
+orp collaborate workflows --json
+orp collaborate run --workflow full_flow --json
+orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
+orp erdos sync --json
+```
+
+## Life Ops Bridge
+
+ORP and Life Ops are meant to connect, but they are not the same package.
+
+- `open-research-protocol` stays the main ORP CLI/runtime surface.
+- `@lifeops/core` is the Life Ops SDK for normalized agenda items, outreach, and structured share-email drafting.
+- `@lifeops/orp` is the bridge package that turns ORP JSON surfaces into Life Ops-compatible items and share-ready project input.
+
+The bridge package lives at `packages/lifeops-orp/`.
+
+## Key Docs
+
+- `docs/START_HERE.md` for the canonical step-by-step starter path
+- `AGENT_INTEGRATION.md` for integrating ORP into an agent's primary instructions
+- `INSTALL.md` for adopting ORP in an existing repo or new project
+- `docs/AGENT_LOOP.md` for the intended operator rhythm
+- `docs/AGENT_MODES.md` for optional creativity and perspective overlays
+- `docs/EXCHANGE.md` for repository/project synthesis
+- `docs/CANONICAL_CLI_BOUNDARY.md` for CLI, Rust, and web responsibility boundaries
+- `docs/ORP_HOSTED_WORKSPACE_CONTRACT.md` for the first-class hosted workspace model
+- `docs/LAUNCH_KIT.md` for public positioning, demo flow, and launch copy
+- `docs/NPM_RELEASE_CHECKLIST.md` and `docs/ORP_PUBLIC_LAUNCH_CHECKLIST.md` for release execution
+- `llms.txt` for concise agent/LLM discovery
+
+Stable artifact paths:
+
 - `orp/state.json`
 - `orp/artifacts/<run_id>/RUN.json`
 - `orp/artifacts/<run_id>/RUN_SUMMARY.md`
@@ -194,12 +329,6 @@ These surfaces are meant to help automated systems discover ORP quickly:
 - `orp/packets/<packet_id>.md`
 - `orp/discovery/github/<scan_id>/SCAN.json`
 - `orp/discovery/github/<scan_id>/SCAN_SUMMARY.md`
-
-Release process:
-
-- `docs/NPM_RELEASE_CHECKLIST.md`
-- `docs/ORP_PUBLIC_LAUNCH_CHECKLIST.md`
-- `.github/workflows/npm-publish.yml` (publishes on `v*` tags)
 
 ## Quick start (existing repo)
 

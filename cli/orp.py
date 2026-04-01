@@ -21,7 +21,7 @@ Design goals:
 - local-first
 - low dependency surface
 - deterministic artifact layout
-- built-in abilities over mode switches
+- built-in abilities over heavyweight mode switches
 """
 
 from __future__ import annotations
@@ -35,7 +35,10 @@ import json
 import os
 import platform
 from pathlib import Path
+import plistlib
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,7 +80,12 @@ def _tool_version() -> str:
     if env_version:
         return env_version
 
-    package_json = Path(__file__).resolve().parent.parent / "package.json"
+    package_root_override = os.environ.get("ORP_TOOL_PACKAGE_ROOT", "").strip()
+    package_json = (
+        Path(package_root_override).expanduser().resolve() / "package.json"
+        if package_root_override
+        else Path(__file__).resolve().parent.parent / "package.json"
+    )
     if not package_json.exists():
         return "unknown"
 
@@ -93,7 +101,16 @@ def _tool_version() -> str:
 
 
 def _tool_package_name() -> str:
-    package_json = Path(__file__).resolve().parent.parent / "package.json"
+    env_name = os.environ.get("ORP_PACKAGE_NAME", "").strip()
+    if env_name:
+        return env_name
+
+    package_root_override = os.environ.get("ORP_TOOL_PACKAGE_ROOT", "").strip()
+    package_json = (
+        Path(package_root_override).expanduser().resolve() / "package.json"
+        if package_root_override
+        else Path(__file__).resolve().parent.parent / "package.json"
+    )
     if not package_json.exists():
         return "unknown"
 
@@ -117,14 +134,403 @@ KERNEL_SCHEMA_VERSION = "1.0.0"
 FRONTIER_SCHEMA_VERSION = "1.0.0"
 FRONTIER_BANDS = ("exact", "structured", "horizon")
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
+EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
+MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
+SCHEDULE_REGISTRY_SCHEMA_VERSION = "1.0.0"
+KEYCHAIN_SECRET_REGISTRY_SCHEMA_VERSION = "1.0.0"
 YOUTUBE_ANDROID_CLIENT_VERSION = "20.10.38"
 YOUTUBE_ANDROID_USER_AGENT = (
     f"com.google.android.youtube/{YOUTUBE_ANDROID_CLIENT_VERSION} (Linux; U; Android 14)"
 )
+AGENT_MODE_REGISTRY_VERSION = "1.0.0"
+AGENT_MODES: list[dict[str, Any]] = [
+    {
+        "id": "sleek-minimal-progressive",
+        "aliases": ["sleak-minimal-progressive", "smp"],
+        "label": "Sleek Minimal Progressive",
+        "summary": "An optional perspective-shift overlay for fresh thinking, playful movement, and elegant forward motion.",
+        "operator_reminder": "Use this when the work feels flat, trapped, overfitted, or too linear. It is a paint color, not a permanent operating system.",
+        "activation_phrase": "Clean line, live spark, forward motion.",
+        "invocation_style": "Optional. Call it when the user or agent wants a fresh lens, not by obligation.",
+        "when_to_use": [
+            "When a project feels stuck inside one framing.",
+            "When the current answer is competent but lifeless.",
+            "When you need to zoom in, step back, or rotate the angle before committing.",
+            "When a little playfulness could reveal a better path.",
+        ],
+        "perspective_shifts": [
+            "Go deeper into one seam that may be hiding the real leverage.",
+            "Step back top-down and redraw the shape of the whole system.",
+            "Zoom out wider and ask what the work connects to beyond the immediate task.",
+            "Rotate the angle and inspect the problem from another dimension, audience, or timeframe.",
+        ],
+        "principles": [
+            "Reduce friction before adding ornament.",
+            "Keep one surprising move alive long enough to evaluate it honestly.",
+            "Let the next step feel inevitable instead of overdesigned.",
+            "Favor freshness with structure over chaos with flair.",
+        ],
+        "ritual": [
+            "Sketch three lanes: sleek, playful, progressive.",
+            "Subtract one unnecessary element.",
+            "Add one tasteful surprise.",
+            "Name the next concrete move.",
+        ],
+        "questions": [
+            "What would make this feel lighter without making it bland?",
+            "What is one unexpected angle worth trying for five minutes?",
+            "What would make the next collaborator smile and move faster?",
+            "What trajectory is this already hinting at if we let it breathe?",
+            "Do we need to dive deeper here, or pull higher and wider first?",
+        ],
+        "anti_patterns": [
+            "Defaulting to the safest generic pattern too early.",
+            "Adding cleverness that hides the next move.",
+            "Over-explaining instead of letting the shape carry some meaning.",
+            "Treating the mode like a mandatory aesthetic instead of a chosen lens.",
+        ],
+        "nudge_cards": [
+            {
+                "title": "Three Lanes",
+                "prompt": "Produce one elegant option, one weird option, and one quietly ambitious option before choosing.",
+                "twist": "Do not let the first workable answer win by inertia.",
+                "release": "A short divergence now can save a long mediocre path later.",
+            },
+            {
+                "title": "Depth Dive",
+                "prompt": "Choose one small area that feels glossed over and go a layer deeper before redesigning the whole thing.",
+                "twist": "Assume the hidden leverage might be inside the overlooked seam.",
+                "release": "Sometimes the right wide move only becomes visible after one honest deep move.",
+            },
+            {
+                "title": "Top-Down Reset",
+                "prompt": "Step back and restate the whole shape from above in one clean paragraph or sketch before touching details again.",
+                "twist": "Reframe the system, not just the symptoms.",
+                "release": "A higher vantage point can make local confusion feel obvious.",
+            },
+            {
+                "title": "Wider Orbit",
+                "prompt": "Zoom out and ask what adjacent project, audience, or future state this work actually wants to connect to.",
+                "twist": "Look for trajectory, not just local polish.",
+                "release": "Freshness often appears when the frame gets larger.",
+            },
+            {
+                "title": "Subtractive Spark",
+                "prompt": "Remove one element first, then add one move that feels lightly impossible but still testable.",
+                "twist": "Make the surprise structural, not decorative.",
+                "release": "Simplicity gets more interesting when it earns its restraint.",
+            },
+            {
+                "title": "Gentle Edge",
+                "prompt": "Keep the surface calm, but let one edge suggest a bigger horizon or bolder taste.",
+                "twist": "The signal should feel intentional, not loud.",
+                "release": "Progressive work often whispers before it becomes obvious.",
+            },
+            {
+                "title": "Playful Constraint",
+                "prompt": "Impose a tiny playful rule for the next draft, then see whether it unlocks a better shape.",
+                "twist": "Examples: one vivid noun, one unexpected contrast, one generous shortcut.",
+                "release": "Constraints can create style when they are chosen with curiosity.",
+            },
+            {
+                "title": "Next-Step Glow",
+                "prompt": "Ask what version of this would make the next handoff feel exciting instead of dutiful.",
+                "twist": "Optimize for momentum, not maximum explanation.",
+                "release": "Good creative work leaves behind a path someone wants to continue.",
+            },
+        ],
+    },
+    {
+        "id": "ruthless-simplification",
+        "aliases": ["clarity-blade", "simplify-hard"],
+        "label": "Ruthless Simplification",
+        "summary": "An optional clarity overlay for stripping noise, collapsing branches, and finding the shortest honest shape.",
+        "operator_reminder": "Use this when the work is swollen, muddy, or overexplained. Cut down to the live core without flattening what matters.",
+        "activation_phrase": "Cut noise, keep signal.",
+        "invocation_style": "Optional. Call it when complexity is obscuring leverage or momentum.",
+        "when_to_use": [
+            "When too many moving parts are hiding the actual problem.",
+            "When explanation is growing faster than understanding.",
+            "When several competing branches should probably collapse into one cleaner path.",
+            "When the work needs courage to remove, not courage to add.",
+        ],
+        "perspective_shifts": [
+            "Ask what remains if half the structure disappears.",
+            "Find the center of gravity and organize around it.",
+            "Prefer one honest path over three defensive variants.",
+            "Treat every extra sentence, layer, or feature as guilty until proven useful.",
+        ],
+        "principles": [
+            "Signal deserves breathing room.",
+            "One clear move beats five hedged ones.",
+            "If a detail does not change the decision, it may not belong yet.",
+            "Clarity is not sterility; keep the living edge.",
+        ],
+        "ritual": [
+            "Name the core job in one sentence.",
+            "Delete or defer everything that does not serve that job.",
+            "Rewrite the surviving shape more plainly.",
+            "Check that the cut version is still truthful and humane.",
+        ],
+        "questions": [
+            "What is the real sentence underneath all of this?",
+            "If I had to keep only one move, which one would survive?",
+            "What is ornamental, defensive, or repetitive here?",
+            "What would make this easier to continue tomorrow?",
+        ],
+        "anti_patterns": [
+            "Mistaking bluntness for clarity.",
+            "Removing the nuance that actually carries the truth.",
+            "Keeping complexity just because effort has already been spent.",
+            "Turning a clean structure into an emotionally flat one.",
+        ],
+        "nudge_cards": [
+            {
+                "title": "One Sentence Core",
+                "prompt": "Restate the real job in one sentence, then delete anything that does not serve it.",
+                "twist": "Do not protect a piece just because it took time to make.",
+                "release": "A clean center often exposes the right next move immediately.",
+            },
+            {
+                "title": "Half-Cut Test",
+                "prompt": "Imagine removing half the structure. What is the smallest version that still tells the truth?",
+                "twist": "Let the cut reveal the design, not just shrink it.",
+                "release": "Compression can uncover hidden shape.",
+            },
+            {
+                "title": "Branch Collapse",
+                "prompt": "Choose the branch with the most honest leverage and collapse the rest into notes or follow-ups.",
+                "twist": "Optimization is sometimes a choice, not a comparison table.",
+                "release": "Momentum returns when indecision stops pretending to be rigor.",
+            },
+            {
+                "title": "Plain-Language Pass",
+                "prompt": "Rewrite the core in language that a sharp outsider could follow in one pass.",
+                "twist": "Simplify the thinking, not just the wording.",
+                "release": "If it cannot be said plainly yet, it may not be understood cleanly.",
+            },
+        ],
+    },
+    {
+        "id": "systems-constellation",
+        "aliases": ["topout-systems", "wider-systems"],
+        "label": "Systems Constellation",
+        "summary": "An optional systems-thinking overlay for mapping relationships, constraints, feedback loops, and downstream consequences.",
+        "operator_reminder": "Use this when local work feels disconnected from the larger field. Step out of the component and see the pattern of forces around it.",
+        "activation_phrase": "See the field, then move.",
+        "invocation_style": "Optional. Call it when wider context or top-down structure matters more than local polish.",
+        "when_to_use": [
+            "When a fix may create second-order effects elsewhere.",
+            "When the local task makes sense, but the broader trajectory does not.",
+            "When multiple stakeholders, repos, systems, or timescales are involved.",
+            "When you need to understand dependencies before changing the center.",
+        ],
+        "perspective_shifts": [
+            "Map upstream causes and downstream consequences.",
+            "Look for reinforcing and balancing feedback loops.",
+            "Inspect the work across user, operator, system, and time horizons.",
+            "Translate the local decision into network effects, maintenance cost, and future optionality.",
+        ],
+        "principles": [
+            "A local optimum can still be a global mistake.",
+            "Constraints shape behavior more than intentions do.",
+            "Interfaces are often where the truth leaks out.",
+            "Good system moves respect time, not just topology.",
+        ],
+        "ritual": [
+            "Name the central node or decision.",
+            "List the immediate upstreams and downstreams.",
+            "Sketch the likely feedback loops or hidden constraints.",
+            "Choose the move that improves the system, not just the local patch.",
+        ],
+        "questions": [
+            "What else changes if this changes?",
+            "Where is the real bottleneck: code, policy, attention, trust, or time?",
+            "Which actor or subsystem is paying the hidden cost here?",
+            "What does this choice optimize three steps from now?",
+        ],
+        "anti_patterns": [
+            "Treating isolated correctness as whole-system health.",
+            "Ignoring maintenance or coordination costs because the local win feels neat.",
+            "Drawing a giant map without extracting a decision from it.",
+            "Confusing complexity theater with actual systems understanding.",
+        ],
+        "nudge_cards": [
+            {
+                "title": "Upstream / Downstream",
+                "prompt": "Write the immediate upstream causes and downstream effects before changing the local piece.",
+                "twist": "At least one consequence should be about coordination or maintenance, not just runtime behavior.",
+                "release": "Systems clarity often saves you from elegant local mistakes.",
+            },
+            {
+                "title": "Feedback Loop Check",
+                "prompt": "Ask what behavior this choice reinforces over time and what it silently penalizes.",
+                "twist": "Think in loops, not one-off events.",
+                "release": "The future shape of the system is already hiding inside today's incentives.",
+            },
+            {
+                "title": "Constraint Lens",
+                "prompt": "Name the real constraint in one word, then redesign the move around that constraint instead of around preferences.",
+                "twist": "If you name the wrong constraint, the plan will stay decorative.",
+                "release": "A true constraint simplifies the map fast.",
+            },
+            {
+                "title": "Time Horizon Shift",
+                "prompt": "Look at this choice as if you have to maintain it for six months with incomplete context.",
+                "twist": "Durability matters as much as local cleverness.",
+                "release": "Longer time horizons often reveal the cleaner system move.",
+            },
+        ],
+    },
+    {
+        "id": "bold-concept-generation",
+        "aliases": ["idea-sprinter", "wild-arc"],
+        "label": "Bold Concept Generation",
+        "summary": "An optional ideation overlay for generating stronger, stranger, and more future-facing directions before they get prematurely domesticated.",
+        "operator_reminder": "Use this when you need possibilities, not just polish. Push the edge first, then evaluate what deserves to survive.",
+        "activation_phrase": "Push the edge before you prune.",
+        "invocation_style": "Optional. Call it when the work needs new directions, bigger bets, or less timid first drafts.",
+        "when_to_use": [
+            "When the current option set feels too safe or too converged.",
+            "When the user wants something memorable rather than merely correct.",
+            "When a project needs a new conceptual frame before detailed execution.",
+            "When the right answer might require a category jump.",
+        ],
+        "perspective_shifts": [
+            "Jump categories and import a principle from somewhere unexpected.",
+            "Generate futures first, then backsolve feasibility.",
+            "Treat constraints as design material instead of just fences.",
+            "Search for moves that feel slightly unreasonable but still testable.",
+        ],
+        "principles": [
+            "A brave draft can be edited down; a timid draft rarely grows teeth later.",
+            "Novelty earns its place by opening real options.",
+            "The best big idea usually has one clean handle.",
+            "Wildness is useful when it still leaves a trail back to execution.",
+        ],
+        "ritual": [
+            "Generate at least three directions that are meaningfully different, not cosmetically varied.",
+            "Keep the boldest one alive long enough to inspect it fairly.",
+            "Extract the usable principle even if the whole concept does not survive.",
+            "Only then decide what to prune or ground.",
+        ],
+        "questions": [
+            "What would the bolder version of this try first?",
+            "If we were not trying to look reasonable immediately, what would we explore?",
+            "What adjacent field has already solved an analogous problem more imaginatively?",
+            "Which idea here feels alive enough to justify a quick experiment?",
+        ],
+        "anti_patterns": [
+            "Killing the interesting idea before it gets one honest pass.",
+            "Confusing loudness with originality.",
+            "Generating variations that are basically the same safe answer.",
+            "Leaving a big idea too abstract to ever test.",
+        ],
+        "nudge_cards": [
+            {
+                "title": "Category Hop",
+                "prompt": "Borrow one principle from a totally different field and force it into this problem for ten minutes.",
+                "twist": "The goal is not to be right immediately; it is to change the shape of the option space.",
+                "release": "A category jump can reveal a route the local vocabulary was hiding.",
+            },
+            {
+                "title": "Impossible but Testable",
+                "prompt": "State the version that sounds too ambitious, then reduce it only until it becomes testable instead of impossible.",
+                "twist": "Do not sand it down into mediocrity on the first pass.",
+                "release": "Some of the best concepts start slightly past the comfort boundary.",
+            },
+            {
+                "title": "Future Artifact",
+                "prompt": "Describe the artifact, interface, or experience as if it already exists in its strongest form.",
+                "twist": "Backsolve the first believable step afterward.",
+                "release": "Future-first thinking can free you from today's cramped assumptions.",
+            },
+            {
+                "title": "Principle Theft",
+                "prompt": "Identify one beautiful property you admire elsewhere and redesign this work to inherit that property.",
+                "twist": "Copy the principle, not the surface aesthetic.",
+                "release": "Transferring a deep property is often more generative than copying a format.",
+            },
+        ],
+    },
+]
 
 
 class HostedApiError(RuntimeError):
     """Raised when the hosted ORP app returns an API error."""
+
+
+def _agent_mode_map() -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for mode in AGENT_MODES:
+        lookup[str(mode["id"]).strip()] = mode
+        for alias in mode.get("aliases", []):
+            alias_text = str(alias).strip()
+            if alias_text:
+                lookup[alias_text] = mode
+    return lookup
+
+
+def _agent_mode(mode_ref: str) -> dict[str, Any]:
+    ref = str(mode_ref or "").strip()
+    if not ref:
+        raise RuntimeError("Mode id is required.")
+    mode = _agent_mode_map().get(ref)
+    if mode is None:
+        raise RuntimeError(f"Unknown mode: {ref}")
+    return mode
+
+
+def _agent_mode_public_payload(mode: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(mode.get("id", "")).strip(),
+        "aliases": [str(row).strip() for row in mode.get("aliases", []) if str(row).strip()],
+        "label": str(mode.get("label", "")).strip(),
+        "summary": str(mode.get("summary", "")).strip(),
+        "operator_reminder": str(mode.get("operator_reminder", "")).strip(),
+        "activation_phrase": str(mode.get("activation_phrase", "")).strip(),
+        "invocation_style": str(mode.get("invocation_style", "")).strip(),
+        "when_to_use": [str(row).strip() for row in mode.get("when_to_use", []) if str(row).strip()],
+        "perspective_shifts": [str(row).strip() for row in mode.get("perspective_shifts", []) if str(row).strip()],
+        "principles": [str(row).strip() for row in mode.get("principles", []) if str(row).strip()],
+        "ritual": [str(row).strip() for row in mode.get("ritual", []) if str(row).strip()],
+        "questions": [str(row).strip() for row in mode.get("questions", []) if str(row).strip()],
+        "anti_patterns": [str(row).strip() for row in mode.get("anti_patterns", []) if str(row).strip()],
+        "nudge_card_count": len(mode.get("nudge_cards", [])) if isinstance(mode.get("nudge_cards"), list) else 0,
+    }
+
+
+def _agent_mode_seed(seed: str) -> str:
+    text = str(seed or "").strip()
+    if text:
+        return text
+    return dt.datetime.now().astimezone().date().isoformat()
+
+
+def _agent_mode_nudge(mode: dict[str, Any], *, seed: str = "") -> dict[str, Any]:
+    cards = mode.get("nudge_cards", [])
+    if not isinstance(cards, list) or not cards:
+        raise RuntimeError("This mode does not define any nudge cards.")
+    effective_seed = _agent_mode_seed(seed)
+    digest = hashlib.sha256(f"{mode['id']}::{effective_seed}".encode("utf-8")).hexdigest()
+    index = int(digest[:8], 16) % len(cards)
+    card = cards[index]
+    return {
+        "mode": _agent_mode_public_payload(mode),
+        "seed": effective_seed,
+        "card_index": index,
+        "card": {
+            "title": str(card.get("title", "")).strip(),
+            "prompt": str(card.get("prompt", "")).strip(),
+            "twist": str(card.get("twist", "")).strip(),
+            "release": str(card.get("release", "")).strip(),
+        },
+        "micro_loop": [
+            "Choose the right lens first: deeper, higher, wider, or rotated.",
+            "Make one pass sleeker by removing friction and generic weight.",
+            "Make one pass playful or progressive by trying one meaningful shift in angle.",
+        ],
+    }
 
 
 def _config_home() -> Path:
@@ -136,6 +542,1638 @@ def _config_home() -> Path:
 
 def _orp_user_dir() -> Path:
     return _config_home() / "orp"
+
+
+def _keychain_secret_registry_path() -> Path:
+    return _orp_user_dir() / "secrets-keychain.json"
+
+
+def _keychain_supported() -> bool:
+    return sys.platform == "darwin" or os.environ.get("ORP_KEYCHAIN_ALLOW_NON_DARWIN", "").strip() == "1"
+
+
+def _ensure_keychain_supported() -> None:
+    if not _keychain_supported():
+        raise RuntimeError("macOS Keychain integration is only available on macOS.")
+    if shutil.which("security") is None:
+        raise RuntimeError("The macOS `security` command is not available on PATH.")
+
+
+def _keychain_registry_template() -> dict[str, Any]:
+    return {
+        "schema_version": KEYCHAIN_SECRET_REGISTRY_SCHEMA_VERSION,
+        "items": [],
+    }
+
+
+def _load_keychain_secret_registry() -> dict[str, Any]:
+    path = _keychain_secret_registry_path()
+    if not path.exists():
+        return _keychain_registry_template()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _keychain_registry_template()
+    if not isinstance(payload, dict):
+        return _keychain_registry_template()
+    items = payload.get("items")
+    return {
+        "schema_version": str(payload.get("schema_version", KEYCHAIN_SECRET_REGISTRY_SCHEMA_VERSION)).strip()
+        or KEYCHAIN_SECRET_REGISTRY_SCHEMA_VERSION,
+        "items": [row for row in items if isinstance(row, dict)] if isinstance(items, list) else [],
+    }
+
+
+def _save_keychain_secret_registry(payload: dict[str, Any]) -> None:
+    merged = {
+        **_keychain_registry_template(),
+        **payload,
+    }
+    _write_json(_keychain_secret_registry_path(), merged)
+
+
+def _run_keychain_command(args: Sequence[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    _ensure_keychain_supported()
+    return subprocess.run(
+        ["security", *args],
+        capture_output=True,
+        text=True,
+        input=input_text,
+    )
+
+
+def _tool_package_root() -> Path:
+    override = os.environ.get("ORP_TOOL_PACKAGE_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parent.parent
+
+
+def _launch_runtime_root() -> Path:
+    override = os.environ.get("ORP_LAUNCH_RUNTIME_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return _orp_user_dir() / "launch-runtime"
+
+
+def _launch_working_directory() -> Path:
+    path = _launch_runtime_root()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _launch_runtime_signature() -> str:
+    package_root = _tool_package_root()
+    digest = hashlib.sha256()
+    sources = [
+        package_root / "cli" / "orp.py",
+        package_root / "package.json",
+    ]
+    spec_root = package_root / "spec"
+    if spec_root.exists():
+        sources.extend(path for path in sorted(spec_root.rglob("*")) if path.is_file())
+    for path in sources:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            relative = path.relative_to(package_root).as_posix()
+        except Exception:
+            relative = path.name
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:12]
+
+
+def _copy_launch_runtime_tree(src: Path, dest: Path) -> None:
+    if src.is_dir():
+        shutil.copytree(src, dest, dirs_exist_ok=True)
+        return
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+
+
+def _ensure_launch_runtime_snapshot() -> Path:
+    package_root = _tool_package_root()
+    snapshot_root = _launch_runtime_root() / _launch_runtime_signature()
+    snapshot_cli = snapshot_root / "cli" / "orp.py"
+    if snapshot_cli.exists():
+        return snapshot_cli
+
+    temp_root = snapshot_root.parent / f".{snapshot_root.name}.tmp-{uuid.uuid4().hex[:8]}"
+    if temp_root.exists():
+        shutil.rmtree(temp_root, ignore_errors=True)
+    temp_root.mkdir(parents=True, exist_ok=True)
+    try:
+        for relative in (Path("cli") / "orp.py", Path("package.json"), Path("spec")):
+            src = package_root / relative
+            if not src.exists():
+                continue
+            _copy_launch_runtime_tree(src, temp_root / relative)
+        metadata = {
+            "generated_at": _now_utc(),
+            "source_package_root": str(package_root),
+            "tool_version": ORP_TOOL_VERSION,
+            "package_name": ORP_PACKAGE_NAME,
+            "signature": snapshot_root.name,
+        }
+        _write_json(temp_root / "runtime.json", metadata)
+        temp_root.replace(snapshot_root)
+    finally:
+        if temp_root.exists():
+            shutil.rmtree(temp_root, ignore_errors=True)
+    return snapshot_cli
+
+
+def _resolved_orp_binary() -> str:
+    override = os.environ.get("ORP_LAUNCH_ORP_BIN", "").strip()
+    if override:
+        return str(Path(override).expanduser().resolve())
+    resolved = shutil.which("orp")
+    return str(Path(resolved).resolve()) if resolved else ""
+
+
+def _launch_program_arguments(*argv: str) -> list[str]:
+    if _update_install_kind() == "npm-global":
+        orp_bin = _resolved_orp_binary()
+        if orp_bin:
+            return [orp_bin, *argv]
+    snapshot_cli = _ensure_launch_runtime_snapshot()
+    return [
+        sys.executable,
+        str(snapshot_cli),
+        *argv,
+    ]
+
+
+def _env_truthy(name: str) -> bool:
+    value = str(os.environ.get(name, "")).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _update_install_kind() -> str:
+    override = str(os.environ.get("ORP_UPDATE_INSTALL_KIND", "")).strip().lower()
+    if override in {"source-checkout", "npm-global", "unknown"}:
+        return override
+
+    package_root = _tool_package_root()
+    if (package_root / ".git").exists():
+        return "source-checkout"
+    return "npm-global"
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    parts = [int(part) for part in re.findall(r"\d+", str(version))]
+    return tuple(parts) if parts else (0,)
+
+
+def _compare_versions(left: str, right: str) -> int:
+    left_key = _version_key(left)
+    right_key = _version_key(right)
+    width = max(len(left_key), len(right_key))
+    padded_left = left_key + (0,) * (width - len(left_key))
+    padded_right = right_key + (0,) * (width - len(right_key))
+    if padded_left < padded_right:
+        return -1
+    if padded_left > padded_right:
+        return 1
+    return 0
+
+
+def _fetch_latest_npm_version(*, timeout_sec: int = 8) -> tuple[str, str]:
+    override = str(os.environ.get("ORP_UPDATE_LATEST_VERSION", "")).strip()
+    if override:
+        return override, ""
+
+    try:
+        proc = subprocess.run(
+            ["npm", "view", ORP_PACKAGE_NAME, "version", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec,
+        )
+    except FileNotFoundError:
+        return "", "npm not found on PATH."
+    except subprocess.TimeoutExpired:
+        return "", "Timed out while checking npm for the latest ORP version."
+    except Exception as exc:
+        return "", f"Unable to check npm for the latest ORP version: {exc}"
+
+    if proc.returncode != 0:
+        message = (proc.stderr or proc.stdout or "").strip() or "npm view returned a non-zero exit status."
+        return "", message
+
+    raw = (proc.stdout or "").strip()
+    if not raw:
+        return "", "npm returned an empty version string."
+
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        payload = raw
+
+    if isinstance(payload, str):
+        version = payload.strip()
+    elif isinstance(payload, dict):
+        version = str(payload.get("version", "")).strip()
+    else:
+        version = str(payload).strip()
+
+    if not version:
+        return "", "Unable to parse the latest ORP version from npm."
+    return version, ""
+
+
+def _recommended_update_command(install_kind: str) -> str:
+    if install_kind == "source-checkout":
+        return f"git -C {shlex.quote(str(_tool_package_root()))} pull --ff-only"
+    return f"npm install -g {ORP_PACKAGE_NAME}@latest"
+
+
+def _run_text_command(command: Sequence[str], *, cwd: Path | None = None, timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        list(command),
+        capture_output=True,
+        text=True,
+        cwd=str(cwd) if cwd is not None else None,
+        timeout=timeout_sec,
+    )
+
+
+def _resolve_git_dir(package_root: Path) -> Path:
+    dotgit = package_root / ".git"
+    if dotgit.is_dir():
+        return dotgit.resolve()
+    if dotgit.is_file():
+        try:
+            first_line = dotgit.read_text(encoding="utf-8").splitlines()[0].strip()
+        except Exception:
+            return dotgit.resolve()
+        if first_line.lower().startswith("gitdir:"):
+            raw = first_line.split(":", 1)[1].strip()
+            resolved = Path(raw).expanduser()
+            if not resolved.is_absolute():
+                resolved = (package_root / resolved).resolve()
+            return resolved
+    return dotgit.resolve()
+
+
+def _run_git_at(package_root: Path, *args: str, timeout_sec: int = 5) -> subprocess.CompletedProcess[str]:
+    git_dir = _resolve_git_dir(package_root)
+    return _run_text_command(
+        [
+            "git",
+            f"--git-dir={git_dir}",
+            f"--work-tree={package_root}",
+            *args,
+        ],
+        cwd=_launch_working_directory(),
+        timeout_sec=timeout_sec,
+    )
+
+
+def _normalize_source_checkout_readiness_error(message: str) -> str:
+    clean = str(message or "").strip()
+    if not clean:
+        return clean
+    if (
+        os.environ.get("ORP_LAUNCH_RUNTIME_ROOT", "").strip()
+        and (
+            "Unable to read current working directory" in clean
+            or "not a git repository" in clean
+        )
+    ):
+        return (
+            "Source checkout auto-update readiness is unavailable from the background launchd runtime "
+            "for this checkout. Run `orp update` interactively when you want to update a source checkout."
+        )
+    return clean
+
+
+def _source_checkout_update_readiness(package_root: Path) -> dict[str, Any]:
+    forced_ready = str(os.environ.get("ORP_UPDATE_SOURCE_READY", "")).strip().lower()
+    if forced_ready in {"0", "1", "false", "true", "no", "yes"}:
+        ok = forced_ready in {"1", "true", "yes"}
+        branch = str(os.environ.get("ORP_UPDATE_SOURCE_BRANCH", "main")).strip() or "main"
+        upstream = str(os.environ.get("ORP_UPDATE_SOURCE_UPSTREAM", "origin/main")).strip() or "origin/main"
+        reason = str(os.environ.get("ORP_UPDATE_SOURCE_REASON", "")).strip()
+        if not reason:
+            if ok:
+                reason = "Current branch looks safe to fast-forward."
+            else:
+                reason = "Source checkout is not in a safe auto-pull state."
+        return {
+            "ok": ok,
+            "branch": branch,
+            "upstream": upstream,
+            "reason": reason,
+        }
+
+    try:
+        status_proc = _run_git_at(package_root, "status", "--short", timeout_sec=5)
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "branch": "",
+            "upstream": "",
+            "reason": "git not found on PATH.",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "branch": "",
+            "upstream": "",
+            "reason": "Timed out while checking git status for the source checkout.",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "branch": "",
+            "upstream": "",
+            "reason": f"Unable to inspect the source checkout: {exc}",
+        }
+
+    if status_proc.returncode != 0:
+        message = _normalize_source_checkout_readiness_error(
+            (status_proc.stderr or status_proc.stdout or "").strip() or "git status failed."
+        )
+        return {
+            "ok": False,
+            "branch": "",
+            "upstream": "",
+            "reason": message,
+        }
+
+    if (status_proc.stdout or "").strip():
+        return {
+            "ok": False,
+            "branch": "",
+            "upstream": "",
+            "reason": "Source checkout has local changes. Commit or stash them before auto-updating.",
+        }
+
+    branch_proc = _run_git_at(package_root, "rev-parse", "--abbrev-ref", "HEAD", timeout_sec=5)
+    branch = (branch_proc.stdout or "").strip() if branch_proc.returncode == 0 else ""
+    if not branch or branch == "HEAD":
+        return {
+            "ok": False,
+            "branch": branch,
+            "upstream": "",
+            "reason": "Source checkout is not on a named branch, so ORP will not auto-pull it.",
+        }
+
+    upstream_proc = _run_git_at(
+        package_root,
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        "@{upstream}",
+        timeout_sec=5,
+    )
+    upstream = (upstream_proc.stdout or "").strip() if upstream_proc.returncode == 0 else ""
+    if not upstream:
+        message = _normalize_source_checkout_readiness_error((upstream_proc.stderr or upstream_proc.stdout or "").strip())
+        return {
+            "ok": False,
+            "branch": branch,
+            "upstream": "",
+            "reason": message or f"Branch '{branch}' has no upstream configured for `git pull --ff-only`.",
+        }
+
+    return {
+        "ok": True,
+        "branch": branch,
+        "upstream": upstream,
+        "reason": "Current branch looks safe to fast-forward.",
+    }
+
+
+def _update_payload() -> dict[str, Any]:
+    install_kind = _update_install_kind()
+    package_root = _tool_package_root()
+    current_version = ORP_TOOL_VERSION
+    latest_version, check_error = _fetch_latest_npm_version()
+    source_readiness = _source_checkout_update_readiness(package_root) if install_kind == "source-checkout" else None
+    comparison = 0
+    if latest_version and current_version != "unknown":
+        comparison = _compare_versions(latest_version, current_version)
+
+    if check_error:
+        status = "check_failed"
+    elif comparison > 0:
+        status = "update_available"
+    elif comparison < 0:
+        status = "ahead_of_published"
+    else:
+        status = "up_to_date"
+
+    update_available = status == "update_available"
+    recommended_command = _recommended_update_command(install_kind) if update_available else ""
+    if not update_available:
+        can_apply = False
+    elif install_kind == "npm-global":
+        can_apply = True
+    elif install_kind == "source-checkout":
+        can_apply = bool(source_readiness and source_readiness.get("ok"))
+    else:
+        can_apply = False
+
+    notes: list[str] = []
+    if install_kind == "source-checkout":
+        notes.append("ORP appears to be running from a source checkout.")
+        if can_apply:
+            notes.append("This checkout looks safe to fast-forward, so `orp update --yes` can run the pull for you.")
+        else:
+            notes.append("ORP will only auto-pull a source checkout when the worktree is clean and the current branch has an upstream.")
+        notes.append("Pull the repo forward first, then rerun your local install or link step if you use one.")
+    elif install_kind == "npm-global":
+        notes.append("ORP appears to be running from an npm-managed install.")
+    else:
+        notes.append("ORP could not confidently determine how this install is managed.")
+
+    if status == "ahead_of_published":
+        notes.append("This checkout appears newer than the currently published npm release.")
+    if check_error:
+        notes.append("The update check could not reach npm cleanly.")
+
+    return {
+        "ok": not bool(check_error),
+        "tool": {
+            "name": "orp",
+            "package": ORP_PACKAGE_NAME,
+            "current_version": current_version,
+            "latest_version": latest_version or "",
+        },
+        "status": status,
+        "install_kind": install_kind,
+        "package_root": str(package_root),
+        "update_available": update_available,
+        "can_apply": can_apply,
+        "recommended_command": recommended_command,
+        "check_error": check_error,
+        "source_readiness": source_readiness,
+        "notes": notes,
+    }
+
+
+def _apply_update(payload: dict[str, Any]) -> dict[str, Any]:
+    forced_apply = str(os.environ.get("ORP_UPDATE_APPLY_OK", "")).strip().lower()
+    if forced_apply in {"0", "1", "false", "true", "no", "yes"}:
+        ok = forced_apply in {"1", "true", "yes"}
+        message = str(os.environ.get("ORP_UPDATE_APPLY_MESSAGE", "")).strip() or (
+            "Update command completed." if ok else "Update command failed."
+        )
+        return {
+            "ok": ok,
+            "applied": ok,
+            "message": message,
+            "returncode": 0 if ok else 1,
+        }
+
+    if str(payload.get("status", "")).strip() != "update_available":
+        return {
+            "ok": True,
+            "applied": False,
+            "message": "ORP is already up to date.",
+        }
+
+    install_kind = str(payload.get("install_kind", "")).strip()
+    if install_kind == "source-checkout":
+        readiness = payload.get("source_readiness") or {}
+        if not bool(readiness.get("ok")):
+            return {
+                "ok": False,
+                "applied": False,
+                "message": str(readiness.get("reason") or "Source checkout is not in a safe auto-pull state."),
+            }
+
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(_tool_package_root()), "pull", "--ff-only"],
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            return {
+                "ok": False,
+                "applied": False,
+                "message": "git not found on PATH.",
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "applied": False,
+                "message": f"Unable to run git pull: {exc}",
+            }
+
+        return {
+            "ok": proc.returncode == 0,
+            "applied": proc.returncode == 0,
+            "message": (proc.stdout or proc.stderr or "").strip(),
+            "returncode": proc.returncode,
+        }
+
+    if install_kind != "npm-global":
+        return {
+            "ok": False,
+            "applied": False,
+            "message": "Automatic update is only supported for npm-managed installs or safe source checkouts right now.",
+        }
+
+    try:
+        proc = subprocess.run(
+            ["npm", "install", "-g", f"{ORP_PACKAGE_NAME}@latest"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "applied": False,
+            "message": "npm not found on PATH.",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "applied": False,
+            "message": f"Unable to run npm install: {exc}",
+        }
+
+    return {
+        "ok": proc.returncode == 0,
+        "applied": proc.returncode == 0,
+        "message": (proc.stdout or proc.stderr or "").strip(),
+        "returncode": proc.returncode,
+    }
+
+
+def _render_update_report(payload: dict[str, Any]) -> str:
+    tool = payload.get("tool", {}) if isinstance(payload.get("tool"), dict) else {}
+    current_version = str(tool.get("current_version", "")).strip() or "unknown"
+    latest_version = str(tool.get("latest_version", "")).strip() or "unknown"
+    status = str(payload.get("status", "")).strip()
+    install_kind = str(payload.get("install_kind", "")).strip() or "unknown"
+
+    status_label = {
+        "update_available": "Update available",
+        "up_to_date": "Up to date",
+        "ahead_of_published": "Ahead of published release",
+        "check_failed": "Update check failed",
+    }.get(status, status or "Unknown")
+
+    install_label = {
+        "source-checkout": "Source checkout",
+        "npm-global": "npm-managed install",
+        "unknown": "Unknown install type",
+    }.get(install_kind, install_kind)
+
+    lines = [
+        "ORP Update",
+        "",
+        f"Current version: {current_version}",
+        f"Latest published version: {latest_version}",
+        f"Status: {status_label}",
+        f"Install type: {install_label}",
+    ]
+
+    source_readiness = payload.get("source_readiness")
+    if isinstance(source_readiness, dict):
+        branch = str(source_readiness.get("branch", "")).strip()
+        upstream = str(source_readiness.get("upstream", "")).strip()
+        if branch:
+            lines.append(f"Branch: {branch}")
+        if upstream:
+            lines.append(f"Upstream: {upstream}")
+
+    if payload.get("check_error"):
+        lines.append(f"Check error: {payload['check_error']}")
+
+    recommended_command = str(payload.get("recommended_command", "")).strip()
+    if recommended_command:
+        lines.append("")
+        lines.append("Recommended next step:")
+        lines.append(f"  {recommended_command}")
+        if bool(payload.get("can_apply")):
+            lines.append("You can let ORP run that for you with `orp update --yes`.")
+        elif install_kind == "source-checkout" and isinstance(source_readiness, dict):
+            reason = str(source_readiness.get("reason", "")).strip()
+            if reason:
+                lines.append(f"Auto-apply is blocked right now: {reason}")
+
+    for note in payload.get("notes", []):
+        if isinstance(note, str) and note.strip():
+            lines.append(f"Note: {note.strip()}")
+
+    apply_payload = payload.get("apply")
+    if isinstance(apply_payload, dict):
+        lines.append("")
+        lines.append("Apply result:")
+        lines.append("  Success" if bool(apply_payload.get("ok")) else "  Failed")
+        message = str(apply_payload.get("message", "")).strip()
+        if message:
+            lines.append(f"  {message}")
+
+    return "\n".join(lines)
+
+
+def _maintenance_state_path() -> Path:
+    override = str(os.environ.get("ORP_MAINTENANCE_STATE_PATH", "")).strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "maintenance.json"
+
+
+def _maintenance_label() -> str:
+    override = str(os.environ.get("ORP_MAINTENANCE_LABEL", "")).strip()
+    return override or "dev.orp.daily-maintenance"
+
+
+def _maintenance_launch_agents_dir() -> Path:
+    override = str(os.environ.get("ORP_MAINTENANCE_LAUNCH_AGENTS_DIR", "")).strip()
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / "Library" / "LaunchAgents"
+
+
+def _maintenance_plist_path() -> Path:
+    return _maintenance_launch_agents_dir() / f"{_maintenance_label()}.plist"
+
+
+def _maintenance_logs_dir() -> Path:
+    override = str(os.environ.get("ORP_MAINTENANCE_LOGS_DIR", "")).strip()
+    if override:
+        return Path(override).expanduser()
+    return _maintenance_state_path().parent / "logs"
+
+
+def _maintenance_stdout_path() -> Path:
+    return _maintenance_logs_dir() / "maintenance.stdout.log"
+
+
+def _maintenance_stderr_path() -> Path:
+    return _maintenance_logs_dir() / "maintenance.stderr.log"
+
+
+def _maintenance_platform_supported() -> bool:
+    return platform.system().strip().lower() == "darwin" or _env_truthy("ORP_MAINTENANCE_ALLOW_NON_DARWIN")
+
+
+def _maintenance_schedule(hour: int, minute: int) -> dict[str, int]:
+    return {
+        "Hour": hour,
+        "Minute": minute,
+    }
+
+
+def _read_json_if_exists(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_maintenance_state() -> dict[str, Any]:
+    return _read_json_if_exists(_maintenance_state_path())
+
+
+def _save_maintenance_state(payload: dict[str, Any]) -> Path:
+    path = _maintenance_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    return path
+
+
+def _maintenance_check_payload(*, source: str) -> dict[str, Any]:
+    checked_at = _now_utc()
+    update = _update_payload()
+    launchd = _maintenance_agent_status()
+    state_payload = {
+        "schema_version": MAINTENANCE_STATE_SCHEMA_VERSION,
+        "checked_at": checked_at,
+        "source": source,
+        "platform": _runner_platform_name(),
+        "update": update,
+        "launchd": launchd,
+    }
+    state_path = _save_maintenance_state(state_payload)
+    return {
+        "ok": bool(update.get("ok")),
+        "checked_at": checked_at,
+        "source": source,
+        "state_path": str(state_path),
+        "update": update,
+        "launchd": launchd,
+    }
+
+
+def _maintenance_check_due(checked_at: str, *, max_age_hours: int = 30) -> bool:
+    stamp = str(checked_at or "").strip()
+    if not stamp:
+        return True
+    try:
+        observed = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except Exception:
+        return True
+    now = dt.datetime.now(dt.timezone.utc)
+    return (now - observed).total_seconds() > max_age_hours * 3600
+
+
+def _maintenance_program_arguments() -> list[str]:
+    return _launch_program_arguments("maintenance", "check", "--json")
+
+
+def _maintenance_environment_variables() -> dict[str, str]:
+    result = {
+        "PATH": os.environ.get("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"),
+        "ORP_VERSION": ORP_TOOL_VERSION,
+        "ORP_PACKAGE_NAME": ORP_PACKAGE_NAME,
+        "ORP_TOOL_PACKAGE_ROOT": str(_tool_package_root()),
+    }
+    for key in (
+        "XDG_CONFIG_HOME",
+        "ORP_LAUNCH_RUNTIME_ROOT",
+        "ORP_LAUNCH_ORP_BIN",
+        "ORP_UPDATE_INSTALL_KIND",
+        "ORP_UPDATE_LATEST_VERSION",
+        "ORP_UPDATE_SOURCE_READY",
+        "ORP_UPDATE_SOURCE_BRANCH",
+        "ORP_UPDATE_SOURCE_UPSTREAM",
+        "ORP_MAINTENANCE_STATE_PATH",
+        "ORP_MAINTENANCE_LABEL",
+        "ORP_MAINTENANCE_LAUNCH_AGENTS_DIR",
+        "ORP_MAINTENANCE_LOGS_DIR",
+        "ORP_MAINTENANCE_ALLOW_NON_DARWIN",
+    ):
+        value = str(os.environ.get(key, "")).strip()
+        if value:
+            result[key] = value
+    return result
+
+
+def _maintenance_plist_payload(*, hour: int, minute: int) -> dict[str, Any]:
+    return {
+        "Label": _maintenance_label(),
+        "ProgramArguments": _maintenance_program_arguments(),
+        "StartCalendarInterval": _maintenance_schedule(hour, minute),
+        "RunAtLoad": True,
+        "StandardOutPath": str(_maintenance_stdout_path()),
+        "StandardErrorPath": str(_maintenance_stderr_path()),
+        "WorkingDirectory": str(_launch_working_directory()),
+        "EnvironmentVariables": _maintenance_environment_variables(),
+    }
+
+
+def _read_maintenance_plist() -> dict[str, Any]:
+    path = _maintenance_plist_path()
+    if not path.exists():
+        return {}
+    try:
+        with path.open("rb") as handle:
+            payload = plistlib.load(handle)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _maintenance_agent_status() -> dict[str, Any]:
+    plist_path = _maintenance_plist_path()
+    plist_payload = _read_maintenance_plist()
+    start_interval = plist_payload.get("StartCalendarInterval", {}) if isinstance(plist_payload, dict) else {}
+    state = _load_maintenance_state()
+    checked_at = str(state.get("checked_at", "")).strip()
+    update = state.get("update", {}) if isinstance(state.get("update"), dict) else {}
+    logs = {
+        "stdout": str(_maintenance_stdout_path()),
+        "stderr": str(_maintenance_stderr_path()),
+    }
+
+    return {
+        "platform_supported": _maintenance_platform_supported(),
+        "label": _maintenance_label(),
+        "plist_path": str(plist_path),
+        "enabled": plist_path.exists(),
+        "schedule": {
+            "hour": int(start_interval.get("Hour", 0)) if str(start_interval.get("Hour", "")).strip() else None,
+            "minute": int(start_interval.get("Minute", 0)) if str(start_interval.get("Minute", "")).strip() else None,
+        },
+        "logs": logs,
+        "last_checked_at": checked_at,
+        "check_due": _maintenance_check_due(checked_at),
+        "cached_update_available": bool(update.get("update_available")),
+        "cached_latest_version": str((update.get("tool") or {}).get("latest_version", "")).strip()
+        if isinstance(update.get("tool"), dict)
+        else "",
+        "state_path": str(_maintenance_state_path()),
+    }
+
+
+def _maintenance_launchctl_domain() -> str:
+    return f"gui/{os.getuid()}"
+
+
+def _maybe_run_launchctl(args: Sequence[str]) -> tuple[bool, str]:
+    if _env_truthy("ORP_MAINTENANCE_SKIP_LAUNCHCTL"):
+        return True, "launchctl skipped by ORP_MAINTENANCE_SKIP_LAUNCHCTL"
+    try:
+        proc = _run_text_command(["launchctl", *args], timeout_sec=10)
+    except FileNotFoundError:
+        return False, "launchctl not found on PATH."
+    except subprocess.TimeoutExpired:
+        return False, "Timed out while running launchctl."
+    except Exception as exc:
+        return False, f"Unable to run launchctl: {exc}"
+
+    output = (proc.stdout or proc.stderr or "").strip()
+    if proc.returncode != 0:
+        return False, output or f"launchctl {' '.join(args)} failed."
+    return True, output
+
+
+def _enable_maintenance_agent(*, hour: int, minute: int) -> dict[str, Any]:
+    if not _maintenance_platform_supported():
+        return {
+            "ok": False,
+            "message": "Maintenance scheduling is only supported on macOS right now.",
+        }
+
+    plist_path = _maintenance_plist_path()
+    plist_path.parent.mkdir(parents=True, exist_ok=True)
+    _maintenance_logs_dir().mkdir(parents=True, exist_ok=True)
+    plist_payload = _maintenance_plist_payload(hour=hour, minute=minute)
+    with plist_path.open("wb") as handle:
+        plistlib.dump(plist_payload, handle)
+
+    bootout_ok, bootout_message = _maybe_run_launchctl(["bootout", _maintenance_launchctl_domain(), str(plist_path)])
+    bootstrap_ok, bootstrap_message = _maybe_run_launchctl(["bootstrap", _maintenance_launchctl_domain(), str(plist_path)])
+    enable_ok, enable_message = _maybe_run_launchctl(
+        ["enable", f"{_maintenance_launchctl_domain()}/{_maintenance_label()}"]
+    )
+    kickstart_ok, kickstart_message = _maybe_run_launchctl(
+        ["kickstart", "-k", f"{_maintenance_launchctl_domain()}/{_maintenance_label()}"]
+    )
+    kickstart_soft_ok = (
+        not kickstart_ok
+        and bootstrap_ok
+        and enable_ok
+        and "Timed out while running launchctl." in str(kickstart_message)
+    )
+    overall_ok = bootstrap_ok and enable_ok and (kickstart_ok or kickstart_soft_ok)
+    message = "Enabled daily ORP maintenance."
+    if kickstart_soft_ok:
+        message = "Enabled daily ORP maintenance. Initial launchd run is still in progress."
+    elif not overall_ok:
+        message = bootstrap_message or enable_message or kickstart_message
+
+    return {
+        "ok": overall_ok,
+        "plist_path": str(plist_path),
+        "schedule": {
+            "hour": hour,
+            "minute": minute,
+        },
+        "launchctl": {
+            "bootout": {"ok": bootout_ok, "message": bootout_message},
+            "bootstrap": {"ok": bootstrap_ok, "message": bootstrap_message},
+            "enable": {"ok": enable_ok, "message": enable_message},
+            "kickstart": {"ok": kickstart_ok or kickstart_soft_ok, "message": kickstart_message},
+        },
+        "message": message,
+    }
+
+
+def _disable_maintenance_agent() -> dict[str, Any]:
+    plist_path = _maintenance_plist_path()
+    status = _maintenance_agent_status()
+    if not plist_path.exists():
+        return {
+            "ok": True,
+            "removed": False,
+            "message": "Maintenance agent is already disabled.",
+            "status": status,
+        }
+
+    bootout_ok, bootout_message = _maybe_run_launchctl(["bootout", _maintenance_launchctl_domain(), str(plist_path)])
+    try:
+        plist_path.unlink()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "removed": False,
+            "message": f"Unable to remove maintenance plist: {exc}",
+            "launchctl": {"bootout": {"ok": bootout_ok, "message": bootout_message}},
+        }
+
+    return {
+        "ok": True,
+        "removed": True,
+        "message": "Disabled daily ORP maintenance.",
+        "launchctl": {"bootout": {"ok": bootout_ok, "message": bootout_message}},
+    }
+
+
+def _schedule_registry_path() -> Path:
+    override = os.environ.get("ORP_SCHEDULE_REGISTRY_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "schedules.json"
+
+
+def _schedule_logs_dir() -> Path:
+    override = os.environ.get("ORP_SCHEDULE_LOGS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _schedule_registry_path().parent / "schedule-logs"
+
+
+def _schedule_launch_agents_dir() -> Path:
+    override = os.environ.get("ORP_SCHEDULE_LAUNCH_AGENTS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _maintenance_launch_agents_dir()
+
+
+def _schedule_platform_supported() -> bool:
+    return platform.system() == "Darwin" or _env_truthy("ORP_SCHEDULE_ALLOW_NON_DARWIN")
+
+
+def _load_schedule_registry() -> dict[str, Any]:
+    payload = _read_json_if_exists(_schedule_registry_path())
+    jobs = payload.get("jobs")
+    if not isinstance(jobs, list):
+        jobs = []
+    normalized_jobs = [job for job in jobs if isinstance(job, dict)]
+    return {
+        "schema_version": str(payload.get("schema_version", SCHEDULE_REGISTRY_SCHEMA_VERSION)).strip()
+        or SCHEDULE_REGISTRY_SCHEMA_VERSION,
+        "jobs": normalized_jobs,
+    }
+
+
+def _save_schedule_registry(payload: dict[str, Any]) -> Path:
+    path = _schedule_registry_path()
+    _write_json(path, payload)
+    return path
+
+
+def _slugify_value(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return slug or "job"
+
+
+def _normalize_workspace_title_input(value: Any, *, field_label: str = "--title") -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise RuntimeError(f"{field_label} is required and must use lowercase letters, numbers, and dashes only.")
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", text):
+        raise RuntimeError(
+            f"{field_label} must use lowercase letters, numbers, and single dashes only, like main-cody-1."
+        )
+    return text
+
+
+def _validate_schedule_time(hour: int, minute: int) -> None:
+    if hour < 0 or hour > 23:
+        raise RuntimeError("--hour must be between 0 and 23.")
+    if minute < 0 or minute > 59:
+        raise RuntimeError("--minute must be between 0 and 59.")
+
+
+def _schedule_job_label(job: dict[str, Any]) -> str:
+    job_id = str(job.get("id", "")).strip() or "job"
+    name = str(job.get("name", "")).strip() or job_id
+    return f"dev.orp.schedule.{_slugify_value(name)}.{_slugify_value(job_id)[:8]}"
+
+
+def _schedule_job_plist_path(job: dict[str, Any]) -> Path:
+    return _schedule_launch_agents_dir() / f"{_schedule_job_label(job)}.plist"
+
+
+def _schedule_job_stdout_path(job: dict[str, Any]) -> Path:
+    return _schedule_logs_dir() / f"{str(job.get('id', '')).strip() or 'job'}.stdout.log"
+
+
+def _schedule_job_stderr_path(job: dict[str, Any]) -> Path:
+    return _schedule_logs_dir() / f"{str(job.get('id', '')).strip() or 'job'}.stderr.log"
+
+
+def _read_schedule_job_plist(job: dict[str, Any]) -> dict[str, Any]:
+    path = _schedule_job_plist_path(job)
+    if not path.exists():
+        return {}
+    try:
+        with path.open("rb") as handle:
+            payload = plistlib.load(handle)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _schedule_environment_variables() -> dict[str, str]:
+    result = {
+        "PATH": os.environ.get("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"),
+        "ORP_VERSION": ORP_TOOL_VERSION,
+        "ORP_PACKAGE_NAME": ORP_PACKAGE_NAME,
+        "ORP_TOOL_PACKAGE_ROOT": str(_tool_package_root()),
+    }
+    for key in (
+        "XDG_CONFIG_HOME",
+        "CODEX_HOME",
+        "CODEX_BIN",
+        "ORP_LAUNCH_RUNTIME_ROOT",
+        "ORP_LAUNCH_ORP_BIN",
+        "ORP_SCHEDULE_REGISTRY_PATH",
+        "ORP_SCHEDULE_LAUNCH_AGENTS_DIR",
+        "ORP_SCHEDULE_LOGS_DIR",
+        "ORP_SCHEDULE_ALLOW_NON_DARWIN",
+        "ORP_SCHEDULE_SKIP_LAUNCHCTL",
+    ):
+        value = str(os.environ.get(key, "")).strip()
+        if value:
+            result[key] = value
+    return result
+
+
+def _schedule_program_arguments(job: dict[str, Any]) -> list[str]:
+    return _launch_program_arguments(
+        "schedule",
+        "run",
+        str(job.get("id", "")).strip(),
+        "--json",
+    )
+
+
+def _schedule_job_schedule(job: dict[str, Any]) -> dict[str, int]:
+    raw = job.get("schedule", {}) if isinstance(job.get("schedule"), dict) else {}
+    hour = int(raw.get("hour", 9))
+    minute = int(raw.get("minute", 0))
+    _validate_schedule_time(hour, minute)
+    return {"hour": hour, "minute": minute}
+
+
+def _schedule_plist_payload(job: dict[str, Any], *, hour: int, minute: int) -> dict[str, Any]:
+    return {
+        "Label": _schedule_job_label(job),
+        "ProgramArguments": _schedule_program_arguments(job),
+        "StartCalendarInterval": _maintenance_schedule(hour, minute),
+        "RunAtLoad": False,
+        "StandardOutPath": str(_schedule_job_stdout_path(job)),
+        "StandardErrorPath": str(_schedule_job_stderr_path(job)),
+        "WorkingDirectory": str(_launch_working_directory()),
+        "EnvironmentVariables": _schedule_environment_variables(),
+    }
+
+
+def _maybe_run_schedule_launchctl(args: Sequence[str]) -> tuple[bool, str]:
+    if _env_truthy("ORP_SCHEDULE_SKIP_LAUNCHCTL"):
+        return True, "launchctl skipped by ORP_SCHEDULE_SKIP_LAUNCHCTL"
+    return _maybe_run_launchctl(args)
+
+
+def _schedule_job_runtime_payload(job: dict[str, Any]) -> dict[str, Any]:
+    config = job.get("config", {}) if isinstance(job.get("config"), dict) else {}
+    plist_path = _schedule_job_plist_path(job)
+    plist_payload = _read_schedule_job_plist(job)
+    prompt_file = str(config.get("prompt_file", "")).strip()
+    prompt_inline = str(config.get("prompt", ""))
+    codex_session_id = str(config.get("codex_session_id", "")).strip()
+    start_interval = plist_payload.get("StartCalendarInterval", {}) if isinstance(plist_payload, dict) else {}
+    stored_schedule = _schedule_job_schedule(job)
+    effective_hour = (
+        int(start_interval.get("Hour", stored_schedule["hour"]))
+        if str(start_interval.get("Hour", "")).strip()
+        else stored_schedule["hour"]
+    )
+    effective_minute = (
+        int(start_interval.get("Minute", stored_schedule["minute"]))
+        if str(start_interval.get("Minute", "")).strip()
+        else stored_schedule["minute"]
+    )
+    return {
+        **job,
+        "label": _schedule_job_label(job),
+        "enabled": plist_path.exists(),
+        "plist_path": str(plist_path),
+        "schedule": {"hour": effective_hour, "minute": effective_minute},
+        "logs": {
+            "stdout": str(_schedule_job_stdout_path(job)),
+            "stderr": str(_schedule_job_stderr_path(job)),
+        },
+        "repo_root": str(config.get("repo_root", "")).strip(),
+        "sandbox": str(config.get("sandbox", "read-only")).strip() or "read-only",
+        "prompt_file": prompt_file,
+        "prompt_source": "file" if prompt_file else "inline",
+        "prompt_preview": _summarize_checkpoint_response(prompt_inline) if prompt_inline.strip() else "",
+        "codex_session_id": codex_session_id,
+        "uses_session_resume": bool(codex_session_id),
+    }
+
+
+def _find_schedule_job_index(registry: dict[str, Any], target: str) -> tuple[int, dict[str, Any]]:
+    needle = str(target or "").strip()
+    if not needle:
+        raise RuntimeError("Schedule target is required.")
+    jobs = registry.get("jobs", []) if isinstance(registry.get("jobs"), list) else []
+    for index, job in enumerate(jobs):
+        if str(job.get("id", "")).strip() == needle:
+            return index, job
+    for index, job in enumerate(jobs):
+        if str(job.get("name", "")).strip() == needle:
+            return index, job
+    raise RuntimeError(f"Scheduled job not found: {needle}")
+
+
+def _read_schedule_prompt(job: dict[str, Any]) -> str:
+    config = job.get("config", {}) if isinstance(job.get("config"), dict) else {}
+    prompt_file = str(config.get("prompt_file", "")).strip()
+    if prompt_file:
+        path = Path(prompt_file).expanduser()
+        if not path.exists():
+            raise RuntimeError(f"Prompt file not found for scheduled job: {path}")
+        return path.read_text(encoding="utf-8")
+    prompt = str(config.get("prompt", ""))
+    if not prompt.strip():
+        raise RuntimeError("Scheduled Codex job is missing a prompt.")
+    return prompt
+
+
+def _schedule_job_show_payload(job: dict[str, Any]) -> dict[str, Any]:
+    payload = _schedule_job_runtime_payload(job)
+    prompt_file = str(payload.get("prompt_file", "")).strip()
+    payload["prompt_file_exists"] = Path(prompt_file).exists() if prompt_file else False
+    try:
+        payload["resolved_prompt"] = _read_schedule_prompt(job)
+        payload["prompt_error"] = ""
+    except RuntimeError as exc:
+        payload["resolved_prompt"] = ""
+        payload["prompt_error"] = str(exc)
+    return payload
+
+
+def _run_schedule_codex_job(job: dict[str, Any]) -> dict[str, Any]:
+    config = job.get("config", {}) if isinstance(job.get("config"), dict) else {}
+    repo_root = Path(str(config.get("repo_root", "")).strip() or ".").expanduser().resolve()
+    if not repo_root.exists():
+        raise RuntimeError(f"Scheduled job repo root does not exist: {repo_root}")
+
+    prompt = _read_schedule_prompt(job)
+    output_path = Path(tempfile.gettempdir()) / f"orp-schedule-response-{str(job.get('id', 'job')).strip() or 'job'}.txt"
+    codex_bin = str(config.get("codex_bin", "")).strip() or os.environ.get("CODEX_BIN", "").strip() or "codex"
+    sandbox = str(config.get("sandbox", "read-only")).strip() or "read-only"
+    codex_session_id = str(config.get("codex_session_id", "")).strip()
+    if codex_session_id:
+        cmd = [
+            codex_bin,
+            "exec",
+            "resume",
+            "--skip-git-repo-check",
+            "--output-last-message",
+            str(output_path),
+            codex_session_id,
+            "-",
+        ]
+    else:
+        cmd = [
+            codex_bin,
+            "exec",
+            "--skip-git-repo-check",
+            "--output-last-message",
+            str(output_path),
+            "--sandbox",
+            sandbox,
+            "-c",
+            "approval_policy=never",
+            "-",
+        ]
+    env = dict(os.environ)
+    profile = str(config.get("codex_config_profile", "")).strip()
+    if profile:
+        env["CODEX_PROFILE"] = profile
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            input=prompt,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "exitCode": 127,
+            "stdout": "",
+            "stderr": f"{codex_bin} not found on PATH.",
+            "body": "",
+            "summary": f"{codex_bin} not found on PATH.",
+            "command": " ".join(cmd),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "exitCode": 1,
+            "stdout": "",
+            "stderr": str(exc),
+            "body": "",
+            "summary": f"Unable to run scheduled Codex job: {exc}",
+            "command": " ".join(cmd),
+        }
+
+    body = ""
+    if output_path.exists():
+        try:
+            body = output_path.read_text(encoding="utf-8")
+        finally:
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
+    if not body:
+        body = proc.stdout or proc.stderr or ""
+
+    return {
+        "ok": proc.returncode == 0,
+        "exitCode": proc.returncode,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        "body": body,
+        "summary": _summarize_checkpoint_response(body),
+        "command": " ".join(cmd),
+        "uses_session_resume": bool(codex_session_id),
+        "codex_session_id": codex_session_id,
+    }
+
+
+def _record_schedule_run_result(job_id: str, run_payload: dict[str, Any]) -> dict[str, Any]:
+    registry = _load_schedule_registry()
+    index, job = _find_schedule_job_index(registry, job_id)
+    updated_job = dict(job)
+    updated_job["updated_at"] = _now_utc()
+    updated_job["last_run"] = run_payload
+    registry["jobs"][index] = updated_job
+    _save_schedule_registry(registry)
+    return updated_job
+
+
+def _create_schedule_codex_job(args: argparse.Namespace) -> dict[str, Any]:
+    prompt = str(getattr(args, "prompt", "")).strip()
+    prompt_file = str(getattr(args, "prompt_file", "")).strip()
+    if bool(prompt) == bool(prompt_file):
+        raise RuntimeError("Provide exactly one of --prompt or --prompt-file.")
+
+    name = str(getattr(args, "name", "")).strip()
+    if not name:
+        raise RuntimeError("--name is required.")
+
+    repo_root = Path(str(getattr(args, "repo_root", "")).strip() or str(Path.cwd())).expanduser().resolve()
+    hour = int(getattr(args, "hour", 9))
+    minute = int(getattr(args, "minute", 0))
+    _validate_schedule_time(hour, minute)
+
+    registry = _load_schedule_registry()
+    existing_names = {str(job.get("name", "")).strip() for job in registry.get("jobs", []) if isinstance(job, dict)}
+    if name in existing_names:
+        raise RuntimeError(f"A scheduled job named '{name}' already exists.")
+
+    job = {
+        "id": "sched-" + uuid.uuid4().hex[:12],
+        "name": name,
+        "kind": "codex",
+        "created_at": _now_utc(),
+        "updated_at": _now_utc(),
+        "schedule": {"hour": hour, "minute": minute},
+        "config": {
+            "repo_root": str(repo_root),
+            "prompt": prompt,
+            "prompt_file": str(Path(prompt_file).expanduser().resolve()) if prompt_file else "",
+            "sandbox": str(getattr(args, "sandbox", "read-only")).strip() or "read-only",
+            "codex_bin": str(getattr(args, "codex_bin", "")).strip(),
+            "codex_config_profile": str(getattr(args, "codex_config_profile", "")).strip(),
+            "codex_session_id": str(getattr(args, "codex_session_id", "")).strip(),
+        },
+        "last_run": {},
+    }
+    registry["jobs"].append(job)
+    path = _save_schedule_registry(registry)
+    payload = _schedule_job_runtime_payload(job)
+    payload["registry_path"] = str(path)
+    return payload
+
+
+def _list_schedule_jobs_payload() -> dict[str, Any]:
+    registry = _load_schedule_registry()
+    jobs = [_schedule_job_runtime_payload(job) for job in registry.get("jobs", []) if isinstance(job, dict)]
+    jobs.sort(key=lambda row: (str(row.get("name", "")).lower(), str(row.get("id", "")).lower()))
+    return {
+        "registry_path": str(_schedule_registry_path()),
+        "jobs": jobs,
+    }
+
+
+def _show_schedule_job_payload(target: str) -> dict[str, Any]:
+    registry = _load_schedule_registry()
+    _, job = _find_schedule_job_index(registry, target)
+    payload = _schedule_job_show_payload(job)
+    payload["registry_path"] = str(_schedule_registry_path())
+    return payload
+
+
+def _enable_schedule_job(job: dict[str, Any], *, hour: int | None = None, minute: int | None = None) -> dict[str, Any]:
+    if not _schedule_platform_supported():
+        return {
+            "ok": False,
+            "message": "Scheduled jobs are only supported on macOS right now.",
+        }
+
+    stored_schedule = _schedule_job_schedule(job)
+    effective_hour = stored_schedule["hour"] if hour is None else hour
+    effective_minute = stored_schedule["minute"] if minute is None else minute
+    _validate_schedule_time(effective_hour, effective_minute)
+
+    plist_path = _schedule_job_plist_path(job)
+    plist_path.parent.mkdir(parents=True, exist_ok=True)
+    _schedule_logs_dir().mkdir(parents=True, exist_ok=True)
+    plist_payload = _schedule_plist_payload(job, hour=effective_hour, minute=effective_minute)
+    with plist_path.open("wb") as handle:
+        plistlib.dump(plist_payload, handle)
+
+    bootout_ok, bootout_message = _maybe_run_schedule_launchctl(
+        ["bootout", _maintenance_launchctl_domain(), str(plist_path)]
+    )
+    bootstrap_ok, bootstrap_message = _maybe_run_schedule_launchctl(
+        ["bootstrap", _maintenance_launchctl_domain(), str(plist_path)]
+    )
+    enable_ok, enable_message = _maybe_run_schedule_launchctl(
+        ["enable", f"{_maintenance_launchctl_domain()}/{_schedule_job_label(job)}"]
+    )
+
+    registry = _load_schedule_registry()
+    index, stored_job = _find_schedule_job_index(registry, str(job.get("id", "")).strip())
+    updated_job = dict(stored_job)
+    updated_job["schedule"] = {"hour": effective_hour, "minute": effective_minute}
+    updated_job["updated_at"] = _now_utc()
+    registry["jobs"][index] = updated_job
+    _save_schedule_registry(registry)
+
+    return {
+        "ok": bootstrap_ok and enable_ok,
+        "job": _schedule_job_runtime_payload(updated_job),
+        "launchctl": {
+            "bootout": {"ok": bootout_ok, "message": bootout_message},
+            "bootstrap": {"ok": bootstrap_ok, "message": bootstrap_message},
+            "enable": {"ok": enable_ok, "message": enable_message},
+        },
+        "message": "Enabled scheduled job." if (bootstrap_ok and enable_ok) else bootstrap_message or enable_message,
+    }
+
+
+def _disable_schedule_job(job: dict[str, Any]) -> dict[str, Any]:
+    plist_path = _schedule_job_plist_path(job)
+    if not plist_path.exists():
+        return {
+            "ok": True,
+            "removed": False,
+            "job": _schedule_job_runtime_payload(job),
+            "message": "Scheduled job is already disabled.",
+        }
+
+    bootout_ok, bootout_message = _maybe_run_schedule_launchctl(
+        ["bootout", _maintenance_launchctl_domain(), str(plist_path)]
+    )
+    try:
+        plist_path.unlink()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "removed": False,
+            "job": _schedule_job_runtime_payload(job),
+            "message": f"Unable to remove scheduled job plist: {exc}",
+            "launchctl": {"bootout": {"ok": bootout_ok, "message": bootout_message}},
+        }
+
+    return {
+        "ok": True,
+        "removed": True,
+        "job": _schedule_job_runtime_payload(job),
+        "message": "Disabled scheduled job.",
+        "launchctl": {"bootout": {"ok": bootout_ok, "message": bootout_message}},
+    }
+
+
+def _run_schedule_job_once(job: dict[str, Any]) -> dict[str, Any]:
+    started_at = _now_utc()
+    result = _run_schedule_codex_job(job)
+    finished_at = _now_utc()
+    run_payload = {
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "ok": bool(result.get("ok")),
+        "exit_code": int(result.get("exitCode", 0)),
+        "summary": str(result.get("summary", "")).strip(),
+    }
+    updated_job = _record_schedule_run_result(str(job.get("id", "")).strip(), run_payload)
+    return {
+        "ok": bool(result.get("ok")),
+        "job": _schedule_job_runtime_payload(updated_job),
+        "run": result,
+    }
+
+
+def _render_schedule_add_report(payload: dict[str, Any]) -> str:
+    schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    lines = [
+        "ORP Scheduled Job Created",
+        "",
+        f"Name: {payload.get('name', '')}",
+        f"Job id: {payload.get('id', '')}",
+        f"Kind: {payload.get('kind', '')}",
+        f"Repo: {payload.get('repo_root', '')}",
+        f"Schedule: daily at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
+        f"Prompt source: {payload.get('prompt_source', '')}",
+        f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
+        f"Registry: {payload.get('registry_path', '')}",
+        "",
+        "Next steps:",
+        f"  orp schedule show {payload.get('name', '')}",
+        f"  orp schedule run {payload.get('name', '')}",
+        f"  orp schedule enable {payload.get('name', '')}",
+    ]
+    return "\n".join(lines)
+
+
+def _render_schedule_list_report(payload: dict[str, Any]) -> str:
+    jobs = payload.get("jobs", []) if isinstance(payload.get("jobs"), list) else []
+    if not jobs:
+        return "No local scheduled jobs are configured."
+    lines = [
+        "ORP Scheduled Jobs",
+        "",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    for job in jobs:
+        schedule = job.get("schedule", {}) if isinstance(job.get("schedule"), dict) else {}
+        lines.extend(
+            [
+                "",
+                f"- {job.get('name', '')} ({job.get('id', '')})",
+                f"  kind: {job.get('kind', '')}",
+                f"  enabled: {'yes' if job.get('enabled') else 'no'}",
+                f"  repo: {job.get('repo_root', '')}",
+                f"  schedule: {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
+                f"  prompt: {job.get('prompt_source', 'inline')}",
+                f"  codex session: {job.get('codex_session_id', '') or 'none'}",
+            ]
+        )
+        last_run = job.get("last_run", {}) if isinstance(job.get("last_run"), dict) else {}
+        if last_run:
+            lines.append(
+                f"  last run: {last_run.get('finished_at', '') or last_run.get('started_at', '')} ({'ok' if last_run.get('ok') else 'failed'})"
+            )
+    return "\n".join(lines)
+
+
+def _render_schedule_show_report(payload: dict[str, Any]) -> str:
+    schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    lines = [
+        "ORP Scheduled Job",
+        "",
+        f"Name: {payload.get('name', '')}",
+        f"Job id: {payload.get('id', '')}",
+        f"Kind: {payload.get('kind', '')}",
+        f"Enabled: {'yes' if payload.get('enabled') else 'no'}",
+        f"Repo: {payload.get('repo_root', '')}",
+        f"Schedule: daily at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
+        f"Prompt source: {payload.get('prompt_source', '')}",
+        f"Prompt file: {payload.get('prompt_file', '') or 'none'}",
+        f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    prompt_error = str(payload.get("prompt_error", "")).strip()
+    if prompt_error:
+        lines.append(f"Prompt error: {prompt_error}")
+    prompt = str(payload.get("resolved_prompt", "")).strip()
+    if prompt:
+        lines.extend(["", "Prompt:", prompt])
+    return "\n".join(lines)
+
+
+def _render_schedule_run_report(payload: dict[str, Any]) -> str:
+    job = payload.get("job", {}) if isinstance(payload.get("job"), dict) else {}
+    run = payload.get("run", {}) if isinstance(payload.get("run"), dict) else {}
+    lines = [
+        "ORP Scheduled Job Run",
+        "",
+        f"Name: {job.get('name', '')}",
+        f"Job id: {job.get('id', '')}",
+        f"Status: {'ok' if payload.get('ok') else 'failed'}",
+        f"Command: {run.get('command', '')}",
+    ]
+    summary = str(run.get("summary", "")).strip()
+    if summary:
+        lines.append(f"Summary: {summary}")
+    return "\n".join(lines)
+
+
+def _render_schedule_enable_report(payload: dict[str, Any]) -> str:
+    job = payload.get("job", {}) if isinstance(payload.get("job"), dict) else {}
+    schedule = job.get("schedule", {}) if isinstance(job.get("schedule"), dict) else {}
+    lines = [
+        "ORP Scheduled Job Enabled",
+        "",
+        f"Name: {job.get('name', '')}",
+        f"Job id: {job.get('id', '')}",
+        f"Schedule: daily at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
+        f"Plist: {job.get('plist_path', '')}",
+        f"Message: {payload.get('message', '')}",
+    ]
+    return "\n".join(lines)
+
+
+def _render_schedule_disable_report(payload: dict[str, Any]) -> str:
+    job = payload.get("job", {}) if isinstance(payload.get("job"), dict) else {}
+    lines = [
+        "ORP Scheduled Job Disabled",
+        "",
+        f"Name: {job.get('name', '')}",
+        f"Job id: {job.get('id', '')}",
+        f"Message: {payload.get('message', '')}",
+    ]
+    return "\n".join(lines)
+
+
+def _render_maintenance_check_report(payload: dict[str, Any]) -> str:
+    update = payload.get("update", {}) if isinstance(payload.get("update"), dict) else {}
+    launchd = payload.get("launchd", {}) if isinstance(payload.get("launchd"), dict) else {}
+    tool = update.get("tool", {}) if isinstance(update.get("tool"), dict) else {}
+    lines = [
+        "ORP Maintenance Check",
+        "",
+        f"Checked at: {payload.get('checked_at', '')}",
+        f"Current version: {tool.get('current_version', 'unknown')}",
+        f"Latest published version: {tool.get('latest_version', 'unknown')}",
+        f"Update status: {str(update.get('status', 'unknown')).replace('_', ' ')}",
+        f"State file: {payload.get('state_path', '')}",
+    ]
+    if launchd.get("enabled"):
+        schedule = launchd.get("schedule", {}) if isinstance(launchd.get("schedule"), dict) else {}
+        lines.append(
+            f"Daily maintenance: enabled at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}"
+        )
+    else:
+        lines.append("Daily maintenance: not enabled")
+        lines.append("Recommended next step: orp maintenance enable --json")
+    if update.get("update_available"):
+        lines.append(f"Recommended update: {update.get('recommended_command', '')}")
+    return "\n".join(lines)
+
+
+def _render_maintenance_status_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Maintenance Status",
+        "",
+        f"Platform supported: {'yes' if payload.get('platform_supported') else 'no'}",
+        f"Enabled: {'yes' if payload.get('enabled') else 'no'}",
+        f"Label: {payload.get('label', '')}",
+        f"LaunchAgent: {payload.get('plist_path', '')}",
+        f"State file: {payload.get('state_path', '')}",
+        f"Last checked at: {payload.get('last_checked_at', '') or 'never'}",
+        f"Check due: {'yes' if payload.get('check_due') else 'no'}",
+    ]
+    schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    if schedule.get("hour") is not None and schedule.get("minute") is not None:
+        lines.append(f"Schedule: daily at {int(schedule['hour']):02d}:{int(schedule['minute']):02d}")
+    if payload.get("cached_update_available"):
+        lines.append(f"Cached update available: yes ({payload.get('cached_latest_version', '')})")
+    else:
+        lines.append("Cached update available: no")
+    return "\n".join(lines)
+
+
+def _render_maintenance_enable_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Maintenance Enable",
+        "",
+        payload.get("message", ""),
+        f"LaunchAgent: {payload.get('plist_path', '')}",
+    ]
+    schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    if schedule.get("hour") is not None and schedule.get("minute") is not None:
+        lines.append(f"Schedule: daily at {int(schedule['hour']):02d}:{int(schedule['minute']):02d}")
+    return "\n".join([line for line in lines if line])
+
+
+def _render_maintenance_disable_report(payload: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "ORP Maintenance Disable",
+            "",
+            str(payload.get("message", "")).strip(),
+        ]
+    ).strip()
 
 
 def _hosted_session_path() -> Path:
@@ -1945,6 +3983,406 @@ def _render_discover_scan_summary(payload: dict[str, Any]) -> str:
         top_repo = payload["repos"][0]["full_name"]
         lines.append(f"- Suggested handoff: `orp collaborate init --github-repo {top_repo}`")
     return "\n".join(lines) + "\n"
+
+
+def _exchange_report_schema_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "spec" / "v1" / "exchange-report.schema.json"
+
+
+def _exchange_id() -> str:
+    return "exchange-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+
+
+def _exchange_root(repo_root: Path) -> Path:
+    return repo_root / "orp" / "exchange"
+
+
+def _exchange_paths(repo_root: Path, exchange_id: str) -> dict[str, Path]:
+    root = _exchange_root(repo_root) / exchange_id
+    return {
+        "root": root,
+        "exchange_json": root / "EXCHANGE.json",
+        "summary_md": root / "EXCHANGE_SUMMARY.md",
+        "transfer_map_md": root / "TRANSFER_MAP.md",
+    }
+
+
+def _exchange_source_workspace(repo_root: Path, source_slug: str) -> Path:
+    return _exchange_root(repo_root) / "_sources" / source_slug
+
+
+def _exchange_local_source_path(raw: str, repo_root: Path) -> Path:
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = (repo_root / path).resolve()
+    return path
+
+
+def _exchange_looks_like_remote_source(raw: str) -> bool:
+    text = str(raw or "").strip()
+    if not text:
+        return False
+    if "://" in text or text.startswith("git@") or text.endswith(".git"):
+        return True
+    return bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", text))
+
+
+def _exchange_remote_url(raw: str) -> str:
+    text = str(raw or "").strip()
+    if "://" in text or text.startswith("git@") or text.endswith(".git"):
+        return text
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", text):
+        return f"https://github.com/{text}.git"
+    raise RuntimeError(f"unsupported exchange source: {text}")
+
+
+def _exchange_run_git(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(args, cwd=str(cwd), capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is required for repository exchange but was not found on PATH.") from exc
+
+
+def _exchange_init_git(source_root: Path) -> None:
+    proc = _exchange_run_git(["git", "init"], cwd=source_root)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "git init failed").strip())
+
+
+EXCHANGE_SKIP_DIR_NAMES = {
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    ".turbo",
+    ".idea",
+    ".vscode",
+}
+
+EXCHANGE_MANIFEST_BASENAMES = {
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "pyproject.toml",
+    "requirements.txt",
+    "Cargo.toml",
+    "Cargo.lock",
+    "go.mod",
+    "go.sum",
+    "Makefile",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    "README.md",
+    "README",
+}
+
+
+def _exchange_language_for_path(path: Path) -> str:
+    suffix = path.suffix.lower()
+    mapping = {
+        ".py": "Python",
+        ".js": "JavaScript",
+        ".mjs": "JavaScript",
+        ".cjs": "JavaScript",
+        ".ts": "TypeScript",
+        ".tsx": "TypeScript",
+        ".jsx": "JavaScript",
+        ".rs": "Rust",
+        ".go": "Go",
+        ".java": "Java",
+        ".kt": "Kotlin",
+        ".swift": "Swift",
+        ".rb": "Ruby",
+        ".php": "PHP",
+        ".sh": "Shell",
+        ".bash": "Shell",
+        ".zsh": "Shell",
+        ".md": "Markdown",
+        ".json": "JSON",
+        ".yml": "YAML",
+        ".yaml": "YAML",
+        ".toml": "TOML",
+        ".html": "HTML",
+        ".css": "CSS",
+        ".cpp": "C++",
+        ".cc": "C++",
+        ".cxx": "C++",
+        ".c": "C",
+        ".h": "C/C++ Header",
+    }
+    return mapping.get(suffix, "")
+
+
+def _exchange_inventory(root: Path) -> dict[str, Any]:
+    top_level_entries: list[dict[str, Any]] = []
+    manifest_files: list[str] = []
+    docs_paths: list[str] = []
+    test_paths: list[str] = []
+    language_counts: dict[str, int] = {}
+    files_scanned = 0
+    dirs_scanned = 0
+
+    if root.exists():
+        for child in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+            if child.name in EXCHANGE_SKIP_DIR_NAMES:
+                continue
+            top_level_entries.append({"name": child.name, "kind": "dir" if child.is_dir() else "file"})
+
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in EXCHANGE_SKIP_DIR_NAMES]
+        dirs_scanned += len(dirs)
+        current_path = Path(current_root)
+        for filename in files:
+            if filename in {".DS_Store"}:
+                continue
+            full = current_path / filename
+            rel = str(full.relative_to(root))
+            files_scanned += 1
+            if filename in EXCHANGE_MANIFEST_BASENAMES:
+                manifest_files.append(rel)
+            lower_rel = rel.lower()
+            if filename.lower().startswith("readme") or lower_rel.startswith("docs/") or lower_rel.endswith(".md"):
+                docs_paths.append(rel)
+            rel_parts = [part.lower() for part in full.relative_to(root).parts]
+            if "tests" in rel_parts or "__tests__" in rel_parts or filename.lower().startswith("test_"):
+                test_paths.append(rel)
+            language = _exchange_language_for_path(full)
+            if language:
+                language_counts[language] = int(language_counts.get(language, 0)) + 1
+
+    top_languages = sorted(
+        [{"language": key, "count": value} for key, value in language_counts.items()],
+        key=lambda row: (-int(row["count"]), str(row["language"])),
+    )
+    return {
+        "top_level_entries": top_level_entries[:40],
+        "manifest_files": sorted(_unique_strings(manifest_files))[:40],
+        "docs_paths": sorted(_unique_strings(docs_paths))[:40],
+        "test_paths": sorted(_unique_strings(test_paths))[:40],
+        "languages": top_languages[:20],
+        "files_scanned": files_scanned,
+        "dirs_scanned": dirs_scanned,
+    }
+
+
+def _exchange_manifest_types(paths: list[str]) -> list[str]:
+    manifest_types: list[str] = []
+    basenames = {Path(path).name for path in paths}
+    if "package.json" in basenames:
+        manifest_types.append("node")
+    if "pyproject.toml" in basenames or "requirements.txt" in basenames:
+        manifest_types.append("python")
+    if "Cargo.toml" in basenames:
+        manifest_types.append("rust")
+    if "go.mod" in basenames:
+        manifest_types.append("go")
+    if "Dockerfile" in basenames or "docker-compose.yml" in basenames or "docker-compose.yaml" in basenames:
+        manifest_types.append("container")
+    return manifest_types
+
+
+def _exchange_relation(host_root: Path, source_root: Path, source_inventory: dict[str, Any]) -> dict[str, Any]:
+    if host_root.resolve() == source_root.resolve():
+        return {
+            "host_repo_name": host_root.name,
+            "source_repo_name": source_root.name,
+            "same_root": True,
+            "shared_languages": [row.get("language", "") for row in source_inventory.get("languages", []) if row.get("language")],
+            "shared_manifest_types": _exchange_manifest_types(source_inventory.get("manifest_files", [])),
+            "shared_top_level_entries": [row.get("name", "") for row in source_inventory.get("top_level_entries", []) if row.get("name")],
+        }
+
+    host_inventory = _exchange_inventory(host_root)
+    source_languages = {str(row.get("language", "")).strip() for row in source_inventory.get("languages", []) if str(row.get("language", "")).strip()}
+    host_languages = {str(row.get("language", "")).strip() for row in host_inventory.get("languages", []) if str(row.get("language", "")).strip()}
+    source_manifests = set(_exchange_manifest_types(source_inventory.get("manifest_files", [])))
+    host_manifests = set(_exchange_manifest_types(host_inventory.get("manifest_files", [])))
+    source_top = {str(row.get("name", "")).strip() for row in source_inventory.get("top_level_entries", []) if str(row.get("name", "")).strip()}
+    host_top = {str(row.get("name", "")).strip() for row in host_inventory.get("top_level_entries", []) if str(row.get("name", "")).strip()}
+    return {
+        "host_repo_name": host_root.name,
+        "source_repo_name": source_root.name,
+        "same_root": False,
+        "shared_languages": sorted(source_languages & host_languages),
+        "shared_manifest_types": sorted(source_manifests & host_manifests),
+        "shared_top_level_entries": sorted(source_top & host_top)[:20],
+    }
+
+
+def _exchange_suggested_focus(source_inventory: dict[str, Any], relation: dict[str, Any]) -> list[str]:
+    focus: list[str] = [
+        "Capture the repo thesis and what problem the source project is solving.",
+        "Map the source project's architecture, boundaries, and major modules.",
+        "Identify reusable workflow, governance, or artifact patterns.",
+        "Record how the source sharpens the current project's direction and momentum.",
+    ]
+    if relation.get("shared_languages"):
+        focus.append("Compare implementation patterns in the shared language stack.")
+    if relation.get("shared_manifest_types"):
+        focus.append("Compare build, test, and runtime surfaces across the shared toolchain.")
+    if source_inventory.get("test_paths"):
+        focus.append("Inspect how the source project expresses validation and testing discipline.")
+    if source_inventory.get("docs_paths"):
+        focus.append("Extract durable knowledge from the source project's docs and internal explanations.")
+    return _unique_strings(focus)
+
+
+def _exchange_summary_markdown(payload: dict[str, Any]) -> str:
+    source = payload.get("source", {}) if isinstance(payload.get("source"), dict) else {}
+    inventory = payload.get("inventory", {}) if isinstance(payload.get("inventory"), dict) else {}
+    relation = payload.get("relation", {}) if isinstance(payload.get("relation"), dict) else {}
+    lines: list[str] = []
+    lines.append(f"# ORP Knowledge Exchange `{payload.get('exchange_id', '')}`")
+    lines.append("")
+    lines.append("## Headline")
+    lines.append("")
+    lines.append(f"- source: `{source.get('requested', '')}`")
+    lines.append(f"- mode: `{source.get('mode', '')}`")
+    lines.append(f"- local_path: `{source.get('local_path', '')}`")
+    lines.append(f"- git_present: `{str(bool(source.get('git_present'))).lower()}`")
+    lines.append(f"- git_initialized_by_orp: `{str(bool(source.get('git_initialized_by_orp'))).lower()}`")
+    lines.append(f"- files_scanned: `{inventory.get('files_scanned', 0)}`")
+    lines.append(f"- dirs_scanned: `{inventory.get('dirs_scanned', 0)}`")
+    lines.append("")
+    lines.append("## Inventory")
+    lines.append("")
+    top_languages = inventory.get("languages", [])
+    if isinstance(top_languages, list) and top_languages:
+        lines.append("- top_languages:")
+        for row in top_languages[:8]:
+            if not isinstance(row, dict):
+                continue
+            lines.append(f"  - `{row.get('language', '')}`: {row.get('count', 0)} files")
+    manifests = inventory.get("manifest_files", [])
+    if isinstance(manifests, list) and manifests:
+        lines.append("- manifest_files:")
+        for path in manifests[:10]:
+            lines.append(f"  - `{path}`")
+    docs_paths = inventory.get("docs_paths", [])
+    if isinstance(docs_paths, list) and docs_paths:
+        lines.append("- docs_paths:")
+        for path in docs_paths[:10]:
+            lines.append(f"  - `{path}`")
+    test_paths = inventory.get("test_paths", [])
+    if isinstance(test_paths, list) and test_paths:
+        lines.append("- test_paths:")
+        for path in test_paths[:10]:
+            lines.append(f"  - `{path}`")
+    lines.append("")
+    lines.append("## Relationship To Current Project")
+    lines.append("")
+    lines.append(f"- current_project: `{relation.get('host_repo_name', '')}`")
+    shared_languages = relation.get("shared_languages", [])
+    shared_manifest_types = relation.get("shared_manifest_types", [])
+    shared_top = relation.get("shared_top_level_entries", [])
+    lines.append(f"- shared_languages: `{', '.join(shared_languages) or 'none'}`")
+    lines.append(f"- shared_manifest_types: `{', '.join(shared_manifest_types) or 'none'}`")
+    lines.append(f"- shared_top_level_entries: `{', '.join(shared_top) or 'none'}`")
+    lines.append("")
+    lines.append("## Suggested Focus")
+    lines.append("")
+    for row in payload.get("suggested_focus", [])[:10]:
+        lines.append(f"- {row}")
+    lines.append("")
+    lines.append("## Notes")
+    lines.append("")
+    lines.append("- Exchange artifacts are structured synthesis aids, not evidence by themselves.")
+    lines.append("- The point is depth: what this repo knows, how it is organized, and what can transfer.")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _exchange_transfer_map_markdown(payload: dict[str, Any]) -> str:
+    source = payload.get("source", {}) if isinstance(payload.get("source"), dict) else {}
+    relation = payload.get("relation", {}) if isinstance(payload.get("relation"), dict) else {}
+    inventory = payload.get("inventory", {}) if isinstance(payload.get("inventory"), dict) else {}
+    lines: list[str] = []
+    lines.append(f"# Transfer Map: {relation.get('source_repo_name', source.get('label', 'source'))}")
+    lines.append("")
+    lines.append("## How This Could Help Us")
+    lines.append("")
+    lines.append("_Use this note to capture what the source repository teaches, what patterns can transfer, and what momentum it gives the current project._")
+    lines.append("")
+    lines.append("## Shared Ground")
+    lines.append("")
+    lines.append(f"- shared_languages: `{', '.join(relation.get('shared_languages', [])) or 'none'}`")
+    lines.append(f"- shared_manifest_types: `{', '.join(relation.get('shared_manifest_types', [])) or 'none'}`")
+    lines.append(f"- shared_top_level_entries: `{', '.join(relation.get('shared_top_level_entries', [])) or 'none'}`")
+    lines.append("")
+    lines.append("## Source Strengths To Inspect")
+    lines.append("")
+    if inventory.get("docs_paths"):
+        lines.append("- documentation and explanation surfaces")
+    if inventory.get("test_paths"):
+        lines.append("- validation and testing discipline")
+    if inventory.get("manifest_files"):
+        lines.append("- runtime, build, and dependency surfaces")
+    lines.append("- architecture, boundaries, and module layout")
+    lines.append("- workflow and governance choices")
+    lines.append("")
+    lines.append("## Project Momentum")
+    lines.append("")
+    lines.append("_What does this repository suggest about where our current project could go next? What does it sharpen, validate, or challenge?_")
+    lines.append("")
+    lines.append("## Optional Action Paths")
+    lines.append("")
+    lines.append("_Capture implications for context. Do not execute automatically unless explicitly requested._")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _exchange_source_payload(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]:
+    requested = str(args.source).strip()
+    local_candidate = _exchange_local_source_path(requested, repo_root)
+    git_initialized_by_orp = False
+    cloned_by_orp = False
+    remote_url = ""
+
+    if local_candidate.exists():
+        if not local_candidate.is_dir():
+            raise RuntimeError(f"exchange source is not a directory: {local_candidate}")
+        local_path = local_candidate
+        git_present = _git_repo_present(local_path)
+        mode = "local_git" if git_present else "local_directory"
+        if not git_present and bool(getattr(args, "allow_git_init", False)):
+            _exchange_init_git(local_path)
+            git_present = _git_repo_present(local_path)
+            git_initialized_by_orp = git_present
+            if git_present:
+                mode = "local_git"
+    elif _exchange_looks_like_remote_source(requested):
+        remote_url = _exchange_remote_url(requested)
+        source_slug = _slug_token(requested, fallback="source")
+        local_path = _exchange_source_workspace(repo_root, source_slug)
+        if not local_path.exists():
+            proc = _exchange_run_git(["git", "clone", "--depth", "1", remote_url, str(local_path)], cwd=repo_root)
+            if proc.returncode != 0:
+                raise RuntimeError((proc.stderr or proc.stdout or "git clone failed").strip())
+            cloned_by_orp = True
+        mode = "remote_git"
+        git_present = _git_repo_present(local_path)
+    else:
+        raise RuntimeError(f"source does not exist locally and is not a supported remote git reference: {requested}")
+
+    git_context = _git_home_context(local_path)
+    return {
+        "requested": requested,
+        "mode": mode,
+        "label": local_path.name,
+        "local_path": str(local_path),
+        "remote_url": remote_url,
+        "git_present": git_present,
+        "git_initialized_by_orp": git_initialized_by_orp,
+        "cloned_by_orp": cloned_by_orp,
+        "git": git_context,
+    }
 
 
 def _orp_repo_root() -> Path:
@@ -6171,11 +8609,13 @@ def _about_payload() -> dict[str, Any]:
         "discovery": {
             "llms_txt": "llms.txt",
             "readme": "README.md",
+            "start_here": "docs/START_HERE.md",
             "protocol": "PROTOCOL.md",
             "install": "INSTALL.md",
             "agent_integration": "AGENT_INTEGRATION.md",
             "agent_loop": "docs/AGENT_LOOP.md",
             "discover": "docs/DISCOVER.md",
+            "exchange": "docs/EXCHANGE.md",
             "profile_packs": "docs/PROFILE_PACKS.md",
         },
         "artifacts": {
@@ -6186,6 +8626,9 @@ def _about_payload() -> dict[str, Any]:
             "packet_md": "orp/packets/<packet_id>.md",
             "discovery_scan_json": "orp/discovery/github/<scan_id>/SCAN.json",
             "discovery_scan_md": "orp/discovery/github/<scan_id>/SCAN_SUMMARY.md",
+            "exchange_json": "orp/exchange/<exchange_id>/EXCHANGE.json",
+            "exchange_summary_md": "orp/exchange/<exchange_id>/EXCHANGE_SUMMARY.md",
+            "exchange_transfer_map_md": "orp/exchange/<exchange_id>/TRANSFER_MAP.md",
         },
         "schemas": {
             "config": "spec/v1/orp.config.schema.json",
@@ -6194,6 +8637,7 @@ def _about_payload() -> dict[str, Any]:
             "kernel_proposal": "spec/v1/kernel-proposal.schema.json",
             "kernel_extension": "spec/v1/kernel-extension.schema.json",
             "youtube_source": "spec/v1/youtube-source.schema.json",
+            "exchange_report": "spec/v1/exchange-report.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
             "link_project": "spec/v1/link-project.schema.json",
             "link_session": "spec/v1/link-session.schema.json",
@@ -6221,14 +8665,28 @@ def _about_payload() -> dict[str, Any]:
             },
             {
                 "id": "workspace",
-                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and worker operations.",
+                "description": "Hosted workspace auth, first-class workspace records, ideas, features, worlds, checkpoints, and worker operations.",
                 "entrypoints": [
                     ["auth", "login"],
                     ["whoami"],
+                    ["workspaces", "list"],
+                    ["workspaces", "show"],
+                    ["workspaces", "tabs"],
                     ["ideas", "list"],
                     ["world", "bind"],
                     ["checkpoint", "queue"],
                     ["agent", "work"],
+                ],
+            },
+            {
+                "id": "secrets",
+                "description": "Hosted secret store for global API key inventory, provider metadata, and project-scoped resolution.",
+                "entrypoints": [
+                    ["secrets", "list"],
+                    ["secrets", "show"],
+                    ["secrets", "add"],
+                    ["secrets", "bind"],
+                    ["secrets", "resolve"],
                 ],
             },
             {
@@ -6256,11 +8714,41 @@ def _about_payload() -> dict[str, Any]:
                 ],
             },
             {
+                "id": "maintenance",
+                "description": "Machine-local ORP update checks and daily maintenance scheduling.",
+                "entrypoints": [
+                    ["update"],
+                    ["maintenance", "check"],
+                    ["maintenance", "status"],
+                    ["maintenance", "enable"],
+                    ["maintenance", "disable"],
+                ],
+            },
+            {
+                "id": "schedule",
+                "description": "Local scheduled Codex jobs with one-shot runs and macOS launchd enable/disable control.",
+                "entrypoints": [
+                    ["schedule", "add", "codex"],
+                    ["schedule", "list"],
+                    ["schedule", "show"],
+                    ["schedule", "run"],
+                    ["schedule", "enable"],
+                    ["schedule", "disable"],
+                ],
+            },
+            {
                 "id": "discover",
                 "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
                 "entrypoints": [
                     ["discover", "profile", "init"],
                     ["discover", "github", "scan"],
+                ],
+            },
+            {
+                "id": "exchange",
+                "description": "Structured local-first synthesis of another repository or project directory into exchange artifacts and transfer maps.",
+                "entrypoints": [
+                    ["exchange", "repo", "synthesize"],
                 ],
             },
             {
@@ -6324,6 +8812,17 @@ def _about_payload() -> dict[str, Any]:
         "commands": [
             {"name": "home", "path": ["home"], "json_output": True},
             {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "update", "path": ["update"], "json_output": True},
+            {"name": "maintenance_check", "path": ["maintenance", "check"], "json_output": True},
+            {"name": "maintenance_status", "path": ["maintenance", "status"], "json_output": True},
+            {"name": "maintenance_enable", "path": ["maintenance", "enable"], "json_output": True},
+            {"name": "maintenance_disable", "path": ["maintenance", "disable"], "json_output": True},
+            {"name": "schedule_add_codex", "path": ["schedule", "add", "codex"], "json_output": True},
+            {"name": "schedule_list", "path": ["schedule", "list"], "json_output": True},
+            {"name": "schedule_show", "path": ["schedule", "show"], "json_output": True},
+            {"name": "schedule_run", "path": ["schedule", "run"], "json_output": True},
+            {"name": "schedule_enable", "path": ["schedule", "enable"], "json_output": True},
+            {"name": "schedule_disable", "path": ["schedule", "disable"], "json_output": True},
             {"name": "kernel_validate", "path": ["kernel", "validate"], "json_output": True},
             {"name": "kernel_scaffold", "path": ["kernel", "scaffold"], "json_output": True},
             {"name": "kernel_stats", "path": ["kernel", "stats"], "json_output": True},
@@ -6334,6 +8833,29 @@ def _about_payload() -> dict[str, Any]:
             {"name": "auth_verify", "path": ["auth", "verify"], "json_output": True},
             {"name": "auth_logout", "path": ["auth", "logout"], "json_output": True},
             {"name": "whoami", "path": ["whoami"], "json_output": True},
+            {"name": "mode_list", "path": ["mode", "list"], "json_output": True},
+            {"name": "mode_show", "path": ["mode", "show"], "json_output": True},
+            {"name": "mode_nudge", "path": ["mode", "nudge"], "json_output": True},
+            {"name": "secrets_list", "path": ["secrets", "list"], "json_output": True},
+            {"name": "secrets_show", "path": ["secrets", "show"], "json_output": True},
+            {"name": "secrets_add", "path": ["secrets", "add"], "json_output": True},
+            {"name": "secrets_ensure", "path": ["secrets", "ensure"], "json_output": True},
+            {"name": "secrets_keychain_list", "path": ["secrets", "keychain-list"], "json_output": True},
+            {"name": "secrets_keychain_show", "path": ["secrets", "keychain-show"], "json_output": True},
+            {"name": "secrets_sync_keychain", "path": ["secrets", "sync-keychain"], "json_output": True},
+            {"name": "secrets_update", "path": ["secrets", "update"], "json_output": True},
+            {"name": "secrets_archive", "path": ["secrets", "archive"], "json_output": True},
+            {"name": "secrets_bind", "path": ["secrets", "bind"], "json_output": True},
+            {"name": "secrets_unbind", "path": ["secrets", "unbind"], "json_output": True},
+            {"name": "secrets_resolve", "path": ["secrets", "resolve"], "json_output": True},
+            {"name": "workspaces_list", "path": ["workspaces", "list"], "json_output": True},
+            {"name": "workspaces_show", "path": ["workspaces", "show"], "json_output": True},
+            {"name": "workspaces_tabs", "path": ["workspaces", "tabs"], "json_output": True},
+            {"name": "workspaces_timeline", "path": ["workspaces", "timeline"], "json_output": True},
+            {"name": "workspaces_add", "path": ["workspaces", "add"], "json_output": True},
+            {"name": "workspaces_update", "path": ["workspaces", "update"], "json_output": True},
+            {"name": "workspaces_push_state", "path": ["workspaces", "push-state"], "json_output": True},
+            {"name": "workspaces_add_event", "path": ["workspaces", "add-event"], "json_output": True},
             {"name": "ideas_list", "path": ["ideas", "list"], "json_output": True},
             {"name": "idea_show", "path": ["idea", "show"], "json_output": True},
             {"name": "idea_add", "path": ["idea", "add"], "json_output": True},
@@ -6373,6 +8895,7 @@ def _about_payload() -> dict[str, Any]:
             {"name": "agent_work", "path": ["agent", "work"], "json_output": True},
             {"name": "discover_profile_init", "path": ["discover", "profile", "init"], "json_output": True},
             {"name": "discover_github_scan", "path": ["discover", "github", "scan"], "json_output": True},
+            {"name": "exchange_repo_synthesize", "path": ["exchange", "repo", "synthesize"], "json_output": True},
             {"name": "collaborate_init", "path": ["collaborate", "init"], "json_output": True},
             {"name": "collaborate_workflows", "path": ["collaborate", "workflows"], "json_output": True},
             {"name": "collaborate_gates", "path": ["collaborate", "gates"], "json_output": True},
@@ -6412,12 +8935,15 @@ def _about_payload() -> dict[str, Any]:
             "Kernel evolution in ORP should stay explicit: observe real usage, propose changes, and migrate artifacts through versioned CLI surfaces rather than silent agent mutation.",
             "YouTube inspection is a built-in ORP ability exposed through `orp youtube inspect`, returning public metadata plus full transcript text and segments whenever public caption tracks are available.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
+            "Knowledge exchange is a built-in ORP ability exposed through `orp exchange repo synthesize`, producing structured exchange artifacts and transfer maps for local or remote source repositories.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
+            "Agent modes are lightweight optional overlays for taste, perspective shifts, and fresh movement; `orp mode nudge sleek-minimal-progressive --json` gives agents a deterministic reminder they can call on when they want a deeper, wider, top-down, or rotated lens without changing ORP's core artifact boundaries.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
+            "Hosted secret inventory remains the canonical source of truth, while the local macOS Keychain cache is inspectable and usable through `orp secrets list`, `orp secrets ensure`, `orp secrets keychain-list`, `orp secrets sync-keychain`, and `orp secrets resolve --local-first`.",
             "Machine runner identity, heartbeat, hosted sync, prompt-job execution, and lease control are built into ORP through `orp runner status`, `orp runner enable`, `orp runner disable`, `orp runner heartbeat`, `orp runner sync`, `orp runner work`, `orp runner cancel`, and `orp runner retry`.",
             "Repo governance is built into ORP through `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup`.",
-            "Hosted workspace operations are built directly into ORP under auth/ideas/feature/world/checkpoint/agent.",
+            "Hosted workspace operations are built directly into ORP under `orp workspaces ...`, plus the linked auth/ideas/feature/world/checkpoint/agent surfaces.",
         ],
         "packs": packs,
     }
@@ -6493,6 +9019,8 @@ def _git_home_context(repo_root: Path) -> dict[str, Any]:
 def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
     about = _about_payload()
     collaboration = _collaboration_workflow_payload(repo_root)
+    maintenance = _maintenance_agent_status()
+    schedules = _list_schedule_jobs_payload()
     config_path = Path(config_arg)
     if not config_path.is_absolute():
         config_path = repo_root / config_path
@@ -6512,7 +9040,58 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
     last_packet_id = str(state.get("last_packet_id", "")).strip() if isinstance(state, dict) else ""
     runtime_initialized = state_exists or (repo_root / "orp").exists()
 
+    daily_loop = [
+        {
+            "label": "Inspect the saved workspace ledger inventory",
+            "command": "orp workspace list",
+        },
+        {
+            "label": "Print exact copyable crash-recovery commands for the main workspace",
+            "command": "orp workspace tabs main",
+        },
+        {
+            "label": "Add a new provider key interactively when you need one",
+            "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
+        },
+        {
+            "label": "Create a local checkpoint commit",
+            "command": 'orp checkpoint create -m "capture loop state" --json',
+        },
+        {
+            "label": "Inspect the exact live frontier point",
+            "command": "orp frontier state --json",
+        },
+        {
+            "label": "Inspect local scheduled Codex jobs",
+            "command": "orp schedule list --json",
+        },
+        {
+            "label": "Get an optional creativity/perspective nudge",
+            "command": "orp mode nudge sleek-minimal-progressive --json",
+        },
+    ]
+
     quick_actions = [
+        {
+            "label": "Inspect the saved workspace ledger inventory",
+            "command": "orp workspace list",
+        },
+        {
+            "label": "Print exact copyable crash-recovery commands for the main workspace",
+            "command": "orp workspace tabs main",
+        },
+        {
+            "label": "Inspect the saved tabs in the main workspace ledger",
+            "command": "orp workspace tabs main",
+        },
+        {
+            "label": "Add a saved path/session directly to the main workspace ledger",
+            "command": 'orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"',
+        },
+        {
+            "label": "Remove a saved path/session directly from the main workspace ledger",
+            "command": "orp workspace remove-tab main --path /absolute/path/to/project",
+        },
         {
             "label": "Initialize a frontier version stack for this repo",
             "command": "orp frontier init --program-id <program-id> --json",
@@ -6524,6 +9103,34 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Inspect the current hosted workspace identity",
             "command": "orp whoami --json",
+        },
+        {
+            "label": "Get an optional creative perspective nudge for agent work",
+            "command": "orp mode nudge sleek-minimal-progressive --json",
+        },
+        {
+            "label": "List first-class hosted workspaces",
+            "command": "orp workspaces list --json",
+        },
+        {
+            "label": "Inspect the global ORP secret inventory",
+            "command": "orp secrets list --json",
+        },
+        {
+            "label": "Reuse a saved provider key or prompt for it and save it for this project",
+            "command": "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
+        },
+        {
+            "label": "List locally cached Keychain-backed secrets on this Mac",
+            "command": "orp secrets keychain-list --json",
+        },
+        {
+            "label": "Sync one hosted secret into the local macOS Keychain",
+            "command": "orp secrets sync-keychain <alias-or-id> --json",
+        },
+        {
+            "label": "Resolve one provider secret for the current project with local-first lookup",
+            "command": "orp secrets resolve --provider openai --reveal --local-first --json",
         },
         {
             "label": "Inspect a YouTube video and ingest full public transcript context",
@@ -6544,6 +9151,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Scaffold a discovery profile for GitHub scanning",
             "command": "orp discover profile init --json",
+        },
+        {
+            "label": "Deeply synthesize another repo or local project into exchange artifacts",
+            "command": "orp exchange repo synthesize /path/to/source --json",
         },
         {
             "label": "Inspect local repo governance status",
@@ -6569,13 +9180,42 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "label": "Inspect machine-readable capability surface",
             "command": "orp about --json",
         },
+        {
+            "label": "Inspect ORP maintenance and cached update state",
+            "command": "orp maintenance status --json",
+        },
+        {
+            "label": "Run an ORP maintenance check now",
+            "command": "orp maintenance check --json",
+        },
     ]
+    if schedules.get("jobs"):
+        quick_actions.append(
+            {
+                "label": "List local scheduled Codex jobs",
+                "command": "orp schedule list --json",
+            }
+        )
+    else:
+        quick_actions.append(
+            {
+                "label": "Create one scheduled Codex job",
+                "command": 'orp schedule add codex --name <name> --prompt "Summarize this repo" --json',
+            }
+        )
     if not runtime_initialized:
         quick_actions.insert(
             0,
             {
                 "label": "Initialize ORP repo governance here",
                 "command": "orp init",
+            },
+        )
+        quick_actions.insert(
+            1,
+            {
+                "label": "Add a new provider key interactively",
+                "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
             },
         )
     else:
@@ -6652,19 +9292,26 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             9,
             {
+                "label": "Add a new provider key interactively",
+                "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
+            },
+        )
+        quick_actions.insert(
+            10,
+            {
                 "label": "Inspect machine runner state",
                 "command": "orp runner status --json",
             },
         )
         quick_actions.insert(
-            10,
+            11,
             {
                 "label": "Inspect and repair governance health",
                 "command": "orp doctor --json",
             },
         )
         quick_actions.insert(
-            11,
+            12,
             {
                 "label": "Inspect safe cleanup candidates",
                 "command": "orp cleanup --json",
@@ -6684,6 +9331,29 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                 "command": "orp report summary --json",
             }
         )
+    if bool(maintenance.get("cached_update_available")):
+        quick_actions.insert(
+            0,
+            {
+                "label": "Update ORP to the latest published release",
+                "command": "orp update --yes",
+            },
+        )
+    elif bool(maintenance.get("check_due")):
+        quick_actions.insert(
+            0,
+            {
+                "label": "Refresh ORP maintenance and update state",
+                "command": "orp maintenance check --json",
+            },
+        )
+    if _maintenance_platform_supported() and not bool(maintenance.get("enabled")):
+        quick_actions.append(
+            {
+                "label": "Enable daily ORP maintenance on this Mac",
+                "command": "orp maintenance enable --json",
+            }
+        )
 
     return {
         "tool": about["tool"],
@@ -6700,18 +9370,55 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "last_run_id": last_run_id,
             "last_packet_id": last_packet_id,
         },
+        "maintenance": maintenance,
+        "schedule": schedules,
+        "daily_loop": daily_loop,
         "abilities": [
             {
                 "id": "workspace",
-                "description": "Hosted workspace auth, ideas, features, worlds, checkpoints, and runner-first worker operations.",
+                "description": "Saved workspace ledgers, copyable recovery commands, and direct add/remove flows for paths and Codex or Claude resume commands.",
+                "entrypoints": [
+                    "orp workspace list",
+                    "orp workspace tabs main",
+                    'orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"',
+                    "orp workspace remove-tab main --path /absolute/path/to/project",
+                    "orp workspace sync main",
+                ],
+            },
+            {
+                "id": "hosted",
+                "description": "Hosted identity, ideas, first-class workspace records, runner lanes, and control-plane status.",
                 "entrypoints": [
                     "orp auth login",
                     "orp whoami --json",
                     "orp ideas list --json",
-                    "orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json",
-                    "orp checkpoint queue --idea-id <idea-id> --json",
-                    "orp runner work --once --json",
+                    "orp workspaces list --json",
+                    "orp runner status --json",
                     "orp agent work --once --json",
+                ],
+            },
+            {
+                "id": "modes",
+                "description": "Lightweight optional cognitive overlays for taste, creativity, perspective shifts, and exploratory momentum.",
+                "entrypoints": [
+                    "orp mode list --json",
+                    "orp mode show sleek-minimal-progressive --json",
+                    "orp mode nudge sleek-minimal-progressive --json",
+                ],
+            },
+            {
+                "id": "secrets",
+                "description": "Saved API keys and tokens, with create-if-missing flows, optional local macOS Keychain caching, and project-scoped resolution.",
+                "entrypoints": [
+                    "orp secrets list --json",
+                    "orp secrets show <alias-or-id> --json",
+                    "orp secrets add --alias <alias> --provider <provider> --current-project",
+                    "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
+                    "orp secrets keychain-list --json",
+                    "orp secrets keychain-show <alias-or-id> --json",
+                    "orp secrets sync-keychain <alias-or-id> --json",
+                    "orp secrets bind <alias-or-id> --idea-id <idea-id> --json",
+                    "orp secrets resolve --provider <provider> --reveal --local-first --json",
                 ],
             },
             {
@@ -6738,11 +9445,41 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                 ],
             },
             {
+                "id": "maintenance",
+                "description": "Machine-local ORP update checks and daily launchd scheduling on macOS.",
+                "entrypoints": [
+                    "orp update --json",
+                    "orp maintenance check --json",
+                    "orp maintenance status --json",
+                    "orp maintenance enable --json",
+                    "orp maintenance disable --json",
+                ],
+            },
+            {
+                "id": "schedule",
+                "description": "Local scheduled Codex jobs with one-shot runs and macOS launchd enable/disable control.",
+                "entrypoints": [
+                    "orp schedule add codex --name <name> --prompt <prompt> --json",
+                    "orp schedule list --json",
+                    "orp schedule show <name-or-id> --json",
+                    "orp schedule run <name-or-id> --json",
+                    "orp schedule enable <name-or-id> --json",
+                    "orp schedule disable <name-or-id> --json",
+                ],
+            },
+            {
                 "id": "discover",
                 "description": "Profile-based GitHub discovery for repos, issues, and people signals.",
                 "entrypoints": [
                     "orp discover profile init --json",
                     f"orp discover github scan --profile {DEFAULT_DISCOVER_PROFILE} --json",
+                ],
+            },
+            {
+                "id": "exchange",
+                "description": "Structured local-first synthesis of another repo or project directory into exchange artifacts and transfer maps.",
+                "entrypoints": [
+                    "orp exchange repo synthesize /path/to/source --json",
                 ],
             },
             {
@@ -6806,6 +9543,8 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     tool = payload.get("tool", {})
     repo = payload.get("repo", {})
     runtime = payload.get("runtime", {})
+    maintenance = payload.get("maintenance", {})
+    daily_loop = payload.get("daily_loop", [])
     abilities = payload.get("abilities", [])
     collaboration = payload.get("collaboration", {})
     packs = payload.get("packs", [])
@@ -6814,7 +9553,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
 
     lines: list[str] = []
     lines.append(f"ORP {tool.get('version', 'unknown')}")
-    lines.append("Open Research Protocol CLI")
+    lines.append("Agent-first CLI for workspace ledgers, secrets, scheduling, governed execution, and research workflows.")
     lines.append("")
     lines.append("Repo")
     lines.append(f"  root: {repo.get('root_path', '')}")
@@ -6844,7 +9583,36 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     lines.append(f"  last_packet_id: {last_packet_id or '(none)'}")
 
     lines.append("")
-    lines.append("Abilities")
+    lines.append("Maintenance")
+    lines.append(f"  enabled: {'yes' if maintenance.get('enabled') else 'no'}")
+    lines.append(f"  last_checked_at: {maintenance.get('last_checked_at', '') or 'never'}")
+    lines.append(f"  check_due: {'yes' if maintenance.get('check_due') else 'no'}")
+    if maintenance.get("cached_update_available"):
+        latest = str(maintenance.get("cached_latest_version", "")).strip() or "unknown"
+        lines.append(f"  cached_update_available: yes ({latest})")
+    else:
+        lines.append("  cached_update_available: no")
+    schedule = maintenance.get("schedule", {})
+    if isinstance(schedule, dict) and schedule.get("hour") is not None and schedule.get("minute") is not None:
+        lines.append(f"  schedule: daily at {int(schedule['hour']):02d}:{int(schedule['minute']):02d}")
+    if isinstance(maintenance, dict) and isinstance(maintenance.get("state_path"), str):
+        lines.append(f"  state: {maintenance.get('state_path', '')}")
+
+    lines.append("")
+    lines.append("Daily Loop")
+    if isinstance(daily_loop, list):
+        for row in daily_loop:
+            if not isinstance(row, dict):
+                continue
+            label = str(row.get("label", "")).strip()
+            command = str(row.get("command", "")).strip()
+            if not label or not command:
+                continue
+            lines.append(f"  - {label}")
+            lines.append(f"    {command}")
+
+    lines.append("")
+    lines.append("Command Families")
     if isinstance(abilities, list) and abilities:
         for row in abilities:
             if not isinstance(row, dict):
@@ -6854,6 +9622,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
             lines.append(f"  - {ability_id}")
             if desc:
                 lines.append(f"    {desc}")
+
     lines.append("")
     lines.append("Collaboration")
     lines.append(
@@ -6864,36 +9633,18 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     )
     workflows = collaboration.get("workflows", [])
     if isinstance(workflows, list):
-        for row in workflows[:3]:
+        for row in workflows[:2]:
             if not isinstance(row, dict):
                 continue
             lines.append(
                 f"  - {row.get('id', '')}: {_truncate(str(row.get('description', '')).strip(), limit=64)}"
             )
-        if len(workflows) > 3:
+        if len(workflows) > 2:
             lines.append("  - ... run `orp collaborate workflows --json` for the full list")
 
     lines.append("")
-    lines.append("Advanced Bundles")
-    if isinstance(packs, list) and packs:
-        for pack in packs:
-            if not isinstance(pack, dict):
-                continue
-            pack_id = str(pack.get("id", "")).strip()
-            version = str(pack.get("version", "")).strip()
-            desc = _truncate(str(pack.get("description", "")).strip())
-            title = f"  - {pack_id}"
-            if version:
-                title += f" ({version})"
-            lines.append(title)
-            if desc:
-                lines.append(f"    {desc}")
-    else:
-        lines.append("  (no local internal bundles discovered)")
-
-    lines.append("")
     lines.append("Discovery")
-    for key in ["readme", "protocol", "agent_integration", "agent_loop", "discover", "profile_packs"]:
+    for key in ["readme", "start_here", "protocol", "agent_integration", "agent_loop", "discover", "profile_packs"]:
         value = discovery.get(key)
         if isinstance(value, str) and value:
             lines.append(f"  {key}: {value}")
@@ -6901,7 +9652,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     lines.append("")
     lines.append("Quick Actions")
     if isinstance(quick_actions, list):
-        for row in quick_actions:
+        for row in quick_actions[:14]:
             if not isinstance(row, dict):
                 continue
             label = str(row.get("label", "")).strip()
@@ -6910,6 +9661,9 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
                 continue
             lines.append(f"  - {label}")
             lines.append(f"    {command}")
+        remaining = max(len(quick_actions) - 14, 0)
+        if remaining:
+            lines.append(f"  - ... and {remaining} more in `orp home --json`")
 
     lines.append("")
     lines.append("Tip")
@@ -10087,6 +12841,66 @@ def cmd_discover_github_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_exchange_repo_synthesize(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    exchange_id = str(getattr(args, "exchange_id", "") or "").strip() or _exchange_id()
+    source = _exchange_source_payload(repo_root, args)
+    source_root = Path(str(source.get("local_path", "")).strip()).resolve()
+    inventory = _exchange_inventory(source_root)
+    relation = _exchange_relation(repo_root, source_root, inventory)
+    suggested_focus = _exchange_suggested_focus(inventory, relation)
+    paths = _exchange_paths(repo_root, exchange_id)
+
+    payload = {
+        "schema_version": EXCHANGE_REPORT_SCHEMA_VERSION,
+        "kind": "exchange_report",
+        "exchange_id": exchange_id,
+        "generated_at_utc": _now_utc(),
+        "current_project_root": str(repo_root),
+        "source": source,
+        "inventory": inventory,
+        "relation": relation,
+        "suggested_focus": suggested_focus,
+        "artifacts": {
+            "exchange_json": _path_for_state(paths["exchange_json"], repo_root),
+            "summary_md": _path_for_state(paths["summary_md"], repo_root),
+            "transfer_map_md": _path_for_state(paths["transfer_map_md"], repo_root),
+        },
+        "notes": [
+            "Knowledge exchange is deeper than discovery scan output.",
+            "Exchange artifacts are structured synthesis aids, not evidence by themselves.",
+            "Local non-git directories can be bootstrapped into git when `--allow-git-init` is explicitly provided.",
+        ],
+    }
+    _write_json(paths["exchange_json"], payload)
+    _write_text(paths["summary_md"], _exchange_summary_markdown(payload))
+    _write_text(paths["transfer_map_md"], _exchange_transfer_map_markdown(payload))
+
+    result = {
+        "ok": True,
+        "exchange_id": exchange_id,
+        "source": source,
+        "inventory": inventory,
+        "relation": relation,
+        "suggested_focus": suggested_focus,
+        "artifacts": payload["artifacts"],
+        "schema_path": "spec/v1/exchange-report.schema.json",
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+
+    print(f"exchange_id={exchange_id}")
+    print(f"source.mode={source.get('mode', '')}")
+    print(f"source.local_path={source.get('local_path', '')}")
+    print(f"source.git_present={str(bool(source.get('git_present'))).lower()}")
+    print(f"source.git_initialized_by_orp={str(bool(source.get('git_initialized_by_orp'))).lower()}")
+    print(f"artifacts.exchange_json={payload['artifacts']['exchange_json']}")
+    print(f"artifacts.summary_md={payload['artifacts']['summary_md']}")
+    print(f"artifacts.transfer_map_md={payload['artifacts']['transfer_map_md']}")
+    return 0
+
+
 def cmd_about(args: argparse.Namespace) -> int:
     payload = _about_payload()
     if args.json_output:
@@ -10124,6 +12938,228 @@ def cmd_home(args: argparse.Namespace) -> int:
 
     print(_render_home_screen(payload))
     return 0
+
+
+def cmd_mode_list(args: argparse.Namespace) -> int:
+    payload = {
+        "ok": True,
+        "schema_version": AGENT_MODE_REGISTRY_VERSION,
+        "items": [_agent_mode_public_payload(mode) for mode in AGENT_MODES],
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    _print_pairs([("modes.count", len(payload["items"]))])
+    for row in payload["items"]:
+        print("---")
+        _print_pairs(
+            [
+                ("mode.id", row["id"]),
+                ("mode.label", row["label"]),
+                ("mode.summary", row["summary"]),
+                ("mode.activation_phrase", row["activation_phrase"]),
+            ]
+        )
+    return 0
+
+
+def cmd_mode_show(args: argparse.Namespace) -> int:
+    mode = _agent_mode(getattr(args, "mode_ref", ""))
+    payload = {
+        "ok": True,
+        "mode": _agent_mode_public_payload(mode),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    mode_payload = payload["mode"]
+    _print_pairs(
+        [
+            ("mode.id", mode_payload["id"]),
+            ("mode.label", mode_payload["label"]),
+            ("mode.summary", mode_payload["summary"]),
+            ("mode.operator_reminder", mode_payload["operator_reminder"]),
+            ("mode.activation_phrase", mode_payload["activation_phrase"]),
+            ("mode.invocation_style", mode_payload["invocation_style"]),
+            ("mode.nudge_card_count", mode_payload["nudge_card_count"]),
+        ]
+    )
+    for key in ("when_to_use", "perspective_shifts", "principles", "ritual", "questions", "anti_patterns"):
+        rows = mode_payload.get(key, [])
+        if isinstance(rows, list) and rows:
+            print(f"{key}:")
+            for row in rows:
+                print(f"- {row}")
+    return 0
+
+
+def cmd_mode_nudge(args: argparse.Namespace) -> int:
+    mode = _agent_mode(getattr(args, "mode_ref", ""))
+    payload = {
+        "ok": True,
+        **_agent_mode_nudge(mode, seed=str(getattr(args, "seed", "") or "").strip()),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    _print_pairs(
+        [
+            ("mode.id", payload["mode"]["id"]),
+            ("mode.label", payload["mode"]["label"]),
+            ("mode.activation_phrase", payload["mode"]["activation_phrase"]),
+            ("nudge.seed", payload["seed"]),
+            ("nudge.card_index", payload["card_index"]),
+            ("nudge.title", payload["card"]["title"]),
+            ("nudge.prompt", payload["card"]["prompt"]),
+            ("nudge.twist", payload["card"]["twist"]),
+            ("nudge.release", payload["card"]["release"]),
+        ]
+    )
+    print("nudge.micro_loop:")
+    for row in payload["micro_loop"]:
+        print(f"- {row}")
+    return 0
+
+
+def cmd_update(args: argparse.Namespace) -> int:
+    payload = _update_payload()
+    if getattr(args, "yes", False):
+        payload["apply"] = _apply_update(payload)
+
+    if args.json_output:
+        _print_json(payload)
+        if getattr(args, "yes", False) and not bool((payload.get("apply") or {}).get("ok")):
+            return 1
+        return 0
+
+    print(_render_update_report(payload))
+
+    apply_payload = payload.get("apply")
+    if isinstance(apply_payload, dict) and not bool(apply_payload.get("ok")):
+        return 1
+    return 0
+
+
+def cmd_maintenance_check(args: argparse.Namespace) -> int:
+    payload = _maintenance_check_payload(source="manual")
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_maintenance_check_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_maintenance_status(args: argparse.Namespace) -> int:
+    payload = _maintenance_agent_status()
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(_render_maintenance_status_report(payload))
+    return 0
+
+
+def cmd_maintenance_enable(args: argparse.Namespace) -> int:
+    hour = int(getattr(args, "hour", 9))
+    minute = int(getattr(args, "minute", 0))
+    if hour < 0 or hour > 23:
+        raise RuntimeError("--hour must be between 0 and 23.")
+    if minute < 0 or minute > 59:
+        raise RuntimeError("--minute must be between 0 and 59.")
+    payload = _enable_maintenance_agent(hour=hour, minute=minute)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_maintenance_enable_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_maintenance_disable(args: argparse.Namespace) -> int:
+    payload = _disable_maintenance_agent()
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_maintenance_disable_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_schedule_add_codex(args: argparse.Namespace) -> int:
+    payload = _create_schedule_codex_job(args)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(_render_schedule_add_report(payload))
+    return 0
+
+
+def cmd_schedule_list(args: argparse.Namespace) -> int:
+    payload = _list_schedule_jobs_payload()
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(_render_schedule_list_report(payload))
+    return 0
+
+
+def cmd_schedule_show(args: argparse.Namespace) -> int:
+    payload = _show_schedule_job_payload(args.target)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    print(_render_schedule_show_report(payload))
+    return 0
+
+
+def cmd_schedule_run(args: argparse.Namespace) -> int:
+    registry = _load_schedule_registry()
+    _, job = _find_schedule_job_index(registry, args.target)
+    payload = _run_schedule_job_once(job)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_schedule_run_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_schedule_enable(args: argparse.Namespace) -> int:
+    hour = getattr(args, "hour", None)
+    minute = getattr(args, "minute", None)
+    if hour is not None:
+        hour = int(hour)
+    if minute is not None:
+        minute = int(minute)
+
+    registry = _load_schedule_registry()
+    _, job = _find_schedule_job_index(registry, args.target)
+    payload = _enable_schedule_job(job, hour=hour, minute=minute)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_schedule_enable_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_schedule_disable(args: argparse.Namespace) -> int:
+    registry = _load_schedule_registry()
+    _, job = _find_schedule_job_index(registry, args.target)
+    payload = _disable_schedule_job(job)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+
+    print(_render_schedule_disable_report(payload))
+    return 0 if payload.get("ok") else 1
 
 
 def cmd_collaborate_workflows(args: argparse.Namespace) -> int:
@@ -11201,6 +14237,95 @@ def _request_secret_payload(
     return payload
 
 
+def _resolve_secret_from_hosted(
+    args: argparse.Namespace,
+    *,
+    secret_ref: str = "",
+    provider: str = "",
+    reveal: bool = False,
+) -> dict[str, Any]:
+    world_id, idea_id = _resolve_secret_scope_from_args(
+        args,
+        require_scope=not bool(secret_ref),
+        fallback_to_current_project=not bool(secret_ref),
+    )
+
+    body: dict[str, Any] = {
+        "reveal": reveal,
+    }
+    if secret_ref:
+        body["id" if _looks_like_uuid(secret_ref) else "alias"] = secret_ref
+    elif provider:
+        body["provider"] = provider
+    else:
+        raise RuntimeError("Provide a secret reference or --provider to resolve a secret.")
+    if world_id:
+        body["worldId"] = world_id
+    if idea_id:
+        body["ideaId"] = idea_id
+
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets/resolve",
+        method="POST",
+        body=body,
+    )
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else {}
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
+    return {
+        "ok": bool(payload.get("ok", True)),
+        "secret": secret,
+        "binding": binding,
+        "value": payload.get("value"),
+        "matched_by": str(payload.get("matchedBy", "")).strip(),
+        "source": "hosted",
+    }
+
+
+def _resolve_secret_from_keychain(
+    args: argparse.Namespace,
+    *,
+    secret_ref: str = "",
+    provider: str = "",
+    reveal: bool = False,
+) -> dict[str, Any] | None:
+    world_id, idea_id = _resolve_secret_scope_from_args(
+        args,
+        require_scope=False,
+        fallback_to_current_project=not bool(secret_ref),
+    )
+    entry = _select_keychain_entry(
+        secret_ref=secret_ref,
+        provider=provider,
+        world_id=world_id,
+        idea_id=idea_id,
+    )
+    if entry is None:
+        return None
+    bindings = entry.get("bindings") if isinstance(entry.get("bindings"), list) else []
+    binding = next(
+        (
+            row
+            for row in bindings
+            if isinstance(row, dict) and _binding_matches_secret_scope(row, world_id, idea_id)
+        ),
+        None,
+    )
+    secret = _secret_payload_from_keychain_entry(entry)
+    matched_by = "keychain+alias" if secret_ref else "keychain+provider"
+    if (world_id or idea_id) and binding is not None:
+        matched_by += "+project"
+    result = {
+        "ok": True,
+        "secret": secret,
+        "binding": _binding_payload_from_keychain_summary(binding) if isinstance(binding, dict) else None,
+        "value": _read_keychain_secret_value(entry) if reveal else None,
+        "matched_by": matched_by,
+        "source": "keychain",
+    }
+    return result
+
+
 def _secret_bindings(secret: dict[str, Any]) -> list[dict[str, Any]]:
     rows = secret.get("bindings")
     if not isinstance(rows, list):
@@ -11232,6 +14357,7 @@ def _print_secret_human(
     binding: dict[str, Any] | None = None,
     value: str | None = None,
     matched_by: str = "",
+    source: str = "",
 ) -> None:
     bindings = _secret_bindings(secret)
     _print_pairs(
@@ -11253,6 +14379,8 @@ def _print_secret_human(
     )
     if matched_by:
         print(f"secret.matched_by={matched_by}")
+    if source:
+        print(f"secret.source={source}")
     if binding:
         _print_pairs(
             [
@@ -11267,6 +14395,424 @@ def _print_secret_human(
         print(f"secret.value={value}")
     if include_bindings and bindings:
         _print_secret_binding_rows(bindings)
+
+
+def _keychain_service_for_secret(secret: dict[str, Any]) -> str:
+    provider = str(secret.get("provider", "")).strip() or "unknown"
+    return f"orp.secret.{provider}"
+
+
+def _keychain_account_for_secret(secret: dict[str, Any]) -> str:
+    alias = str(secret.get("alias", "")).strip()
+    if alias:
+        return alias
+    return str(secret.get("id", "")).strip()
+
+
+def _keychain_label_for_secret(secret: dict[str, Any]) -> str:
+    label = str(secret.get("label", "")).strip()
+    if label:
+        return label
+    alias = str(secret.get("alias", "")).strip()
+    if alias:
+        return alias
+    return str(secret.get("id", "")).strip() or "ORP Secret"
+
+
+def _keychain_comment_for_secret(secret: dict[str, Any]) -> str:
+    payload = {
+        "secret_id": str(secret.get("id", "")).strip(),
+        "alias": str(secret.get("alias", "")).strip(),
+        "provider": str(secret.get("provider", "")).strip(),
+        "env_var_name": str(secret.get("envVarName", "")).strip(),
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def _normalize_secret_binding_summary(binding: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "binding_id": str(binding.get("id", "")).strip(),
+        "world_id": str(binding.get("worldId", "")).strip(),
+        "idea_id": str(binding.get("ideaId", "")).strip(),
+        "purpose": str(binding.get("purpose", "")).strip(),
+        "primary": bool(binding.get("isPrimary", False)),
+    }
+
+
+def _binding_payload_from_keychain_summary(binding: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(binding.get("binding_id", "")).strip(),
+        "worldId": str(binding.get("world_id", "")).strip(),
+        "ideaId": str(binding.get("idea_id", "")).strip(),
+        "purpose": str(binding.get("purpose", "")).strip(),
+        "isPrimary": bool(binding.get("primary", False)),
+    }
+
+
+def _merge_secret_binding_summaries(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for row in [*existing, *incoming]:
+        if not isinstance(row, dict):
+            continue
+        normalized = _normalize_secret_binding_summary(row)
+        key = (
+            normalized["binding_id"],
+            normalized["world_id"],
+            normalized["idea_id"],
+            normalized["purpose"],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(normalized)
+    return merged
+
+
+def _build_keychain_registry_entry(
+    secret: dict[str, Any],
+    *,
+    binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    bindings = [_normalize_secret_binding_summary(row) for row in _secret_bindings(secret)]
+    if binding:
+        bindings = _merge_secret_binding_summaries(bindings, [binding])
+    return {
+        "secret_id": str(secret.get("id", "")).strip(),
+        "alias": str(secret.get("alias", "")).strip(),
+        "label": str(secret.get("label", "")).strip(),
+        "provider": str(secret.get("provider", "")).strip(),
+        "kind": str(secret.get("kind", "")).strip(),
+        "env_var_name": str(secret.get("envVarName", "")).strip(),
+        "status": str(secret.get("status", "")).strip(),
+        "value_version": str(secret.get("valueVersion", "")).strip(),
+        "value_preview": str(secret.get("valuePreview", "")).strip(),
+        "keychain_service": _keychain_service_for_secret(secret),
+        "keychain_account": _keychain_account_for_secret(secret),
+        "keychain_label": _keychain_label_for_secret(secret),
+        "bindings": bindings,
+        "last_synced_at_utc": _now_utc(),
+    }
+
+
+def _secret_payload_from_keychain_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    bindings = entry.get("bindings") if isinstance(entry.get("bindings"), list) else []
+    return {
+        "id": str(entry.get("secret_id", "")).strip(),
+        "alias": str(entry.get("alias", "")).strip(),
+        "label": str(entry.get("label", "")).strip(),
+        "provider": str(entry.get("provider", "")).strip(),
+        "kind": str(entry.get("kind", "")).strip(),
+        "envVarName": str(entry.get("env_var_name", "")).strip(),
+        "status": str(entry.get("status", "")).strip(),
+        "valueVersion": str(entry.get("value_version", "")).strip(),
+        "valuePreview": str(entry.get("value_preview", "")).strip(),
+        "bindings": [
+            _binding_payload_from_keychain_summary(row)
+            for row in bindings
+            if isinstance(row, dict)
+        ],
+    }
+
+
+def _upsert_keychain_secret_registry_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    registry = _load_keychain_secret_registry()
+    items = registry.get("items") if isinstance(registry.get("items"), list) else []
+    secret_id = str(entry.get("secret_id", "")).strip()
+    service = str(entry.get("keychain_service", "")).strip()
+    account = str(entry.get("keychain_account", "")).strip()
+    next_items: list[dict[str, Any]] = []
+    existing_entry: dict[str, Any] | None = None
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        row_secret_id = str(row.get("secret_id", "")).strip()
+        row_service = str(row.get("keychain_service", "")).strip()
+        row_account = str(row.get("keychain_account", "")).strip()
+        if (secret_id and row_secret_id == secret_id) or (service and account and row_service == service and row_account == account):
+            existing_entry = row
+            continue
+        next_items.append(row)
+    merged = {
+        **(existing_entry or {}),
+        **entry,
+    }
+    merged["bindings"] = _merge_secret_binding_summaries(
+        existing_entry.get("bindings", []) if isinstance(existing_entry, dict) else [],
+        entry.get("bindings", []) if isinstance(entry.get("bindings"), list) else [],
+    )
+    next_items.append(merged)
+    registry["items"] = sorted(
+        next_items,
+        key=lambda row: (
+            str(row.get("provider", "")).strip(),
+            str(row.get("alias", "")).strip() or str(row.get("secret_id", "")).strip(),
+        ),
+    )
+    _save_keychain_secret_registry(registry)
+    return merged
+
+
+def _list_keychain_registry_entries(
+    *,
+    secret_ref: str = "",
+    provider: str = "",
+    world_id: str = "",
+    idea_id: str = "",
+) -> list[dict[str, Any]]:
+    registry = _load_keychain_secret_registry()
+    items = registry.get("items") if isinstance(registry.get("items"), list) else []
+    filtered: list[dict[str, Any]] = []
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        alias = str(row.get("alias", "")).strip()
+        secret_id = str(row.get("secret_id", "")).strip()
+        row_provider = str(row.get("provider", "")).strip()
+        if secret_ref and secret_ref not in {alias, secret_id}:
+            continue
+        if provider and row_provider != provider:
+            continue
+        if world_id or idea_id:
+            bindings = row.get("bindings") if isinstance(row.get("bindings"), list) else []
+            if not any(
+                isinstance(binding, dict) and _binding_matches_secret_scope(binding, world_id, idea_id)
+                for binding in bindings
+            ):
+                continue
+        filtered.append(row)
+    return sorted(
+        filtered,
+        key=lambda row: (
+            str(row.get("provider", "")).strip(),
+            str(row.get("alias", "")).strip() or str(row.get("secret_id", "")).strip(),
+        ),
+    )
+
+
+def _binding_matches_secret_scope(binding: dict[str, Any], world_id: str, idea_id: str) -> bool:
+    binding_world_id = str(binding.get("world_id", "")).strip()
+    binding_idea_id = str(binding.get("idea_id", "")).strip()
+    if world_id and binding_world_id != world_id:
+        return False
+    if idea_id and binding_idea_id != idea_id:
+        return False
+    return True
+
+
+def _select_keychain_entry(
+    *,
+    secret_ref: str,
+    provider: str,
+    world_id: str,
+    idea_id: str,
+) -> dict[str, Any] | None:
+    registry = _load_keychain_secret_registry()
+    items = registry.get("items") if isinstance(registry.get("items"), list) else []
+    if secret_ref:
+        for row in items:
+            if not isinstance(row, dict):
+                continue
+            alias = str(row.get("alias", "")).strip()
+            secret_id = str(row.get("secret_id", "")).strip()
+            if secret_ref == alias or secret_ref == secret_id:
+                return row
+        return None
+
+    candidates = [
+        row
+        for row in items
+        if isinstance(row, dict) and str(row.get("provider", "")).strip() == provider
+    ]
+    if world_id or idea_id:
+        scoped: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for row in candidates:
+            bindings = row.get("bindings") if isinstance(row.get("bindings"), list) else []
+            for binding in bindings:
+                if isinstance(binding, dict) and _binding_matches_secret_scope(binding, world_id, idea_id):
+                    scoped.append((row, binding))
+                    break
+        if len(scoped) == 1:
+            return scoped[0][0]
+        primary_scoped = [row for row, binding in scoped if bool(binding.get("primary", False))]
+        if len(primary_scoped) == 1:
+            return primary_scoped[0]
+        if len(scoped) > 1:
+            raise RuntimeError("Multiple local Keychain secrets match this provider and project scope.")
+        return None
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        raise RuntimeError("Multiple local Keychain secrets match this provider. Narrow the request with an alias or project scope.")
+    return None
+
+
+def _read_keychain_secret_value(entry: dict[str, Any]) -> str:
+    service = str(entry.get("keychain_service", "")).strip()
+    account = str(entry.get("keychain_account", "")).strip()
+    if not service or not account:
+        raise RuntimeError("Local Keychain secret entry is missing its service/account coordinates.")
+    proc = _run_keychain_command(
+        ["find-generic-password", "-s", service, "-a", account, "-w"],
+    )
+    if proc.returncode != 0:
+        message = proc.stderr.strip() or proc.stdout.strip() or "macOS Keychain lookup failed."
+        raise RuntimeError(message)
+    return proc.stdout.rstrip("\n")
+
+
+def _store_keychain_secret_value(secret: dict[str, Any], value: str) -> dict[str, str]:
+    service = _keychain_service_for_secret(secret)
+    account = _keychain_account_for_secret(secret)
+    label = _keychain_label_for_secret(secret)
+    comment = _keychain_comment_for_secret(secret)
+    proc = _run_keychain_command(
+        [
+            "add-generic-password",
+            "-a",
+            account,
+            "-s",
+            service,
+            "-D",
+            "ORP Secret",
+            "-j",
+            comment,
+            "-l",
+            label,
+            "-U",
+            "-w",
+            value,
+        ]
+    )
+    if proc.returncode != 0:
+        message = proc.stderr.strip() or proc.stdout.strip() or "macOS Keychain write failed."
+        raise RuntimeError(message)
+    return {
+        "keychain_service": service,
+        "keychain_account": account,
+        "keychain_label": label,
+    }
+
+
+def _sync_secret_to_keychain(
+    secret: dict[str, Any],
+    *,
+    value: str,
+    binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    keychain_coordinates = _store_keychain_secret_value(secret, value)
+    entry = _build_keychain_registry_entry(secret, binding=binding)
+    entry.update(keychain_coordinates)
+    return _upsert_keychain_secret_registry_entry(entry)
+
+
+def _try_get_secret_by_ref(args: argparse.Namespace, secret_ref: str) -> dict[str, Any] | None:
+    ref = str(secret_ref or "").strip()
+    if not ref:
+        return None
+    try:
+        payload = _request_secret_payload(
+            args,
+            path=f"/api/cli/secrets/{urlparse.quote(ref)}",
+        )
+    except HostedApiError as exc:
+        if "status=404" in str(exc):
+            return None
+        raise
+    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+    if not isinstance(secret, dict):
+        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    return secret
+
+
+def _find_secret_binding(secret: dict[str, Any], desired_binding: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not desired_binding:
+        return None
+    desired_world_id = str(desired_binding.get("worldId", "")).strip()
+    desired_idea_id = str(desired_binding.get("ideaId", "")).strip()
+    for row in _secret_bindings(secret):
+        world_id = str(row.get("worldId", "")).strip()
+        idea_id = str(row.get("ideaId", "")).strip()
+        if desired_world_id and world_id != desired_world_id:
+            continue
+        if desired_idea_id and idea_id != desired_idea_id:
+            continue
+        return row
+    return None
+
+
+def _validate_existing_secret_for_ensure(secret: dict[str, Any], args: argparse.Namespace) -> None:
+    desired_provider = str(getattr(args, "provider", "") or "").strip()
+    actual_provider = str(secret.get("provider", "")).strip()
+    if desired_provider and actual_provider and desired_provider != actual_provider:
+        raise RuntimeError(
+            f"Secret alias already exists with provider '{actual_provider}', not '{desired_provider}'."
+        )
+
+
+def _create_secret_binding_for_ensure(
+    args: argparse.Namespace,
+    secret: dict[str, Any],
+    desired_binding: dict[str, Any],
+) -> dict[str, Any]:
+    alias = str(secret.get("alias", "")).strip()
+    if not alias:
+        raise RuntimeError("Existing secret is missing an alias and cannot be bound safely.")
+    body = dict(desired_binding)
+    body["secretAlias"] = alias
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets/bindings",
+        method="POST",
+        body=body,
+    )
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else payload
+    if not isinstance(binding, dict):
+        raise RuntimeError("Hosted ORP returned an invalid binding record.")
+    return binding
+
+
+def _resolve_secret_for_ensure(
+    args: argparse.Namespace,
+    secret: dict[str, Any],
+    desired_binding: dict[str, Any] | None,
+) -> dict[str, Any]:
+    alias = str(secret.get("alias", "")).strip()
+    secret_id = str(secret.get("id", "")).strip()
+    body: dict[str, Any] = {
+        "reveal": True,
+    }
+    if alias:
+        body["alias"] = alias
+    elif secret_id:
+        body["id"] = secret_id
+    else:
+        raise RuntimeError("Secret is missing both alias and id and cannot be resolved.")
+    if desired_binding:
+        world_id = str(desired_binding.get("worldId", "")).strip()
+        idea_id = str(desired_binding.get("ideaId", "")).strip()
+        if world_id:
+            body["worldId"] = world_id
+        if idea_id:
+            body["ideaId"] = idea_id
+    payload = _request_secret_payload(
+        args,
+        path="/api/cli/secrets/resolve",
+        method="POST",
+        body=body,
+    )
+    resolved_secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else secret
+    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
+    return {
+        "secret": resolved_secret if isinstance(resolved_secret, dict) else secret,
+        "binding": binding,
+        "value": payload.get("value"),
+        "matched_by": str(payload.get("matchedBy", "")).strip(),
+    }
 
 
 def cmd_whoami(args: argparse.Namespace) -> int:
@@ -11365,6 +14911,777 @@ def cmd_ideas_list(args: argparse.Namespace) -> int:
                     ("idea.updated_at", str(row.get("updatedAt", "")).strip()),
                 ]
             )
+    return 0
+
+
+def _workspace_value(record: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in record:
+            return record.get(key)
+    return None
+
+
+def _workspace_text(record: dict[str, Any], *keys: str) -> str:
+    value = _workspace_value(record, *keys)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _workspace_object(record: dict[str, Any], *keys: str) -> dict[str, Any]:
+    value = _workspace_value(record, *keys)
+    return value if isinstance(value, dict) else {}
+
+
+def _workspace_list(record: dict[str, Any], *keys: str) -> list[Any]:
+    value = _workspace_value(record, *keys)
+    return value if isinstance(value, list) else []
+
+
+def _workspace_tab_rows(workspace: dict[str, Any]) -> list[dict[str, Any]]:
+    state = _workspace_object(workspace, "state")
+    tabs = _workspace_list(state, "tabs")
+    if tabs:
+        return [row for row in tabs if isinstance(row, dict)]
+    return [row for row in _workspace_list(workspace, "tabs") if isinstance(row, dict)]
+
+
+def _workspace_capture_context(workspace: dict[str, Any]) -> dict[str, Any]:
+    state = _workspace_object(workspace, "state")
+    return _workspace_object(state, "capture_context", "captureContext")
+
+
+def _normalize_remote_workspace_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    workspace = payload.get("workspace") if isinstance(payload.get("workspace"), dict) else payload
+    if not isinstance(workspace, dict):
+        raise RuntimeError("Hosted ORP returned an invalid workspace payload.")
+
+    normalized = dict(workspace)
+    state = _workspace_object(normalized, "state")
+    tabs = _workspace_tab_rows(normalized)
+    if tabs:
+        state = dict(state)
+        state["tabs"] = tabs
+        normalized["state"] = state
+
+    return {
+        "ok": bool(payload.get("ok", True)),
+        "workspace": normalized,
+    }
+
+
+def _workspace_manifest_from_notes(notes: Any) -> dict[str, Any] | None:
+    text = str(notes or "")
+    if not text.strip():
+        return None
+    match = re.search(r"```orp-workspace\s*([\s\S]*?)```", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    raw = str(match.group(1) or "").strip()
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _workspace_path_basename(project_root: Any) -> str:
+    text = str(project_root or "").strip().rstrip("/")
+    if not text:
+        return ""
+    return Path(text).name or text.split("/")[-1]
+
+
+def _workspace_bridge_tab_title(
+    raw_title: Any,
+    project_root: Any,
+    *,
+    index: int,
+    seen_titles: dict[str, int],
+) -> str:
+    base = str(raw_title or "").strip() or _workspace_path_basename(project_root) or f"tab-{index + 1}"
+    count = seen_titles.get(base, 0) + 1
+    seen_titles[base] = count
+    if count == 1:
+        return base
+    return f"{base} ({count})"
+
+
+def _workspace_bridge_tabs_from_manifest(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    tabs = manifest.get("tabs")
+    if not isinstance(tabs, list):
+        return []
+    seen_titles: dict[str, int] = {}
+    rows: list[dict[str, Any]] = []
+    for index, raw in enumerate(tabs):
+        if not isinstance(raw, dict):
+            continue
+        project_root = str(
+            raw.get("path")
+            or raw.get("project_root")
+            or raw.get("projectRoot")
+            or ""
+        ).strip()
+        if not project_root:
+            continue
+        title = _workspace_bridge_tab_title(
+            raw.get("title") or raw.get("repo_label") or raw.get("repoLabel"),
+            project_root,
+            index=index,
+            seen_titles=seen_titles,
+        )
+        resume_command = str(raw.get("resumeCommand") or raw.get("resume_command") or "").strip()
+        resume_tool = str(raw.get("resumeTool") or raw.get("resume_tool") or "").strip().lower()
+        resume_session_id = str(raw.get("resumeSessionId") or raw.get("resume_session_id") or raw.get("sessionId") or "").strip()
+        codex_session_id = str(raw.get("codexSessionId") or raw.get("codex_session_id") or "").strip()
+        claude_session_id = str(raw.get("claudeSessionId") or raw.get("claude_session_id") or "").strip()
+        if not resume_command:
+            if resume_tool and resume_session_id:
+                resume_command = f"{resume_tool} resume {resume_session_id}"
+            elif codex_session_id:
+                resume_command = f"codex resume {codex_session_id}"
+                resume_tool = "codex"
+                resume_session_id = codex_session_id
+            elif claude_session_id:
+                resume_command = f"claude resume {claude_session_id}"
+                resume_tool = "claude"
+                resume_session_id = claude_session_id
+        rows.append(
+            {
+                "tab_id": f"tab_{index + 1}",
+                "order_index": index,
+                "title": title,
+                "repo_label": title,
+                "project_root": project_root,
+                "resume_command": resume_command,
+                "resume_tool": resume_tool,
+                "resume_session_id": resume_session_id,
+                "codex_session_id": codex_session_id or (resume_session_id if resume_tool == "codex" else ""),
+                "tmux_session_name": str(raw.get("tmuxSessionName") or raw.get("tmux_session_name") or "").strip(),
+                "status": "active",
+            }
+        )
+    return rows
+
+
+def _workspace_bridge_tabs_from_notes(notes: Any) -> list[dict[str, Any]]:
+    text = re.sub(r"```orp-workspace\s*[\s\S]*?```", "", str(notes or ""), flags=re.IGNORECASE)
+    seen_titles: dict[str, int] = {}
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or not stripped.startswith("/"):
+            continue
+        match = re.match(
+            r"^(?P<path>/.*?)(?::\s*(?P<resume>(?P<tool>codex|claude)\s+resume\b.*))?\s*$",
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            continue
+        project_root = str(match.group("path") or "").strip()
+        if not project_root:
+            continue
+        resume_command = str(match.group("resume") or "").strip()
+        resume_tool = str(match.group("tool") or "").strip().lower()
+        session_match = re.match(r"^(?:codex|claude)\s+resume\s+([^\s]+)", resume_command, flags=re.IGNORECASE)
+        resume_session_id = str(session_match.group(1) if session_match else "").strip()
+        title = _workspace_bridge_tab_title(
+            "",
+            project_root,
+            index=len(rows),
+            seen_titles=seen_titles,
+        )
+        rows.append(
+            {
+                "tab_id": f"tab_{len(rows) + 1}",
+                "order_index": len(rows),
+                "title": title,
+                "repo_label": title,
+                "project_root": project_root,
+                "resume_command": resume_command,
+                "resume_tool": resume_tool,
+                "resume_session_id": resume_session_id,
+                "codex_session_id": resume_session_id if resume_tool == "codex" else "",
+                "tmux_session_name": "",
+                "status": "active",
+            }
+        )
+    return rows
+
+
+def _workspace_bridge_from_idea(idea: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(idea, dict):
+        return None
+    manifest = _workspace_manifest_from_notes(idea.get("notes"))
+    tabs = _workspace_bridge_tabs_from_manifest(manifest) if manifest else _workspace_bridge_tabs_from_notes(idea.get("notes"))
+    if not tabs:
+        return None
+
+    idea_id = str(idea.get("id", "")).strip()
+    idea_title = str(idea.get("title", "")).strip()
+    workspace_id = str((manifest or {}).get("workspaceId", "")).strip() or (f"idea-{idea_id}" if idea_id else "")
+    title = str((manifest or {}).get("title", "")).strip() or idea_title or workspace_id
+    description = str(idea.get("description", "")).strip()
+    updated_at = str(idea.get("updatedAt", "")).strip()
+    visibility = str(idea.get("visibility", "")).strip()
+    tab_count = len(tabs)
+
+    return {
+        "workspace_id": workspace_id,
+        "id": workspace_id,
+        "title": title,
+        "description": description,
+        "visibility": visibility,
+        "updatedAt": updated_at,
+        "updated_at_utc": updated_at,
+        "source_kind": "idea_bridge",
+        "bridge_kind": "idea_notes",
+        "linkedIdea": {
+            "ideaId": idea_id,
+            "relationship": "primary",
+            "ideaTitle": idea_title,
+        },
+        "linked_idea": {
+            "idea_id": idea_id,
+            "relationship": "primary",
+            "idea_title": idea_title,
+        },
+        "metrics": {
+            "tabCount": tab_count,
+            "tab_count": tab_count,
+        },
+        "state": {
+            "state_version": 0,
+            "tabCount": tab_count,
+            "tab_count": tab_count,
+            "summary": "",
+            "current_focus": "",
+            "trajectory": "",
+            "tabs": tabs,
+            "source_kind": "idea_bridge",
+        },
+        "manifest": manifest or None,
+    }
+
+
+def _list_workspace_bridge_page(
+    args: argparse.Namespace,
+    *,
+    limit: int,
+    cursor: str,
+) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    params: list[str] = []
+    if int(limit) > 0:
+        params.append(f"limit={int(limit)}")
+    if cursor:
+        params.append(f"cursor={urlparse.quote(cursor)}")
+    query = f"?{'&'.join(params)}" if params else ""
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas{query}",
+        token=str(session.get("token", "")).strip(),
+    )
+    ideas = payload.get("ideas") if isinstance(payload.get("ideas"), list) else None
+    if ideas is None and isinstance(payload.get("items"), list):
+        ideas = payload.get("items")
+    cursor_value = payload.get("cursor")
+    next_cursor = str(cursor_value).strip() if cursor_value is not None else ""
+    if not next_cursor:
+        next_cursor_value = payload.get("nextCursor")
+        next_cursor = str(next_cursor_value).strip() if next_cursor_value is not None else ""
+    has_more = payload.get("hasMore")
+    if isinstance(has_more, bool):
+        has_more_value = has_more
+    else:
+        has_more_value = bool(next_cursor)
+    workspaces = [
+        row
+        for row in (_workspace_bridge_from_idea(idea) for idea in (ideas or []))
+        if isinstance(row, dict)
+    ]
+    return {
+        "workspaces": workspaces,
+        "cursor": next_cursor,
+        "has_more": has_more_value,
+        "source": "idea_bridge",
+    }
+
+
+def _list_remote_workspaces_page(
+    args: argparse.Namespace,
+    *,
+    limit: int,
+    cursor: str,
+) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    params: list[str] = []
+    if int(limit) > 0:
+        params.append(f"limit={int(limit)}")
+    if cursor:
+        params.append(f"cursor={urlparse.quote(cursor)}")
+    query = f"?{'&'.join(params)}" if params else ""
+
+    try:
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/workspaces{query}",
+            token=str(session.get("token", "")).strip(),
+        )
+    except HostedApiError as exc:
+        if "status=404" not in str(exc):
+            raise
+        return _list_workspace_bridge_page(args, limit=limit, cursor=cursor)
+
+    workspaces = payload.get("workspaces") if isinstance(payload.get("workspaces"), list) else None
+    if workspaces is None and isinstance(payload.get("items"), list):
+        workspaces = payload.get("items")
+    cursor_value = payload.get("cursor")
+    next_cursor = str(cursor_value).strip() if cursor_value is not None else ""
+    if not next_cursor:
+        next_cursor_value = payload.get("nextCursor")
+        next_cursor = str(next_cursor_value).strip() if next_cursor_value is not None else ""
+    has_more = payload.get("hasMore")
+    if isinstance(has_more, bool):
+        has_more_value = has_more
+    else:
+        has_more_value = bool(next_cursor)
+
+    return {
+        "workspaces": [row for row in (workspaces or []) if isinstance(row, dict)],
+        "cursor": next_cursor,
+        "has_more": has_more_value,
+        "source": "hosted",
+    }
+
+
+def _workspace_selector_values(workspace: dict[str, Any]) -> list[str]:
+    linked_idea = _workspace_object(workspace, "linked_idea", "linkedIdea")
+    values = [
+        _workspace_text(workspace, "workspace_id", "id"),
+        _workspace_text(workspace, "title"),
+        _workspace_text(linked_idea, "idea_id", "ideaId"),
+        _workspace_text(linked_idea, "idea_title", "ideaTitle"),
+    ]
+    return [value for value in values if value]
+
+
+def _workspace_selector_score(selector: str, workspace: dict[str, Any]) -> int:
+    selector_text = str(selector or "").strip()
+    if not selector_text:
+        return 0
+    selector_lower = selector_text.lower()
+    selector_slug = _slugify_value(selector_text)
+    best = 0
+    for candidate in _workspace_selector_values(workspace):
+        candidate_text = str(candidate or "").strip()
+        if not candidate_text:
+            continue
+        candidate_lower = candidate_text.lower()
+        candidate_slug = _slugify_value(candidate_text)
+        if selector_text == candidate_text:
+            best = max(best, 40)
+        elif selector_lower == candidate_lower:
+            best = max(best, 35)
+        elif selector_slug == candidate_slug:
+            best = max(best, 20)
+    if best > 0 and _workspace_text(workspace, "source_kind") != "idea_bridge":
+        best += 5
+    return best
+
+
+def _resolve_workspace_selector(workspace_ref: str, workspaces: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    selector = str(workspace_ref or "").strip()
+    if not selector:
+        return None
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for workspace in workspaces:
+        if not isinstance(workspace, dict):
+            continue
+        score = _workspace_selector_score(selector, workspace)
+        if score > 0:
+            ranked.append((score, workspace))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda row: row[0], reverse=True)
+    best_score = ranked[0][0]
+    best = [workspace for score, workspace in ranked if score == best_score]
+    if len(best) > 1:
+        matches = "; ".join(
+            f"{_workspace_text(row, 'title') or _workspace_text(row, 'workspace_id', 'id')} [{_workspace_text(row, 'workspace_id', 'id')}]"
+            for row in best
+        )
+        raise RuntimeError(f"Workspace selector `{selector}` is ambiguous. Matches: {matches}")
+    return best[0]
+
+
+def _list_all_remote_workspaces(args: argparse.Namespace, *, limit: int = 200) -> dict[str, Any]:
+    cursor = ""
+    items: list[dict[str, Any]] = []
+    source = ""
+    for _ in range(20):
+        page = _list_remote_workspaces_page(args, limit=limit, cursor=cursor)
+        items.extend([row for row in page.get("workspaces", []) if isinstance(row, dict)])
+        source = source or str(page.get("source", "")).strip()
+        cursor = str(page.get("cursor", "")).strip()
+        if not page.get("has_more") or not cursor:
+            break
+    return {
+        "workspaces": items,
+        "source": source or "hosted",
+    }
+
+
+def _get_remote_workspace_by_id(args: argparse.Namespace, workspace_id: str) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/workspaces/{urlparse.quote(workspace_id)}",
+        token=str(session.get("token", "")).strip(),
+    )
+    if not isinstance(payload, dict):
+        raise RuntimeError("Hosted ORP returned an invalid workspace payload.")
+    return _normalize_remote_workspace_payload(payload)["workspace"]
+
+
+def _get_remote_workspace(args: argparse.Namespace, workspace_ref: str) -> dict[str, Any]:
+    selector = str(workspace_ref or "").strip()
+    if not selector:
+        raise RuntimeError("Workspace name or id is required.")
+    candidates = _list_all_remote_workspaces(args)
+    resolved = _resolve_workspace_selector(selector, candidates.get("workspaces", []))
+    if resolved is None:
+        try:
+            return _get_remote_workspace_by_id(args, selector)
+        except HostedApiError as exc:
+            if "status=404" not in str(exc):
+                raise
+        raise RuntimeError(f"Workspace not found: {selector}")
+    if _workspace_text(resolved, "source_kind") == "idea_bridge":
+        return resolved
+    workspace_id = _workspace_text(resolved, "workspace_id", "id") or selector
+    return _get_remote_workspace_by_id(args, workspace_id)
+
+
+def _build_remote_workspace_body(
+    args: argparse.Namespace,
+    current_workspace: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {}
+    title = getattr(args, "title", None)
+    description = getattr(args, "description", None)
+    visibility = getattr(args, "visibility", None)
+    idea_id = getattr(args, "idea_id", None)
+
+    if title is not None:
+        text = str(title).strip()
+        if text:
+            body["title"] = _normalize_workspace_title_input(text)
+    if description is not None:
+        text = str(description).strip()
+        body["description"] = text or None
+    if visibility is not None:
+        text = str(visibility).strip()
+        if text:
+            body["visibility"] = text
+    if idea_id is not None:
+        text = str(idea_id).strip()
+        if text:
+            body["linkedIdea"] = {
+                "ideaId": text,
+                "relationship": "primary",
+            }
+    return body
+
+
+def _load_hosted_workspace_json_file(path_arg: str, *, label: str) -> tuple[Path, dict[str, Any]]:
+    path = Path(str(path_arg)).expanduser().resolve()
+    if not path.exists():
+        raise RuntimeError(f"{label} file not found: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Failed to parse {label} JSON at {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{label} JSON at {path} must be an object.")
+    return path, payload
+
+
+def cmd_workspaces_list(args: argparse.Namespace) -> int:
+    result = _list_remote_workspaces_page(
+        args,
+        limit=int(args.limit),
+        cursor=str(getattr(args, "cursor", "")).strip(),
+    )
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("workspaces.count", len(result["workspaces"])),
+                ("cursor", result["cursor"]),
+                ("has_more", str(result["has_more"]).lower()),
+                ("source", str(result.get("source", "")).strip() or "hosted"),
+            ]
+        )
+        for row in result["workspaces"]:
+            linked_idea = _workspace_object(row, "linked_idea", "linkedIdea")
+            metrics = _workspace_object(row, "metrics")
+            print("---")
+            _print_pairs(
+                [
+                    ("workspace.id", _workspace_text(row, "workspace_id", "id")),
+                    ("workspace.title", _workspace_text(row, "title")),
+                    ("workspace.visibility", _workspace_text(row, "visibility")),
+                    ("workspace.idea_id", _workspace_text(linked_idea, "idea_id", "ideaId")),
+                    ("workspace.source", _workspace_text(row, "source_kind") or str(result.get("source", "")).strip() or "hosted"),
+                    ("workspace.tab_count", _workspace_text(metrics, "tab_count", "tabCount")),
+                    ("workspace.updated_at", _workspace_text(row, "updated_at_utc", "updatedAt")),
+                ]
+            )
+    return 0
+
+
+def cmd_workspaces_show(args: argparse.Namespace) -> int:
+    workspace = _get_remote_workspace(args, args.workspace_id)
+    result = {
+        "ok": True,
+        "workspace": workspace,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        linked_idea = _workspace_object(workspace, "linked_idea", "linkedIdea")
+        state = _workspace_object(workspace, "state")
+        _print_pairs(
+            [
+                ("workspace.id", _workspace_text(workspace, "workspace_id", "id")),
+                ("workspace.title", _workspace_text(workspace, "title")),
+                ("workspace.visibility", _workspace_text(workspace, "visibility")),
+                ("workspace.idea_id", _workspace_text(linked_idea, "idea_id", "ideaId")),
+                ("workspace.source", _workspace_text(workspace, "source_kind") or "hosted"),
+                ("state.tab_count", _workspace_text(state, "tab_count", "tabCount")),
+                ("state.current_focus", _workspace_text(state, "current_focus", "currentFocus")),
+                ("state.trajectory", _workspace_text(state, "trajectory")),
+                ("workspace.updated_at", _workspace_text(workspace, "updated_at_utc", "updatedAt")),
+            ]
+        )
+    return 0
+
+
+def cmd_workspaces_tabs(args: argparse.Namespace) -> int:
+    workspace = _get_remote_workspace(args, args.workspace_id)
+    if _workspace_text(workspace, "source_kind") == "idea_bridge":
+        tabs = _workspace_tab_rows(workspace)
+        title = _workspace_text(workspace, "title")
+    else:
+        session = _require_hosted_session(args)
+        workspace_id = _workspace_text(workspace, "workspace_id", "id") or args.workspace_id
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/workspaces/{urlparse.quote(workspace_id)}/tabs",
+            token=str(session.get("token", "")).strip(),
+        )
+        if not isinstance(payload, dict):
+            raise RuntimeError("Hosted ORP returned an invalid workspace tabs payload.")
+
+        payload_workspace = payload.get("workspace") if isinstance(payload.get("workspace"), dict) else None
+        tabs = payload.get("tabs") if isinstance(payload.get("tabs"), list) else None
+        if tabs is None and isinstance(payload.get("items"), list):
+            tabs = payload.get("items")
+        if tabs is None:
+            if payload_workspace is not None:
+                tabs = _workspace_tab_rows(payload_workspace)
+            else:
+                payload_workspace = _normalize_remote_workspace_payload(payload)["workspace"]
+                tabs = _workspace_tab_rows(payload_workspace)
+
+        title = _workspace_text(payload, "title")
+        if not title and payload_workspace is not None:
+            title = _workspace_text(payload_workspace, "title")
+    result = {
+        "workspace_id": _workspace_text(workspace, "workspace_id", "id") or args.workspace_id,
+        "title": title,
+        "tabs": [row for row in (tabs or []) if isinstance(row, dict)],
+        "source": _workspace_text(workspace, "source_kind") or "hosted",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("workspace.id", result["workspace_id"]),
+                ("workspace.title", result["title"]),
+                ("workspace.source", result["source"]),
+                ("tabs.count", len(tabs)),
+            ]
+        )
+        for index, row in enumerate(tabs, start=1):
+            print("---")
+            _print_pairs(
+                [
+                    ("tab.index", index),
+                    ("tab.title", _workspace_text(row, "title", "repo_label", "repoLabel")),
+                    ("tab.project_root", _workspace_text(row, "project_root", "projectRoot")),
+                    ("tab.resume_command", _workspace_text(row, "resume_command", "resumeCommand")),
+                    ("tab.resume_tool", _workspace_text(row, "resume_tool", "resumeTool")),
+                    ("tab.resume_session_id", _workspace_text(row, "resume_session_id", "resumeSessionId")),
+                    ("tab.codex_session_id", _workspace_text(row, "codex_session_id", "codexSessionId")),
+                    ("tab.tmux_session_name", _workspace_text(row, "tmux_session_name", "tmuxSessionName")),
+                    ("tab.current_task", _workspace_text(row, "current_task", "currentTask")),
+                ]
+            )
+    return 0
+
+
+def cmd_workspaces_timeline(args: argparse.Namespace) -> int:
+    workspace = _get_remote_workspace(args, args.workspace_id)
+    if _workspace_text(workspace, "source_kind") == "idea_bridge":
+        events: list[dict[str, Any]] = []
+    else:
+        session = _require_hosted_session(args)
+        params: list[str] = []
+        if int(args.limit) > 0:
+            params.append(f"limit={int(args.limit)}")
+        query = f"?{'&'.join(params)}" if params else ""
+
+        workspace_id = _workspace_text(workspace, "workspace_id", "id") or args.workspace_id
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/workspaces/{urlparse.quote(workspace_id)}/timeline{query}",
+            token=str(session.get("token", "")).strip(),
+        )
+        events = payload.get("events") if isinstance(payload.get("events"), list) else None
+        if events is None and isinstance(payload.get("items"), list):
+            events = payload.get("items")
+    result = {
+        "workspace_id": _workspace_text(workspace, "workspace_id", "id") or args.workspace_id,
+        "events": [row for row in (events or []) if isinstance(row, dict)],
+        "source": _workspace_text(workspace, "source_kind") or "hosted",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("workspace.id", result["workspace_id"]),
+                ("workspace.source", result["source"]),
+                ("events.count", len(result["events"])),
+            ]
+        )
+        for row in result["events"]:
+            print("---")
+            _print_pairs(
+                [
+                    ("event.id", _workspace_text(row, "event_id", "id")),
+                    ("event.type", _workspace_text(row, "event_type", "type")),
+                    ("event.summary", _workspace_text(row, "summary")),
+                    ("event.created_at", _workspace_text(row, "created_at_utc", "createdAt")),
+                ]
+            )
+    return 0
+
+
+def cmd_workspaces_add(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    body = _build_remote_workspace_body(args, None)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/workspaces",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    result = _normalize_remote_workspace_payload(payload)
+    if args.json_output:
+        _print_json(result)
+    else:
+        workspace = result["workspace"]
+        _print_pairs(
+            [
+                ("workspace.id", _workspace_text(workspace, "workspace_id", "id")),
+                ("workspace.title", _workspace_text(workspace, "title")),
+                ("workspace.visibility", _workspace_text(workspace, "visibility")),
+            ]
+        )
+    return 0
+
+
+def cmd_workspaces_update(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    current = _get_remote_workspace(args, args.workspace_id)
+    body = _build_remote_workspace_body(args, current)
+    updated_at = _workspace_text(current, "updated_at_utc", "updatedAt")
+    if updated_at:
+        body["updatedAt"] = updated_at
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/workspaces/{urlparse.quote(args.workspace_id)}",
+        method="PATCH",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    result = _normalize_remote_workspace_payload(payload)
+    if args.json_output:
+        _print_json(result)
+    else:
+        workspace = result["workspace"]
+        _print_pairs(
+            [
+                ("workspace.id", _workspace_text(workspace, "workspace_id", "id")),
+                ("workspace.title", _workspace_text(workspace, "title")),
+                ("workspace.updated_at", _workspace_text(workspace, "updated_at_utc", "updatedAt")),
+            ]
+        )
+    return 0
+
+
+def cmd_workspaces_push_state(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    state_path, body = _load_hosted_workspace_json_file(args.state_file, label="workspace state")
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/workspaces/{urlparse.quote(args.workspace_id)}/state",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("workspace.id", args.workspace_id),
+                ("state.file", str(state_path)),
+                ("ok", str(bool(payload.get("ok", True))).lower()),
+            ]
+        )
+    return 0
+
+
+def cmd_workspaces_add_event(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    event_path, body = _load_hosted_workspace_json_file(args.event_file, label="workspace event")
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/workspaces/{urlparse.quote(args.workspace_id)}/events",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_pairs(
+            [
+                ("workspace.id", args.workspace_id),
+                ("event.file", str(event_path)),
+                ("ok", str(bool(payload.get("ok", True))).lower()),
+            ]
+        )
     return 0
 
 
@@ -11879,6 +16196,102 @@ def cmd_secrets_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_secrets_ensure(args: argparse.Namespace) -> int:
+    alias = str(getattr(args, "alias", "") or "").strip()
+    if not alias:
+        raise RuntimeError("Secret alias is required.")
+
+    desired_binding = _build_secret_binding_payload_from_args(
+        args,
+        fallback_to_current_project=True,
+    )
+    secret = _try_get_secret_by_ref(args, alias)
+    created = False
+    binding_created = False
+    binding_reused = False
+    binding = None
+
+    if secret is None:
+        _, value = _resolve_secret_value_arg(args, required=True)
+        label = str(getattr(args, "label", "") or "").strip() or alias
+        body: dict[str, Any] = {
+            "alias": alias,
+            "label": label,
+            "provider": str(getattr(args, "provider", "")).strip(),
+            "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
+            "value": value,
+        }
+        env_var_name = getattr(args, "env_var_name", None)
+        if env_var_name is not None:
+            text = str(env_var_name).strip()
+            body["envVarName"] = text or None
+        notes = getattr(args, "notes", None)
+        if notes is not None:
+            text = str(notes).strip()
+            body["notes"] = text or None
+        body["bindings"] = [desired_binding] if desired_binding else []
+
+        payload = _request_secret_payload(
+            args,
+            path="/api/cli/secrets",
+            method="POST",
+            body=body,
+        )
+        created_secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
+        if not isinstance(created_secret, dict):
+            raise RuntimeError("Hosted ORP returned an invalid secret record.")
+        secret = created_secret
+        created = True
+        if desired_binding:
+            binding = _find_secret_binding(secret, desired_binding)
+            binding_created = binding is not None
+    else:
+        _validate_existing_secret_for_ensure(secret, args)
+        if desired_binding:
+            binding = _find_secret_binding(secret, desired_binding)
+            if binding is not None:
+                binding_reused = True
+            else:
+                binding = _create_secret_binding_for_ensure(args, secret, desired_binding)
+                binding_created = True
+                secret = dict(secret)
+                secret["bindings"] = [*_secret_bindings(secret), binding]
+
+    resolved: dict[str, Any] | None = None
+    if bool(getattr(args, "reveal", False)):
+        resolved = _resolve_secret_for_ensure(args, secret, desired_binding)
+        secret = resolved["secret"]
+        if binding is None and isinstance(resolved.get("binding"), dict):
+            binding = resolved["binding"]
+
+    result = {
+        "ok": True,
+        "created": created,
+        "binding_created": binding_created,
+        "binding_reused": binding_reused,
+        "secret": secret,
+        "binding": binding,
+    }
+    if resolved is not None:
+        result["value"] = resolved.get("value")
+        result["matched_by"] = resolved.get("matched_by", "")
+
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(
+            secret,
+            include_bindings=True,
+            binding=binding if isinstance(binding, dict) else None,
+            value=result.get("value") if bool(getattr(args, "reveal", False)) else None,
+            matched_by=str(result.get("matched_by", "") or ""),
+        )
+        print(f"secret.created={str(created).lower()}")
+        print(f"binding.created={str(binding_created).lower()}")
+        print(f"binding.reused={str(binding_reused).lower()}")
+    return 0
+
+
 def cmd_secrets_update(args: argparse.Namespace) -> int:
     secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
     if not secret_ref:
@@ -12038,51 +16451,224 @@ def cmd_secrets_resolve(args: argparse.Namespace) -> int:
     secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
     provider = str(getattr(args, "provider", "") or "").strip()
     reveal = bool(getattr(args, "reveal", False))
+    local_first = bool(getattr(args, "local_first", False))
+    local_only = bool(getattr(args, "local_only", False))
+    sync_keychain = bool(getattr(args, "sync_keychain", False))
+    if local_first and local_only:
+        raise RuntimeError("Use either --local-first or --local-only, not both.")
+
+    result: dict[str, Any] | None = None
+    if local_first or local_only:
+        result = _resolve_secret_from_keychain(
+            args,
+            secret_ref=secret_ref,
+            provider=provider,
+            reveal=reveal,
+        )
+        if result is None and local_only:
+            raise RuntimeError("No matching local Keychain secret was found.")
+
+    if result is None:
+        result = _resolve_secret_from_hosted(
+            args,
+            secret_ref=secret_ref,
+            provider=provider,
+            reveal=reveal,
+        )
+        if sync_keychain:
+            if not reveal:
+                raise RuntimeError("--sync-keychain requires --reveal so ORP can securely cache the resolved value locally.")
+            _sync_secret_to_keychain(
+                result["secret"],
+                value=str(result.get("value") or ""),
+                binding=result.get("binding") if isinstance(result.get("binding"), dict) else None,
+            )
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(
+            result["secret"],
+            include_bindings=False,
+            binding=result.get("binding") if isinstance(result.get("binding"), dict) else None,
+            value=result["value"] if reveal else None,
+            matched_by=result["matched_by"],
+            source=str(result.get("source", "")).strip(),
+        )
+    return 0
+
+
+def cmd_secrets_keychain_list(args: argparse.Namespace) -> int:
+    provider = str(getattr(args, "provider", "") or "").strip()
     world_id, idea_id = _resolve_secret_scope_from_args(
         args,
-        require_scope=not bool(secret_ref),
-        fallback_to_current_project=not bool(secret_ref),
+        require_scope=False,
+        fallback_to_current_project=bool(getattr(args, "current_project", False)),
     )
-
-    body: dict[str, Any] = {
-        "reveal": reveal,
-    }
-    if secret_ref:
-        body["id" if _looks_like_uuid(secret_ref) else "alias"] = secret_ref
-    elif provider:
-        body["provider"] = provider
-    else:
-        raise RuntimeError("Provide a secret reference or --provider to resolve a secret.")
-    if world_id:
-        body["worldId"] = world_id
-    if idea_id:
-        body["ideaId"] = idea_id
-
-    payload = _request_secret_payload(
-        args,
-        path="/api/cli/secrets/resolve",
-        method="POST",
-        body=body,
+    items = _list_keychain_registry_entries(
+        provider=provider,
+        world_id=world_id,
+        idea_id=idea_id,
     )
-    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else {}
-    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
     result = {
-        "ok": bool(payload.get("ok", True)),
-        "secret": secret,
-        "binding": binding,
-        "value": payload.get("value"),
-        "matched_by": str(payload.get("matchedBy", "")).strip(),
+        "ok": True,
+        "items": items,
+        "provider": provider,
+        "world_id": world_id,
+        "idea_id": idea_id,
+        "registry_path": str(_keychain_secret_registry_path()),
     }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("local_secrets.count", len(items)),
+                ("filter.provider", provider),
+                ("filter.world_id", world_id),
+                ("filter.idea_id", idea_id),
+                ("registry.path", result["registry_path"]),
+            ]
+        )
+        for row in items:
+            print("---")
+            _print_pairs(
+                [
+                    ("secret.id", str(row.get("secret_id", "")).strip()),
+                    ("secret.alias", str(row.get("alias", "")).strip()),
+                    ("secret.label", str(row.get("label", "")).strip()),
+                    ("secret.provider", str(row.get("provider", "")).strip()),
+                    ("secret.kind", str(row.get("kind", "")).strip()),
+                    ("secret.env_var_name", str(row.get("env_var_name", "")).strip()),
+                    ("secret.status", str(row.get("status", "")).strip()),
+                    ("secret.binding_count", len(row.get("bindings", [])) if isinstance(row.get("bindings"), list) else 0),
+                    ("keychain.service", str(row.get("keychain_service", "")).strip()),
+                    ("keychain.account", str(row.get("keychain_account", "")).strip()),
+                    ("last_synced_at", str(row.get("last_synced_at_utc", "")).strip()),
+                ]
+            )
+    return 0
+
+
+def cmd_secrets_keychain_show(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+    items = _list_keychain_registry_entries(secret_ref=secret_ref)
+    if not items:
+        raise RuntimeError("No matching local Keychain secret was found.")
+    entry = items[0]
+    secret = _secret_payload_from_keychain_entry(entry)
+    result = {
+        "ok": True,
+        "secret": secret,
+        "registry_path": str(_keychain_secret_registry_path()),
+        "keychain_service": str(entry.get("keychain_service", "")).strip(),
+        "keychain_account": str(entry.get("keychain_account", "")).strip(),
+        "last_synced_at_utc": str(entry.get("last_synced_at_utc", "")).strip(),
+        "source": "keychain",
+    }
+    if bool(getattr(args, "reveal", False)):
+        result["value"] = _read_keychain_secret_value(entry)
     if args.json_output:
         _print_json(result)
     else:
         _print_secret_human(
             secret,
-            include_bindings=False,
-            binding=binding,
-            value=result["value"] if reveal else None,
-            matched_by=result["matched_by"],
+            include_bindings=True,
+            value=str(result.get("value")) if "value" in result else None,
+            source="keychain",
         )
+        _print_pairs(
+            [
+                ("keychain.service", result["keychain_service"]),
+                ("keychain.account", result["keychain_account"]),
+                ("registry.path", result["registry_path"]),
+                ("last_synced_at", result["last_synced_at_utc"]),
+            ]
+        )
+    return 0
+
+
+def cmd_secrets_sync_keychain(args: argparse.Namespace) -> int:
+    _ensure_keychain_supported()
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    provider = str(getattr(args, "provider", "") or "").strip()
+    sync_all = bool(getattr(args, "all", False))
+
+    synced_items: list[dict[str, Any]] = []
+
+    if sync_all:
+        params: list[str] = []
+        if provider:
+            params.append(f"provider={urlparse.quote(provider)}")
+        world_id, idea_id = _resolve_secret_scope_from_args(args, require_scope=False, fallback_to_current_project=False)
+        if world_id:
+            params.append(f"worldId={urlparse.quote(world_id)}")
+        if idea_id:
+            params.append(f"ideaId={urlparse.quote(idea_id)}")
+        query = f"?{'&'.join(params)}" if params else ""
+        payload = _request_secret_payload(args, path=f"/api/cli/secrets{query}")
+        items = payload.get("items") if isinstance(payload.get("items"), list) else []
+        for row in items:
+            if not isinstance(row, dict):
+                continue
+            ref = str(row.get("alias", "")).strip() or str(row.get("id", "")).strip()
+            if not ref:
+                continue
+            resolved = _resolve_secret_from_hosted(
+                args,
+                secret_ref=ref,
+                reveal=True,
+            )
+            entry = _sync_secret_to_keychain(
+                resolved["secret"],
+                value=str(resolved.get("value") or ""),
+                binding=resolved.get("binding") if isinstance(resolved.get("binding"), dict) else None,
+            )
+            synced_items.append(entry)
+    else:
+        if not secret_ref and not provider:
+            raise RuntimeError("Provide a secret reference, --provider, or use --all.")
+        resolved = _resolve_secret_from_hosted(
+            args,
+            secret_ref=secret_ref,
+            provider=provider,
+            reveal=True,
+        )
+        entry = _sync_secret_to_keychain(
+            resolved["secret"],
+            value=str(resolved.get("value") or ""),
+            binding=resolved.get("binding") if isinstance(resolved.get("binding"), dict) else None,
+        )
+        synced_items.append(entry)
+
+    result = {
+        "ok": True,
+        "count": len(synced_items),
+        "items": synced_items,
+        "registry_path": str(_keychain_secret_registry_path()),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("synced.count", result["count"]),
+                ("registry.path", result["registry_path"]),
+            ]
+        )
+        for row in synced_items:
+            print("---")
+            _print_pairs(
+                [
+                    ("secret.id", str(row.get("secret_id", "")).strip()),
+                    ("secret.alias", str(row.get("alias", "")).strip()),
+                    ("secret.provider", str(row.get("provider", "")).strip()),
+                    ("keychain.service", str(row.get("keychain_service", "")).strip()),
+                    ("keychain.account", str(row.get("keychain_account", "")).strip()),
+                    ("synced_at", str(row.get("last_synced_at_utc", "")).strip()),
+                ]
+            )
     return 0
 
 
@@ -13550,6 +18136,149 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_about)
     s_about.set_defaults(func=cmd_about, json_output=False)
 
+    s_mode = sub.add_parser(
+        "mode",
+        help="Agent-first creative and cognitive overlay modes",
+    )
+    mode_sub = s_mode.add_subparsers(dest="mode_cmd", required=True)
+
+    s_mode_list = mode_sub.add_parser("list", help="List built-in agent modes")
+    add_json_flag(s_mode_list)
+    s_mode_list.set_defaults(func=cmd_mode_list, json_output=False)
+
+    s_mode_show = mode_sub.add_parser("show", help="Show one built-in agent mode")
+    s_mode_show.add_argument("mode_ref", help="Mode id or alias")
+    add_json_flag(s_mode_show)
+    s_mode_show.set_defaults(func=cmd_mode_show, json_output=False)
+
+    s_mode_nudge = mode_sub.add_parser(
+        "nudge",
+        help="Return a deterministic creativity nudge card for one agent mode",
+    )
+    s_mode_nudge.add_argument("mode_ref", help="Mode id or alias")
+    s_mode_nudge.add_argument(
+        "--seed",
+        default="",
+        help="Optional deterministic seed; defaults to today's local date",
+    )
+    add_json_flag(s_mode_nudge)
+    s_mode_nudge.set_defaults(func=cmd_mode_nudge, json_output=False)
+
+    s_update = sub.add_parser(
+        "update",
+        help="Check npm for a newer ORP release and print the recommended upgrade command",
+    )
+    s_update.add_argument(
+        "--yes",
+        action="store_true",
+        help="Apply the recommended update step when ORP can do so safely",
+    )
+    add_json_flag(s_update)
+    s_update.set_defaults(func=cmd_update, json_output=False)
+
+    s_maintenance = sub.add_parser(
+        "maintenance",
+        help="Machine-local ORP maintenance checks and daily macOS launchd scheduling",
+    )
+    maintenance_sub = s_maintenance.add_subparsers(dest="maintenance_cmd", required=True)
+
+    s_maintenance_check = maintenance_sub.add_parser("check", help="Run a maintenance check and cache the result locally")
+    add_json_flag(s_maintenance_check)
+    s_maintenance_check.set_defaults(func=cmd_maintenance_check, json_output=False)
+
+    s_maintenance_status = maintenance_sub.add_parser("status", help="Show cached maintenance state and launchd status")
+    add_json_flag(s_maintenance_status)
+    s_maintenance_status.set_defaults(func=cmd_maintenance_status, json_output=False)
+
+    s_maintenance_enable = maintenance_sub.add_parser(
+        "enable",
+        help="Install and start a daily macOS launchd job for ORP maintenance",
+    )
+    s_maintenance_enable.add_argument("--hour", type=int, default=9, help="Hour of day in local time (default: 9)")
+    s_maintenance_enable.add_argument("--minute", type=int, default=0, help="Minute of hour (default: 0)")
+    add_json_flag(s_maintenance_enable)
+    s_maintenance_enable.set_defaults(func=cmd_maintenance_enable, json_output=False)
+
+    s_maintenance_disable = maintenance_sub.add_parser(
+        "disable",
+        help="Disable the daily macOS launchd job for ORP maintenance",
+    )
+    add_json_flag(s_maintenance_disable)
+    s_maintenance_disable.set_defaults(func=cmd_maintenance_disable, json_output=False)
+
+    s_schedule = sub.add_parser(
+        "schedule",
+        help="Local scheduled Codex jobs with one-shot run and macOS launchd enable/disable",
+    )
+    schedule_sub = s_schedule.add_subparsers(dest="schedule_cmd", required=True)
+
+    s_schedule_add = schedule_sub.add_parser("add", help="Create one local scheduled job")
+    schedule_add_sub = s_schedule_add.add_subparsers(dest="schedule_add_cmd", required=True)
+
+    s_schedule_add_codex = schedule_add_sub.add_parser(
+        "codex",
+        help="Create a scheduled Codex job bound to one repo root and prompt",
+    )
+    s_schedule_add_codex.add_argument("--name", required=True, help="Human-readable job name")
+    s_schedule_add_codex.add_argument(
+        "--repo-root",
+        default="",
+        help="Repo or working directory for the Codex job (default: current directory)",
+    )
+    s_schedule_add_codex.add_argument("--prompt", default="", help="Inline prompt for the scheduled Codex job")
+    s_schedule_add_codex.add_argument(
+        "--prompt-file",
+        default="",
+        help="Path to a prompt file read at run time instead of storing an inline prompt",
+    )
+    s_schedule_add_codex.add_argument(
+        "--sandbox",
+        choices=["read-only", "workspace-write"],
+        default="read-only",
+        help="Sandbox mode for codex exec (default: read-only)",
+    )
+    s_schedule_add_codex.add_argument("--hour", type=int, default=9, help="Hour of day in local time (default: 9)")
+    s_schedule_add_codex.add_argument("--minute", type=int, default=0, help="Minute of hour (default: 0)")
+    s_schedule_add_codex.add_argument("--codex-bin", default="", help="Codex executable path")
+    s_schedule_add_codex.add_argument(
+        "--codex-config-profile",
+        default="",
+        help="Optional Codex config profile passed via CODEX_PROFILE",
+    )
+    s_schedule_add_codex.add_argument(
+        "--codex-session-id",
+        default="",
+        help="Optional Codex session id to resume instead of starting a fresh non-interactive run",
+    )
+    add_json_flag(s_schedule_add_codex)
+    s_schedule_add_codex.set_defaults(func=cmd_schedule_add_codex, json_output=False)
+
+    s_schedule_list = schedule_sub.add_parser("list", help="List local scheduled jobs")
+    add_json_flag(s_schedule_list)
+    s_schedule_list.set_defaults(func=cmd_schedule_list, json_output=False)
+
+    s_schedule_show = schedule_sub.add_parser("show", help="Show one scheduled job with prompt, repo, and session details")
+    s_schedule_show.add_argument("target", help="Scheduled job name or id")
+    add_json_flag(s_schedule_show)
+    s_schedule_show.set_defaults(func=cmd_schedule_show, json_output=False)
+
+    s_schedule_run = schedule_sub.add_parser("run", help="Run one scheduled job immediately")
+    s_schedule_run.add_argument("target", help="Scheduled job name or id")
+    add_json_flag(s_schedule_run)
+    s_schedule_run.set_defaults(func=cmd_schedule_run, json_output=False)
+
+    s_schedule_enable = schedule_sub.add_parser("enable", help="Enable recurring execution for one scheduled job")
+    s_schedule_enable.add_argument("target", help="Scheduled job name or id")
+    s_schedule_enable.add_argument("--hour", type=int, default=None, help="Optional hour override in local time")
+    s_schedule_enable.add_argument("--minute", type=int, default=None, help="Optional minute override in local time")
+    add_json_flag(s_schedule_enable)
+    s_schedule_enable.set_defaults(func=cmd_schedule_enable, json_output=False)
+
+    s_schedule_disable = schedule_sub.add_parser("disable", help="Disable recurring execution for one scheduled job")
+    s_schedule_disable.add_argument("target", help="Scheduled job name or id")
+    add_json_flag(s_schedule_disable)
+    s_schedule_disable.set_defaults(func=cmd_schedule_disable, json_output=False)
+
     s_auth = sub.add_parser("auth", help="Hosted workspace authentication operations")
     auth_sub = s_auth.add_subparsers(dest="auth_cmd", required=True)
 
@@ -13604,6 +18333,72 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_url_flag(s_ideas_list)
     add_json_flag(s_ideas_list)
     s_ideas_list.set_defaults(func=cmd_ideas_list, json_output=False)
+
+    s_workspaces = sub.add_parser("workspaces", help="Hosted workspace record operations")
+    workspaces_sub = s_workspaces.add_subparsers(dest="workspaces_cmd", required=True)
+
+    s_workspaces_list = workspaces_sub.add_parser("list", help="List hosted workspaces")
+    s_workspaces_list.add_argument("--limit", type=int, default=25, help="Page size (default: 25)")
+    s_workspaces_list.add_argument("--cursor", default="", help="Pagination cursor")
+    add_base_url_flag(s_workspaces_list)
+    add_json_flag(s_workspaces_list)
+    s_workspaces_list.set_defaults(func=cmd_workspaces_list, json_output=False)
+
+    s_workspaces_show = workspaces_sub.add_parser("show", help="Show one hosted workspace by name or id")
+    s_workspaces_show.add_argument("workspace_id", help="Hosted workspace name or id")
+    add_base_url_flag(s_workspaces_show)
+    add_json_flag(s_workspaces_show)
+    s_workspaces_show.set_defaults(func=cmd_workspaces_show, json_output=False)
+
+    s_workspaces_tabs = workspaces_sub.add_parser("tabs", help="Show saved tabs for one hosted workspace by name or id")
+    s_workspaces_tabs.add_argument("workspace_id", help="Hosted workspace name or id")
+    add_base_url_flag(s_workspaces_tabs)
+    add_json_flag(s_workspaces_tabs)
+    s_workspaces_tabs.set_defaults(func=cmd_workspaces_tabs, json_output=False)
+
+    s_workspaces_timeline = workspaces_sub.add_parser("timeline", help="Show timeline events for one hosted workspace by name or id")
+    s_workspaces_timeline.add_argument("workspace_id", help="Hosted workspace name or id")
+    s_workspaces_timeline.add_argument("--limit", type=int, default=25, help="Page size (default: 25)")
+    add_base_url_flag(s_workspaces_timeline)
+    add_json_flag(s_workspaces_timeline)
+    s_workspaces_timeline.set_defaults(func=cmd_workspaces_timeline, json_output=False)
+
+    s_workspaces_add = workspaces_sub.add_parser("add", help="Create a hosted workspace")
+    s_workspaces_add.add_argument("--title", required=True, help="Workspace title in lowercase-dash format")
+    s_workspaces_add.add_argument("--description", default=None, help="Workspace description")
+    s_workspaces_add.add_argument("--visibility", default=None, help="Workspace visibility")
+    s_workspaces_add.add_argument("--idea-id", default=None, help="Optional linked hosted idea id")
+    add_base_url_flag(s_workspaces_add)
+    add_json_flag(s_workspaces_add)
+    s_workspaces_add.set_defaults(func=cmd_workspaces_add, json_output=False)
+
+    s_workspaces_update = workspaces_sub.add_parser("update", help="Update a hosted workspace")
+    s_workspaces_update.add_argument("workspace_id", help="Hosted workspace id")
+    s_workspaces_update.add_argument("--title", default=None, help="Workspace title in lowercase-dash format")
+    s_workspaces_update.add_argument("--description", default=None, help="Workspace description")
+    s_workspaces_update.add_argument("--visibility", default=None, help="Workspace visibility")
+    s_workspaces_update.add_argument("--idea-id", default=None, help="Optional linked hosted idea id")
+    add_base_url_flag(s_workspaces_update)
+    add_json_flag(s_workspaces_update)
+    s_workspaces_update.set_defaults(func=cmd_workspaces_update, json_output=False)
+
+    s_workspaces_push_state = workspaces_sub.add_parser(
+        "push-state", help="Push one current-state JSON payload into a hosted workspace"
+    )
+    s_workspaces_push_state.add_argument("workspace_id", help="Hosted workspace id")
+    s_workspaces_push_state.add_argument("--state-file", required=True, help="Path to a hosted workspace state JSON file")
+    add_base_url_flag(s_workspaces_push_state)
+    add_json_flag(s_workspaces_push_state)
+    s_workspaces_push_state.set_defaults(func=cmd_workspaces_push_state, json_output=False)
+
+    s_workspaces_add_event = workspaces_sub.add_parser(
+        "add-event", help="Append one timeline event JSON payload to a hosted workspace"
+    )
+    s_workspaces_add_event.add_argument("workspace_id", help="Hosted workspace id")
+    s_workspaces_add_event.add_argument("--event-file", required=True, help="Path to a hosted workspace event JSON file")
+    add_base_url_flag(s_workspaces_add_event)
+    add_json_flag(s_workspaces_add_event)
+    s_workspaces_add_event.set_defaults(func=cmd_workspaces_add_event, json_output=False)
 
     s_idea = sub.add_parser("idea", help="Hosted workspace idea CRUD operations")
     idea_sub = s_idea.add_subparsers(dest="idea_cmd", required=True)
@@ -13799,6 +18594,85 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_secrets_add)
     s_secrets_add.set_defaults(func=cmd_secrets_add, json_output=False)
 
+    s_secrets_ensure = secrets_sub.add_parser(
+        "ensure",
+        help="Use an existing hosted secret by alias or create it and bind it when missing",
+    )
+    s_secrets_ensure.add_argument("--alias", required=True, help="Stable secret alias")
+    s_secrets_ensure.add_argument("--label", default="", help="Human label for create-if-missing flows")
+    s_secrets_ensure.add_argument("--provider", required=True, help="Provider slug, for example openai")
+    s_secrets_ensure.add_argument(
+        "--kind",
+        choices=["api_key", "access_token", "password", "other"],
+        default="api_key",
+        help="Secret kind when create-if-missing is needed (default: api_key)",
+    )
+    s_secrets_ensure.add_argument(
+        "--env-var-name",
+        default=None,
+        help="Optional env var name to store on create, for example OPENAI_API_KEY",
+    )
+    s_secrets_ensure.add_argument("--value", default=None, help="Secret value when create-if-missing is needed")
+    s_secrets_ensure.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help="Read the secret value from stdin when create-if-missing is needed",
+    )
+    s_secrets_ensure.add_argument("--notes", default=None, help="Optional notes for create-if-missing flows")
+    add_secret_scope_flags(s_secrets_ensure)
+    s_secrets_ensure.add_argument("--purpose", default="", help="Optional project usage note when binding")
+    s_secrets_ensure.add_argument(
+        "--primary",
+        action="store_true",
+        help="Mark the binding as primary for the target project",
+    )
+    s_secrets_ensure.add_argument(
+        "--reveal",
+        action="store_true",
+        help="Resolve and return the plaintext value after ensuring the secret",
+    )
+    add_base_url_flag(s_secrets_ensure)
+    add_json_flag(s_secrets_ensure)
+    s_secrets_ensure.set_defaults(func=cmd_secrets_ensure, json_output=False)
+
+    s_secrets_keychain_list = secrets_sub.add_parser(
+        "keychain-list",
+        help="List locally cached macOS Keychain secrets known to ORP on this machine",
+    )
+    s_secrets_keychain_list.add_argument("--provider", default="", help="Optional provider filter")
+    add_secret_scope_flags(s_secrets_keychain_list)
+    add_json_flag(s_secrets_keychain_list)
+    s_secrets_keychain_list.set_defaults(func=cmd_secrets_keychain_list, json_output=False)
+
+    s_secrets_keychain_show = secrets_sub.add_parser(
+        "keychain-show",
+        help="Show one locally cached macOS Keychain secret by alias or id",
+    )
+    s_secrets_keychain_show.add_argument("secret_ref", help="Secret alias or id")
+    s_secrets_keychain_show.add_argument(
+        "--reveal",
+        action="store_true",
+        help="Return the plaintext value from the local macOS Keychain",
+    )
+    add_json_flag(s_secrets_keychain_show)
+    s_secrets_keychain_show.set_defaults(func=cmd_secrets_keychain_show, json_output=False)
+
+    s_secrets_sync_keychain = secrets_sub.add_parser(
+        "sync-keychain",
+        help="Sync hosted secrets into the local macOS Keychain",
+    )
+    s_secrets_sync_keychain.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
+    s_secrets_sync_keychain.add_argument("--provider", default="", help="Provider slug for project-scoped sync")
+    add_secret_scope_flags(s_secrets_sync_keychain)
+    s_secrets_sync_keychain.add_argument(
+        "--all",
+        action="store_true",
+        help="Sync every matching hosted secret into the local Keychain",
+    )
+    add_base_url_flag(s_secrets_sync_keychain)
+    add_json_flag(s_secrets_sync_keychain)
+    s_secrets_sync_keychain.set_defaults(func=cmd_secrets_sync_keychain, json_output=False)
+
     s_secrets_update = secrets_sub.add_parser("update", help="Update one hosted secret")
     s_secrets_update.add_argument("secret_ref", help="Secret alias or id")
     s_secrets_update.add_argument("--alias", default=None, help="New alias")
@@ -13864,6 +18738,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--reveal",
         action="store_true",
         help="Return the plaintext value in the command output",
+    )
+    s_secrets_resolve.add_argument(
+        "--local-first",
+        action="store_true",
+        help="Prefer the local macOS Keychain cache before falling back to the hosted secret store",
+    )
+    s_secrets_resolve.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Resolve only from the local macOS Keychain cache",
+    )
+    s_secrets_resolve.add_argument(
+        "--sync-keychain",
+        action="store_true",
+        help="After a hosted resolve, store the plaintext value in the local macOS Keychain",
     )
     add_base_url_flag(s_secrets_resolve)
     add_json_flag(s_secrets_resolve)
@@ -14381,6 +19270,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print machine-readable JSON",
     )
     s_discover_github_scan.set_defaults(func=cmd_discover_github_scan, json_output=False)
+
+    s_exchange = sub.add_parser(
+        "exchange",
+        help="Local-first repository and project synthesis for reusable knowledge transfer",
+    )
+    exchange_sub = s_exchange.add_subparsers(dest="exchange_cmd", required=True)
+
+    s_exchange_repo = exchange_sub.add_parser(
+        "repo",
+        help="Repository and local project exchange operations",
+    )
+    exchange_repo_sub = s_exchange_repo.add_subparsers(dest="exchange_repo_cmd", required=True)
+    s_exchange_repo_synthesize = exchange_repo_sub.add_parser(
+        "synthesize",
+        help="Synthesize another repository or project directory into structured ORP exchange artifacts",
+    )
+    s_exchange_repo_synthesize.add_argument(
+        "source",
+        help="Source directory, git URL, or owner/repo reference to synthesize",
+    )
+    s_exchange_repo_synthesize.add_argument(
+        "--exchange-id",
+        default="",
+        help="Optional exchange id override",
+    )
+    s_exchange_repo_synthesize.add_argument(
+        "--allow-git-init",
+        action="store_true",
+        help="If the source is a local non-git directory, initialize git there before synthesis",
+    )
+    add_json_flag(s_exchange_repo_synthesize)
+    s_exchange_repo_synthesize.set_defaults(func=cmd_exchange_repo_synthesize, json_output=False)
 
     s_collab = sub.add_parser(
         "collaborate",

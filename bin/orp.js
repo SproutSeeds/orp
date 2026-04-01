@@ -6,6 +6,9 @@ const { spawnSync } = require("child_process");
 
 const cliPath = path.resolve(__dirname, "..", "cli", "orp.py");
 const computeCliUrl = pathToFileURL(path.resolve(__dirname, "orp-compute.mjs")).href;
+const workspaceCliUrl = pathToFileURL(
+  path.resolve(__dirname, "..", "packages", "orp-workspace-launcher", "src", "orp-command.js"),
+).href;
 const argv = process.argv.slice(2);
 
 const candidates = [];
@@ -27,9 +30,19 @@ async function runCompute(args) {
   process.exit(code == null ? 0 : code);
 }
 
+async function runWorkspace(args) {
+  const mod = await import(workspaceCliUrl);
+  const code = await mod.runOrpWorkspaceCommand(args);
+  process.exit(code == null ? 0 : code);
+}
+
 async function main() {
   if (argv[0] === "compute") {
     await runCompute(argv.slice(1));
+    return;
+  }
+  if (argv[0] === "workspace") {
+    await runWorkspace(argv.slice(1));
     return;
   }
 
@@ -55,7 +68,7 @@ async function main() {
           process.stderr.write(result.stderr);
         }
         if (result.status === 0) {
-          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n");
+          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n");
         }
       }
       process.exit(result.status == null ? 1 : result.status);

@@ -16,6 +16,7 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
   - `bash scripts/orp-release-smoke.sh --hosted --codex-session-id <session-id>`
   - `npm i -g open-research-protocol`
   - `orp -h`
+  - `orp workspace -h`
   - `orp init`
   - `orp status --json`
   - `orp branch start work/bootstrap --allow-dirty --json`
@@ -28,6 +29,7 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
   - `orp auth login`
   - `orp whoami --json`
   - `orp ideas list --json`
+  - `orp workspace tabs main`
 
 ## 2. Hosted workspace readiness
 
@@ -53,6 +55,8 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
 
 ## 4. Package release
 
+- Refresh launch assets:
+  - `npm run render:terminal-demo`
 - Bump `package.json` version.
 - Commit and push `main`.
 - Expect `npm publish` to fail if the worktree is dirty or the release commit is not already on GitHub.
@@ -75,6 +79,7 @@ Use this checklist when releasing ORP as the unified public CLI and product surf
 - `npm view open-research-protocol version`
 - `npm i -g open-research-protocol`
 - `orp -h`
+- confirm README renders the terminal demo GIF on GitHub and npm
 - `orp init`
 - `orp status --json`
 - `orp about --json`

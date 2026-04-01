@@ -1,7 +1,7 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.14",
-  "description": "ORP CLI (Open Research Protocol): agent-friendly research workflows, runtime, reports, and pack tooling.",
+  "version": "0.4.15",
+  "description": "ORP CLI (Open Research Protocol): workspace ledgers, secrets, scheduling, governed execution, and agent-friendly research workflows.",
   "license": "MIT",
   "author": "Fractal Research Group <cody@frg.earth>",
   "repository": {
@@ -22,6 +22,7 @@
     "docs/",
     "examples/",
     "modules/",
+    "packages/",
     "packs/",
     "scripts/",
     "spec/",
@@ -42,6 +43,7 @@
   "scripts": {
     "postinstall": "node scripts/npm-postinstall-check.js",
     "prepublishOnly": "node scripts/npm-prepublish-guard.js",
+    "render:terminal-demo": "python3 scripts/render-terminal-demo.py",
     "test": "python3 -m unittest discover -s tests -v"
   },
   "keywords": [

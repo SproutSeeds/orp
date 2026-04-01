@@ -6,10 +6,60 @@ integrate ORP by adding an **ORP section** to that file.
 This makes ORP the agent’s default operating mode: explicit claim levels, reproducible verification, first-class failed paths,
 and dispute resolution by verification/downgrade (not debate).
 
+## Core Rule
+
+Do not let ORP process scaffolding masquerade as evidence or repository truth.
+
+ORP should keep the agent honest about:
+
+- where ongoing work lives
+- whether the repo is in a safe state
+- which secret or credential should be used
+- where the work sits in the larger frontier
+- when a checkpoint should be created
+
+But evidence still lives in canonical project artifacts: code, data, logs, papers, proofs, outputs.
+
+## Minimum Working Loop
+
+If the agent only remembers one ORP loop, it should be this:
+
+1. recover the workspace ledger
+   ```bash
+   orp workspace tabs main
+   ```
+2. inspect repo safety
+   ```bash
+   orp status --json
+   ```
+3. resolve the right secret
+   ```bash
+   orp secrets ensure --alias <alias> --provider <provider> --current-project --json
+   ```
+4. inspect the current frontier
+   ```bash
+   orp frontier state --json
+   ```
+5. do the next honest move
+6. checkpoint it honestly
+   ```bash
+   orp checkpoint create -m "checkpoint note" --json
+   ```
+
+That is the ORP rhythm in one line:
+
+- recover continuity
+- inspect repo safety
+- resolve access
+- inspect context
+- do the work
+- checkpoint it honestly
+
 ## Agent discovery surfaces
 
 Before deeper work, agents can discover ORP through three lightweight entry points:
 
+- `docs/START_HERE.md` — canonical human/operator onboarding path for local-first ORP usage.
 - `llms.txt` — concise repo/package map for agents that scan docs before acting.
 - `orp about --json` — machine-readable tool metadata, stable artifact paths, schemas, and available packs.
 - `orp pack list --json` — machine-readable inventory of bundled packs.

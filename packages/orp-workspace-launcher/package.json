@@ -1,0 +1,39 @@
+{
+  "name": "orp-workspace-launcher",
+  "version": "0.1.0",
+  "description": "Manage ORP workspace ledgers with saved paths and Codex or Claude resume commands.",
+  "author": "Fractal Research Group <cody@frg.earth>",
+  "homepage": "https://github.com/SproutSeeds/orp/tree/main/packages/orp-workspace-launcher",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SproutSeeds/orp.git",
+    "directory": "packages/orp-workspace-launcher"
+  },
+  "bugs": {
+    "url": "https://github.com/SproutSeeds/orp/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "codex",
+    "open-research-protocol",
+    "orp",
+    "workspace",
+    "ledger",
+    "claude"
+  ],
+  "license": "MIT"
+}

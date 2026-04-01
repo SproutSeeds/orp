@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/exchange-report.schema.json",
+  "title": "ORP Exchange Report",
+  "description": "Machine-readable ORP knowledge exchange artifact for structured synthesis of another repository or project directory.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "exchange_id",
+    "generated_at_utc",
+    "current_project_root",
+    "source",
+    "inventory",
+    "relation",
+    "suggested_focus",
+    "artifacts",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "exchange_report"
+    },
+    "exchange_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "current_project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "requested",
+        "mode",
+        "label",
+        "local_path",
+        "remote_url",
+        "git_present",
+        "git_initialized_by_orp",
+        "cloned_by_orp",
+        "git"
+      ],
+      "properties": {
+        "requested": { "type": "string" },
+        "mode": { "type": "string" },
+        "label": { "type": "string" },
+        "local_path": { "type": "string" },
+        "remote_url": { "type": "string" },
+        "git_present": { "type": "boolean" },
+        "git_initialized_by_orp": { "type": "boolean" },
+        "cloned_by_orp": { "type": "boolean" },
+        "git": { "type": "object" }
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "required": [
+        "top_level_entries",
+        "manifest_files",
+        "docs_paths",
+        "test_paths",
+        "languages",
+        "files_scanned",
+        "dirs_scanned"
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "host_repo_name",
+        "source_repo_name",
+        "same_root",
+        "shared_languages",
+        "shared_manifest_types",
+        "shared_top_level_entries"
+      ]
+    },
+    "suggested_focus": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "exchange_json",
+        "summary_md",
+        "transfer_map_md"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

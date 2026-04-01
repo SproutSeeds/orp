@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
 import unittest
@@ -382,6 +383,534 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(result, 0)
             payload = json.loads(buf.getvalue())
             self.assertEqual(payload["secret"]["id"], "secret_123")
+
+    def test_secrets_ensure_reuses_existing_secret_and_binding(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        idea_id = "22222222-2222-4222-8222-222222222222"
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            if method == "GET":
+                self.assertEqual(path, "/api/cli/secrets/openai-primary")
+                return {
+                    "ok": True,
+                    "secret": {
+                        "id": "secret_123",
+                        "alias": "openai-primary",
+                        "provider": "openai",
+                        "bindings": [
+                            {
+                                "id": "binding_123",
+                                "worldId": world_id,
+                                "ideaId": idea_id,
+                                "isPrimary": True,
+                            }
+                        ],
+                    },
+                }
+            self.assertEqual(path, "/api/cli/secrets/resolve")
+            self.assertEqual(
+                body,
+                {
+                    "reveal": True,
+                    "alias": "openai-primary",
+                    "worldId": world_id,
+                    "ideaId": idea_id,
+                },
+            )
+            return {
+                "ok": True,
+                "secret": {
+                    "id": "secret_123",
+                    "alias": "openai-primary",
+                    "provider": "openai",
+                    "bindings": [],
+                },
+                "binding": {
+                    "id": "binding_123",
+                    "worldId": world_id,
+                    "ideaId": idea_id,
+                    "isPrimary": True,
+                },
+                "value": "sk-live",
+                "matchedBy": "alias+project",
+            }
+
+        module._request_hosted_json = fake_request_hosted_json
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": idea_id,
+        }
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_ensure(
+                    argparse.Namespace(
+                        alias="openai-primary",
+                        label="",
+                        provider="openai",
+                        kind="api_key",
+                        env_var_name="OPENAI_API_KEY",
+                        value=None,
+                        value_stdin=False,
+                        notes=None,
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        purpose="",
+                        primary=False,
+                        reveal=True,
+                        base_url="",
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertFalse(payload["created"])
+            self.assertFalse(payload["binding_created"])
+            self.assertTrue(payload["binding_reused"])
+            self.assertEqual(payload["value"], "sk-live")
+            self.assertEqual(len(calls), 2)
+
+    def test_secrets_ensure_creates_missing_secret_and_binding(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            if method == "GET":
+                raise module.HostedApiError("Secret not found (status=404 path=/api/cli/secrets/openai-primary).")
+            self.assertEqual(method, "POST")
+            self.assertEqual(path, "/api/cli/secrets")
+            self.assertEqual(body["alias"], "openai-primary")
+            self.assertEqual(body["label"], "OpenAI Primary")
+            self.assertEqual(body["provider"], "openai")
+            self.assertEqual(body["value"], "sk-test")
+            self.assertEqual(
+                body["bindings"],
+                [
+                    {
+                        "worldId": world_id,
+                        "purpose": "agent work",
+                        "isPrimary": True,
+                    }
+                ],
+            )
+            return {
+                "ok": True,
+                "secret": {
+                    "id": "secret_123",
+                    "alias": "openai-primary",
+                    "provider": "openai",
+                    "bindings": body["bindings"],
+                },
+            }
+
+        module._request_hosted_json = fake_request_hosted_json
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": "",
+        }
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_ensure(
+                    argparse.Namespace(
+                        alias="openai-primary",
+                        label="OpenAI Primary",
+                        provider="openai",
+                        kind="api_key",
+                        env_var_name="OPENAI_API_KEY",
+                        value="sk-test",
+                        value_stdin=False,
+                        notes="main key",
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        purpose="agent work",
+                        primary=True,
+                        reveal=False,
+                        base_url="",
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertTrue(payload["created"])
+            self.assertTrue(payload["binding_created"])
+            self.assertFalse(payload["binding_reused"])
+            self.assertEqual(payload["secret"]["alias"], "openai-primary")
+
+    def test_secrets_ensure_creates_binding_for_existing_secret_when_missing(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        idea_id = "22222222-2222-4222-8222-222222222222"
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            if method == "GET":
+                return {
+                    "ok": True,
+                    "secret": {
+                        "id": "secret_123",
+                        "alias": "openai-primary",
+                        "provider": "openai",
+                        "bindings": [],
+                    },
+                }
+            self.assertEqual(path, "/api/cli/secrets/bindings")
+            self.assertEqual(
+                body,
+                {
+                    "worldId": world_id,
+                    "ideaId": idea_id,
+                    "purpose": "embeddings",
+                    "secretAlias": "openai-primary",
+                },
+            )
+            return {
+                "ok": True,
+                "binding": {
+                    "id": "binding_456",
+                    "worldId": world_id,
+                    "ideaId": idea_id,
+                    "purpose": "embeddings",
+                    "secretId": "secret_123",
+                },
+            }
+
+        module._request_hosted_json = fake_request_hosted_json
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": idea_id,
+        }
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_ensure(
+                    argparse.Namespace(
+                        alias="openai-primary",
+                        label="",
+                        provider="openai",
+                        kind="api_key",
+                        env_var_name=None,
+                        value=None,
+                        value_stdin=False,
+                        notes=None,
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        purpose="embeddings",
+                        primary=False,
+                        reveal=False,
+                        base_url="",
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertFalse(payload["created"])
+            self.assertTrue(payload["binding_created"])
+            self.assertFalse(payload["binding_reused"])
+            self.assertEqual(payload["binding"]["id"], "binding_456")
+
+    def test_secrets_sync_keychain_stores_hosted_secret_locally(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            self.assertEqual(method, "POST")
+            self.assertEqual(path, "/api/cli/secrets/resolve")
+            self.assertEqual(body["alias"], "openai-primary")
+            self.assertTrue(body["reveal"])
+            return {
+                "ok": True,
+                "secret": {
+                    "id": "secret_123",
+                    "alias": "openai-primary",
+                    "label": "OpenAI Primary",
+                    "provider": "openai",
+                    "kind": "api_key",
+                    "envVarName": "OPENAI_API_KEY",
+                    "bindings": [],
+                },
+                "binding": {
+                    "id": "binding_123",
+                    "worldId": world_id,
+                    "isPrimary": True,
+                },
+                "value": "sk-live",
+                "matchedBy": "alias+project",
+            }
+
+        module._request_hosted_json = fake_request_hosted_json
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": "",
+        }
+        module._keychain_supported = lambda: True
+        module._run_keychain_command = lambda args, input_text=None: subprocess.CompletedProcess(
+            ["security", *args],
+            0,
+            "",
+            "",
+        )
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_sync_keychain(
+                    argparse.Namespace(
+                        secret_ref="openai-primary",
+                        provider="",
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        all=False,
+                        base_url="",
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["count"], 1)
+            entry = payload["items"][0]
+            self.assertEqual(entry["alias"], "openai-primary")
+            self.assertEqual(entry["provider"], "openai")
+            self.assertEqual(entry["keychain_service"], "orp.secret.openai")
+            registry_path = Path(td) / "orp" / "secrets-keychain.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            self.assertEqual(registry["items"][0]["alias"], "openai-primary")
+
+    def test_secrets_keychain_list_filters_current_project(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        idea_id = "22222222-2222-4222-8222-222222222222"
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": idea_id,
+        }
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            os.environ["XDG_CONFIG_HOME"] = td
+            module._save_keychain_secret_registry(
+                {
+                    "schema_version": "1.0.0",
+                    "items": [
+                        {
+                            "secret_id": "secret_123",
+                            "alias": "openai-primary",
+                            "label": "OpenAI Primary",
+                            "provider": "openai",
+                            "kind": "api_key",
+                            "env_var_name": "OPENAI_API_KEY",
+                            "status": "active",
+                            "keychain_service": "orp.secret.openai",
+                            "keychain_account": "openai-primary",
+                            "keychain_label": "OpenAI Primary",
+                            "bindings": [
+                                {
+                                    "binding_id": "binding_123",
+                                    "world_id": world_id,
+                                    "idea_id": idea_id,
+                                    "purpose": "agent work",
+                                    "primary": True,
+                                }
+                            ],
+                            "last_synced_at_utc": "2026-03-30T12:00:00Z",
+                        },
+                        {
+                            "secret_id": "secret_456",
+                            "alias": "anthropic-primary",
+                            "label": "Anthropic Primary",
+                            "provider": "anthropic",
+                            "kind": "api_key",
+                            "env_var_name": "ANTHROPIC_API_KEY",
+                            "status": "active",
+                            "keychain_service": "orp.secret.anthropic",
+                            "keychain_account": "anthropic-primary",
+                            "keychain_label": "Anthropic Primary",
+                            "bindings": [],
+                            "last_synced_at_utc": "2026-03-30T12:05:00Z",
+                        },
+                    ],
+                }
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_keychain_list(
+                    argparse.Namespace(
+                        provider="openai",
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["provider"], "openai")
+            self.assertEqual(payload["world_id"], world_id)
+            self.assertEqual(len(payload["items"]), 1)
+            self.assertEqual(payload["items"][0]["alias"], "openai-primary")
+
+    def test_secrets_keychain_show_reveals_local_value(self) -> None:
+        module = load_cli_module()
+        module._read_keychain_secret_value = lambda entry: "sk-local"
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            os.environ["XDG_CONFIG_HOME"] = td
+            module._save_keychain_secret_registry(
+                {
+                    "schema_version": "1.0.0",
+                    "items": [
+                        {
+                            "secret_id": "secret_123",
+                            "alias": "openai-primary",
+                            "label": "OpenAI Primary",
+                            "provider": "openai",
+                            "kind": "api_key",
+                            "env_var_name": "OPENAI_API_KEY",
+                            "status": "active",
+                            "keychain_service": "orp.secret.openai",
+                            "keychain_account": "openai-primary",
+                            "keychain_label": "OpenAI Primary",
+                            "bindings": [],
+                            "last_synced_at_utc": "2026-03-30T12:00:00Z",
+                        }
+                    ],
+                }
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_keychain_show(
+                    argparse.Namespace(
+                        secret_ref="openai-primary",
+                        reveal=True,
+                        json_output=True,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["source"], "keychain")
+            self.assertEqual(payload["secret"]["alias"], "openai-primary")
+            self.assertEqual(payload["value"], "sk-local")
+
+    def test_secrets_resolve_local_first_uses_keychain_cache(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        idea_id = "22222222-2222-4222-8222-222222222222"
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            raise AssertionError("hosted secret store should not be queried when local Keychain cache satisfies the request")
+
+        module._request_hosted_json = fake_request_hosted_json
+        module._read_link_project = lambda repo_root: {
+            "world_id": world_id,
+            "idea_id": idea_id,
+        }
+        module._keychain_supported = lambda: True
+        module._read_keychain_secret_value = lambda entry: "sk-local"
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            os.environ["XDG_CONFIG_HOME"] = td
+            module._save_keychain_secret_registry(
+                {
+                    "schema_version": "1.0.0",
+                    "items": [
+                        {
+                            "secret_id": "secret_123",
+                            "alias": "openai-primary",
+                            "label": "OpenAI Primary",
+                            "provider": "openai",
+                            "kind": "api_key",
+                            "env_var_name": "OPENAI_API_KEY",
+                            "status": "active",
+                            "value_version": "",
+                            "value_preview": "",
+                            "keychain_service": "orp.secret.openai",
+                            "keychain_account": "openai-primary",
+                            "keychain_label": "OpenAI Primary",
+                            "bindings": [
+                                {
+                                    "binding_id": "binding_123",
+                                    "world_id": world_id,
+                                    "idea_id": idea_id,
+                                    "purpose": "agent work",
+                                    "primary": True,
+                                }
+                            ],
+                            "last_synced_at_utc": "2026-03-30T12:00:00Z",
+                        }
+                    ],
+                }
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_resolve(
+                    argparse.Namespace(
+                        secret_ref="",
+                        provider="openai",
+                        world_id="",
+                        idea_id="",
+                        current_project=True,
+                        reveal=True,
+                        local_first=True,
+                        local_only=False,
+                        sync_keychain=False,
+                        base_url="",
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["source"], "keychain")
+            self.assertEqual(payload["value"], "sk-local")
+            self.assertEqual(payload["matched_by"], "keychain+provider+project")
 
     def test_secrets_bind_uses_alias_and_current_project_scope(self) -> None:
         module = load_cli_module()

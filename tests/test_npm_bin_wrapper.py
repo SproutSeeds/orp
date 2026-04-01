@@ -24,10 +24,30 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         self.assertIn("ORP CLI", proc.stdout)
         self.assertIn(
-            "{home,about,auth,whoami,ideas,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,collaborate,init,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
+            "{home,about,mode,update,maintenance,schedule,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,collaborate,init,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
             proc.stdout,
         )
         self.assertIn("orp compute -h", proc.stdout)
+        self.assertIn("orp workspace tabs -h", proc.stdout)
+
+    def test_node_wrapper_exposes_workspace_help(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("node not found on PATH")
+
+        proc = subprocess.run(
+            ["node", str(BIN), "workspace", "-h"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+        self.assertIn("ORP workspace", proc.stdout)
+        self.assertIn("orp workspace tabs <name-or-id>", proc.stdout)
+        self.assertIn("orp workspace ledger <name-or-id>", proc.stdout)
+        self.assertIn("orp workspace ledger add <name-or-id>", proc.stdout)
+        self.assertIn("orp workspace tabs --hosted-workspace-id <workspace-id>", proc.stdout)
+        self.assertIn("orp workspace list", proc.stdout)
+        self.assertIn("orp workspace sync <name-or-id>", proc.stdout)
 
 
 if __name__ == "__main__":

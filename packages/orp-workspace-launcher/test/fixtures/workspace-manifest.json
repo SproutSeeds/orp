@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "workspaceId": "terminal-paths-and-codex-sessions",
+  "title": "Terminal paths and codex sessions",
+  "tmuxPrefix": "backtothefort",
+  "tabs": [
+    {
+      "title": "orp",
+      "path": "/Volumes/Code_2TB/code/orp"
+    },
+    {
+      "title": "orp-web-app",
+      "path": "/Volumes/Code_2TB/code/orp-web-app",
+      "codexSessionId": "019ce2ee-6083-7d02-9d3a-d27a761132a8"
+    }
+  ]
+}

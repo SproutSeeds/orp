@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orp.dev/spec/v1/workspace.schema.json",
+  "title": "ORP Workspace Manifest",
+  "description": "Structured workspace launcher manifest for ORP iTerm/tmux workspace restoration.",
+  "type": "object",
+  "required": ["version", "tabs"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tmuxPrefix": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capture": {
+      "type": "object",
+      "properties": {
+        "sourceApp": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["snapshot", "watch"]
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "windowId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "windowIndex": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tabCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "capturedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trackingStartedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pollSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "tabs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "resumeCommand": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resumeTool": {
+            "type": "string",
+            "enum": ["codex", "claude"]
+          },
+          "resumeSessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "codexSessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tmuxSessionName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

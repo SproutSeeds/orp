@@ -1,0 +1,48 @@
+{
+  "name": "@lifeops/orp",
+  "version": "0.1.0",
+  "description": "ORP companion connector for Life Ops agendas, readiness surfaces, and structured project sharing.",
+  "author": "Fractal Research Group <cody@frg.earth>",
+  "homepage": "https://github.com/SproutSeeds/orp/tree/main/packages/lifeops-orp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SproutSeeds/orp.git",
+    "directory": "packages/lifeops-orp"
+  },
+  "bugs": {
+    "url": "https://github.com/SproutSeeds/orp/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@lifeops/core": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@lifeops/core": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "lifeops",
+    "orp",
+    "open-research-protocol",
+    "agenda",
+    "workflow"
+  ],
+  "license": "MIT"
+}

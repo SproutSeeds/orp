@@ -6,6 +6,10 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 
 - Read `llms.txt`.
 - Run `orp about --json`.
+- If the task benefits from fresh concepting, tasteful interface work, or
+  exploratory reframing, run:
+  - `orp mode nudge sleek-minimal-progressive --json`
+  - Treat it as an optional lens for deeper, wider, top-down, or rotated perspective shifts.
 - If packs matter, run `orp pack list --json`.
 - Read `PROTOCOL.md` before making claims.
 - If the task is external OSS contribution workflow or PR governance, read
@@ -16,6 +20,13 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 ## 2. Select Work
 
 - Identify the target profile and canonical artifact paths.
+- If the task needs an API key or token that is not already available, save it first:
+  - human interactive path:
+    - `orp secrets add --alias <alias> --label "<label>" --provider <provider>`
+  - agent/script path:
+    - `printf '%s' '<secret>' | orp secrets add --alias <alias> --label "<label>" --provider <provider> --value-stdin`
+  - convenience path:
+    - `orp secrets ensure --alias <alias> --provider <provider> --current-project --json`
 - If a pack-backed workflow needs setup, run:
   - `orp pack install --pack-id <pack-id> --json`
   - or `orp pack fetch --source <git-url> --pack-id <pack-id> --install-target . --json`
@@ -24,6 +35,8 @@ Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 - If the task begins from a public YouTube link, normalize it first:
   - `orp youtube inspect <youtube-url> --json`
   - or `orp youtube inspect <youtube-url> --save --json` when the source artifact should stay with the repo
+- If the task depends on understanding another local repo or project directory deeply, synthesize it first:
+  - `orp exchange repo synthesize /path/to/source --json`
 
 ## 3. Run
 

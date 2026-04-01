@@ -136,6 +136,7 @@ Commands:
 
 - `orp auth ...`
 - `orp ideas ...`
+- `orp workspaces ...` (first-class hosted workspace records)
 - `orp feature ...`
 - `orp world ...`
 - `orp checkpoint ...`
@@ -146,9 +147,23 @@ This is the canonical client for:
 
 - hosted auth/session state
 - idea and world binding
+- hosted workspace list/detail/timeline/state update semantics
 - checkpoint queueing
 - runner polling/SSE wake-up
 - lease/claim/start/complete/cancel/retry behavior
+
+Current bridge:
+
+- `orp workspace sync ...` may still mirror local workspace state into linked
+  idea notes for compatibility.
+
+Canonical target:
+
+- hosted workspace records are first-class and are not defined by idea notes
+- the exact contract lives in:
+  - `spec/v1/hosted-workspace.schema.json`
+  - `spec/v1/hosted-workspace-event.schema.json`
+  - `docs/ORP_HOSTED_WORKSPACE_CONTRACT.md`
 
 ### 5. Reasoning Kernel
 
