@@ -29,10 +29,16 @@ test("runOrpWorkspaceCommand shows the ledger-first help surface", async () => {
   const { code, stdout } = await captureStdout(() => runOrpWorkspaceCommand(["-h"]));
 
   assert.equal(code, 0);
+  assert.match(stdout, /orp workspace list \[--json\]/);
+  assert.match(stdout, /orp workspace add-tab <name-or-id>/);
+  assert.match(stdout, /--here/);
+  assert.match(stdout, /--current-codex/);
+  assert.match(stdout, /orp workspace remove-tab <name-or-id>/);
   assert.match(stdout, /orp workspace ledger <name-or-id>/);
   assert.match(stdout, /orp workspace ledger add <name-or-id>/);
   assert.match(stdout, /orp workspace ledger remove <name-or-id>/);
   assert.match(stdout, /orp workspace tabs <name-or-id>/);
+  assert.match(stdout, /Compatibility alias for the same tabs\/add\/remove ledger flow/);
 });
 
 test("runOrpWorkspaceCommand routes ledger help to the tabs help surface", async () => {

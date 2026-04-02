@@ -6,6 +6,35 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.18 - 2026-04-02
+
+This release makes workspace tab recovery smoother in the shell while also
+making ORP's secrets/help surface easier for humans and agents to understand
+at a glance.
+
+### Added
+
+- Added `--here` to `orp workspace add-tab` and `orp workspace ledger add` so
+  the current working directory can be saved directly.
+- Added `--current-codex` to the same add-tab flow so the active
+  `CODEX_THREAD_ID` can be stored as a Codex resume target without manually
+  typing session metadata.
+
+### Changed
+
+- Updated workspace tab saves to upsert matching path/title entries by default
+  instead of appending near-duplicate tabs when only resume metadata changes.
+- Added `--append` as the explicit escape hatch when you do want a second saved
+  tab for the same workspace path.
+- Updated workspace add-tab output to print the full recovery line, including
+  the leading `cd ... &&` segment.
+- Refreshed ORP workspace help text so the direct `tabs`, `add-tab`, and
+  `remove-tab` flow reads as the primary surface while `workspace ledger ...`
+  stays available as a compatibility alias.
+- Simplified the secrets/help copy across `orp about`, `orp home`, and
+  `orp secrets -h` so the human prompt flow and the agent `--value-stdin` flow
+  are both discoverable from the CLI.
+
 ## v0.4.14 - 2026-03-28
 
 This release aligns ORP's published npm package metadata with the current

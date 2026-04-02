@@ -8940,7 +8940,7 @@ def _about_payload() -> dict[str, Any]:
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
             "Agent modes are lightweight optional overlays for taste, perspective shifts, and fresh movement; `orp mode nudge sleek-minimal-progressive --json` gives agents a deterministic reminder they can call on when they want a deeper, wider, top-down, or rotated lens without changing ORP's core artifact boundaries.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
-            "Hosted secret inventory remains the canonical source of truth, while the local macOS Keychain cache is inspectable and usable through `orp secrets list`, `orp secrets ensure`, `orp secrets keychain-list`, `orp secrets sync-keychain`, and `orp secrets resolve --local-first`.",
+            "Secrets are easiest to understand as saved keys and tokens: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, and local macOS Keychain caching plus hosted sync are optional layers on top.",
             "Machine runner identity, heartbeat, hosted sync, prompt-job execution, and lease control are built into ORP through `orp runner status`, `orp runner enable`, `orp runner disable`, `orp runner heartbeat`, `orp runner sync`, `orp runner work`, `orp runner cancel`, and `orp runner retry`.",
             "Repo governance is built into ORP through `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup`.",
             "Hosted workspace operations are built directly into ORP under `orp workspaces ...`, plus the linked auth/ideas/feature/world/checkpoint/agent surfaces.",
@@ -9046,11 +9046,11 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp workspace list",
         },
         {
-            "label": "Print exact copyable crash-recovery commands for the main workspace",
+            "label": "Inspect saved paths and exact recovery commands for the main workspace",
             "command": "orp workspace tabs main",
         },
         {
-            "label": "Add a new provider key interactively when you need one",
+            "label": "Save a new API key or token interactively when you need one",
             "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
         },
         {
@@ -9075,10 +9075,6 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Inspect the saved workspace ledger inventory",
             "command": "orp workspace list",
-        },
-        {
-            "label": "Print exact copyable crash-recovery commands for the main workspace",
-            "command": "orp workspace tabs main",
         },
         {
             "label": "Inspect the saved tabs in the main workspace ledger",
@@ -9113,11 +9109,11 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp workspaces list --json",
         },
         {
-            "label": "Inspect the global ORP secret inventory",
+            "label": "Inspect saved keys and tokens already known to ORP",
             "command": "orp secrets list --json",
         },
         {
-            "label": "Reuse a saved provider key or prompt for it and save it for this project",
+            "label": "Reuse a saved key or prompt for it and save it for this project",
             "command": "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
         },
         {
@@ -9408,11 +9404,11 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             },
             {
                 "id": "secrets",
-                "description": "Saved API keys and tokens, with create-if-missing flows, optional local macOS Keychain caching, and project-scoped resolution.",
+                "description": "Saved API keys and tokens, with an interactive human flow, a stdin agent flow, optional local macOS Keychain caching, and optional hosted sync.",
                 "entrypoints": [
                     "orp secrets list --json",
                     "orp secrets show <alias-or-id> --json",
-                    "orp secrets add --alias <alias> --provider <provider> --current-project",
+                    'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
                     "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
                     "orp secrets keychain-list --json",
                     "orp secrets keychain-show <alias-or-id> --json",
@@ -9614,14 +9610,34 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     lines.append("")
     lines.append("Command Families")
     if isinstance(abilities, list) and abilities:
-        for row in abilities:
+        ability_map = {
+            str(row.get("id", "")).strip(): row
+            for row in abilities
+            if isinstance(row, dict) and str(row.get("id", "")).strip()
+        }
+        visible_ability_ids = [
+            "workspace",
+            "secrets",
+            "governance",
+            "frontier",
+            "schedule",
+            "modes",
+            "hosted",
+            "discover",
+        ]
+        shown = 0
+        for ability_id in visible_ability_ids:
+            row = ability_map.get(ability_id)
             if not isinstance(row, dict):
                 continue
-            ability_id = str(row.get("id", "")).strip()
             desc = _truncate(str(row.get("description", "")).strip())
             lines.append(f"  - {ability_id}")
             if desc:
                 lines.append(f"    {desc}")
+            shown += 1
+        remaining = max(len(ability_map) - shown, 0)
+        if remaining:
+            lines.append(f"  - ... and {remaining} more in `orp about --json`")
 
     lines.append("")
     lines.append("Collaboration")
@@ -9652,7 +9668,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
     lines.append("")
     lines.append("Quick Actions")
     if isinstance(quick_actions, list):
-        for row in quick_actions[:14]:
+        for row in quick_actions[:10]:
             if not isinstance(row, dict):
                 continue
             label = str(row.get("label", "")).strip()
@@ -9661,7 +9677,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
                 continue
             lines.append(f"  - {label}")
             lines.append(f"    {command}")
-        remaining = max(len(quick_actions) - 14, 0)
+        remaining = max(len(quick_actions) - 10, 0)
         if remaining:
             lines.append(f"  - ... and {remaining} more in `orp home --json`")
 
@@ -18544,10 +18560,31 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_youtube_inspect)
     s_youtube_inspect.set_defaults(func=cmd_youtube_inspect, json_output=False)
 
-    s_secrets = sub.add_parser("secrets", help="Hosted secret store and project binding operations")
+    s_secrets = sub.add_parser(
+        "secrets",
+        help="Save and reuse API keys and tokens locally, with optional hosted sync",
+        description=(
+            "ORP secrets are easiest to understand as saved keys and tokens.\n\n"
+            "Human flow:\n"
+            "  1. Run `orp secrets add ...`\n"
+            "  2. Paste the value when ORP prompts `Secret value:`\n"
+            "  3. Later run `orp secrets list` or `orp secrets resolve ...`\n\n"
+            "Agent flow:\n"
+            "  - Pipe the value with `--value-stdin` instead of typing it interactively.\n\n"
+            "Local macOS Keychain caching and hosted sync are optional layers on top."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai\n"
+            "  printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai --value-stdin\n"
+            "  orp secrets list\n"
+            "  orp secrets resolve openai-primary --reveal"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     secrets_sub = s_secrets.add_subparsers(dest="secrets_cmd", required=True)
 
-    s_secrets_list = secrets_sub.add_parser("list", help="List hosted secrets for the current user")
+    s_secrets_list = secrets_sub.add_parser("list", help="List saved secrets known to ORP")
     s_secrets_list.add_argument("--provider", default="", help="Optional provider filter")
     add_secret_scope_flags(s_secrets_list)
     s_secrets_list.add_argument(
@@ -18559,13 +18596,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_secrets_list)
     s_secrets_list.set_defaults(func=cmd_secrets_list, json_output=False)
 
-    s_secrets_show = secrets_sub.add_parser("show", help="Show one hosted secret by alias or id")
+    s_secrets_show = secrets_sub.add_parser("show", help="Show one saved secret by alias or id")
     s_secrets_show.add_argument("secret_ref", help="Secret alias or id")
     add_base_url_flag(s_secrets_show)
     add_json_flag(s_secrets_show)
     s_secrets_show.set_defaults(func=cmd_secrets_show, json_output=False)
 
-    s_secrets_add = secrets_sub.add_parser("add", help="Create a hosted secret")
+    s_secrets_add = secrets_sub.add_parser(
+        "add",
+        help="Save a new secret; ORP prompts for the value unless you pass --value-stdin",
+    )
     s_secrets_add.add_argument("--alias", required=True, help="Stable secret alias")
     s_secrets_add.add_argument("--label", required=True, help="Human label for the secret")
     s_secrets_add.add_argument("--provider", required=True, help="Provider slug, for example openai")
@@ -18596,7 +18636,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_ensure = secrets_sub.add_parser(
         "ensure",
-        help="Use an existing hosted secret by alias or create it and bind it when missing",
+        help="Reuse a saved secret or prompt for it and save it when missing",
     )
     s_secrets_ensure.add_argument("--alias", required=True, help="Stable secret alias")
     s_secrets_ensure.add_argument("--label", default="", help="Human label for create-if-missing flows")
@@ -18637,7 +18677,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_keychain_list = secrets_sub.add_parser(
         "keychain-list",
-        help="List locally cached macOS Keychain secrets known to ORP on this machine",
+        help="List local macOS Keychain copies known to ORP on this machine",
     )
     s_secrets_keychain_list.add_argument("--provider", default="", help="Optional provider filter")
     add_secret_scope_flags(s_secrets_keychain_list)
@@ -18646,7 +18686,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_keychain_show = secrets_sub.add_parser(
         "keychain-show",
-        help="Show one locally cached macOS Keychain secret by alias or id",
+        help="Show one local macOS Keychain copy by alias or id",
     )
     s_secrets_keychain_show.add_argument("secret_ref", help="Secret alias or id")
     s_secrets_keychain_show.add_argument(
@@ -18659,7 +18699,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_sync_keychain = secrets_sub.add_parser(
         "sync-keychain",
-        help="Sync hosted secrets into the local macOS Keychain",
+        help="Copy one saved secret into the local macOS Keychain",
     )
     s_secrets_sync_keychain.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
     s_secrets_sync_keychain.add_argument("--provider", default="", help="Provider slug for project-scoped sync")
@@ -18673,7 +18713,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_secrets_sync_keychain)
     s_secrets_sync_keychain.set_defaults(func=cmd_secrets_sync_keychain, json_output=False)
 
-    s_secrets_update = secrets_sub.add_parser("update", help="Update one hosted secret")
+    s_secrets_update = secrets_sub.add_parser("update", help="Update one saved secret")
     s_secrets_update.add_argument("secret_ref", help="Secret alias or id")
     s_secrets_update.add_argument("--alias", default=None, help="New alias")
     s_secrets_update.add_argument("--label", default=None, help="New label")
@@ -18702,13 +18742,13 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_secrets_update)
     s_secrets_update.set_defaults(func=cmd_secrets_update, json_output=False)
 
-    s_secrets_archive = secrets_sub.add_parser("archive", help="Archive one hosted secret")
+    s_secrets_archive = secrets_sub.add_parser("archive", help="Archive one saved secret")
     s_secrets_archive.add_argument("secret_ref", help="Secret alias or id")
     add_base_url_flag(s_secrets_archive)
     add_json_flag(s_secrets_archive)
     s_secrets_archive.set_defaults(func=cmd_secrets_archive, json_output=False)
 
-    s_secrets_bind = secrets_sub.add_parser("bind", help="Bind one secret to a hosted project/world")
+    s_secrets_bind = secrets_sub.add_parser("bind", help="Bind one saved secret to a hosted project/world")
     s_secrets_bind.add_argument("secret_ref", help="Secret alias or id")
     add_secret_scope_flags(s_secrets_bind)
     s_secrets_bind.add_argument("--purpose", default="", help="Optional project usage note")
@@ -18729,7 +18769,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_resolve = secrets_sub.add_parser(
         "resolve",
-        help="Resolve one hosted secret by alias/id or by provider plus project scope",
+        help="Resolve one saved secret by alias/id or by provider plus project scope",
     )
     s_secrets_resolve.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
     s_secrets_resolve.add_argument("--provider", default="", help="Provider slug for project-scoped resolution")

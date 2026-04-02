@@ -97,6 +97,32 @@ test("parseWorkspaceAddTabArgs accepts explicit resume metadata", () => {
   assert.equal(parsed.json, true);
 });
 
+test("parseWorkspaceAddTabArgs resolves --here and --current-codex", () => {
+  const originalThreadId = process.env.CODEX_THREAD_ID;
+  const originalCwd = process.cwd();
+  process.env.CODEX_THREAD_ID = "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9";
+  process.chdir("/Volumes/Code_2TB/code/orp");
+  try {
+    const parsed = parseWorkspaceAddTabArgs([
+      "main",
+      "--here",
+      "--current-codex",
+    ]);
+
+    assert.equal(parsed.ideaId, "main");
+    assert.equal(parsed.path, "/Volumes/Code_2TB/code/orp");
+    assert.equal(parsed.resumeTool, "codex");
+    assert.equal(parsed.resumeSessionId, "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
+  } finally {
+    process.chdir(originalCwd);
+    if (originalThreadId == null) {
+      delete process.env.CODEX_THREAD_ID;
+    } else {
+      process.env.CODEX_THREAD_ID = originalThreadId;
+    }
+  }
+});
+
 test("parseWorkspaceCreateArgs validates slug titles and optional seed metadata", () => {
   const parsed = parseWorkspaceCreateArgs([
     "main-cody-1",
@@ -144,6 +170,63 @@ test("addTabToManifest canonicalizes Claude resume commands from tool plus sessi
   assert.equal(result.manifest.tabs[2]?.sessionId, "claude-456");
 });
 
+test("addTabToManifest updates an existing matching tab instead of appending a duplicate", () => {
+  const result = addTabToManifest(sampleManifest(), {
+    path: "/Volumes/Code_2TB/code/orp",
+    title: "orp",
+    resumeTool: "codex",
+    resumeSessionId: "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+  });
+
+  assert.equal(result.added, false);
+  assert.equal(result.updated, true);
+  assert.equal(result.mutation, "updated");
+  assert.equal(result.manifest.tabs.length, 2);
+  assert.equal(result.manifest.tabs[0]?.resumeCommand, "codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
+});
+
+test("addTabToManifest preserves existing resume metadata when no new resume is provided", () => {
+  const result = addTabToManifest(sampleManifest(), {
+    path: "/Volumes/Code_2TB/code/frg-site",
+    title: "frg-site",
+  });
+
+  assert.equal(result.added, false);
+  assert.equal(result.updated, false);
+  assert.equal(result.unchanged, true);
+  assert.equal(result.mutation, "unchanged");
+  assert.equal(result.manifest.tabs.length, 2);
+  assert.equal(result.manifest.tabs[1]?.resumeCommand, "codex resume 019d348d-5031-78e1-9840-a66deaac33ae");
+});
+
+test("addTabToManifest asks for a title when multiple saved tabs share a path", () => {
+  const manifest = normalizeWorkspaceManifest({
+    version: "1",
+    workspaceId: "main-cody-1",
+    title: "main-cody-1",
+    tabs: [
+      {
+        title: "longevity-research",
+        path: "/Volumes/Code_2TB/code/longevity-research",
+      },
+      {
+        title: "longevity-research (2)",
+        path: "/Volumes/Code_2TB/code/longevity-research",
+      },
+    ],
+  });
+
+  assert.throws(
+    () =>
+      addTabToManifest(manifest, {
+        path: "/Volumes/Code_2TB/code/longevity-research",
+        resumeTool: "codex",
+        resumeSessionId: "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+      }),
+    /Multiple saved tabs already use this path/,
+  );
+});
+
 test("removeTabsFromManifest can target a saved tab by path and resume session id", () => {
   const result = removeTabsFromManifest(sampleManifest(), {
     path: "/Volumes/Code_2TB/code/frg-site",
@@ -183,6 +266,42 @@ test("runWorkspaceAddTab updates a local workspace manifest file", async () => {
     assert.equal(payload.tab.resumeCommand, "claude --resume claude-456");
     assert.equal(saved.tabs.length, 3);
     assert.equal(saved.tabs[2]?.resumeCommand, "claude --resume claude-456");
+  });
+});
+
+test("runWorkspaceAddTab upserts an existing tab and returns the rendered recovery command", async () => {
+  await withTempConfigHome(async () => {
+    const tempDir = await makeTempDir();
+    const manifestPath = path.join(tempDir, "workspace.json");
+    await fs.writeFile(manifestPath, `${JSON.stringify(sampleManifest(), null, 2)}\n`, "utf8");
+
+    const { code, stdout } = await captureStdout(() =>
+      runWorkspaceAddTab([
+        "--workspace-file",
+        manifestPath,
+        "--path",
+        "/Volumes/Code_2TB/code/orp",
+        "--resume-tool",
+        "codex",
+        "--resume-session-id",
+        "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+        "--json",
+      ]),
+    );
+    const payload = JSON.parse(stdout);
+    const saved = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+
+    assert.equal(code, 0);
+    assert.equal(payload.action, "add-tab");
+    assert.equal(payload.mutation, "updated");
+    assert.equal(payload.tabCount, 2);
+    assert.equal(payload.tab.resumeCommand, "codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
+    assert.equal(
+      payload.tab.restartCommand,
+      "cd '/Volumes/Code_2TB/code/orp' && codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+    );
+    assert.equal(saved.tabs.length, 2);
+    assert.equal(saved.tabs[0]?.resumeCommand, "codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
   });
 });
 

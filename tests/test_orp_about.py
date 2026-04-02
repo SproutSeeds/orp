@@ -424,6 +424,19 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("orp frontier init --program-id <program-id> --json", proc.stdout)
             self.assertIn("Quick Actions", proc.stdout)
 
+    def test_secrets_help_teaches_interactive_and_stdin_flows(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, str(CLI), "secrets", "-h"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+        self.assertIn("saved keys and tokens", proc.stdout)
+        self.assertIn("Run `orp secrets add ...`", proc.stdout)
+        self.assertIn("--value-stdin", proc.stdout)
+        self.assertIn('orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai', proc.stdout)
+
     def test_gate_run_json_is_machine_readable(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

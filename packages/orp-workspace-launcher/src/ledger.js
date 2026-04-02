@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 
 import {
-  buildCanonicalResumeCommand,
+  buildDirectCommand,
   deriveBaseTitle,
   normalizeWorkspaceManifest,
   parseWorkspaceSource,
@@ -44,6 +44,17 @@ function validateAbsolutePath(value, label) {
   return normalized;
 }
 
+function resolveCurrentCodexResume() {
+  const sessionId = normalizeOptionalString(process.env.CODEX_THREAD_ID);
+  if (!sessionId) {
+    throw new Error("`--current-codex` requires `CODEX_THREAD_ID` in the current environment.");
+  }
+  return {
+    resumeTool: "codex",
+    resumeSessionId: sessionId,
+  };
+}
+
 function serializeManifest(manifest) {
   return `${JSON.stringify(materializeWorkspaceManifest(manifest), null, 2)}\n`;
 }
@@ -61,6 +72,26 @@ function materializeWorkspaceTab(tab) {
       claudeSessionId: resume.resumeTool === "claude" ? resume.resumeSessionId || undefined : undefined,
     }).filter(([, value]) => value !== undefined),
   );
+}
+
+function buildWorkspaceResultTab(tab) {
+  if (!tab) {
+    return null;
+  }
+  const materialized = materializeWorkspaceTab(tab);
+  return {
+    ...materialized,
+    restartCommand: buildDirectCommand(
+      {
+        path: materialized.path,
+        resumeCommand: materialized.resumeCommand || null,
+        resumeTool: materialized.resumeTool || null,
+        sessionId: materialized.resumeSessionId || null,
+        resumeSessionId: materialized.resumeSessionId || null,
+      },
+      { resume: true },
+    ),
+  };
 }
 
 function materializeWorkspaceManifest(manifest) {
@@ -122,10 +153,16 @@ function normalizeEditableManifest(source, parsed) {
   return normalizeWorkspaceManifest(baseManifest);
 }
 
-function parseLedgerSelectorArgs(argv = [], { commandName, requirePath = false, requireSelector = true } = {}) {
+function parseLedgerSelectorArgs(
+  argv = [],
+  { commandName, requirePath = false, requireSelector = true, allowAppend = false, allowHere = false, allowCurrentCodex = false } = {},
+) {
   const options = {
     json: false,
     all: false,
+    append: false,
+    here: false,
+    currentCodex: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -141,6 +178,18 @@ function parseLedgerSelectorArgs(argv = [], { commandName, requirePath = false, 
     }
     if (arg === "--all") {
       options.all = true;
+      continue;
+    }
+    if (allowAppend && arg === "--append") {
+      options.append = true;
+      continue;
+    }
+    if (allowHere && arg === "--here") {
+      options.here = true;
+      continue;
+    }
+    if (allowCurrentCodex && arg === "--current-codex") {
+      options.currentCodex = true;
       continue;
     }
     if (arg.startsWith("--")) {
@@ -190,11 +239,23 @@ function parseLedgerSelectorArgs(argv = [], { commandName, requirePath = false, 
   if (requireSelector && !options.ideaId && !options.workspaceFile && !options.hostedWorkspaceId) {
     throw new Error(`Provide a workspace selector for \`${commandName}\`.`);
   }
-  if (requirePath && !options.path) {
-    throw new Error(`--path is required for \`${commandName}\`.`);
+  if (options.here && options.path) {
+    throw new Error("Use either `--path` or `--here`, not both.");
+  }
+  if (requirePath && !options.path && !options.here) {
+    throw new Error(`\`--path\` or \`--here\` is required for \`${commandName}\`.`);
+  }
+  if (options.here) {
+    options.path = path.resolve(process.cwd());
   }
   if (options.path) {
     options.path = validateAbsolutePath(options.path, "--path");
+  }
+  if (options.currentCodex) {
+    if (options.resumeCommand || options.resumeTool || options.resumeSessionId) {
+      throw new Error("`--current-codex` cannot be combined with explicit resume metadata.");
+    }
+    Object.assign(options, resolveCurrentCodexResume());
   }
   if (options.index != null) {
     const parsed = Number.parseInt(String(options.index), 10);
@@ -212,6 +273,9 @@ export function parseWorkspaceAddTabArgs(argv = []) {
     commandName: "orp workspace add-tab",
     requirePath: true,
     requireSelector: true,
+    allowAppend: true,
+    allowHere: true,
+    allowCurrentCodex: true,
   });
 }
 
@@ -306,45 +370,107 @@ export function addTabToManifest(manifest, options = {}) {
     ...manifest,
     tabs: manifest.tabs.map((tab) => ({ ...tab })),
   });
-  const resume = resolveResumeMetadata({
-    resumeCommand: options.resumeCommand,
-    resumeTool: options.resumeTool,
-    resumeSessionId: options.resumeSessionId,
-  });
-  const nextTab = Object.fromEntries(
-    Object.entries({
-      title: normalizeOptionalString(options.title) || undefined,
-      path: validateAbsolutePath(options.path, "--path"),
-      resumeCommand: resume.resumeCommand || undefined,
-      resumeTool: resume.resumeTool || undefined,
-      resumeSessionId: resume.resumeSessionId || undefined,
-      codexSessionId: resume.resumeTool === "codex" ? resume.resumeSessionId || undefined : undefined,
-      claudeSessionId: resume.resumeTool === "claude" ? resume.resumeSessionId || undefined : undefined,
-    }).filter(([, value]) => value !== undefined),
+  const normalizedPath = validateAbsolutePath(options.path, "--path");
+  const normalizedTitle = normalizeOptionalString(options.title);
+  const explicitResumeRequested = Boolean(
+    normalizeOptionalString(options.resumeCommand) ||
+      normalizeOptionalString(options.resumeTool) ||
+      normalizeOptionalString(options.resumeSessionId),
   );
+  const requestedResume = explicitResumeRequested
+    ? resolveResumeMetadata({
+        resumeCommand: options.resumeCommand,
+        resumeTool: options.resumeTool,
+        resumeSessionId: options.resumeSessionId,
+      })
+    : null;
 
-  const duplicate = nextManifest.tabs.find((tab) => {
-    const existingResume = resolveResumeMetadata(tab);
-    return (
-      tab.path === nextTab.path &&
-      normalizeOptionalString(tab.title) === normalizeOptionalString(nextTab.title) &&
-      existingResume.resumeCommand === (nextTab.resumeCommand || null)
+  const buildTab = (existingTab = null) => {
+    const existingResume = resolveResumeMetadata(existingTab || {});
+    const chosenResume = requestedResume || existingResume;
+    return Object.fromEntries(
+      Object.entries({
+        title: normalizedTitle || normalizeOptionalString(existingTab?.title) || undefined,
+        path: normalizedPath,
+        resumeCommand: chosenResume.resumeCommand || undefined,
+        resumeTool: chosenResume.resumeTool || undefined,
+        resumeSessionId: chosenResume.resumeSessionId || undefined,
+        codexSessionId: chosenResume.resumeTool === "codex" ? chosenResume.resumeSessionId || undefined : undefined,
+        claudeSessionId: chosenResume.resumeTool === "claude" ? chosenResume.resumeSessionId || undefined : undefined,
+      }).filter(([, value]) => value !== undefined),
     );
-  });
+  };
 
-  if (duplicate) {
+  const nextTab = buildTab();
+  if (options.append) {
+    nextManifest.tabs.push(nextTab);
     return {
-      manifest: nextManifest,
-      added: false,
-      tab: duplicate,
+      manifest: normalizeWorkspaceManifest(nextManifest),
+      added: true,
+      updated: false,
+      unchanged: false,
+      mutation: "added",
+      tab: nextTab,
     };
   }
 
-  nextManifest.tabs.push(nextTab);
+  const pathMatchIndexes = nextManifest.tabs
+    .map((tab, index) => (tab.path === normalizedPath ? index : -1))
+    .filter((index) => index >= 0);
+  let matchedIndexes = [];
+
+  if (normalizedTitle) {
+    matchedIndexes = pathMatchIndexes.filter(
+      (index) => normalizeOptionalString(nextManifest.tabs[index]?.title) === normalizedTitle,
+    );
+    if (matchedIndexes.length === 0 && pathMatchIndexes.length === 1) {
+      matchedIndexes = pathMatchIndexes;
+    }
+  } else if (pathMatchIndexes.length > 0) {
+    const uniqueTitles = new Set(
+      pathMatchIndexes.map((index) => normalizeOptionalString(nextManifest.tabs[index]?.title) || ""),
+    );
+    if (pathMatchIndexes.length === 1 || uniqueTitles.size <= 1) {
+      matchedIndexes = pathMatchIndexes;
+    } else {
+      throw new Error(
+        "Multiple saved tabs already use this path. Re-run with `--title` to target one tab or `--append` to add another.",
+      );
+    }
+  }
+
+  if (matchedIndexes.length === 0) {
+    nextManifest.tabs.push(nextTab);
+    return {
+      manifest: normalizeWorkspaceManifest(nextManifest),
+      added: true,
+      updated: false,
+      unchanged: false,
+      mutation: "added",
+      tab: nextTab,
+    };
+  }
+
+  const [primaryIndex, ...duplicateIndexes] = matchedIndexes;
+  const currentTab = nextManifest.tabs[primaryIndex];
+  const updatedTab = buildTab(currentTab);
+  const currentMaterialized = JSON.stringify(materializeWorkspaceTab(currentTab));
+  const updatedMaterialized = JSON.stringify(materializeWorkspaceTab(updatedTab));
+  nextManifest.tabs[primaryIndex] = updatedTab;
+
+  if (duplicateIndexes.length > 0) {
+    const removalSet = new Set(duplicateIndexes);
+    nextManifest.tabs = nextManifest.tabs.filter((_, index) => !removalSet.has(index));
+  }
+
+  const changed = currentMaterialized !== updatedMaterialized || duplicateIndexes.length > 0;
   return {
     manifest: normalizeWorkspaceManifest(nextManifest),
-    added: true,
-    tab: nextTab,
+    added: false,
+    updated: changed,
+    unchanged: !changed,
+    mutation: changed ? "updated" : "unchanged",
+    tab: updatedTab,
   };
 }
 
@@ -481,16 +607,19 @@ function printWorkspaceAddTabHelp() {
   console.log(`ORP workspace add-tab
 
 Usage:
-  orp workspace add-tab <name-or-id> --path <absolute-path> [--title <title>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id>] [--json]
-  orp workspace add-tab --hosted-workspace-id <workspace-id> --path <absolute-path> [--json]
-  orp workspace add-tab --workspace-file <path> --path <absolute-path> [--json]
+  orp workspace add-tab <name-or-id> (--path <absolute-path> | --here) [--title <title>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id> | --current-codex] [--append] [--json]
+  orp workspace add-tab --hosted-workspace-id <workspace-id> (--path <absolute-path> | --here) [--json]
+  orp workspace add-tab --workspace-file <path> (--path <absolute-path> | --here) [--json]
 
 Options:
   --path <absolute-path> Add this local project path to the saved workspace
+  --here                 Use the current working directory as the saved path
   --title <title>        Optional saved tab title
   --resume-command <text> Exact saved resume command, like \`codex resume ...\` or \`claude --resume ...\`
   --resume-tool <tool>   Build the resume command from \`codex\` or \`claude\`
   --resume-session-id <id> Resume session id to save with the tab
+  --current-codex        Save the current \`CODEX_THREAD_ID\` as a Codex resume target
+  --append               Always append a new saved tab instead of updating an existing matching tab
   --hosted-workspace-id <id> Edit a first-class hosted workspace directly
   --workspace-file <path> Edit a local structured workspace manifest
   --json                 Print the updated workspace edit result as JSON
@@ -498,6 +627,7 @@ Options:
 
 Examples:
   orp workspace add-tab main --path /absolute/path/to/new-project
+  orp workspace add-tab main --here --current-codex
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-tool claude --resume-session-id claude-456
 `);
@@ -560,14 +690,15 @@ function summarizeWorkspaceLedgerMutation(result) {
   const lines = [
     `Workspace: ${result.workspaceTitle || result.workspaceId || "workspace"}`,
     `Action: ${result.action}`,
+    ...(result.action === "add-tab" && result.mutation ? [`Result: ${result.mutation}`] : []),
     `Saved tabs: ${result.tabCount}`,
   ];
 
   if (result.action === "add-tab") {
-    lines.push(`Added: ${result.tab?.title || path.basename(result.tab?.path || "") || result.tab?.path}`);
+    lines.push(`Tab: ${result.tab?.title || path.basename(result.tab?.path || "") || result.tab?.path}`);
     lines.push(`Path: ${result.tab?.path}`);
-    if (result.tab?.resumeCommand) {
-      lines.push(`Resume: ${result.tab.resumeCommand}`);
+    if (result.tab?.resumeCommand && result.tab?.restartCommand) {
+      lines.push(`Resume: ${result.tab.restartCommand}`);
     }
   } else if (result.action === "remove-tab") {
     lines.push(`Removed: ${result.removedTabs.length}`);
@@ -603,9 +734,10 @@ async function runWorkspaceLedgerMutation(options, mutate, action) {
     action,
     workspaceId: finalManifest.workspaceId,
     workspaceTitle: finalManifest.title || source.title || null,
+    mutation: mutated.mutation || null,
     tabCount: finalManifest.tabs.length,
-    tab: mutated.tab ? materializeWorkspaceTab(mutated.tab) : null,
-    removedTabs: (mutated.removedTabs || []).map((tab) => materializeWorkspaceTab(tab)),
+    tab: buildWorkspaceResultTab(mutated.tab),
+    removedTabs: (mutated.removedTabs || []).map((tab) => buildWorkspaceResultTab(tab)),
     persistedTo: persisted.persistedTo,
     ideaId: persisted.ideaId || null,
     workspaceSourceId: persisted.workspaceId || null,
