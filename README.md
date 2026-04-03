@@ -1,6 +1,6 @@
 # ORP — Open Research Protocol
 
-Maintained by Fractal Research Group (`frg.earth`).
+Maintained by SproutSeeds. Research stewardship: Fractal Research Group ([frg.earth](https://frg.earth)).
 
 [![npm version](https://img.shields.io/npm/v/open-research-protocol?color=111111&label=npm)](https://www.npmjs.com/package/open-research-protocol)
 [![npm downloads](https://img.shields.io/npm/dm/open-research-protocol?color=111111&label=downloads)](https://www.npmjs.com/package/open-research-protocol)
