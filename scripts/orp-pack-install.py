@@ -24,7 +24,7 @@ from typing import Any
 import yaml
 
 
-PACK_SPECS: dict[str, dict[str, Any]] = {
+LEGACY_PACK_SPECS: dict[str, dict[str, Any]] = {
     "erdos-open-problems": {
         "default_includes": ["catalog", "live_compare", "problem857"],
         "report_name": "orp.erdos.pack-install-report.md",
@@ -1267,18 +1267,99 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _pack_spec(pack_id: str) -> dict[str, Any]:
-    spec = PACK_SPECS.get(pack_id)
+def _legacy_pack_spec(pack_id: str) -> dict[str, Any]:
+    spec = LEGACY_PACK_SPECS.get(pack_id)
     if not isinstance(spec, dict):
         raise RuntimeError(f"unsupported pack for install flow: {pack_id}")
     return spec
 
 
-def _pack_components(pack_id: str) -> dict[str, dict[str, Any]]:
-    components = _pack_spec(pack_id).get("components", {})
+def _pack_install_spec(pack_meta: dict[str, Any], pack_id: str) -> dict[str, Any]:
+    install = pack_meta.get("install")
+    if isinstance(install, dict):
+        return install
+    return _legacy_pack_spec(pack_id)
+
+
+def _pack_templates(pack_meta: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw = pack_meta.get("templates", {})
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and isinstance(value, dict):
+            out[key] = value
+    return out
+
+
+def _normalize_install_component(
+    component_key: str,
+    raw_component: dict[str, Any],
+    *,
+    templates: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    template_id = str(raw_component.get("template_id", "")).strip()
+    if not template_id:
+        raise RuntimeError(f"install component missing template_id: {component_key}")
+
+    template_meta = templates.get(template_id)
+    if not isinstance(template_meta, dict):
+        raise RuntimeError(
+            f"install component {component_key} references unknown template_id: {template_id}"
+        )
+
+    output_name = str(raw_component.get("output_name") or template_meta.get("output_hint") or "").strip()
+    if not output_name:
+        raise RuntimeError(
+            f"install component {component_key} is missing output_name and template {template_id} has no output_hint"
+        )
+
+    description = str(raw_component.get("description") or template_meta.get("description") or "").strip()
+    required_paths_raw = raw_component.get("required_paths", [])
+    if required_paths_raw is None:
+        required_paths: list[str] = []
+    elif isinstance(required_paths_raw, list):
+        required_paths = [str(path) for path in required_paths_raw]
+    else:
+        raise RuntimeError(f"install component required_paths must be a list: {component_key}")
+
+    return {
+        "template_id": template_id,
+        "output_name": output_name,
+        "description": description,
+        "required_paths": required_paths,
+    }
+
+
+def _pack_components(pack_meta: dict[str, Any], pack_id: str) -> dict[str, dict[str, Any]]:
+    install = _pack_install_spec(pack_meta, pack_id)
+    components = install.get("components", {})
     if not isinstance(components, dict) or not components:
         raise RuntimeError(f"pack has no installable components: {pack_id}")
-    return components
+
+    templates = _pack_templates(pack_meta)
+    out: dict[str, dict[str, Any]] = {}
+    for key, value in components.items():
+        if not isinstance(key, str) or not isinstance(value, dict):
+            raise RuntimeError(f"invalid install component entry in pack {pack_id}: {key!r}")
+        out[key] = _normalize_install_component(key, value, templates=templates)
+    return out
+
+
+def _pack_default_includes(pack_meta: dict[str, Any], pack_id: str) -> list[str]:
+    install = _pack_install_spec(pack_meta, pack_id)
+    raw = install.get("default_includes", [])
+    if not isinstance(raw, list):
+        return []
+    return [str(x) for x in raw if isinstance(x, str)]
+
+
+def _pack_report_name(pack_meta: dict[str, Any], pack_id: str) -> str:
+    install = _pack_install_spec(pack_meta, pack_id)
+    raw = install.get("report_name")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return f"orp.{pack_id}.pack-install-report.md"
 
 
 def _validate_var(raw: str) -> str:
@@ -2153,15 +2234,13 @@ def main() -> int:
     pack_id = str(pack_meta.get("pack_id", args.pack_id))
     pack_version = str(pack_meta.get("version", "unknown"))
     generated_at_utc = _now_utc()
-    components = _pack_components(pack_id)
+    components = _pack_components(pack_meta, pack_id)
     effective_vars = _vars_map(pack_meta, list(args.var or []))
     problem857_source_mode = _problem857_source_mode(effective_vars)
 
     includes = list(args.include or [])
     if not includes:
-        default_includes = _pack_spec(pack_id).get("default_includes", [])
-        if isinstance(default_includes, list):
-            includes = [str(x) for x in default_includes if isinstance(x, str)]
+        includes = _pack_default_includes(pack_meta, pack_id)
     if not includes:
         includes = sorted(components.keys())
 
@@ -2227,7 +2306,7 @@ def main() -> int:
         else:
             report_path = report_path.resolve()
     else:
-        report_name = str(_pack_spec(pack_id).get("report_name", f"orp.{pack_id}.pack-install-report.md"))
+        report_name = _pack_report_name(pack_meta, pack_id)
         report_path = (target_repo_root / report_name).resolve()
 
     _write_report(

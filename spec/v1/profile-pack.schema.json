@@ -34,6 +34,9 @@
     "orp_version_min": {
       "type": "string"
     },
+    "install": {
+      "$ref": "#/$defs/install"
+    },
     "variables": {
       "type": "object",
       "additionalProperties": {
@@ -84,6 +87,51 @@
           "type": "string"
         },
         "default_profiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_includes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "report_name": {
+          "type": "string"
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/installComponent"
+          }
+        }
+      }
+    },
+    "installComponent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "template_id"
+      ],
+      "properties": {
+        "template_id": {
+          "type": "string"
+        },
+        "output_name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "required_paths": {
           "type": "array",
           "items": {
             "type": "string"

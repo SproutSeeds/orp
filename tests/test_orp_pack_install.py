@@ -113,7 +113,158 @@ def _make_fake_problem857_public_repo(root: Path) -> None:
     _git(["commit", "-m", "seed public problem857 repo"], cwd=root)
 
 
+def _make_generic_local_pack(root: Path) -> Path:
+    pack_root = root / "generic-local-pack"
+    _write(
+        pack_root / "pack.yml",
+        """schema_version: "1.0.0"
+pack_id: generic-local-pack
+name: Generic Local Pack
+version: "0.1.0"
+description: >
+  Small local pack used to verify that install metadata can live in pack.yml
+  outside the ORP source tree.
+
+variables:
+  TARGET_REPO_ROOT:
+    description: Absolute path to the working repo.
+    required: true
+
+templates:
+  generic_local_profile:
+    path: profiles/generic-local.yml.tmpl
+    description: Minimal generic local verification profile.
+    output_hint: orp.generic-local.yml
+    default_profiles:
+      - generic_local_flow
+
+install:
+  default_includes:
+    - generic_profile
+  report_name: orp.generic-local.pack-install-report.md
+  components:
+    generic_profile:
+      template_id: generic_local_profile
+      required_paths:
+        - analysis/GENERIC_READY.md
+""",
+    )
+    _write(
+        pack_root / "profiles" / "generic-local.yml.tmpl",
+        """version: "1"
+
+project:
+  name: generic-local-pack
+  repo_root: .
+
+runtime:
+  shell: /bin/bash
+  default_timeout_sec: 1200
+  artifacts_root: orp/artifacts
+
+packet:
+  default_kind: verification
+  output_dir: orp/packets
+  write_markdown: true
+  deterministic_mode: true
+
+lifecycle:
+  claim_status_map:
+    Draft: draft
+    Verified: reviewed
+  atom_status_map:
+    todo: draft
+    done: reviewed
+
+gates:
+  - id: generic_gate
+    description: Minimal generic verification gate.
+    phase: verification
+    command: >
+      printf 'generic_gate=PASS\\n'
+    working_dir: {{TARGET_REPO_ROOT}}
+    pass:
+      exit_codes: [0]
+      stdout_must_contain:
+        - generic_gate=PASS
+    evidence:
+      include_stdout: true
+      include_stderr: true
+    on_fail: stop
+
+profiles:
+  generic_local_flow:
+    description: Minimal local flow for generic repo-owned pack validation.
+    mode: collaboration
+    packet_kind: verification
+    gate_ids:
+      - generic_gate
+""",
+    )
+    return pack_root
+
+
 class OrpPackInstallTests(unittest.TestCase):
+    def test_pack_install_supports_repo_owned_pack_metadata_from_pack_yml(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pack_root = _make_generic_local_pack(root)
+            target = root / "target"
+            _write(target / "analysis" / "GENERIC_READY.md", "# ready\n")
+
+            install = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(REPO_ROOT),
+                    "pack",
+                    "install",
+                    "--pack-path",
+                    str(pack_root),
+                    "--target-repo-root",
+                    str(target),
+                    "--json",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(install.returncode, 0, msg=install.stderr + "\n" + install.stdout)
+            payload = json.loads(install.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["included_components"], ["generic_profile"])
+            self.assertEqual(
+                Path(payload["report"]).resolve(),
+                (target / "orp.generic-local.pack-install-report.md").resolve(),
+            )
+
+            cfg = target / "orp.generic-local.yml"
+            report = target / "orp.generic-local.pack-install-report.md"
+            self.assertTrue(cfg.exists(), msg=f"missing rendered config: {cfg}")
+            self.assertTrue(report.exists(), msg=f"missing report: {report}")
+            self.assertIn("`generic_profile`", report.read_text(encoding="utf-8"))
+
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(CLI),
+                    "--repo-root",
+                    str(target),
+                    "--config",
+                    str(cfg),
+                    "gate",
+                    "run",
+                    "--profile",
+                    "generic_local_flow",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            self.assertEqual(run.returncode, 0, msg=run.stderr + "\n" + run.stdout)
+            self.assertIn("overall=PASS", run.stdout)
+
     def test_catalog_install_renders_config_and_report(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             target = Path(td)

@@ -129,3 +129,57 @@ templates:
     output_hint: orp.erdos-catalog-sync.yml
     default_profiles:
       - erdos_catalog_sync_active
+
+install:
+  default_includes:
+    - catalog
+    - live_compare
+    - problem857
+  report_name: orp.erdos.pack-install-report.md
+  components:
+    catalog:
+      template_id: erdos_problems_catalog_sync
+      output_name: orp.erdos-catalog-sync.yml
+      description: Erdos catalog sync (all/open/closed/active snapshots).
+    live_compare:
+      template_id: sunflower_live_compare_suite
+      output_name: orp.erdos-live-compare.yml
+      description: Side-by-side atomic-board compare for Problems 857/20/367.
+      required_paths:
+        - analysis/problem857_counting_gateboard.json
+        - analysis/problem20_k3_gateboard.json
+        - analysis/problem367_sharp_gateboard.json
+        - scripts/problem857_ops_board.py
+        - scripts/problem20_ops_board.py
+        - scripts/problem367_ops_board.py
+        - scripts/frontier_status.py
+    problem857:
+      template_id: sunflower_problem857_discovery
+      output_name: orp.erdos-problem857.yml
+      description: Problem 857 discovery profile (board refresh/ready/spec/lean/frontier).
+      required_paths:
+        - analysis/problem857_counting_gateboard.json
+        - docs/PROBLEM857_COUNTING_OPS_BOARD.md
+        - orchestrator/v2/scopes/problem_857.yaml
+        - orchestrator/problem857_public_spec_check.py
+        - scripts/problem857_ops_board.py
+        - scripts/frontier_status.py
+        - sunflower_lean
+    governance:
+      template_id: sunflower_mathlib_pr_governance
+      output_name: orp.erdos-mathlib-pr-governance.yml
+      description: Mathlib PR governance profile set (pre-open, draft-readiness, full flow).
+      required_paths:
+        - docs/MATHLIB_SUBMISSION_CHECKLIST.md
+        - docs/MATHLIB_DRAFT_PR_TEMPLATE.md
+        - docs/MATHLIB_ISSUE_VIABILITY_GATE.md
+        - docs/UPSTREAM_PR_LANE.md
+        - analysis/UPSTREAM_PR_PLAN.yaml
+        - scripts/upstream-pr-plan.py
+        - scripts/upstream-pr-lane.sh
+        - scripts/mathlib-issue-viability-gate.py
+        - scripts/mathlib-naturality-snippet.sh
+        - scripts/mathlib-issue-local-gate.sh
+        - scripts/mathlib-tighten-fine-tooth-gate.sh
+        - scripts/mathlib-ready-to-draft-gate.sh
+        - scripts/mathlib-pr-body-preflight.py

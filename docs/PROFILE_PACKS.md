@@ -39,6 +39,7 @@ Canonical fields:
 - `pack_id`: stable id
 - `name`, `version`, `description`
 - `orp_version_min`: optional compatibility floor
+- `install`: optional install contract for `orp pack install`
 - `variables`: render-time variables (for example `TARGET_REPO_ROOT`)
 - `templates`: available config templates
 
@@ -79,6 +80,10 @@ orp pack fetch \
   --pack-id erdos-open-problems \
   --install-target /path/to/repo
 ```
+
+Repo-owned local packs can also be installed directly with `--pack-path` as
+long as their `pack.yml` includes an `install` block describing components,
+default includes, and dependency-audit paths.
 
 This installs rendered config files and writes a dependency audit report:
 
@@ -218,6 +223,9 @@ orp erdos sync --problem-id 857 --problem-id 20
 - Packs can live in this repo (`packs/`) or external repos.
 - Users can copy/install packs without changing ORP core.
 - Version packs independently (for example `0.1.0`, `0.2.0`).
+- Repo-owned packs can ship their own install metadata in `pack.yml`, so ORP
+  can install external domain packs without hardcoding those domains into ORP
+  core.
 
 ## Quality guidance
 

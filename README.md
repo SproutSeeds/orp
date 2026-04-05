@@ -443,6 +443,11 @@ If you are using ORP normally, prefer:
 Reach for `orp pack ...` when you are doing advanced installs, ORP maintenance,
 or direct domain-template work.
 
+Pack installation is pack-owned: `pack.yml` can describe installable
+components, default includes, dependency checks, and report naming. That lets
+ORP consume repo-owned external packs through `--pack-path` without baking
+domain-specific install rules into ORP core.
+
 Install pack configs into a target repo (recommended):
 
 ```bash

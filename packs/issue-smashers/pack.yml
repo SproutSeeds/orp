@@ -176,3 +176,28 @@ templates:
     output_hint: orp.issue-smashers-feedback-hardening.yml
     default_profiles:
       - issue_smashers_feedback_hardening
+
+install:
+  default_includes:
+    - workspace
+    - feedback_hardening
+  report_name: orp.issue-smashers.pack-install-report.md
+  components:
+    workspace:
+      template_id: issue_smashers_workspace
+      output_name: orp.issue-smashers.yml
+      description: Opinionated issue-smashers workspace and external contribution governance profiles.
+      required_paths:
+        - issue-smashers/README.md
+        - issue-smashers/WORKSPACE_RULES.md
+        - issue-smashers/setup-issue-smashers.sh
+        - issue-smashers/analysis/ISSUE_SMASHERS_WATCHLIST.json
+        - issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md
+        - issue-smashers/analysis/PR_DRAFT_BODY.md
+    feedback_hardening:
+      template_id: issue_smashers_feedback_hardening
+      output_name: orp.issue-smashers-feedback-hardening.yml
+      description: Issue-smashers maintainer-feedback hardening profile.
+      required_paths:
+        - issue-smashers/WORKSPACE_RULES.md
+        - issue-smashers/analysis/ISSUE_SMASHERS_STATUS.md

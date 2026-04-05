@@ -144,3 +144,20 @@ templates:
     output_hint: orp.external-pr-feedback-hardening.yml
     default_profiles:
       - external_feedback_hardening
+
+install:
+  default_includes:
+    - governance
+    - feedback_hardening
+  report_name: orp.external-pr.pack-install-report.md
+  components:
+    governance:
+      template_id: oss_pr_governance
+      output_name: orp.external-pr-governance.yml
+      description: Generic external contribution governance profiles (watch/select, pre-open, local-readiness, draft transition, draft lifecycle, full flow).
+      required_paths:
+        - analysis/PR_DRAFT_BODY.md
+    feedback_hardening:
+      template_id: oss_feedback_hardening
+      output_name: orp.external-pr-feedback-hardening.yml
+      description: Generic maintainer-feedback hardening profile.
