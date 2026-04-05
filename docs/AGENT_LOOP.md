@@ -2,6 +2,12 @@
 
 Use this loop when an AI agent is the primary operator of an ORP-enabled repo.
 
+For the longer-horizon model where ORP scans a project's specs, roadmaps, and
+codebase, compiles what is autonomous, and runs until a true human gate, also
+read:
+
+- `docs/ORP_AUTONOMY_PROJECT_COMPILATION_MODEL.md`
+
 ## 1. Discover
 
 - Read `llms.txt`.
