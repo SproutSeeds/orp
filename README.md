@@ -9,13 +9,16 @@ Maintained by SproutSeeds. Research stewardship: Fractal Research Group ([frg.ea
 [![license](https://img.shields.io/npm/l/open-research-protocol?color=111111&label=license)](./LICENSE)
 [![node](https://img.shields.io/node/v/open-research-protocol?color=111111&label=node)](https://www.npmjs.com/package/open-research-protocol)
 
-> Agent-first CLI for workspace ledgers, local governance, secrets, scheduling, packets, reports, and research workflows.
+> Agent-first CLI for workspace ledgers, operating agendas, local governance, secrets, scheduling, packets, reports, and research workflows.
 
 **Links:** [GitHub](https://github.com/SproutSeeds/orp) · [npm](https://www.npmjs.com/package/open-research-protocol) · [frg.earth](https://frg.earth)
 
 ORP is a unified CLI for research and research-like engineering. It helps humans and agents:
 
 - keep a durable workspace ledger
+- keep a durable operating agenda
+- keep a durable connections registry
+- keep a durable opportunities ledger
 - resolve the right secret
 - schedule the next loop
 - checkpoint and protect progress
@@ -38,6 +41,9 @@ The current animation intentionally uses the same human-facing command surfaces 
 - `hosted` for ideas, workspaces, runners, and the control plane
 - `secrets` for create-or-reuse plus local Keychain sync
 - `workspace` for the hosted + local saved workspace ledger and recovery commands
+- `agenda` for Codex-ranked actions and suggestions across current work
+- `connections` for service accounts, data sources, deploy targets, and research destinations
+- `opportunities` for contests, programs, grants, and other tracked openings
 - `schedule` for recurring Codex jobs
 - `governance` for local checkpoints and repo safety
 - `planning` for frontier, compute, packet, and report surfaces
@@ -88,7 +94,9 @@ That guide now follows the same clearer rhythm we liked in `erdos-problems`:
 It walks through:
 
 - `orp init`
+- umbrella and project-level `AGENTS.md` / `CLAUDE.md` guidance
 - local-first workspace ledgers
+- local-first opportunity boards
 - saved Codex and Claude resume commands
 - secrets setup
 - the checkpoint and governance loop
@@ -101,7 +109,12 @@ If you want the shortest honest map of day-to-day ORP, start here:
 ```bash
 orp
 orp home
+orp agents audit
 orp workspace tabs main
+orp agenda refresh --json
+orp agenda refresh-status --json
+orp agenda focus
+orp opportunities list
 orp secrets ensure --alias openai-primary --provider openai --current-project
 orp checkpoint create -m "capture loop state"
 orp packet emit --profile default
@@ -111,16 +124,177 @@ orp schedule list
 orp mode nudge sleek-minimal-progressive
 ```
 
-That sequence covers discovery, workspace recovery, secret resolution, governance, artifacts, planning, automation, and perspective-shift support.
+That sequence covers discovery, agent-guide alignment, workspace recovery, agenda refresh, secret resolution, governance, artifacts, planning, automation, and perspective-shift support.
 
 The shorter rule is:
 
 - recover the workspace
+- keep the agent guides aligned
+- refresh the agenda
+- inspect the active opportunities
 - inspect repo safety
 - resolve the right secret
 - inspect the current frontier
 - do the next honest move
 - checkpoint at honest boundaries
+
+## Agenda Quick Start
+
+Use `agenda` when you want ORP to keep two ranked lists for the current operating moment:
+
+- `actions` for the things most likely to need attention now
+- `suggestions` for the next best expansions toward the current north star
+
+Run one refresh:
+
+```bash
+orp agenda refresh --json
+```
+
+Check whether recurring refreshes are enabled on this machine:
+
+```bash
+orp agenda refresh-status --json
+```
+
+If you want scheduled Codex refreshes, you must opt in explicitly. Nothing auto-runs until you do. The starter preset uses local morning, afternoon, and evening times:
+
+```bash
+orp agenda enable-refreshes --json
+```
+
+If you want your own times instead of the default `09:00`, `14:00`, and `19:00`, set them directly:
+
+```bash
+orp agenda enable-refreshes --morning 08:30 --afternoon 13:00 --evening 18:30 --json
+```
+
+Turn them back off any time:
+
+```bash
+orp agenda disable-refreshes --json
+```
+
+Inspect the resulting lists:
+
+```bash
+orp agenda actions
+orp agenda suggestions
+orp agenda focus
+```
+
+If you want to pin an explicit north star instead of relying on inferred context:
+
+```bash
+orp agenda set-north-star "Advance the ocular controller and ORP ecosystems"
+```
+
+The practical model is:
+
+- `agenda refresh` is a real Codex reasoning pass
+- it reads current main-workspace context, GitHub pressure, connections, and opportunities
+- it writes two saved ranked lists locally
+- recurring agenda refreshes stay disabled until the user explicitly enables them
+- the default scheduled windows are morning, afternoon, and evening, but the user can set custom times
+- `focus` is the fastest operator and agent recall surface
+
+## Opportunities Quick Start
+
+Use `opportunities` when you want a separate editable list of contests, programs, grants, or other openings without mixing that into `workspace`.
+
+Create one board:
+
+```bash
+orp opportunities create main-opportunities --label "Main Opportunities"
+```
+
+Add one tracked item:
+
+```bash
+orp opportunities add main-opportunities --title "vision-prize" --kind contest --section ocular-longevity --priority high --url https://example.com/vision-prize
+```
+
+Inspect the current board:
+
+```bash
+orp opportunities show main-opportunities
+orp opportunities focus main-opportunities --limit 5
+orp opportunities list
+```
+
+Update or remove one item:
+
+```bash
+orp opportunities update main-opportunities vision-prize --status submitted
+orp opportunities remove main-opportunities vision-prize
+```
+
+Mirror or restore the same board across machines once you authenticate:
+
+```bash
+orp auth login
+orp opportunities sync main-opportunities --json
+orp opportunities pull main-opportunities --json
+```
+
+The practical model is:
+
+- local board first, always usable without an account
+- hosted mirror optional, for the same user across multiple rigs
+- `sync` pushes the current local board to hosted ORP
+- `pull` restores the hosted copy onto this machine
+
+## Connections Quick Start
+
+Use `connections` when you want one place to remember service accounts, data sources, deployment targets, and research destinations without storing raw credentials inline.
+
+Inspect the built-in provider templates when they help:
+
+```bash
+orp connections providers
+```
+
+Add one saved connection that references an ORP secret alias:
+
+```bash
+orp connections add github-main --provider github --label "GitHub Main" --account cody --organization sproutseeds --auth-secret-alias github-main
+```
+
+If one service needs several tokens, keep them together under named secret bindings:
+
+```bash
+orp connections add huggingface-main --provider huggingface --label "Hugging Face" --account cody --secret-binding primary=hf-main --secret-binding publish=hf-publish --secret-binding inference=hf-inference
+```
+
+If ORP has never seen the service before, `custom` is still a normal first-class path:
+
+```bash
+orp connections add my-science-portal --provider custom --label "My Science Portal" --url https://example.org --secret-binding primary=my-science-token
+```
+
+Inspect or update the registry:
+
+```bash
+orp connections show github-main
+orp connections list
+orp connections update github-main --status paused
+orp connections remove github-main
+```
+
+Mirror the same registry across machines once you authenticate:
+
+```bash
+orp auth login
+orp connections sync --json
+orp connections pull --json
+```
+
+The practical model is:
+
+- `secrets` holds the actual sensitive value
+- `connections` holds the provider/account/capability record and which secret alias or named secret bindings power it
+- built-in providers help you start faster, but `custom` works for anything new or niche
+- hosted sync is optional and mirrors the whole registry for the same user
 
 ## Secrets Quick Start
 
@@ -242,10 +416,10 @@ orp agent work --once --json
 Local desk and automation:
 
 ```bash
-orp workspace create main-cody-1
+orp workspace create mac-main --machine-label "Mac Studio"
 orp workspace list
 orp workspace tabs main
-orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"
+orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <id>"
 orp workspace remove-tab main --path /absolute/path/to/project
 orp workspace sync main
 orp secrets list --json
@@ -263,7 +437,10 @@ For secrets, the simplest plain-English rule is:
 Local governance:
 
 ```bash
-orp init
+orp agents root set /absolute/path/to/projects
+orp init --projects-root /absolute/path/to/projects
+orp agents audit
+orp agents sync
 orp status --json
 orp branch start work/<topic> --json
 orp checkpoint create -m "describe completed unit" --json
@@ -336,21 +513,25 @@ Stable artifact paths:
 2. Link to `orp/PROTOCOL.md` from your repo `README.md`.
 3. Customize **Canonical Paths** inside `orp/PROTOCOL.md` to match your repo layout.
 4. Run `orp init` in the repo root to establish ORP governance.
-5. Use `orp status`, `orp branch start`, `orp checkpoint create`, and `orp backup` as the default implementation loop.
-6. Use the templates for all new claims and verifications.
-7. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
+5. If you keep many repos under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once and let `orp init --projects-root /absolute/path/to/projects` link each child repo back to that parent guidance.
+6. Use `orp agents audit` whenever you want to confirm `AGENTS.md` and `CLAUDE.md` are still aligned without overwriting human notes.
+7. Use `orp status`, `orp branch start`, `orp checkpoint create`, and `orp backup` as the default implementation loop.
+8. Use the templates for all new claims and verifications.
+9. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
 
 ## Quick start (new project)
 
 1. Copy this folder into a new project directory.
-2. Run `orp init` immediately so the repo starts ORP-governed.
-3. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
-4. Start implementation on a work branch with `orp branch start`.
-5. Create regular checkpoint commits with `orp checkpoint create`.
-6. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
-7. Validate promotable task/decision/hypothesis artifacts with `orp kernel validate <path> --json`.
-8. Start by adding one small claim + verification record using the templates.
-9. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
+2. If you keep projects under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once from anywhere.
+3. Run `orp init` immediately so the repo starts ORP-governed and scaffolds or updates `AGENTS.md` and `CLAUDE.md`.
+4. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
+5. Run `orp agents audit` to confirm the repo-level agent files are aligned and still preserving human notes.
+6. Start implementation on a work branch with `orp branch start`.
+7. Create regular checkpoint commits with `orp checkpoint create`.
+8. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
+9. Validate promotable task/decision/hypothesis artifacts with `orp kernel validate <path> --json`.
+10. Start by adding one small claim + verification record using the templates.
+11. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
 
 **Activation is procedural/social, not runtime:** nothing “turns on” automatically. ORP works only if contributors follow it.
 

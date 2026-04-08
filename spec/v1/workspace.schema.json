@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://orp.dev/spec/v1/workspace.schema.json",
   "title": "ORP Workspace Manifest",
-  "description": "Structured workspace launcher manifest for ORP iTerm/tmux workspace restoration.",
+  "description": "Structured workspace ledger manifest for ORP local and hosted workspace recovery across machines.",
   "type": "object",
   "required": ["version", "tabs"],
   "properties": {
@@ -17,6 +17,28 @@
     "title": {
       "type": "string",
       "minLength": 1
+    },
+    "machine": {
+      "type": "object",
+      "properties": {
+        "machineId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "machineLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     },
     "tmuxPrefix": {
       "type": "string",
@@ -66,7 +88,7 @@
     },
     "tabs": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "items": {
         "type": "object",
         "required": ["path"],
@@ -78,6 +100,18 @@
           "path": {
             "type": "string",
             "pattern": "^/"
+          },
+          "remoteUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "remoteBranch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bootstrapCommand": {
+            "type": "string",
+            "minLength": 1
           },
           "resumeCommand": {
             "type": "string",

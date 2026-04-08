@@ -64,6 +64,41 @@ function normalizeOptionalString(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeOptionalCommand(value) {
+  return normalizeOptionalString(value);
+}
+
+function normalizeOptionalUrl(value, label) {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return null;
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(normalized) || /^[^@\s]+@[^:\s]+:[^\s]+$/i.test(normalized)) {
+    return normalized;
+  }
+  throw new Error(`${label} must look like a git remote URL`);
+}
+
+function normalizeMachineMetadata(rawMachine) {
+  if (rawMachine == null) {
+    return null;
+  }
+  if (!rawMachine || typeof rawMachine !== "object" || Array.isArray(rawMachine)) {
+    throw new Error("workspace manifest machine metadata must be an object");
+  }
+
+  const machine = Object.fromEntries(
+    Object.entries({
+      machineId: normalizeOptionalString(rawMachine.machineId),
+      machineLabel: normalizeOptionalString(rawMachine.machineLabel),
+      platform: normalizeOptionalString(rawMachine.platform),
+      host: normalizeOptionalString(rawMachine.host),
+    }).filter(([, value]) => value != null),
+  );
+
+  return Object.keys(machine).length > 0 ? machine : null;
+}
+
 function normalizeResumeTool(value) {
   const trimmed = normalizeOptionalString(value)?.toLowerCase() || null;
   return trimmed && SUPPORTED_RESUME_TOOLS.has(trimmed) ? trimmed : null;
@@ -241,6 +276,9 @@ function normalizeStructuredTab(rawTab, index) {
     resumeTool: resume.resumeTool,
     title,
     tmuxSessionName,
+    remoteUrl: normalizeOptionalUrl(rawTab.remoteUrl, `workspace tab ${index + 1} remoteUrl`),
+    remoteBranch: normalizeOptionalString(rawTab.remoteBranch),
+    bootstrapCommand: normalizeOptionalCommand(rawTab.bootstrapCommand),
   };
 }
 
@@ -254,8 +292,8 @@ export function normalizeWorkspaceManifest(rawManifest) {
     throw new Error(`unsupported workspace manifest version: ${version}`);
   }
 
-  if (!Array.isArray(rawManifest.tabs) || rawManifest.tabs.length === 0) {
-    throw new Error("workspace manifest must include a non-empty tabs array");
+  if (!Array.isArray(rawManifest.tabs)) {
+    throw new Error("workspace manifest must include a tabs array");
   }
 
   const tabs = rawManifest.tabs.map((tab, index) => normalizeStructuredTab(tab, index));
@@ -264,6 +302,7 @@ export function normalizeWorkspaceManifest(rawManifest) {
     workspaceId: normalizeOptionalString(rawManifest.workspaceId),
     title: normalizeOptionalString(rawManifest.title),
     tmuxPrefix: normalizeOptionalString(rawManifest.tmuxPrefix),
+    machine: normalizeMachineMetadata(rawManifest.machine),
     capture: normalizeCaptureMetadata(rawManifest.capture),
     tabs,
   };
@@ -399,6 +438,37 @@ export function buildDirectCommand(entry, options = {}) {
     commands.push(resumeCommand);
   }
   return commands.join(" && ");
+}
+
+export function buildCloneCommand(entry, options = {}) {
+  const remoteUrl = normalizeOptionalUrl(entry?.remoteUrl, "workspace tab remoteUrl");
+  if (!remoteUrl) {
+    return null;
+  }
+  const repoDir = options.repoDir || path.basename(normalizeDisplayPath(entry.path));
+  const branch = normalizeOptionalString(entry?.remoteBranch);
+  const parts = ["git", "clone"];
+  if (branch) {
+    parts.push("--branch", shellQuote(branch));
+  }
+  parts.push(shellQuote(remoteUrl));
+  if (repoDir) {
+    parts.push(shellQuote(repoDir));
+  }
+  return parts.join(" ");
+}
+
+export function buildSetupCommand(entry, options = {}) {
+  const cloneCommand = buildCloneCommand(entry, options);
+  const bootstrapCommand = normalizeOptionalCommand(entry?.bootstrapCommand);
+  if (!cloneCommand && !bootstrapCommand) {
+    return null;
+  }
+  if (cloneCommand && bootstrapCommand) {
+    const repoDir = options.repoDir || path.basename(normalizeDisplayPath(entry.path));
+    return `${cloneCommand} && cd ${shellQuote(repoDir)} && ${bootstrapCommand}`;
+  }
+  return cloneCommand || bootstrapCommand;
 }
 
 export function buildTmuxPresentationCommands(entry, options = {}) {

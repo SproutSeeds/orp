@@ -52,6 +52,10 @@ function buildHostedWorkspaceSummary(workspace) {
   return {
     workspaceId: normalizeOptionalString(workspace?.workspace_id ?? workspace?.id),
     title: normalizeOptionalString(workspace?.title),
+    machineId: normalizeOptionalString(workspace?.state?.capture_context?.machine_id ?? workspace?.state?.captureContext?.machineId),
+    machineLabel:
+      normalizeOptionalString(workspace?.state?.capture_context?.machine_label ?? workspace?.state?.captureContext?.machineLabel),
+    platform: normalizeOptionalString(workspace?.state?.capture_context?.platform ?? workspace?.state?.captureContext?.platform),
     visibility: normalizeOptionalString(workspace?.visibility),
     ideaId: normalizeOptionalString(linkedIdea.idea_id ?? linkedIdea.ideaId),
     tabCount:
@@ -66,6 +70,9 @@ function buildLocalWorkspaceSummary(workspace) {
   return {
     workspaceId: normalizeOptionalString(workspace?.workspaceId),
     title: normalizeOptionalString(workspace?.title),
+    machineId: normalizeOptionalString(workspace?.machineId),
+    machineLabel: normalizeOptionalString(workspace?.machineLabel),
+    platform: normalizeOptionalString(workspace?.platform),
     status: normalizeOptionalString(workspace?.status) || "ok",
     manifestPath: normalizeOptionalString(workspace?.manifestPath),
     tabCount: Number.isInteger(workspace?.tabCount) ? workspace.tabCount : 0,
@@ -244,6 +251,9 @@ export function buildWorkspaceInventory({ localResult, hostedResult, hostedError
       availability:
         entry.hosted && entry.local ? "hosted+local" : entry.hosted ? "hosted" : "local",
       syncStatus: inferSyncStatus(entry),
+      machineId: entry.local?.machineId || entry.hosted?.machineId || null,
+      machineLabel: entry.local?.machineLabel || entry.hosted?.machineLabel || null,
+      platform: entry.local?.platform || entry.hosted?.platform || null,
       sources: entry.sources,
       hosted: entry.hosted || null,
       local: entry.local || null,
@@ -306,6 +316,11 @@ export function summarizeWorkspaceInventory(result) {
     if (workspace.slots?.length) {
       lines.push(
         `Slots: ${workspace.slots.join(", ")}${workspace.implicitMain ? " (main inferred because this is the only workspace)" : ""}`,
+      );
+    }
+    if (workspace.machineLabel || workspace.machineId) {
+      lines.push(
+        `Machine: ${workspace.machineLabel || workspace.machineId}${workspace.platform ? ` (${workspace.platform})` : ""}`,
       );
     }
     lines.push(`Availability: ${workspace.availability}`);
@@ -400,6 +415,9 @@ export function summarizeTrackedWorkspaces(result) {
     lines.push(`Status: ${workspace.status}`);
     lines.push(`File: ${workspace.manifestPath}`);
     lines.push(`Saved tabs: ${workspace.tabCount || 0}`);
+    if (workspace.machineLabel || workspace.machineId) {
+      lines.push(`Machine: ${workspace.machineLabel || workspace.machineId}${workspace.platform ? ` (${workspace.platform})` : ""}`);
+    }
 
     if (workspace.captureMode) {
       lines.push(`Capture mode: ${workspace.captureMode}`);

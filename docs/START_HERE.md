@@ -7,6 +7,10 @@ The design goal is simple:
 - local-first by default
 - hosted sync is optional
 - the workspace ledger remembers where ongoing work lives
+- `AGENTS.md` and `CLAUDE.md` keep umbrella and child guidance aligned
+- the agenda keeps two ranked lists for what matters now and what to expand next
+- the connections registry remembers which services, accounts, and secret aliases power your tooling
+- opportunity boards remember contests, programs, grants, and similar openings
 - repo governance keeps work intentional
 - the agent uses ORP as its operating lens, not as an afterthought
 
@@ -17,6 +21,7 @@ Do not let ORP process scaffolding masquerade as evidence or repository truth.
 ORP is there to:
 
 - keep the workspace ledger honest
+- keep connection identities and auth references organized
 - keep repo governance explicit
 - keep secrets and continuity usable
 - help the agent stay aligned
@@ -35,9 +40,19 @@ If you already know you want the standard local-first ORP loop in a repo, the fa
 
 ```bash
 orp home
+orp agents root set /absolute/path/to/projects
 orp init
+orp agents audit
 orp workspace create main-cody-1
 orp workspace tabs main
+orp agenda refresh --json
+orp agenda focus
+orp connections providers
+orp connections add github-main --provider github --label "GitHub Main" --auth-secret-alias github-main
+orp connections add huggingface-main --provider huggingface --label "Hugging Face" --secret-binding primary=hf-main --secret-binding publish=hf-publish
+orp connections add my-science-portal --provider custom --label "My Science Portal" --url https://example.org --secret-binding primary=my-science-token
+orp opportunities create main-opportunities --label "Main Opportunities"
+orp opportunities list
 orp secrets ensure --alias openai-primary --provider openai --current-project --json
 orp status --json
 orp checkpoint create -m "capture loop state" --json
@@ -46,9 +61,14 @@ orp checkpoint create -m "capture loop state" --json
 That gets you:
 
 - the discovery screen
+- an optional umbrella projects root for parent/child agent guidance
 - repo governance initialized
+- repo-level AGENTS.md and CLAUDE.md scaffolded or refreshed
 - a local workspace ledger
 - the main recovery surface
+- a local operating agenda
+- a saved connection record for a real integration
+- a separate opportunities board for contests/programs/grants
 - secrets setup
 - a clean repo-governance read
 - a first intentional checkpoint
@@ -97,12 +117,40 @@ More concretely, `orp init` does these jobs:
   - `orp/HANDOFF.md`
   - `orp/checkpoints/CHECKPOINT_LOG.md`
   - `analysis/orp.kernel.task.yml`
+- scaffolds or updates:
+  - `AGENTS.md`
+  - `CLAUDE.md`
 - writes governance metadata like:
   - `orp/governance.json`
   - `orp/agent-policy.json`
   - `orp/state.json`
 
 So `orp init` is not "start doing the work." It is "make this repo legible and governable for humans and agents."
+
+The important subtlety is that ORP does not own those agent files outright:
+
+- if `AGENTS.md` or `CLAUDE.md` already exists, ORP preserves the human-written content and only refreshes its own marked blocks
+- if the file is missing, ORP scaffolds it with a sensible starter structure
+- the ORP-managed blocks can point a child repo back to a higher-level umbrella projects root when you configure one
+
+If you keep many repos under one shared parent directory, set that umbrella root once:
+
+```bash
+orp agents root set /absolute/path/to/projects
+```
+
+Then initialize or resync a child repo with the parent explicitly linked:
+
+```bash
+orp init --projects-root /absolute/path/to/projects
+orp agents audit
+```
+
+If you want to refresh the files later without rerunning the full repo bootstrap:
+
+```bash
+orp agents sync
+```
 
 After that, check the repo state:
 
@@ -115,7 +163,7 @@ orp status --json
 This is the local-first memory layer for ongoing work.
 
 ```bash
-orp workspace create main-cody-1
+orp workspace create mac-main --machine-label "Mac Studio"
 orp workspace list
 orp workspace tabs main
 ```
@@ -126,15 +174,21 @@ The important idea is:
 
 - the workspace ledger is not a GUI tab manager
 - it is the saved memory of where work lives
-- it stores paths plus exact resumable command lines
+- it stores machine-specific paths plus exact resumable command lines
+- it can also store portable remote repo URLs and bootstrap commands for another machine
 - it is the crash-recovery layer for you and the agent
+
+This is separate from the agent-instruction hierarchy:
+
+- `workspace` remembers concrete working continuity like paths and resume commands
+- `agents` keeps the higher-level parent/child guidance files aligned
 
 ### 5. Save ongoing tabs and sessions
 
 If you want ORP to remember an ongoing repo path plus a resumable session, add it explicitly:
 
 ```bash
-orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <session-id>"
+orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <session-id>"
 ```
 
 For Claude:
@@ -161,6 +215,17 @@ or:
 resume: cd '/absolute/path/to/project' && claude --resume <session-id>
 ```
 
+If you also save a remote repo and bootstrap command, `orp workspace tabs main` will show extra lines like:
+
+```text
+remote: git@github.com:org/project.git [branch main]
+clone: git clone 'git@github.com:org/project.git' 'project'
+bootstrap: npm install
+setup: git clone 'git@github.com:org/project.git' 'project' && cd 'project' && npm install
+```
+
+That is the portable part a second machine can use. The local `path` and the local `resume:` line still belong to the machine that saved the session.
+
 To remove something from the saved ledger:
 
 ```bash
@@ -170,12 +235,168 @@ orp workspace remove-tab main --path /absolute/path/to/project
 So the `workspace` lane is really:
 
 - `create` a ledger
-- `add-tab` to remember a path/session
+- `add-tab` to remember a path/session and, optionally, the remote/bootstrap details needed on another rig
 - `remove-tab` to prune old work
 - `tabs` to inspect exact saved recovery commands
 - `list` to see all saved workspaces
 
-### 6. Set up secrets
+### 6. Create one agenda lane
+
+This is the separate memory lane for ranked action pressure and ranked suggestions. It is intentionally distinct from `workspace`, `connections`, and `opportunities`.
+
+Run one refresh:
+
+```bash
+orp agenda refresh --json
+```
+
+Check whether recurring refreshes are enabled:
+
+```bash
+orp agenda refresh-status --json
+```
+
+If you want ORP to refresh the agenda on a schedule, you must opt in explicitly. Nothing starts making recurring Codex calls until you enable it yourself. The starter preset is morning, afternoon, and evening:
+
+```bash
+orp agenda enable-refreshes --json
+```
+
+If you want your own times instead, override them directly:
+
+```bash
+orp agenda enable-refreshes --morning 08:30 --afternoon 13:00 --evening 18:30 --json
+```
+
+Disable the recurring refreshes any time:
+
+```bash
+orp agenda disable-refreshes --json
+```
+
+Inspect the saved outputs:
+
+```bash
+orp agenda actions
+orp agenda suggestions
+orp agenda focus
+```
+
+If you want ORP to optimize around one explicit north star instead of inferring it from current context:
+
+```bash
+orp agenda set-north-star "Advance the ocular controller and ORP ecosystems"
+```
+
+The practical model is:
+
+- `agenda refresh` is a real Codex reasoning pass
+- it reads current main-workspace context, GitHub pressure, opportunities, and connections
+- it writes two saved ranked lists locally:
+  - `actions`
+  - `suggestions`
+- recurring agenda refreshes are disabled by default until the user enables them
+- the built-in default schedule is morning, afternoon, and evening, but user-chosen times win
+- `focus` is the fastest operator and agent recall surface
+
+### 7. Create one connections registry
+
+This is the separate memory lane for service accounts, data sources, deploy targets, databases, archives, and public research destinations. It is intentionally distinct from both `workspace` and `secrets`.
+
+Inspect the built-in provider templates first if they help:
+
+```bash
+orp connections providers
+```
+
+Add one saved connection that references a saved ORP secret alias:
+
+```bash
+orp connections add github-main --provider github --label "GitHub Main" --account cody --organization sproutseeds --auth-secret-alias github-main
+```
+
+If the same service needs multiple tokens, keep them together under named secret bindings:
+
+```bash
+orp connections add huggingface-main --provider huggingface --label "Hugging Face" --account cody --secret-binding primary=hf-main --secret-binding publish=hf-publish --secret-binding inference=hf-inference
+```
+
+If ORP has never seen the service before, use `custom` and keep going:
+
+```bash
+orp connections add my-science-portal --provider custom --label "My Science Portal" --url https://example.org --secret-binding primary=my-science-token
+```
+
+Inspect or update it later:
+
+```bash
+orp connections show github-main
+orp connections list
+orp connections update github-main --status paused
+```
+
+Mirror the same registry to hosted ORP when you want the same setup on another machine:
+
+```bash
+orp auth login
+orp connections sync --json
+orp connections pull --json
+```
+
+The important idea is:
+
+- `secrets` stores the actual sensitive value
+- `connections` stores the provider/account/capability record and which secret alias or named secret bindings power it
+- `workspace` stores where current work lives
+- built-in providers are optional; `custom` is the straight path for anything new or specialized
+
+### 8. Create one opportunities board
+
+This is the separate memory lane for contests, programs, grants, fellowships, and similar openings. It is intentionally distinct from `workspace`.
+
+Create one board:
+
+```bash
+orp opportunities create main-opportunities --label "Main Opportunities"
+```
+
+Add one tracked item:
+
+```bash
+orp opportunities add main-opportunities --title "vision-prize" --kind contest --section ocular-longevity --priority high --url https://example.com/vision-prize
+```
+
+Inspect the board:
+
+```bash
+orp opportunities show main-opportunities
+orp opportunities focus main-opportunities --limit 5
+orp opportunities list
+```
+
+Update or remove one item:
+
+```bash
+orp opportunities update main-opportunities vision-prize --status submitted
+orp opportunities remove main-opportunities vision-prize
+```
+
+If you authenticate later and want the same board on another machine, mirror it:
+
+```bash
+orp auth login
+orp opportunities sync main-opportunities --json
+orp opportunities pull main-opportunities --json
+```
+
+The important idea is:
+
+- `workspace` remembers where active sessions live
+- `opportunities` remembers what external openings matter
+- agents can read and update both, but they should stay separate
+- local-first is the default; hosted sync is optional
+
+### 9. Set up secrets
 
 Today, secrets are the one part of ORP that still starts from the hosted ORP account layer. So before you save or resolve secrets, log in:
 
@@ -320,7 +541,7 @@ The right mental model is:
 - if the key is missing and you did not pass a value, ORP prompts you for it
 - `add` is the clearest first command for a brand-new human user
 
-### 7. Start working safely
+### 10. Start working safely
 
 ORP's default repo-governance loop is:
 
@@ -396,7 +617,7 @@ So the checkpoint governance loop is really:
 
 That is the part of ORP that keeps the human, the agent, and the repo in check together.
 
-### 8. Keep the program context visible
+### 11. Keep the program context visible
 
 If the work belongs to a longer-running research or product trajectory:
 
@@ -412,7 +633,7 @@ The distinction is:
 - `workspace` answers: where is the work physically happening?
 - `frontier` answers: where are we logically in the larger program?
 
-### 9. Use optional perspective support
+### 12. Use optional perspective support
 
 When the work feels too linear, too trapped, or too narrow:
 
@@ -429,7 +650,7 @@ It is there to help with:
 - rotating the angle of attack
 - keeping the work fresh without making the workflow sloppy
 
-### 10. Optional hosted sync
+### 13. Optional hosted sync
 
 Hosted ORP is not required for the local workspace ledger or repo-governance loop.
 

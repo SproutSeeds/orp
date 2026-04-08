@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -36,6 +37,16 @@ function normalizeOptionalString(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function buildCurrentMachineMetadata(options = {}) {
+  const machineId = normalizeOptionalString(options.machineId) || `${os.hostname().trim() || "machine"}:${process.platform}`;
+  return {
+    machineId,
+    machineLabel: normalizeOptionalString(options.machineLabel) || os.hostname().trim() || "This Machine",
+    platform: normalizeOptionalString(options.platform) || process.platform,
+    host: os.hostname().trim() || undefined,
+  };
+}
+
 function validateAbsolutePath(value, label) {
   const normalized = normalizeOptionalString(value);
   if (!normalized || !normalized.startsWith("/")) {
@@ -65,6 +76,9 @@ function materializeWorkspaceTab(tab) {
     Object.entries({
       title: normalizeOptionalString(tab.title) || undefined,
       path: tab.path,
+      remoteUrl: normalizeOptionalString(tab.remoteUrl) || undefined,
+      remoteBranch: normalizeOptionalString(tab.remoteBranch) || undefined,
+      bootstrapCommand: normalizeOptionalString(tab.bootstrapCommand) || undefined,
       resumeCommand: resume.resumeCommand || undefined,
       resumeTool: resume.resumeTool || undefined,
       resumeSessionId: resume.resumeSessionId || undefined,
@@ -101,6 +115,7 @@ function materializeWorkspaceManifest(manifest) {
       version: normalized.version,
       workspaceId: normalized.workspaceId || undefined,
       title: normalized.title || undefined,
+      machine: normalized.machine || undefined,
       capture: normalized.capture || undefined,
       tabs: normalized.tabs.map((tab) => materializeWorkspaceTab(tab)),
     }).filter(([, value]) => value !== undefined),
@@ -113,6 +128,7 @@ function normalizeEditableManifest(source, parsed) {
         version: parsed.manifest.version,
         workspaceId: parsed.manifest.workspaceId,
         title: parsed.manifest.title,
+        machine: parsed.manifest.machine,
         capture: parsed.manifest.capture,
         tabs: parsed.manifest.tabs.map((entry) => {
           const resume = resolveResumeMetadata(entry);
@@ -120,6 +136,9 @@ function normalizeEditableManifest(source, parsed) {
             Object.entries({
               title: normalizeOptionalString(entry.title) || undefined,
               path: entry.path,
+              remoteUrl: normalizeOptionalString(entry.remoteUrl) || undefined,
+              remoteBranch: normalizeOptionalString(entry.remoteBranch) || undefined,
+              bootstrapCommand: normalizeOptionalString(entry.bootstrapCommand) || undefined,
               resumeCommand: resume.resumeCommand || undefined,
               resumeTool: resume.resumeTool || undefined,
               resumeSessionId: resume.resumeSessionId || undefined,
@@ -133,6 +152,7 @@ function normalizeEditableManifest(source, parsed) {
         version: "1",
         workspaceId: source.workspaceManifest?.workspaceId || source.title || "workspace",
         title: source.workspaceManifest?.title || source.title || null,
+        machine: source.workspaceManifest?.machine || null,
         capture: source.workspaceManifest?.capture || null,
         tabs: parsed.entries.map((entry) => {
           const resume = resolveResumeMetadata(entry);
@@ -140,6 +160,9 @@ function normalizeEditableManifest(source, parsed) {
             Object.entries({
               title: normalizeOptionalString(entry.title) || deriveBaseTitle(entry),
               path: entry.path,
+              remoteUrl: normalizeOptionalString(entry.remoteUrl) || undefined,
+              remoteBranch: normalizeOptionalString(entry.remoteBranch) || undefined,
+              bootstrapCommand: normalizeOptionalString(entry.bootstrapCommand) || undefined,
               resumeCommand: resume.resumeCommand || undefined,
               resumeTool: resume.resumeTool || undefined,
               resumeSessionId: resume.resumeSessionId || undefined,
@@ -216,6 +239,12 @@ function parseLedgerSelectorArgs(
         options.resumeTool = next;
       } else if (arg === "--resume-session-id") {
         options.resumeSessionId = next;
+      } else if (arg === "--remote-url") {
+        options.remoteUrl = next;
+      } else if (arg === "--remote-branch") {
+        options.remoteBranch = next;
+      } else if (arg === "--bootstrap-command") {
+        options.bootstrapCommand = next;
       } else if (arg === "--index") {
         options.index = next;
       } else {
@@ -312,6 +341,18 @@ export function parseWorkspaceCreateArgs(argv = []) {
         options.resumeTool = next;
       } else if (arg === "--resume-session-id") {
         options.resumeSessionId = next;
+      } else if (arg === "--remote-url") {
+        options.remoteUrl = next;
+      } else if (arg === "--remote-branch") {
+        options.remoteBranch = next;
+      } else if (arg === "--bootstrap-command") {
+        options.bootstrapCommand = next;
+      } else if (arg === "--machine-id") {
+        options.machineId = next;
+      } else if (arg === "--machine-label") {
+        options.machineLabel = next;
+      } else if (arg === "--platform") {
+        options.platform = next;
       } else {
         throw new Error(`unknown option: ${arg}`);
       }
@@ -392,6 +433,13 @@ export function addTabToManifest(manifest, options = {}) {
       Object.entries({
         title: normalizedTitle || normalizeOptionalString(existingTab?.title) || undefined,
         path: normalizedPath,
+        remoteUrl: normalizeOptionalString(options.remoteUrl) || normalizeOptionalString(existingTab?.remoteUrl) || undefined,
+        remoteBranch:
+          normalizeOptionalString(options.remoteBranch) || normalizeOptionalString(existingTab?.remoteBranch) || undefined,
+        bootstrapCommand:
+          normalizeOptionalString(options.bootstrapCommand) ||
+          normalizeOptionalString(existingTab?.bootstrapCommand) ||
+          undefined,
         resumeCommand: chosenResume.resumeCommand || undefined,
         resumeTool: chosenResume.resumeTool || undefined,
         resumeSessionId: chosenResume.resumeSessionId || undefined,
@@ -607,7 +655,7 @@ function printWorkspaceAddTabHelp() {
   console.log(`ORP workspace add-tab
 
 Usage:
-  orp workspace add-tab <name-or-id> (--path <absolute-path> | --here) [--title <title>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id> | --current-codex] [--append] [--json]
+  orp workspace add-tab <name-or-id> (--path <absolute-path> | --here) [--title <title>] [--remote-url <git-url>] [--remote-branch <branch>] [--bootstrap-command <text>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id> | --current-codex] [--append] [--json]
   orp workspace add-tab --hosted-workspace-id <workspace-id> (--path <absolute-path> | --here) [--json]
   orp workspace add-tab --workspace-file <path> (--path <absolute-path> | --here) [--json]
 
@@ -615,6 +663,9 @@ Options:
   --path <absolute-path> Add this local project path to the saved workspace
   --here                 Use the current working directory as the saved path
   --title <title>        Optional saved tab title
+  --remote-url <git-url> Optional git remote URL for cross-machine setup
+  --remote-branch <branch> Optional default branch to clone on another machine
+  --bootstrap-command <text> Optional setup command like \`npm install\` or \`uv sync\`
   --resume-command <text> Exact saved resume command, like \`codex resume ...\` or \`claude --resume ...\`
   --resume-tool <tool>   Build the resume command from \`codex\` or \`claude\`
   --resume-session-id <id> Resume session id to save with the tab
@@ -630,6 +681,7 @@ Examples:
   orp workspace add-tab main --here --current-codex
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-tool claude --resume-session-id claude-456
+  orp workspace add-tab main --path /absolute/path/to/new-project --remote-url git@github.com:org/new-project.git --bootstrap-command "npm install"
 `);
 }
 
@@ -637,13 +689,19 @@ function printWorkspaceCreateHelp() {
   console.log(`ORP workspace create
 
 Usage:
-  orp workspace create <title-slug> [--workspace-file <path>] [--slot <main|offhand>] [--path <absolute-path>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id>] [--json]
+  orp workspace create <title-slug> [--workspace-file <path>] [--slot <main|offhand>] [--machine-id <id>] [--machine-label <label>] [--platform <platform>] [--path <absolute-path>] [--remote-url <git-url>] [--remote-branch <branch>] [--bootstrap-command <text>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id>] [--json]
 
 Options:
   <title-slug>           Required local workspace title using lowercase letters, numbers, and dashes only
   --workspace-file <path> Create the workspace manifest at an explicit local path instead of the managed ORP workspace directory
   --slot <main|offhand>  Optionally assign the created workspace to a named slot
+  --machine-id <id>      Optional stable machine id for this workspace ledger (defaults to this machine)
+  --machine-label <label> Optional human label for the current machine
+  --platform <platform>  Optional platform label like darwin, linux, or win32
   --path <absolute-path> Optionally seed the workspace with one saved path immediately
+  --remote-url <git-url> Optional git remote URL for the first saved tab
+  --remote-branch <branch> Optional default branch to clone on another machine
+  --bootstrap-command <text> Optional setup command like \`npm install\` or \`uv sync\`
   --resume-command <text> Exact saved resume command, like \`codex resume ...\` or \`claude --resume ...\`
   --resume-tool <tool>   Build the resume command from \`codex\` or \`claude\`
   --resume-session-id <id> Resume session id to save with the first tab
@@ -655,6 +713,7 @@ Examples:
   orp workspace create main-cody-1 --slot main
   orp workspace create research-lab --path /absolute/path/to/research-lab
   orp workspace create research-lab --path /absolute/path/to/research-lab --resume-tool claude --resume-session-id 469d99b2-2997-42bf-a8f5-3812c808ef29
+  orp workspace create mac-main --machine-label "Mac Studio" --path /absolute/path/to/research-lab --remote-url git@github.com:org/research-lab.git --bootstrap-command "npm install"
 `);
 }
 
@@ -697,6 +756,12 @@ function summarizeWorkspaceLedgerMutation(result) {
   if (result.action === "add-tab") {
     lines.push(`Tab: ${result.tab?.title || path.basename(result.tab?.path || "") || result.tab?.path}`);
     lines.push(`Path: ${result.tab?.path}`);
+    if (result.tab?.remoteUrl) {
+      lines.push(`Remote: ${result.tab.remoteUrl}`);
+    }
+    if (result.tab?.bootstrapCommand) {
+      lines.push(`Bootstrap: ${result.tab.bootstrapCommand}`);
+    }
     if (result.tab?.resumeCommand && result.tab?.restartCommand) {
       lines.push(`Resume: ${result.tab.restartCommand}`);
     }
@@ -792,6 +857,9 @@ export async function runWorkspaceCreate(argv = process.argv.slice(2)) {
         Object.entries({
           title: deriveBaseTitle({ path: options.path }),
           path: options.path,
+          remoteUrl: normalizeOptionalString(options.remoteUrl) || undefined,
+          remoteBranch: normalizeOptionalString(options.remoteBranch) || undefined,
+          bootstrapCommand: normalizeOptionalString(options.bootstrapCommand) || undefined,
           resumeCommand: resume.resumeCommand || undefined,
           resumeTool: resume.resumeTool || undefined,
           resumeSessionId: resume.resumeSessionId || undefined,
@@ -806,6 +874,7 @@ export async function runWorkspaceCreate(argv = process.argv.slice(2)) {
     version: "1",
     workspaceId: options.title,
     title: options.title,
+    machine: buildCurrentMachineMetadata(options),
     tabs,
   });
 
@@ -869,6 +938,9 @@ export async function runWorkspaceCreate(argv = process.argv.slice(2)) {
     `Saved tabs: ${result.tabCount}`,
     `Saved file: ${result.manifestPath}`,
   ];
+  if (result.manifest?.machine?.machineLabel) {
+    lines.push(`Machine: ${result.manifest.machine.machineLabel}${result.manifest.machine.platform ? ` (${result.manifest.machine.platform})` : ""}`);
+  }
   if (result.slot?.slot) {
     lines.push(`Slot: ${result.slot.slot}`);
   }

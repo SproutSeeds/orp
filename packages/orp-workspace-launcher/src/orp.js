@@ -627,6 +627,16 @@ export function buildWorkspaceManifestFromHostedWorkspacePayload(payload) {
     version: "1",
     workspaceId: getTextValue(workspace, "workspace_id", "id"),
     title: getTextValue(workspace, "title"),
+    machine: captureContext
+      ? Object.fromEntries(
+          Object.entries({
+            machineId: getTextValue(captureContext, "machine_id", "machineId"),
+            machineLabel: getTextValue(captureContext, "machine_label", "machineLabel"),
+            platform: getTextValue(captureContext, "platform"),
+            host: getTextValue(captureContext, "host"),
+          }).filter(([, value]) => value !== undefined && value !== null),
+        )
+      : undefined,
     capture: captureContext
       ? Object.fromEntries(
           Object.entries({
@@ -671,6 +681,9 @@ export function buildWorkspaceManifestFromHostedWorkspacePayload(payload) {
             path.basename(String(getTextValue(tab, "project_root", "projectRoot") || "").replace(/\/+$/, "")) ||
             undefined,
           path: getTextValue(tab, "project_root", "projectRoot"),
+          remoteUrl: getTextValue(tab, "remote_url", "remoteUrl"),
+          remoteBranch: getTextValue(tab, "remote_branch", "remoteBranch"),
+          bootstrapCommand: getTextValue(tab, "bootstrap_command", "bootstrapCommand"),
           resumeCommand: getTextValue(tab, "resume_command", "resumeCommand"),
           resumeTool: getTextValue(tab, "resume_tool", "resumeTool"),
           resumeSessionId: getTextValue(tab, "resume_session_id", "resumeSessionId"),

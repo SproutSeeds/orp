@@ -102,6 +102,8 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(payload["files"]["handoff"]["path"], "orp/HANDOFF.md")
             self.assertEqual(payload["files"]["checkpoint_log"]["path"], "orp/checkpoints/CHECKPOINT_LOG.md")
             self.assertEqual(payload["files"]["starter_kernel"]["path"], "analysis/orp.kernel.task.yml")
+            self.assertIn("agents", payload)
+            self.assertEqual(payload["agents"]["role"], "project")
             self.assertTrue(any("protected" in row for row in payload["warnings"]))
             self.assertTrue(any("dirty" in row for row in payload["warnings"]))
 
@@ -111,6 +113,10 @@ class OrpInitTests(unittest.TestCase):
             self.assertTrue((root / "orp" / "HANDOFF.md").exists())
             self.assertTrue((root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md").exists())
             self.assertTrue((root / "analysis" / "orp.kernel.task.yml").exists())
+            self.assertTrue((root / "AGENTS.md").exists())
+            self.assertTrue((root / "CLAUDE.md").exists())
+            self.assertIn("<!-- ORP:AGENT_GUIDE:BEGIN -->", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("<!-- ORP:BEGIN -->", (root / "AGENTS.md").read_text(encoding="utf-8"))
 
             state = json.loads((root / "orp" / "state.json").read_text(encoding="utf-8"))
             self.assertTrue(state["governance"]["orp_governed"])

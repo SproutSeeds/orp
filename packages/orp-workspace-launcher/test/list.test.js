@@ -39,6 +39,11 @@ test("registerWorkspaceManifest and listTrackedWorkspaces expose tracked saved r
     version: "1",
     workspaceId: "orp-main",
     title: "ORP Main",
+    machine: {
+      machineId: "mac-studio:darwin",
+      machineLabel: "Mac Studio",
+      platform: "darwin",
+    },
     capture: {
       sourceApp: "iTerm",
       mode: "watch",
@@ -74,6 +79,9 @@ test("registerWorkspaceManifest and listTrackedWorkspaces expose tracked saved r
     manifestPath: path.resolve(manifestPath),
     workspaceId: "orp-main",
     title: "ORP Main",
+    machineId: "mac-studio:darwin",
+    machineLabel: "Mac Studio",
+    platform: "darwin",
     host: "local-macbook",
     captureMode: "watch",
     capturedAt: "2026-03-28T12:00:00.000Z",
@@ -100,6 +108,7 @@ test("registerWorkspaceManifest and listTrackedWorkspaces expose tracked saved r
   const summary = summarizeTrackedWorkspaces(result);
   assert.match(summary, /Local tracked workspaces: 1/);
   assert.match(summary, /ORP Main \[orp-main\]/);
+  assert.match(summary, /Machine: Mac Studio \(darwin\)/);
   assert.match(summary, /Saved resume sessions: 1/);
   assert.match(summary, /web: claude resume claude-999/);
 });
@@ -172,6 +181,9 @@ test("buildWorkspaceInventory merges hosted and local workspace state", () => {
           manifestPath: "/Users/example/.config/orp/workspaces/idea-123-deadbeef.json",
           workspaceId: "idea-123",
           title: "Main Cody 1",
+          machineId: "mac-studio:darwin",
+          machineLabel: "Mac Studio",
+          platform: "darwin",
           tabCount: 2,
           codexSessionCount: 1,
           updatedAt: "2026-03-30T12:00:00.000Z",
@@ -198,6 +210,11 @@ test("buildWorkspaceInventory merges hosted and local workspace state", () => {
           linkedIdea: { ideaId: "ef86" },
           metrics: { tabCount: 2 },
           state: {
+            capture_context: {
+              machine_id: "mac-studio:darwin",
+              machine_label: "Mac Studio",
+              platform: "darwin",
+            },
             tabs: [
               { project_root: "/Volumes/Code_2TB/code/orp", codex_session_id: "abc-123" },
               { project_root: "/Volumes/Code_2TB/code/orp-web-app" },
@@ -211,6 +228,7 @@ test("buildWorkspaceInventory merges hosted and local workspace state", () => {
 
   assert.equal(result.workspaces.length, 2);
   assert.equal(result.workspaces[0]?.workspaceId, "idea-123");
+  assert.equal(result.workspaces[0]?.machineLabel, "Mac Studio");
   assert.equal(result.workspaces[0]?.availability, "hosted+local");
   assert.equal(result.workspaces[0]?.syncStatus, "synced");
   assert.equal(result.workspaces[1]?.workspaceId, "local-only");
@@ -220,6 +238,7 @@ test("buildWorkspaceInventory merges hosted and local workspace state", () => {
   assert.match(summary, /Workspace inventory: 2/);
   assert.match(summary, /Hosted available: 1/);
   assert.match(summary, /Local available: 2/);
+  assert.match(summary, /Machine: Mac Studio \(darwin\)/);
   assert.match(summary, /Sync: synced/);
 });
 

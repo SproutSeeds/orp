@@ -118,14 +118,23 @@ test("normalizeWorkspaceManifest keeps ledger fields and strips nothing importan
     version: "1",
     workspaceId: "terminal-paths",
     title: "Terminal Paths",
+    machine: {
+      machineId: "mac-studio:darwin",
+      machineLabel: "Mac Studio",
+      platform: "darwin",
+    },
     tabs: [
       {
         title: "orp",
         path: "/Volumes/Code_2TB/code/orp",
+        remoteUrl: "git@github.com:SproutSeeds/orp.git",
+        bootstrapCommand: "npm install",
       },
       {
         title: "lab",
         path: "/Volumes/Code_2TB/code/anthropic-lab",
+        remoteUrl: "git@github.com:anthropic/lab.git",
+        remoteBranch: "main",
         resumeTool: "claude",
         resumeSessionId: "claude-456",
       },
@@ -134,8 +143,12 @@ test("normalizeWorkspaceManifest keeps ledger fields and strips nothing importan
 
   assert.equal(manifest.workspaceId, "terminal-paths");
   assert.equal(manifest.title, "Terminal Paths");
+  assert.equal(manifest.machine?.machineLabel, "Mac Studio");
   assert.equal(manifest.tabs[0]?.title, "orp");
+  assert.equal(manifest.tabs[0]?.remoteUrl, "git@github.com:SproutSeeds/orp.git");
+  assert.equal(manifest.tabs[0]?.bootstrapCommand, "npm install");
   assert.equal(manifest.tabs[1]?.resumeTool, "claude");
+  assert.equal(manifest.tabs[1]?.remoteBranch, "main");
 });
 
 test("extractWorkspaceNarrativeNotes removes structured workspace blocks and legacy path lines", () => {

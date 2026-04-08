@@ -1,6 +1,8 @@
 export {
+  buildCloneCommand,
   buildDirectCommand,
   buildLaunchPlan,
+  buildSetupCommand,
   getResumeCommand,
   deriveBaseTitle,
   deriveWorkspaceId,

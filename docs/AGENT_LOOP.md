@@ -18,6 +18,7 @@ read:
   - Treat it as an optional lens for deeper, wider, top-down, or rotated perspective shifts.
 - If packs matter, run `orp pack list --json`.
 - Read `PROTOCOL.md` before making claims.
+- If the repo uses parent/child agent guidance, run `orp agents audit --json` so you know `AGENTS.md` and `CLAUDE.md` are aligned before taking a long-running path.
 - If the task is external OSS contribution workflow or PR governance, read
   `docs/EXTERNAL_CONTRIBUTION_GOVERNANCE.md` before selecting work.
 - For the more detailed external-contribution operator rhythm, then read
@@ -26,6 +27,37 @@ read:
 ## 2. Select Work
 
 - Identify the target profile and canonical artifact paths.
+- If the task depends on the current highest-leverage action slice, refresh ORP's agenda first:
+  - `orp agenda refresh --json`
+  - `orp agenda refresh-status --json`
+  - `orp agenda enable-refreshes --json`
+  - `orp agenda enable-refreshes --morning 08:30 --afternoon 13:00 --evening 18:30 --json`
+  - `orp agenda disable-refreshes --json`
+  - `orp agenda actions --json`
+  - `orp agenda suggestions --json`
+  - `orp agenda focus --json`
+  - `orp agenda set-north-star "Advance the ocular controller and ORP ecosystems" --json`
+- If the task depends on umbrella guidance or project-specific agent instructions, inspect or refresh the managed files first:
+  - `orp agents root show --json`
+  - `orp agents sync --json`
+  - `orp agents audit --json`
+- If the task depends on an external service, deployment target, dataset platform, or publishing destination, inspect the saved connections first:
+  - `orp connections providers --json`
+  - `orp connections list --json`
+  - `orp connections show <connection> --json`
+  - `orp connections add <connection-id> --provider github --auth-secret-alias <alias> --secret-binding releases=<alias> --json`
+  - `orp connections add <connection-id> --provider custom --label "Custom Service" --url https://example.org --secret-binding primary=<alias> --json`
+  - `orp connections update <connection> --status paused --json`
+  - `orp connections sync --json`
+  - `orp connections pull --json`
+- If the task is shaped by contests, programs, grants, or similar openings, inspect the saved board first:
+  - `orp opportunities list --json`
+  - `orp opportunities show <board> --json`
+  - `orp opportunities focus <board> --limit 5 --json`
+  - `orp opportunities add <board> --title "<title>" --kind contest --section <section> --priority high --json`
+  - `orp opportunities update <board> <item-id> --status submitted --json`
+  - `orp opportunities sync <board> --json`
+  - `orp opportunities pull <board> --json`
 - If the task needs an API key or token that is not already available, save it first:
   - human interactive path:
     - `orp secrets add --alias <alias> --label "<label>" --provider <provider>`

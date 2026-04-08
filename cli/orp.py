@@ -27,6 +27,7 @@ Design goals:
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as dt
 import getpass
 import hashlib
@@ -137,7 +138,150 @@ YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
 MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
 SCHEDULE_REGISTRY_SCHEMA_VERSION = "1.0.0"
+AGENDA_REGISTRY_SCHEMA_VERSION = "1.0.0"
+OPPORTUNITIES_REGISTRY_SCHEMA_VERSION = "1.0.0"
+CONNECTIONS_REGISTRY_SCHEMA_VERSION = "1.0.0"
+AGENTS_REGISTRY_SCHEMA_VERSION = "1.0.0"
 KEYCHAIN_SECRET_REGISTRY_SCHEMA_VERSION = "1.0.0"
+AGENDA_PRIORITIES = ("critical", "high", "medium", "low")
+AGENDA_ACTION_STATUSES = ("active", "watching", "resolved", "dismissed", "archived")
+AGENDA_SUGGESTION_STATUSES = ("active", "watching", "used", "archived")
+AGENDA_REFRESH_WINDOWS = ("morning", "afternoon", "evening")
+AGENDA_DEFAULT_REFRESH_TIMES = {
+    "morning": "09:00",
+    "afternoon": "14:00",
+    "evening": "19:00",
+}
+AGENT_GUIDE_BEGIN = "<!-- ORP:AGENT_GUIDE:BEGIN -->"
+AGENT_GUIDE_END = "<!-- ORP:AGENT_GUIDE:END -->"
+ORP_SNIPPET_BEGIN = "<!-- ORP:BEGIN -->"
+ORP_SNIPPET_END = "<!-- ORP:END -->"
+AGENT_GUIDE_FILENAMES = ("AGENTS.md", "CLAUDE.md")
+OPPORTUNITY_KINDS = ("contest", "program", "opportunity", "other")
+OPPORTUNITY_PRIORITIES = ("critical", "high", "medium", "low")
+OPPORTUNITY_STATUSES = ("active", "watching", "planned", "submitted", "paused", "won", "archived")
+OPPORTUNITIES_BRIDGE_NOTE_KIND = "orp-opportunities"
+OPPORTUNITIES_BRIDGE_TITLE_PREFIX = "ORP Opportunities · "
+CONNECTION_KINDS = (
+    "code_host",
+    "model_hub",
+    "data_platform",
+    "deploy",
+    "database",
+    "research_archive",
+    "literature",
+    "internal",
+    "custom",
+)
+CONNECTION_STATUSES = ("active", "watching", "paused", "archived")
+CONNECTIONS_BRIDGE_NOTE_KIND = "orp-connections"
+CONNECTIONS_BRIDGE_TITLE = "ORP Connections"
+CONNECTION_PROVIDER_TEMPLATES: list[dict[str, Any]] = [
+    {
+        "provider": "github",
+        "label": "GitHub",
+        "kind": "code_host",
+        "auth_kind": "token",
+        "capabilities": ["repo-read", "repo-write", "issues", "prs", "actions", "releases"],
+        "url": "https://github.com",
+    },
+    {
+        "provider": "huggingface",
+        "label": "Hugging Face",
+        "kind": "model_hub",
+        "auth_kind": "token",
+        "capabilities": ["models", "datasets", "spaces", "publish"],
+        "url": "https://huggingface.co",
+    },
+    {
+        "provider": "kaggle",
+        "label": "Kaggle",
+        "kind": "data_platform",
+        "auth_kind": "api_key",
+        "capabilities": ["datasets", "competitions", "notebooks", "models", "submissions"],
+        "url": "https://www.kaggle.com",
+    },
+    {
+        "provider": "vercel",
+        "label": "Vercel",
+        "kind": "deploy",
+        "auth_kind": "token",
+        "capabilities": ["deploy", "logs", "projects", "domains"],
+        "url": "https://vercel.com",
+    },
+    {
+        "provider": "neon",
+        "label": "Neon",
+        "kind": "database",
+        "auth_kind": "token",
+        "capabilities": ["databases", "branches", "sql", "roles"],
+        "url": "https://neon.tech",
+    },
+    {
+        "provider": "zenodo",
+        "label": "Zenodo",
+        "kind": "research_archive",
+        "auth_kind": "token",
+        "capabilities": ["deposits", "publish", "doi", "artifacts"],
+        "url": "https://zenodo.org",
+    },
+    {
+        "provider": "arxiv",
+        "label": "arXiv",
+        "kind": "literature",
+        "auth_kind": "none",
+        "capabilities": ["search", "metadata", "papers"],
+        "url": "https://arxiv.org",
+    },
+    {
+        "provider": "openalex",
+        "label": "OpenAlex",
+        "kind": "literature",
+        "auth_kind": "none",
+        "capabilities": ["search", "works", "authors", "institutions"],
+        "url": "https://openalex.org",
+    },
+    {
+        "provider": "osf",
+        "label": "OSF",
+        "kind": "research_archive",
+        "auth_kind": "token",
+        "capabilities": ["projects", "files", "registrations", "publish"],
+        "url": "https://osf.io",
+    },
+    {
+        "provider": "orp",
+        "label": "ORP",
+        "kind": "internal",
+        "auth_kind": "token",
+        "capabilities": ["ideas", "workspaces", "secrets", "runner", "opportunities", "connections"],
+        "url": "https://orp.earth",
+    },
+    {
+        "provider": "lifeops",
+        "label": "LifeOps",
+        "kind": "internal",
+        "auth_kind": "token",
+        "capabilities": ["tasks", "programs", "opportunities", "notes"],
+        "url": "",
+    },
+    {
+        "provider": "clawdad",
+        "label": "Clawdad",
+        "kind": "internal",
+        "auth_kind": "token",
+        "capabilities": ["projects", "artifacts", "research"],
+        "url": "",
+    },
+    {
+        "provider": "custom",
+        "label": "Custom",
+        "kind": "custom",
+        "auth_kind": "token",
+        "capabilities": [],
+        "url": "",
+    },
+]
 YOUTUBE_ANDROID_CLIENT_VERSION = "20.10.38"
 YOUTUBE_ANDROID_USER_AGENT = (
     f"com.google.android.youtube/{YOUTUBE_ANDROID_CLIENT_VERSION} (Linux; U; Android 14)"
@@ -1482,6 +1626,13 @@ def _schedule_registry_path() -> Path:
     return _orp_user_dir() / "schedules.json"
 
 
+def _agenda_registry_path() -> Path:
+    override = os.environ.get("ORP_AGENDA_REGISTRY_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "agenda.json"
+
+
 def _schedule_logs_dir() -> Path:
     override = os.environ.get("ORP_SCHEDULE_LOGS_DIR", "").strip()
     if override:
@@ -1519,9 +1670,813 @@ def _save_schedule_registry(payload: dict[str, Any]) -> Path:
     return path
 
 
+def _opportunities_registry_path() -> Path:
+    override = os.environ.get("ORP_OPPORTUNITIES_REGISTRY_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "opportunities.json"
+
+
+def _connections_registry_path() -> Path:
+    override = os.environ.get("ORP_CONNECTIONS_REGISTRY_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "connections.json"
+
+
+def _agents_registry_path() -> Path:
+    override = os.environ.get("ORP_AGENTS_REGISTRY_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return _orp_user_dir() / "agents.json"
+
+
+def _default_agents_registry_payload() -> dict[str, Any]:
+    return {
+        "schema_version": AGENTS_REGISTRY_SCHEMA_VERSION,
+        "projects_root": "",
+        "updated_at_utc": "",
+    }
+
+
+def _load_agents_registry() -> dict[str, Any]:
+    payload = _read_json_if_exists(_agents_registry_path())
+    if not isinstance(payload, dict):
+        return _default_agents_registry_payload()
+    return {
+        **_default_agents_registry_payload(),
+        **payload,
+    }
+
+
+def _save_agents_registry(payload: dict[str, Any]) -> Path:
+    path = _agents_registry_path()
+    merged = {
+        **_default_agents_registry_payload(),
+        **payload,
+    }
+    _write_json(path, merged)
+    return path
+
+
+def _normalize_tag_list(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    seen: set[str] = set()
+    tags: list[str] = []
+    for raw in values:
+        text = _slugify_value(str(raw or "").strip())
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        tags.append(text)
+    return tags
+
+
+def _normalize_capability_list(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    seen: set[str] = set()
+    capabilities: list[str] = []
+    for raw in values:
+        text = _slugify_value(str(raw or "").strip())
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        capabilities.append(text)
+    return capabilities
+
+
+def _normalize_connections_hosted_mirror(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    idea_id = str(raw.get("idea_id", raw.get("ideaId", raw.get("id", ""))) or "").strip()
+    if not idea_id:
+        return {}
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback="",
+    )
+    return {
+        "idea_id": idea_id,
+        "idea_title": str(raw.get("idea_title", raw.get("ideaTitle", raw.get("title", ""))) or "").strip(),
+        "updated_at_utc": updated_at_utc,
+        "source_kind": str(raw.get("source_kind", raw.get("sourceKind", "idea_bridge")) or "idea_bridge").strip() or "idea_bridge",
+    }
+
+
+def _normalize_connection_secret_binding(raw: Any, *, default_auth_kind: str = "token") -> dict[str, Any] | None:
+    if isinstance(raw, str):
+        text = str(raw or "").strip()
+        if not text:
+            return None
+        if "=" in text:
+            left, right = text.split("=", 1)
+            binding_id = _slugify_value(left)
+            secret_alias = str(right or "").strip()
+            if binding_id and secret_alias:
+                return {
+                    "binding_id": binding_id,
+                    "label": left.strip() or binding_id,
+                    "secret_alias": secret_alias,
+                    "auth_kind": str(default_auth_kind or "token").strip().lower() or "token",
+                }
+        return {
+            "binding_id": "primary",
+            "label": "Primary",
+            "secret_alias": text,
+            "auth_kind": str(default_auth_kind or "token").strip().lower() or "token",
+        }
+    if not isinstance(raw, dict):
+        return None
+    binding_id = str(raw.get("binding_id", raw.get("bindingId", raw.get("title", raw.get("label", "")))) or "").strip()
+    binding_id = _slugify_value(binding_id) or "primary"
+    secret_alias = str(raw.get("secret_alias", raw.get("secretAlias", raw.get("alias", ""))) or "").strip()
+    if not secret_alias:
+        return None
+    auth_kind = str(raw.get("auth_kind", raw.get("authKind", default_auth_kind)) or default_auth_kind or "token").strip().lower()
+    auth_kind = auth_kind or "token"
+    label = str(raw.get("label", raw.get("title", "")) or "").strip() or binding_id.replace("-", " ").title()
+    return {
+        "binding_id": binding_id,
+        "label": label,
+        "secret_alias": secret_alias,
+        "auth_kind": auth_kind,
+    }
+
+
+def _normalize_connection_secret_bindings(values: Any, *, fallback_alias: str = "", default_auth_kind: str = "token") -> list[dict[str, Any]]:
+    bindings: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if isinstance(values, list):
+        for raw in values:
+            normalized = _normalize_connection_secret_binding(raw, default_auth_kind=default_auth_kind)
+            if not normalized:
+                continue
+            binding_id = str(normalized.get("binding_id", "") or "").strip()
+            if not binding_id or binding_id in seen:
+                continue
+            seen.add(binding_id)
+            bindings.append(normalized)
+    fallback_alias = str(fallback_alias or "").strip()
+    if fallback_alias and "primary" not in seen:
+        bindings.insert(
+            0,
+            {
+                "binding_id": "primary",
+                "label": "Primary",
+                "secret_alias": fallback_alias,
+                "auth_kind": str(default_auth_kind or "token").strip().lower() or "token",
+            },
+        )
+    return bindings
+
+
+def _primary_connection_secret_alias(entry: dict[str, Any]) -> str:
+    secret_bindings = entry.get("secret_bindings", [])
+    if isinstance(secret_bindings, list):
+        for binding in secret_bindings:
+            if not isinstance(binding, dict):
+                continue
+            binding_id = str(binding.get("binding_id", "") or "").strip()
+            secret_alias = str(binding.get("secret_alias", "") or "").strip()
+            if binding_id == "primary" and secret_alias:
+                return secret_alias
+        for binding in secret_bindings:
+            if not isinstance(binding, dict):
+                continue
+            secret_alias = str(binding.get("secret_alias", "") or "").strip()
+            if secret_alias:
+                return secret_alias
+    return str(entry.get("auth_secret_alias", "") or "").strip()
+
+
+def _connection_provider_template(provider: str) -> dict[str, Any]:
+    provider_slug = _slugify_value(provider)
+    for row in CONNECTION_PROVIDER_TEMPLATES:
+        if _slugify_value(str(row.get("provider", "") or "")) == provider_slug:
+            return dict(row)
+    return {}
+
+
+def _normalize_connection_entry(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    connection_id = str(raw.get("connection_id", raw.get("connectionId", raw.get("id", raw.get("title", "")))) or "").strip()
+    connection_id = _slugify_value(connection_id)
+    if not connection_id:
+        return None
+    provider = str(raw.get("provider", "custom") or "custom").strip().lower()
+    provider = _slugify_value(provider) or "custom"
+    template = _connection_provider_template(provider)
+    kind = str(raw.get("kind", template.get("kind", "custom")) or template.get("kind", "custom") or "custom").strip().lower()
+    if kind not in CONNECTION_KINDS:
+        kind = str(template.get("kind", "custom") or "custom")
+    status = str(raw.get("status", "active") or "active").strip().lower()
+    if status not in CONNECTION_STATUSES:
+        status = "active"
+    auth_kind = str(raw.get("auth_kind", raw.get("authKind", template.get("auth_kind", "token"))) or template.get("auth_kind", "token") or "token").strip().lower()
+    created_at_utc = _normalize_timestamp_utc(
+        raw.get("created_at_utc", raw.get("createdAt", raw.get("created_at"))),
+        fallback=_now_utc(),
+    )
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback=created_at_utc,
+    )
+    capabilities = _normalize_capability_list(raw.get("capabilities", template.get("capabilities", [])))
+    tags = _normalize_tag_list(raw.get("tags", []))
+    secret_bindings = _normalize_connection_secret_bindings(
+        raw.get("secret_bindings", raw.get("secretBindings", [])),
+        fallback_alias=str(raw.get("auth_secret_alias", raw.get("authSecretAlias", raw.get("secret_alias", ""))) or "").strip(),
+        default_auth_kind=auth_kind,
+    )
+    return {
+        "connection_id": connection_id,
+        "provider": provider,
+        "label": str(raw.get("label", "") or "").strip() or str(template.get("label", "") or "").strip() or connection_id,
+        "kind": kind,
+        "account": str(raw.get("account", "") or "").strip(),
+        "organization": str(raw.get("organization", "") or "").strip(),
+        "url": str(raw.get("url", template.get("url", "")) or template.get("url", "") or "").strip(),
+        "auth_secret_alias": _primary_connection_secret_alias({"secret_bindings": secret_bindings, "auth_secret_alias": raw.get("auth_secret_alias", raw.get("authSecretAlias", raw.get("secret_alias", "")))}),
+        "auth_kind": auth_kind,
+        "secret_bindings": secret_bindings,
+        "capabilities": capabilities,
+        "tags": tags,
+        "notes": str(raw.get("notes", "") or "").strip(),
+        "status": status,
+        "created_at_utc": created_at_utc,
+        "updated_at_utc": updated_at_utc,
+    }
+
+
+def _load_connections_registry() -> dict[str, Any]:
+    payload = _read_json_if_exists(_connections_registry_path())
+    entries = payload.get("connections")
+    normalized_connections: list[dict[str, Any]] = []
+    if isinstance(entries, list):
+        for raw in entries:
+            normalized = _normalize_connection_entry(raw)
+            if normalized:
+                normalized_connections.append(normalized)
+    return {
+        "schema_version": str(payload.get("schema_version", CONNECTIONS_REGISTRY_SCHEMA_VERSION)).strip()
+        or CONNECTIONS_REGISTRY_SCHEMA_VERSION,
+        "hosted_mirror": _normalize_connections_hosted_mirror(payload.get("hosted_mirror", payload.get("hostedMirror", {}))),
+        "connections": normalized_connections,
+    }
+
+
+def _save_connections_registry(payload: dict[str, Any]) -> Path:
+    path = _connections_registry_path()
+    _write_json(path, payload)
+    return path
+
+
+def _find_connection_index(registry: dict[str, Any], target: str) -> tuple[int, dict[str, Any]]:
+    raw = str(target or "").strip()
+    if not raw:
+        raise RuntimeError("Connection name or id is required.")
+    slug = _slugify_value(raw)
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, entry in enumerate(registry.get("connections", [])):
+        if not isinstance(entry, dict):
+            continue
+        values = [
+            str(entry.get("connection_id", "") or "").strip(),
+            str(entry.get("label", "") or "").strip(),
+            str(entry.get("provider", "") or "").strip(),
+            str(entry.get("account", "") or "").strip(),
+        ]
+        if any(raw == value or slug == _slugify_value(value) for value in values if value):
+            matches.append((index, entry))
+    if not matches:
+        raise RuntimeError(f"No connection matched '{raw}'.")
+    if len(matches) > 1:
+        raise RuntimeError(f"Connection selector '{raw}' is ambiguous. Use the exact connection id.")
+    return matches[0]
+
+
+def _store_connection_entry(registry: dict[str, Any], entry: dict[str, Any], *, entry_index: int | None = None) -> tuple[dict[str, Any], Path]:
+    updated_registry = copy.deepcopy(registry)
+    normalized = _normalize_connection_entry(entry)
+    if not normalized:
+        raise RuntimeError("Connection payload is invalid.")
+    connections = [row for row in updated_registry.get("connections", []) if isinstance(row, dict)]
+    if entry_index is None:
+        for index, existing in enumerate(connections):
+            if str(existing.get("connection_id", "") or "").strip() == normalized["connection_id"]:
+                entry_index = index
+                break
+    if entry_index is None:
+        connections.append(normalized)
+    else:
+        connections[entry_index] = normalized
+    updated_registry["connections"] = connections
+    registry_path = _save_connections_registry(updated_registry)
+    return updated_registry, registry_path
+
+
+def _connection_payload(entry: dict[str, Any]) -> dict[str, Any]:
+    secret_bindings = (
+        copy.deepcopy(entry.get("secret_bindings", []))
+        if isinstance(entry.get("secret_bindings"), list)
+        else []
+    )
+    return {
+        "connection_id": str(entry.get("connection_id", "") or "").strip(),
+        "provider": str(entry.get("provider", "") or "").strip(),
+        "label": str(entry.get("label", "") or "").strip(),
+        "kind": str(entry.get("kind", "") or "").strip(),
+        "account": str(entry.get("account", "") or "").strip(),
+        "organization": str(entry.get("organization", "") or "").strip(),
+        "url": str(entry.get("url", "") or "").strip(),
+        "auth_secret_alias": _primary_connection_secret_alias(entry),
+        "auth_kind": str(entry.get("auth_kind", "") or "").strip(),
+        "secret_bindings": secret_bindings,
+        "capabilities": list(entry.get("capabilities", [])) if isinstance(entry.get("capabilities"), list) else [],
+        "tags": list(entry.get("tags", [])) if isinstance(entry.get("tags"), list) else [],
+        "notes": str(entry.get("notes", "") or "").strip(),
+        "status": str(entry.get("status", "") or "").strip(),
+        "created_at_utc": str(entry.get("created_at_utc", "") or "").strip(),
+        "updated_at_utc": str(entry.get("updated_at_utc", "") or "").strip(),
+    }
+
+
+def _connections_manifest(registry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": "1",
+        "connections": [_connection_payload(entry) for entry in registry.get("connections", []) if isinstance(entry, dict)],
+    }
+
+
+def _connections_notes(registry: dict[str, Any]) -> str:
+    manifest = _connections_manifest(registry)
+    return f"```{CONNECTIONS_BRIDGE_NOTE_KIND}\n{json.dumps(manifest, indent=2, ensure_ascii=False)}\n```"
+
+
+def _connections_registry_from_idea(idea: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(idea, dict):
+        return None
+    notes = str(idea.get("notes", "") or "")
+    match = re.search(rf"```{re.escape(CONNECTIONS_BRIDGE_NOTE_KIND)}\s*([\s\S]*?)```", notes, flags=re.IGNORECASE)
+    if not match:
+        return None
+    raw = str(match.group(1) or "").strip()
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    entries = payload.get("connections")
+    normalized_connections: list[dict[str, Any]] = []
+    if isinstance(entries, list):
+        for row in entries:
+            normalized = _normalize_connection_entry(row)
+            if normalized:
+                normalized_connections.append(normalized)
+    return {
+        "schema_version": CONNECTIONS_REGISTRY_SCHEMA_VERSION,
+        "hosted_mirror": _normalize_connections_hosted_mirror(
+            {
+                "idea_id": str(idea.get("id", "") or "").strip(),
+                "idea_title": str(idea.get("title", "") or "").strip(),
+                "updated_at_utc": str(idea.get("updatedAt", "") or "").strip(),
+                "source_kind": "idea_bridge",
+            }
+        ),
+        "connections": normalized_connections,
+    }
+
+
+def _normalize_opportunity_hosted_mirror(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    idea_id = str(raw.get("idea_id", raw.get("ideaId", raw.get("id", ""))) or "").strip()
+    if not idea_id:
+        return {}
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback="",
+    )
+    board_id = str(raw.get("board_id", raw.get("boardId", "")) or "").strip()
+    return {
+        "idea_id": idea_id,
+        "idea_title": str(raw.get("idea_title", raw.get("ideaTitle", raw.get("title", ""))) or "").strip(),
+        "board_id": board_id,
+        "board_title": str(raw.get("board_title", raw.get("boardTitle", "")) or "").strip() or board_id,
+        "updated_at_utc": updated_at_utc,
+        "source_kind": str(raw.get("source_kind", raw.get("sourceKind", "idea_bridge")) or "idea_bridge").strip() or "idea_bridge",
+    }
+
+
+def _normalize_opportunity_item(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    title = str(raw.get("title", "") or "").strip()
+    item_id = str(raw.get("item_id", raw.get("itemId", raw.get("id", ""))) or "").strip()
+    if not item_id:
+        item_id = _slugify_value(title)
+    if not item_id:
+        return None
+    if not title:
+        title = item_id
+
+    kind = str(raw.get("kind", "opportunity") or "opportunity").strip().lower()
+    if kind not in OPPORTUNITY_KINDS:
+        kind = "opportunity"
+
+    priority = str(raw.get("priority", "medium") or "medium").strip().lower()
+    if priority not in OPPORTUNITY_PRIORITIES:
+        priority = "medium"
+
+    status = str(raw.get("status", "active") or "active").strip().lower()
+    if status not in OPPORTUNITY_STATUSES:
+        status = "active"
+
+    created_at_utc = _normalize_timestamp_utc(
+        raw.get("created_at_utc", raw.get("createdAt", raw.get("created_at"))),
+        fallback=_now_utc(),
+    )
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback=created_at_utc,
+    )
+
+    return {
+        "item_id": item_id,
+        "title": title,
+        "kind": kind,
+        "section": str(raw.get("section", "") or "").strip(),
+        "priority": priority,
+        "status": status,
+        "summary": str(raw.get("summary", "") or "").strip(),
+        "notes": str(raw.get("notes", "") or "").strip(),
+        "url": str(raw.get("url", "") or "").strip(),
+        "tags": _normalize_tag_list(raw.get("tags", [])),
+        "created_at_utc": created_at_utc,
+        "updated_at_utc": updated_at_utc,
+    }
+
+
+def _normalize_opportunity_board(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    title = str(raw.get("title", raw.get("board_id", raw.get("boardId", ""))) or "").strip()
+    title = _slugify_value(title)
+    if not title:
+        return None
+    created_at_utc = _normalize_timestamp_utc(
+        raw.get("created_at_utc", raw.get("createdAt", raw.get("created_at"))),
+        fallback=_now_utc(),
+    )
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback=created_at_utc,
+    )
+    items: list[dict[str, Any]] = []
+    for candidate in raw.get("items", []):
+        normalized = _normalize_opportunity_item(candidate)
+        if normalized:
+            items.append(normalized)
+    hosted_mirror = _normalize_opportunity_hosted_mirror(raw.get("hosted_mirror", raw.get("hostedMirror", {})))
+    return {
+        "board_id": title,
+        "title": title,
+        "label": str(raw.get("label", "") or "").strip() or title,
+        "description": str(raw.get("description", "") or "").strip(),
+        "created_at_utc": created_at_utc,
+        "updated_at_utc": updated_at_utc,
+        "items": items,
+        "hosted_mirror": hosted_mirror,
+    }
+
+
+def _load_opportunities_registry() -> dict[str, Any]:
+    payload = _read_json_if_exists(_opportunities_registry_path())
+    boards = payload.get("boards")
+    normalized_boards = []
+    if isinstance(boards, list):
+        for raw in boards:
+            normalized = _normalize_opportunity_board(raw)
+            if normalized:
+                normalized_boards.append(normalized)
+    return {
+        "schema_version": str(payload.get("schema_version", OPPORTUNITIES_REGISTRY_SCHEMA_VERSION)).strip()
+        or OPPORTUNITIES_REGISTRY_SCHEMA_VERSION,
+        "boards": normalized_boards,
+    }
+
+
+def _save_opportunities_registry(payload: dict[str, Any]) -> Path:
+    path = _opportunities_registry_path()
+    _write_json(path, payload)
+    return path
+
+
+def _opportunity_board_manifest(board: dict[str, Any]) -> dict[str, Any]:
+    items = [copy.deepcopy(item) for item in board.get("items", []) if isinstance(item, dict)]
+    return {
+        "version": "1",
+        "boardId": str(board.get("board_id", board.get("title", "")) or "").strip(),
+        "title": str(board.get("title", "") or "").strip(),
+        "label": str(board.get("label", "") or "").strip(),
+        "description": str(board.get("description", "") or "").strip(),
+        "createdAt": str(board.get("created_at_utc", "") or "").strip(),
+        "updatedAt": str(board.get("updated_at_utc", "") or "").strip(),
+        "items": items,
+    }
+
+
+def _opportunity_board_notes(board: dict[str, Any]) -> str:
+    manifest = _opportunity_board_manifest(board)
+    return f"```{OPPORTUNITIES_BRIDGE_NOTE_KIND}\n{json.dumps(manifest, indent=2, ensure_ascii=False)}\n```"
+
+
+def _opportunity_board_hosted_title(board_title: str) -> str:
+    return f"{OPPORTUNITIES_BRIDGE_TITLE_PREFIX}{str(board_title or '').strip()}".strip()
+
+
+def _opportunity_board_from_idea(idea: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(idea, dict):
+        return None
+    notes = str(idea.get("notes", "") or "")
+    match = re.search(rf"```{re.escape(OPPORTUNITIES_BRIDGE_NOTE_KIND)}\s*([\s\S]*?)```", notes, flags=re.IGNORECASE)
+    if not match:
+        return None
+    raw = str(match.group(1) or "").strip()
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    normalized = _normalize_opportunity_board(payload)
+    if not normalized:
+        return None
+    normalized["hosted_mirror"] = _normalize_opportunity_hosted_mirror(
+        {
+            "idea_id": str(idea.get("id", "") or "").strip(),
+            "idea_title": str(idea.get("title", "") or "").strip(),
+            "board_id": normalized.get("board_id", ""),
+            "board_title": normalized.get("title", ""),
+            "updated_at_utc": str(idea.get("updatedAt", "") or "").strip(),
+            "source_kind": "idea_bridge",
+        }
+    )
+    return normalized
+
+
+def _list_all_remote_ideas(args: argparse.Namespace, *, limit: int = 200) -> list[dict[str, Any]]:
+    session = _require_hosted_session(args)
+    cursor = ""
+    ideas: list[dict[str, Any]] = []
+    for _ in range(20):
+        params: list[str] = []
+        if int(limit) > 0:
+            params.append(f"limit={int(limit)}")
+        if cursor:
+            params.append(f"cursor={urlparse.quote(cursor)}")
+        query = f"?{'&'.join(params)}" if params else ""
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/ideas{query}",
+            token=str(session.get("token", "")).strip(),
+        )
+        rows = payload.get("ideas") if isinstance(payload.get("ideas"), list) else None
+        if rows is None and isinstance(payload.get("items"), list):
+            rows = payload.get("items")
+        ideas.extend([row for row in (rows or []) if isinstance(row, dict)])
+        next_cursor = str(payload.get("cursor", "") or "").strip() or str(payload.get("nextCursor", "") or "").strip()
+        has_more = payload.get("hasMore")
+        if not next_cursor or (isinstance(has_more, bool) and not has_more):
+            break
+        cursor = next_cursor
+    return ideas
+
+
+def _list_remote_opportunity_boards(args: argparse.Namespace, *, limit: int = 200) -> list[dict[str, Any]]:
+    boards: list[dict[str, Any]] = []
+    for idea in _list_all_remote_ideas(args, limit=limit):
+        normalized = _opportunity_board_from_idea(idea)
+        if normalized:
+            boards.append(normalized)
+    return boards
+
+
+def _opportunity_board_selector_values(board: dict[str, Any]) -> list[str]:
+    hosted = board.get("hosted_mirror", {}) if isinstance(board.get("hosted_mirror"), dict) else {}
+    values = [
+        str(board.get("board_id", "") or "").strip(),
+        str(board.get("title", "") or "").strip(),
+        str(board.get("label", "") or "").strip(),
+        str(hosted.get("idea_id", "") or "").strip(),
+        str(hosted.get("idea_title", "") or "").strip(),
+    ]
+    return [value for value in values if value]
+
+
+def _resolve_remote_opportunity_board(boards: Sequence[dict[str, Any]], target: str) -> dict[str, Any]:
+    raw = str(target or "").strip()
+    if not raw:
+        raise RuntimeError("Opportunity board name or id is required.")
+    slug = _slugify_value(raw)
+    matches: list[dict[str, Any]] = []
+    for board in boards:
+        if not isinstance(board, dict):
+            continue
+        for candidate in _opportunity_board_selector_values(board):
+            candidate_text = str(candidate or "").strip()
+            if not candidate_text:
+                continue
+            if raw == candidate_text or slug == _slugify_value(candidate_text):
+                matches.append(board)
+                break
+    if not matches:
+        raise RuntimeError(f"No hosted opportunity board matched '{raw}'.")
+    if len(matches) > 1:
+        raise RuntimeError(f"Hosted opportunity board selector '{raw}' is ambiguous. Use the exact board slug or hosted idea id.")
+    return matches[0]
+
+
+def _find_opportunity_board_index(registry: dict[str, Any], target: str) -> tuple[int, dict[str, Any]]:
+    raw = str(target or "").strip()
+    if not raw:
+        raise RuntimeError("Opportunity board name or id is required.")
+    slug = _slugify_value(raw)
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, board in enumerate(registry.get("boards", [])):
+        if not isinstance(board, dict):
+            continue
+        board_id = str(board.get("board_id", "") or "").strip()
+        title = str(board.get("title", "") or "").strip()
+        label = str(board.get("label", "") or "").strip()
+        if raw == board_id or raw == title or slug == board_id or slug == title or (label and _slugify_value(label) == slug):
+            matches.append((index, board))
+    if not matches:
+        raise RuntimeError(f"No opportunity board matched '{raw}'.")
+    if len(matches) > 1:
+        raise RuntimeError(f"Opportunity board selector '{raw}' is ambiguous. Use the exact board slug.")
+    return matches[0]
+
+
+def _find_opportunity_item_index(board: dict[str, Any], target: str) -> tuple[int, dict[str, Any]]:
+    raw = str(target or "").strip()
+    if not raw:
+        raise RuntimeError("Opportunity item id or title is required.")
+    slug = _slugify_value(raw)
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, item in enumerate(board.get("items", [])):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("item_id", "") or "").strip()
+        title = str(item.get("title", "") or "").strip()
+        if raw == item_id or slug == item_id or (title and _slugify_value(title) == slug):
+            matches.append((index, item))
+    if not matches:
+        raise RuntimeError(f"No opportunity item matched '{raw}' in board '{board.get('title', '')}'.")
+    if len(matches) > 1:
+        raise RuntimeError(f"Opportunity item selector '{raw}' is ambiguous. Use the exact item id.")
+    return matches[0]
+
+
+def _next_opportunity_item_id(board: dict[str, Any], title: str) -> str:
+    base = _slugify_value(title)
+    existing = {
+        str(item.get("item_id", "") or "").strip()
+        for item in board.get("items", [])
+        if isinstance(item, dict)
+    }
+    if base not in existing:
+        return base
+    suffix = 2
+    while f"{base}-{suffix}" in existing:
+        suffix += 1
+    return f"{base}-{suffix}"
+
+
+def _opportunity_board_payload(board: dict[str, Any], *, include_items: bool = False) -> dict[str, Any]:
+    items = [item for item in board.get("items", []) if isinstance(item, dict)]
+    payload = {
+        "board_id": str(board.get("board_id", "") or "").strip(),
+        "title": str(board.get("title", "") or "").strip(),
+        "label": str(board.get("label", "") or "").strip(),
+        "description": str(board.get("description", "") or "").strip(),
+        "created_at_utc": str(board.get("created_at_utc", "") or "").strip(),
+        "updated_at_utc": str(board.get("updated_at_utc", "") or "").strip(),
+        "item_count": len(items),
+        "hosted_mirror": copy.deepcopy(board.get("hosted_mirror", {})) if isinstance(board.get("hosted_mirror"), dict) else {},
+    }
+    if include_items:
+        payload["items"] = copy.deepcopy(items)
+    return payload
+
+
+def _store_opportunity_board(registry: dict[str, Any], board: dict[str, Any], *, board_index: int | None = None) -> tuple[dict[str, Any], Path]:
+    updated_registry = copy.deepcopy(registry)
+    normalized = _normalize_opportunity_board(board)
+    if not normalized:
+        raise RuntimeError("Opportunity board payload is invalid.")
+    boards = [row for row in updated_registry.get("boards", []) if isinstance(row, dict)]
+    if board_index is None:
+        for index, existing in enumerate(boards):
+            if str(existing.get("board_id", "") or "").strip() == normalized["board_id"]:
+                board_index = index
+                break
+    if board_index is None:
+        boards.append(normalized)
+    else:
+        boards[board_index] = normalized
+    updated_registry["boards"] = boards
+    registry_path = _save_opportunities_registry(updated_registry)
+    return updated_registry, registry_path
+
+
+def _opportunity_counts_by_kind(items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        kind = str(item.get("kind", "") or "").strip() or "opportunity"
+        counts[kind] = counts.get(kind, 0) + 1
+    return counts
+
+
+def _opportunity_section_names(items: list[dict[str, Any]]) -> list[str]:
+    seen: set[str] = set()
+    sections: list[str] = []
+    for item in items:
+        section = str(item.get("section", "") or "").strip()
+        if not section or section in seen:
+            continue
+        seen.add(section)
+        sections.append(section)
+    return sections
+
+
+def _opportunity_priority_rank(value: str) -> int:
+    try:
+        return OPPORTUNITY_PRIORITIES.index(str(value or "").strip().lower())
+    except ValueError:
+        return len(OPPORTUNITY_PRIORITIES)
+
+
+def _opportunity_status_rank(value: str) -> int:
+    try:
+        return OPPORTUNITY_STATUSES.index(str(value or "").strip().lower())
+    except ValueError:
+        return len(OPPORTUNITY_STATUSES)
+
+
+def _sort_opportunity_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        items,
+        key=lambda item: (
+            _opportunity_priority_rank(str(item.get("priority", "") or "")),
+            _opportunity_status_rank(str(item.get("status", "") or "")),
+            str(item.get("updated_at_utc", "") or ""),
+            str(item.get("title", "") or "").lower(),
+        ),
+    )
+
+
+def _filter_opportunity_items(
+    items: list[dict[str, Any]],
+    *,
+    section: str = "",
+    kind: str = "",
+    status: str = "",
+    priority_at_least: str = "",
+    include_archived: bool = False,
+) -> list[dict[str, Any]]:
+    filtered = []
+    section_slug = _slugify_value(section) if section else ""
+    kind_value = str(kind or "").strip().lower()
+    status_value = str(status or "").strip().lower()
+    minimum_rank = _opportunity_priority_rank(priority_at_least) if priority_at_least else None
+    for item in items:
+        item_status = str(item.get("status", "") or "").strip().lower()
+        if not include_archived and item_status == "archived":
+            continue
+        if section_slug and _slugify_value(str(item.get("section", "") or "")) != section_slug:
+            continue
+        if kind_value and str(item.get("kind", "") or "").strip().lower() != kind_value:
+            continue
+        if status_value and item_status != status_value:
+            continue
+        if minimum_rank is not None and _opportunity_priority_rank(str(item.get("priority", "") or "")) > minimum_rank:
+            continue
+        filtered.append(item)
+    return _sort_opportunity_items(filtered)
+
+
 def _slugify_value(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
-    return slug or "job"
+    return slug
 
 
 def _normalize_workspace_title_input(value: Any, *, field_label: str = "--title") -> str:
@@ -1540,6 +2495,17 @@ def _validate_schedule_time(hour: int, minute: int) -> None:
         raise RuntimeError("--hour must be between 0 and 23.")
     if minute < 0 or minute > 59:
         raise RuntimeError("--minute must be between 0 and 59.")
+
+
+def _parse_hhmm(value: str, *, flag_name: str) -> tuple[int, int]:
+    text = str(value or "").strip()
+    match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", text)
+    if not match:
+        raise RuntimeError(f"{flag_name} must use HH:MM 24-hour format, like 09:00 or 14:30.")
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    _validate_schedule_time(hour, minute)
+    return hour, minute
 
 
 def _schedule_job_label(job: dict[str, Any]) -> str:
@@ -1637,9 +2603,6 @@ def _schedule_job_runtime_payload(job: dict[str, Any]) -> dict[str, Any]:
     config = job.get("config", {}) if isinstance(job.get("config"), dict) else {}
     plist_path = _schedule_job_plist_path(job)
     plist_payload = _read_schedule_job_plist(job)
-    prompt_file = str(config.get("prompt_file", "")).strip()
-    prompt_inline = str(config.get("prompt", ""))
-    codex_session_id = str(config.get("codex_session_id", "")).strip()
     start_interval = plist_payload.get("StartCalendarInterval", {}) if isinstance(plist_payload, dict) else {}
     stored_schedule = _schedule_job_schedule(job)
     effective_hour = (
@@ -1652,7 +2615,7 @@ def _schedule_job_runtime_payload(job: dict[str, Any]) -> dict[str, Any]:
         if str(start_interval.get("Minute", "")).strip()
         else stored_schedule["minute"]
     )
-    return {
+    payload = {
         **job,
         "label": _schedule_job_label(job),
         "enabled": plist_path.exists(),
@@ -1663,13 +2626,39 @@ def _schedule_job_runtime_payload(job: dict[str, Any]) -> dict[str, Any]:
             "stderr": str(_schedule_job_stderr_path(job)),
         },
         "repo_root": str(config.get("repo_root", "")).strip(),
-        "sandbox": str(config.get("sandbox", "read-only")).strip() or "read-only",
-        "prompt_file": prompt_file,
-        "prompt_source": "file" if prompt_file else "inline",
-        "prompt_preview": _summarize_checkpoint_response(prompt_inline) if prompt_inline.strip() else "",
-        "codex_session_id": codex_session_id,
-        "uses_session_resume": bool(codex_session_id),
     }
+    kind = str(job.get("kind", "")).strip().lower()
+    if kind == "codex":
+        prompt_file = str(config.get("prompt_file", "")).strip()
+        prompt_inline = str(config.get("prompt", ""))
+        codex_session_id = str(config.get("codex_session_id", "")).strip()
+        payload.update(
+            {
+                "sandbox": str(config.get("sandbox", "read-only")).strip() or "read-only",
+                "prompt_file": prompt_file,
+                "prompt_source": "file" if prompt_file else "inline",
+                "prompt_preview": _summarize_checkpoint_response(prompt_inline) if prompt_inline.strip() else "",
+                "codex_session_id": codex_session_id,
+                "uses_session_resume": bool(codex_session_id),
+            }
+        )
+    elif kind == "agenda_refresh":
+        command_preview = str(config.get("command_preview", "")).strip()
+        payload.update(
+            {
+                "sandbox": str(config.get("sandbox", "read-only")).strip() or "read-only",
+                "workspace_ref": str(config.get("workspace_ref", "")).strip() or "main",
+                "board_ref": str(config.get("board_ref", "")).strip(),
+                "opportunity_limit": int(config.get("opportunity_limit", 5) or 5),
+                "github_limit": int(config.get("github_limit", 25) or 25),
+                "codex_bin": str(config.get("codex_bin", "")).strip(),
+                "codex_config_profile": str(config.get("codex_config_profile", "")).strip(),
+                "window": str(config.get("window", "")).strip(),
+                "command_preview": command_preview,
+                "description": str(config.get("description", "")).strip(),
+            }
+        )
+    return payload
 
 
 def _find_schedule_job_index(registry: dict[str, Any], target: str) -> tuple[int, dict[str, Any]]:
@@ -1702,14 +2691,19 @@ def _read_schedule_prompt(job: dict[str, Any]) -> str:
 
 def _schedule_job_show_payload(job: dict[str, Any]) -> dict[str, Any]:
     payload = _schedule_job_runtime_payload(job)
-    prompt_file = str(payload.get("prompt_file", "")).strip()
-    payload["prompt_file_exists"] = Path(prompt_file).exists() if prompt_file else False
-    try:
-        payload["resolved_prompt"] = _read_schedule_prompt(job)
-        payload["prompt_error"] = ""
-    except RuntimeError as exc:
+    if str(payload.get("kind", "")).strip().lower() == "codex":
+        prompt_file = str(payload.get("prompt_file", "")).strip()
+        payload["prompt_file_exists"] = Path(prompt_file).exists() if prompt_file else False
+        try:
+            payload["resolved_prompt"] = _read_schedule_prompt(job)
+            payload["prompt_error"] = ""
+        except RuntimeError as exc:
+            payload["resolved_prompt"] = ""
+            payload["prompt_error"] = str(exc)
+    else:
+        payload["prompt_file_exists"] = False
         payload["resolved_prompt"] = ""
-        payload["prompt_error"] = str(exc)
+        payload["prompt_error"] = ""
     return payload
 
 
@@ -1808,6 +2802,44 @@ def _run_schedule_codex_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_schedule_agenda_refresh_job(job: dict[str, Any]) -> dict[str, Any]:
+    config = job.get("config", {}) if isinstance(job.get("config"), dict) else {}
+    repo_root = Path(str(config.get("repo_root", "")).strip() or ".").expanduser().resolve()
+    if not repo_root.exists():
+        raise RuntimeError(f"Scheduled agenda repo root does not exist: {repo_root}")
+
+    args = argparse.Namespace(
+        repo_root=str(repo_root),
+        workspace_ref=str(config.get("workspace_ref", "")).strip() or "main",
+        board_ref=str(config.get("board_ref", "")).strip(),
+        north_star="",
+        opportunity_limit=int(config.get("opportunity_limit", 5) or 5),
+        github_limit=int(config.get("github_limit", 25) or 25),
+        codex_bin=str(config.get("codex_bin", "")).strip(),
+        codex_config_profile=str(config.get("codex_config_profile", "")).strip(),
+        sandbox=str(config.get("sandbox", "read-only")).strip() or "read-only",
+        workspace_fixture="",
+        github_fixture="",
+        response_fixture="",
+        json_output=True,
+    )
+    payload = _agenda_refresh_payload(args)
+    body = json.dumps(payload, indent=2, sort_keys=False)
+    command_preview = str(config.get("command_preview", "")).strip()
+    return {
+        "ok": bool(payload.get("ok")),
+        "exitCode": 0 if payload.get("ok") else 1,
+        "stdout": body,
+        "stderr": "",
+        "body": body,
+        "summary": (
+            f"Agenda refreshed with {len(payload.get('actions', []))} actions and "
+            f"{len(payload.get('suggestions', []))} suggestions."
+        ),
+        "command": command_preview or "orp agenda refresh --json",
+    }
+
+
 def _record_schedule_run_result(job_id: str, run_payload: dict[str, Any]) -> dict[str, Any]:
     registry = _load_schedule_registry()
     index, job = _find_schedule_job_index(registry, job_id)
@@ -1861,6 +2893,100 @@ def _create_schedule_codex_job(args: argparse.Namespace) -> dict[str, Any]:
     path = _save_schedule_registry(registry)
     payload = _schedule_job_runtime_payload(job)
     payload["registry_path"] = str(path)
+    return payload
+
+
+def _upsert_schedule_agenda_refresh_job(
+    *,
+    name: str,
+    repo_root: Path,
+    window: str,
+    hour: int,
+    minute: int,
+    workspace_ref: str,
+    board_ref: str,
+    opportunity_limit: int,
+    github_limit: int,
+    codex_bin: str,
+    codex_config_profile: str,
+    sandbox: str,
+) -> dict[str, Any]:
+    normalized_name = str(name or "").strip()
+    if not normalized_name:
+        raise RuntimeError("Agenda schedule job name is required.")
+    normalized_window = str(window or "").strip().lower()
+    if normalized_window not in AGENDA_REFRESH_WINDOWS:
+        raise RuntimeError(f"Unsupported agenda refresh window: {window}")
+    _validate_schedule_time(hour, minute)
+
+    registry = _load_schedule_registry()
+    jobs = registry.get("jobs", []) if isinstance(registry.get("jobs"), list) else []
+    existing_index: int | None = None
+    existing_job: dict[str, Any] = {}
+    for index, row in enumerate(jobs):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name", "")).strip() == normalized_name:
+            existing_index = index
+            existing_job = row
+            break
+    if existing_job and str(existing_job.get("kind", "")).strip().lower() not in {"agenda_refresh"}:
+        raise RuntimeError(
+            f"A different scheduled job already uses the name '{normalized_name}'. Rename or remove it first."
+        )
+
+    repo_root = repo_root.expanduser().resolve()
+    now = _now_utc()
+    command_parts = ["orp", "agenda", "refresh", "--workspace-ref", workspace_ref]
+    if board_ref:
+        command_parts.extend(["--board-ref", board_ref])
+    command_parts.extend(
+        [
+            "--opportunity-limit",
+            str(opportunity_limit),
+            "--github-limit",
+            str(github_limit),
+            "--sandbox",
+            sandbox,
+            "--json",
+        ]
+    )
+    if codex_bin:
+        command_parts.extend(["--codex-bin", codex_bin])
+    if codex_config_profile:
+        command_parts.extend(["--codex-config-profile", codex_config_profile])
+
+    job = {
+        "id": str(existing_job.get("id", "")).strip() or "sched-" + uuid.uuid4().hex[:12],
+        "name": normalized_name,
+        "kind": "agenda_refresh",
+        "created_at": str(existing_job.get("created_at", "")).strip() or now,
+        "updated_at": now,
+        "schedule": {"hour": hour, "minute": minute},
+        "config": {
+            "repo_root": str(repo_root),
+            "window": normalized_window,
+            "workspace_ref": str(workspace_ref or "").strip() or "main",
+            "board_ref": str(board_ref or "").strip(),
+            "opportunity_limit": int(opportunity_limit),
+            "github_limit": int(github_limit),
+            "codex_bin": str(codex_bin or "").strip(),
+            "codex_config_profile": str(codex_config_profile or "").strip(),
+            "sandbox": str(sandbox or "read-only").strip() or "read-only",
+            "description": f"Explicitly enabled {normalized_window} agenda refresh via Codex.",
+            "command_preview": " ".join(command_parts),
+        },
+        "last_run": existing_job.get("last_run", {}) if isinstance(existing_job.get("last_run"), dict) else {},
+    }
+    if existing_index is None:
+        jobs.append(job)
+    else:
+        jobs[existing_index] = job
+    registry["jobs"] = jobs
+    path = _save_schedule_registry(registry)
+    payload = _schedule_job_runtime_payload(job)
+    payload["registry_path"] = str(path)
+    payload["created"] = existing_index is None
     return payload
 
 
@@ -1966,7 +3092,13 @@ def _disable_schedule_job(job: dict[str, Any]) -> dict[str, Any]:
 
 def _run_schedule_job_once(job: dict[str, Any]) -> dict[str, Any]:
     started_at = _now_utc()
-    result = _run_schedule_codex_job(job)
+    kind = str(job.get("kind", "")).strip().lower()
+    if kind == "codex":
+        result = _run_schedule_codex_job(job)
+    elif kind == "agenda_refresh":
+        result = _run_schedule_agenda_refresh_job(job)
+    else:
+        raise RuntimeError(f"Unsupported scheduled job kind: {job.get('kind', '')}")
     finished_at = _now_utc()
     run_payload = {
         "started_at": started_at,
@@ -1985,6 +3117,7 @@ def _run_schedule_job_once(job: dict[str, Any]) -> dict[str, Any]:
 
 def _render_schedule_add_report(payload: dict[str, Any]) -> str:
     schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    kind = str(payload.get("kind", "")).strip().lower()
     lines = [
         "ORP Scheduled Job Created",
         "",
@@ -1993,15 +3126,33 @@ def _render_schedule_add_report(payload: dict[str, Any]) -> str:
         f"Kind: {payload.get('kind', '')}",
         f"Repo: {payload.get('repo_root', '')}",
         f"Schedule: daily at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
-        f"Prompt source: {payload.get('prompt_source', '')}",
-        f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
         f"Registry: {payload.get('registry_path', '')}",
-        "",
-        "Next steps:",
-        f"  orp schedule show {payload.get('name', '')}",
-        f"  orp schedule run {payload.get('name', '')}",
-        f"  orp schedule enable {payload.get('name', '')}",
     ]
+    if kind == "codex":
+        lines.extend(
+            [
+                f"Prompt source: {payload.get('prompt_source', '')}",
+                f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
+            ]
+        )
+    elif kind == "agenda_refresh":
+        lines.extend(
+            [
+                f"Window: {payload.get('window', '')}",
+                f"Workspace: {payload.get('workspace_ref', '')}",
+                f"Board: {payload.get('board_ref', '') or 'auto'}",
+                f"Command: {payload.get('command_preview', '')}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Next steps:",
+            f"  orp schedule show {payload.get('name', '')}",
+            f"  orp schedule run {payload.get('name', '')}",
+            f"  orp schedule enable {payload.get('name', '')}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -2024,10 +3175,15 @@ def _render_schedule_list_report(payload: dict[str, Any]) -> str:
                 f"  enabled: {'yes' if job.get('enabled') else 'no'}",
                 f"  repo: {job.get('repo_root', '')}",
                 f"  schedule: {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
-                f"  prompt: {job.get('prompt_source', 'inline')}",
-                f"  codex session: {job.get('codex_session_id', '') or 'none'}",
             ]
         )
+        if str(job.get("kind", "")).strip().lower() == "codex":
+            lines.append(f"  prompt: {job.get('prompt_source', 'inline')}")
+            lines.append(f"  codex session: {job.get('codex_session_id', '') or 'none'}")
+        elif str(job.get("kind", "")).strip().lower() == "agenda_refresh":
+            lines.append(f"  window: {job.get('window', '')}")
+            lines.append(f"  workspace: {job.get('workspace_ref', '')}")
+            lines.append(f"  board: {job.get('board_ref', '') or 'auto'}")
         last_run = job.get("last_run", {}) if isinstance(job.get("last_run"), dict) else {}
         if last_run:
             lines.append(
@@ -2038,6 +3194,7 @@ def _render_schedule_list_report(payload: dict[str, Any]) -> str:
 
 def _render_schedule_show_report(payload: dict[str, Any]) -> str:
     schedule = payload.get("schedule", {}) if isinstance(payload.get("schedule"), dict) else {}
+    kind = str(payload.get("kind", "")).strip().lower()
     lines = [
         "ORP Scheduled Job",
         "",
@@ -2047,17 +3204,34 @@ def _render_schedule_show_report(payload: dict[str, Any]) -> str:
         f"Enabled: {'yes' if payload.get('enabled') else 'no'}",
         f"Repo: {payload.get('repo_root', '')}",
         f"Schedule: daily at {int(schedule.get('hour', 0)):02d}:{int(schedule.get('minute', 0)):02d}",
-        f"Prompt source: {payload.get('prompt_source', '')}",
-        f"Prompt file: {payload.get('prompt_file', '') or 'none'}",
-        f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
         f"Registry: {payload.get('registry_path', '')}",
     ]
-    prompt_error = str(payload.get("prompt_error", "")).strip()
-    if prompt_error:
-        lines.append(f"Prompt error: {prompt_error}")
-    prompt = str(payload.get("resolved_prompt", "")).strip()
-    if prompt:
-        lines.extend(["", "Prompt:", prompt])
+    if kind == "codex":
+        lines.extend(
+            [
+                f"Prompt source: {payload.get('prompt_source', '')}",
+                f"Prompt file: {payload.get('prompt_file', '') or 'none'}",
+                f"Codex session id: {payload.get('codex_session_id', '') or 'none'}",
+            ]
+        )
+        prompt_error = str(payload.get("prompt_error", "")).strip()
+        if prompt_error:
+            lines.append(f"Prompt error: {prompt_error}")
+        prompt = str(payload.get("resolved_prompt", "")).strip()
+        if prompt:
+            lines.extend(["", "Prompt:", prompt])
+    elif kind == "agenda_refresh":
+        lines.extend(
+            [
+                f"Window: {payload.get('window', '')}",
+                f"Workspace: {payload.get('workspace_ref', '')}",
+                f"Board: {payload.get('board_ref', '') or 'auto'}",
+                f"GitHub limit: {payload.get('github_limit', '')}",
+                f"Opportunity limit: {payload.get('opportunity_limit', '')}",
+                f"Sandbox: {payload.get('sandbox', '')}",
+                f"Command: {payload.get('command_preview', '')}",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -5017,6 +6191,9 @@ def _default_git_runtime_payload() -> dict[str, Any]:
         "schema_version": "1.0.0",
         "initialized_at_utc": "",
         "last_init": {},
+        "agent_parent_root": "",
+        "agent_parent_source": "",
+        "last_agent_sync": {},
         "last_branch_action": {},
         "branch_transitions": [],
         "last_checkpoint": {},
@@ -7772,6 +8949,546 @@ def _init_checkpoint_log_template() -> str:
     )
 
 
+def _canonical_orp_agent_snippet() -> str:
+    source_path = Path(__file__).resolve().parent.parent / "AGENT_INTEGRATION.md"
+    if not source_path.exists():
+        raise RuntimeError(f"missing AGENT_INTEGRATION.md at {source_path}")
+    text = source_path.read_text(encoding="utf-8")
+    begin_index = text.find(ORP_SNIPPET_BEGIN)
+    end_index = text.find(ORP_SNIPPET_END)
+    if begin_index < 0 or end_index < 0 or end_index < begin_index:
+        raise RuntimeError("canonical ORP agent snippet markers not found in AGENT_INTEGRATION.md")
+    end_index += len(ORP_SNIPPET_END)
+    snippet = text[begin_index:end_index].strip()
+    return snippet + "\n"
+
+
+def _extract_marked_block(text: str, begin_marker: str, end_marker: str) -> str:
+    begin_index = text.find(begin_marker)
+    end_index = text.find(end_marker)
+    if begin_index < 0 or end_index < 0 or end_index < begin_index:
+        return ""
+    end_index += len(end_marker)
+    return text[begin_index:end_index].strip() + "\n"
+
+
+def _upsert_marked_block(
+    text: str,
+    *,
+    begin_marker: str,
+    end_marker: str,
+    block_text: str,
+) -> tuple[str, str]:
+    current = str(text or "")
+    normalized_block = str(block_text or "").strip() + "\n"
+    existing_block = _extract_marked_block(current, begin_marker, end_marker)
+    if existing_block:
+        if existing_block == normalized_block:
+            return current, "kept"
+        begin_index = current.find(begin_marker)
+        end_index = current.find(end_marker) + len(end_marker)
+        updated = current[:begin_index] + normalized_block + current[end_index:]
+        return updated, "updated"
+
+    updated = current.rstrip()
+    if updated:
+        updated += "\n\n"
+    updated += normalized_block
+    return updated + ("" if updated.endswith("\n") else "\n"), "created"
+
+
+def _path_is_within(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _relative_path_text(path: Path, *, start: Path) -> str:
+    try:
+        return os.path.relpath(str(path.resolve()), str(start.resolve()))
+    except Exception:
+        return str(path.resolve())
+
+
+def _default_agent_file_body(
+    *,
+    file_name: str,
+    role: str,
+    guide_block: str,
+    snippet_block: str,
+) -> str:
+    title = file_name
+    if role == "umbrella":
+        overview = (
+            "This is the umbrella-level agent guide for the shared projects root. Keep this file high-level and "
+            "let child projects carry the local specifics."
+        )
+        sections = (
+            "## North Star\n"
+            "- Capture the shared direction for the whole umbrella space.\n\n"
+            "## Roadmap\n"
+            "- Capture the major tracks or horizons that matter across projects.\n\n"
+            "## Current State\n"
+            "- Capture what is true right now at the umbrella level.\n\n"
+            "## Approach\n"
+            "- Capture the broad way work should proceed across projects.\n\n"
+            "## Pitfalls\n"
+            "- Capture recurring mistakes, traps, and reminders worth passing down.\n\n"
+            "## Child Summaries\n"
+            "- Capture only high-level summaries from child projects, not their full local detail.\n"
+        )
+    else:
+        overview = (
+            "This is the project-level agent guide for this repo. Keep this file specific to the project and let the "
+            "umbrella parent stay high-level."
+        )
+        sections = (
+            "## North Star\n"
+            "- Capture the project-specific direction for this repo.\n\n"
+            "## Roadmap\n"
+            "- Capture the next milestones or tracks for this repo.\n\n"
+            "## Current State\n"
+            "- Capture what is true right now in this repo.\n\n"
+            "## Approach\n"
+            "- Capture how work should proceed from here.\n\n"
+            "## Pitfalls\n"
+            "- Capture recurring mistakes, traps, and reminders for this repo.\n\n"
+            "## Upward Summary\n"
+            "- Capture the high-level summary this repo wants the umbrella parent to remember.\n"
+        )
+    return (
+        f"# {title}\n\n"
+        f"{overview}\n\n"
+        f"{guide_block.rstrip()}\n\n"
+        f"{sections.rstrip()}\n\n"
+        f"{snippet_block.rstrip()}\n"
+    )
+
+
+def _render_agent_guide_block(
+    *,
+    file_name: str,
+    role: str,
+    root: Path,
+    parent_root: Path | None,
+    parent_source: str,
+) -> str:
+    root = root.resolve()
+    lines = [
+        AGENT_GUIDE_BEGIN,
+        "## ORP Agent Guide",
+        "",
+        f"- File: `{file_name}`",
+        f"- Role: `{role}`",
+        f"- Root: `{root}`",
+    ]
+    if role == "umbrella":
+        lines.extend(
+            [
+                "- This directory is the shared parent for many projects. Keep this file high-level.",
+                "- Child projects should inherit broad north-star guidance, roadmap direction, and recurring pitfalls from here.",
+                "- Let child repos keep the nitty-gritty local detail in their own files.",
+            ]
+        )
+    else:
+        if parent_root is not None:
+            parent_agents = parent_root / "AGENTS.md"
+            parent_claude = parent_root / "CLAUDE.md"
+            lines.extend(
+                [
+                    f"- Parent umbrella root: `{parent_root}`",
+                    f"- Parent root source: `{parent_source}`",
+                    f"- Inherited AGENTS.md: `{_relative_path_text(parent_agents, start=root)}`",
+                    f"- Inherited CLAUDE.md: `{_relative_path_text(parent_claude, start=root)}`",
+                    "- Read the parent files for the high-level north star, roadmap, broad guardrails, and recurring pitfalls.",
+                    "- Keep this local file project-specific so the parent can stay high-level and the child can stay concrete.",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "- Parent umbrella root: `(not configured)`",
+                    "- If you usually keep projects under one shared directory, set it with `orp agents root set /absolute/path/to/projects`.",
+                ]
+            )
+        lines.extend(
+            [
+                "- Preserve human notes outside ORP-managed blocks.",
+                "- Use this local file for the project-specific current state, local constraints, and concrete next moves.",
+            ]
+        )
+    lines.extend(
+        [
+            "- ORP only manages the marked blocks. Human-written notes outside those blocks are preserved.",
+            "- Refresh with `orp agents sync`.",
+            "- Audit with `orp agents audit`.",
+            AGENT_GUIDE_END,
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _agents_sync_root(
+    *,
+    root: Path,
+    role: str,
+    parent_root: Path | None,
+    parent_source: str,
+) -> dict[str, Any]:
+    root = root.expanduser().resolve()
+    snippet = _canonical_orp_agent_snippet()
+    files: list[dict[str, Any]] = []
+    for file_name in AGENT_GUIDE_FILENAMES:
+        path = root / file_name
+        guide_block = _render_agent_guide_block(
+            file_name=file_name,
+            role=role,
+            root=root,
+            parent_root=parent_root,
+            parent_source=parent_source,
+        )
+        if path.exists():
+            text = path.read_text(encoding="utf-8")
+            before = text
+            text, guide_action = _upsert_marked_block(
+                text,
+                begin_marker=AGENT_GUIDE_BEGIN,
+                end_marker=AGENT_GUIDE_END,
+                block_text=guide_block,
+            )
+            text, snippet_action = _upsert_marked_block(
+                text,
+                begin_marker=ORP_SNIPPET_BEGIN,
+                end_marker=ORP_SNIPPET_END,
+                block_text=snippet,
+            )
+            final_text = text if text.endswith("\n") else text + "\n"
+            if final_text != before:
+                _write_text(path, final_text)
+            overall_action = "updated" if final_text != before else "kept"
+        else:
+            final_text = _default_agent_file_body(
+                file_name=file_name,
+                role=role,
+                guide_block=guide_block,
+                snippet_block=snippet,
+            )
+            _write_text(path, final_text)
+            guide_action = "created"
+            snippet_action = "created"
+            overall_action = "created"
+        files.append(
+            {
+                "name": file_name,
+                "path": str(path),
+                "action": overall_action,
+                "guide_action": guide_action,
+                "snippet_action": snippet_action,
+            }
+        )
+    return {
+        "root": str(root),
+        "role": role,
+        "parent_root": str(parent_root.resolve()) if parent_root is not None else "",
+        "parent_source": parent_source,
+        "files": files,
+    }
+
+
+def _audit_agents_root(
+    *,
+    root: Path,
+    role: str,
+    parent_root: Path | None,
+    parent_source: str,
+) -> dict[str, Any]:
+    root = root.expanduser().resolve()
+    snippet = _canonical_orp_agent_snippet()
+    files: list[dict[str, Any]] = []
+    overall_ok = True
+    for file_name in AGENT_GUIDE_FILENAMES:
+        path = root / file_name
+        expected_guide = _render_agent_guide_block(
+            file_name=file_name,
+            role=role,
+            root=root,
+            parent_root=parent_root,
+            parent_source=parent_source,
+        )
+        if not path.exists():
+            files.append(
+                {
+                    "name": file_name,
+                    "path": str(path),
+                    "exists": False,
+                    "guide_present": False,
+                    "guide_synced": False,
+                    "snippet_present": False,
+                    "snippet_synced": False,
+                    "status": "missing",
+                }
+            )
+            overall_ok = False
+            continue
+        text = path.read_text(encoding="utf-8")
+        guide_block = _extract_marked_block(text, AGENT_GUIDE_BEGIN, AGENT_GUIDE_END)
+        snippet_block = _extract_marked_block(text, ORP_SNIPPET_BEGIN, ORP_SNIPPET_END)
+        guide_present = bool(guide_block)
+        snippet_present = bool(snippet_block)
+        guide_synced = guide_block == expected_guide
+        snippet_synced = snippet_block == snippet
+        status = "ok" if guide_synced and snippet_synced else "needs_sync"
+        if status != "ok":
+            overall_ok = False
+        files.append(
+            {
+                "name": file_name,
+                "path": str(path),
+                "exists": True,
+                "guide_present": guide_present,
+                "guide_synced": guide_synced,
+                "snippet_present": snippet_present,
+                "snippet_synced": snippet_synced,
+                "status": status,
+            }
+        )
+    next_actions: list[str] = []
+    if not overall_ok:
+        next_actions.append("orp agents sync")
+    return {
+        "ok": overall_ok,
+        "root": str(root),
+        "role": role,
+        "parent_root": str(parent_root.resolve()) if parent_root is not None else "",
+        "parent_source": parent_source,
+        "files": files,
+        "next_actions": next_actions,
+    }
+
+
+def _resolve_projects_root_path(raw: str) -> Path:
+    text = str(raw or "").strip()
+    if not text:
+        raise RuntimeError("Projects root path is required.")
+    return Path(text).expanduser().resolve()
+
+
+def _resolve_agents_projects_root_for_repo(
+    repo_root: Path,
+    *,
+    explicit_projects_root: str = "",
+) -> tuple[Path | None, str]:
+    repo_root = repo_root.expanduser().resolve()
+    explicit = str(explicit_projects_root or "").strip()
+    if explicit:
+        return _resolve_projects_root_path(explicit), "explicit"
+
+    git_runtime = _read_git_runtime(repo_root)
+    stored = str(git_runtime.get("agent_parent_root", "")).strip()
+    if stored:
+        return Path(stored).expanduser().resolve(), str(git_runtime.get("agent_parent_source", "")).strip() or "runtime"
+
+    registry = _load_agents_registry()
+    configured_root = str(registry.get("projects_root", "")).strip()
+    if configured_root:
+        candidate = Path(configured_root).expanduser().resolve()
+        if candidate != repo_root and _path_is_within(repo_root, candidate):
+            return candidate, "global"
+    return None, ""
+
+
+def _agents_role_for_root(root: Path, *, requested_role: str, projects_root: Path | None) -> str:
+    role = str(requested_role or "").strip().lower() or "auto"
+    if role in {"project", "umbrella"}:
+        return role
+    if projects_root is not None and root.resolve() == projects_root.resolve():
+        return "umbrella"
+    return "project"
+
+
+def _agents_sync_payload(
+    *,
+    root: Path,
+    requested_role: str = "auto",
+    explicit_projects_root: str = "",
+) -> dict[str, Any]:
+    root = root.expanduser().resolve()
+    parent_root, parent_source = _resolve_agents_projects_root_for_repo(
+        root,
+        explicit_projects_root=explicit_projects_root,
+    )
+    role = _agents_role_for_root(root, requested_role=requested_role, projects_root=parent_root)
+    effective_parent = None if role == "umbrella" else parent_root
+    payload = _agents_sync_root(
+        root=root,
+        role=role,
+        parent_root=effective_parent,
+        parent_source=parent_source,
+    )
+    if role == "project":
+        git_runtime = _read_git_runtime(root)
+        git_runtime["agent_parent_root"] = str(effective_parent.resolve()) if effective_parent is not None else ""
+        git_runtime["agent_parent_source"] = parent_source if effective_parent is not None else ""
+        git_runtime["last_agent_sync"] = {
+            "timestamp_utc": _now_utc(),
+            "role": role,
+            "parent_root": git_runtime["agent_parent_root"],
+            "parent_source": git_runtime["agent_parent_source"],
+        }
+        _write_git_runtime(root, git_runtime)
+    return {
+        "ok": True,
+        **payload,
+    }
+
+
+def _agents_audit_payload(
+    *,
+    root: Path,
+    requested_role: str = "auto",
+    explicit_projects_root: str = "",
+) -> dict[str, Any]:
+    root = root.expanduser().resolve()
+    parent_root, parent_source = _resolve_agents_projects_root_for_repo(
+        root,
+        explicit_projects_root=explicit_projects_root,
+    )
+    role = _agents_role_for_root(root, requested_role=requested_role, projects_root=parent_root)
+    effective_parent = None if role == "umbrella" else parent_root
+    return _audit_agents_root(
+        root=root,
+        role=role,
+        parent_root=effective_parent,
+        parent_source=parent_source,
+    )
+
+
+def _agents_root_show_payload() -> dict[str, Any]:
+    registry = _load_agents_registry()
+    projects_root = str(registry.get("projects_root", "")).strip()
+    return {
+        "ok": True,
+        "registry_path": str(_agents_registry_path()),
+        "projects_root": projects_root,
+        "configured": bool(projects_root),
+        "updated_at_utc": str(registry.get("updated_at_utc", "")).strip(),
+    }
+
+
+def _agents_root_set_payload(path_text: str) -> dict[str, Any]:
+    projects_root = _resolve_projects_root_path(path_text)
+    projects_root.mkdir(parents=True, exist_ok=True)
+    registry_path = _save_agents_registry(
+        {
+            "schema_version": AGENTS_REGISTRY_SCHEMA_VERSION,
+            "projects_root": str(projects_root),
+            "updated_at_utc": _now_utc(),
+        }
+    )
+    sync_payload = _agents_sync_root(
+        root=projects_root,
+        role="umbrella",
+        parent_root=None,
+        parent_source="global_root",
+    )
+    return {
+        "ok": True,
+        "registry_path": str(registry_path),
+        "projects_root": str(projects_root),
+        "sync": sync_payload,
+    }
+
+
+def _render_agents_sync_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Agent Files Synced",
+        "",
+        f"Root: {payload.get('root', '')}",
+        f"Role: {payload.get('role', '')}",
+    ]
+    parent_root = str(payload.get("parent_root", "") or "").strip()
+    if parent_root:
+        lines.append(f"Parent root: {parent_root}")
+        lines.append(f"Parent source: {payload.get('parent_source', '')}")
+    else:
+        lines.append("Parent root: (not configured)")
+    for row in payload.get("files", []) if isinstance(payload.get("files"), list) else []:
+        lines.extend(
+            [
+                "",
+                f"- {row.get('name', '')}",
+                f"  path: {row.get('path', '')}",
+                f"  action: {row.get('action', '')}",
+                f"  guide: {row.get('guide_action', '')}",
+                f"  snippet: {row.get('snippet_action', '')}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _render_agents_audit_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Agent Files Audit",
+        "",
+        f"Root: {payload.get('root', '')}",
+        f"Role: {payload.get('role', '')}",
+        f"Status: {'ok' if payload.get('ok') else 'needs attention'}",
+    ]
+    parent_root = str(payload.get("parent_root", "") or "").strip()
+    if parent_root:
+        lines.append(f"Parent root: {parent_root}")
+        lines.append(f"Parent source: {payload.get('parent_source', '')}")
+    else:
+        lines.append("Parent root: (not configured)")
+    for row in payload.get("files", []) if isinstance(payload.get("files"), list) else []:
+        lines.extend(
+            [
+                "",
+                f"- {row.get('name', '')}",
+                f"  exists: {'yes' if row.get('exists') else 'no'}",
+                f"  guide: {'synced' if row.get('guide_synced') else ('present' if row.get('guide_present') else 'missing')}",
+                f"  snippet: {'synced' if row.get('snippet_synced') else ('present' if row.get('snippet_present') else 'missing')}",
+                f"  status: {row.get('status', '')}",
+            ]
+        )
+    next_actions = payload.get("next_actions", []) if isinstance(payload.get("next_actions"), list) else []
+    if next_actions:
+        lines.append("")
+        lines.append("Next actions:")
+        for action in next_actions:
+            lines.append(f"  {action}")
+    return "\n".join(lines)
+
+
+def _render_agents_root_show_report(payload: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "ORP Projects Root",
+            "",
+            f"Registry: {payload.get('registry_path', '')}",
+            f"Configured: {'yes' if payload.get('configured') else 'no'}",
+            f"Projects root: {payload.get('projects_root', '') or '(not set)'}",
+        ]
+    )
+
+
+def _render_agents_root_set_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Projects Root Saved",
+        "",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Projects root: {payload.get('projects_root', '')}",
+        "",
+        "Umbrella files:",
+    ]
+    sync = payload.get("sync", {}) if isinstance(payload.get("sync"), dict) else {}
+    for row in sync.get("files", []) if isinstance(sync.get("files"), list) else []:
+        lines.append(f"  - {row.get('name', '')}: {row.get('action', '')}")
+    return "\n".join(lines)
+
+
 def _agent_policy_payload(
     *,
     default_branch: str,
@@ -8679,6 +10396,56 @@ def _about_payload() -> dict[str, Any]:
                 ],
             },
             {
+                "id": "opportunities",
+                "description": "Local-first opportunity boards for contests, programs, grants, and other openings that agents can recall, reprioritize, edit, and optionally mirror to hosted ORP over time.",
+                "entrypoints": [
+                    ["opportunities", "list"],
+                    ["opportunities", "show"],
+                    ["opportunities", "focus"],
+                    ["opportunities", "create"],
+                    ["opportunities", "add"],
+                    ["opportunities", "update"],
+                    ["opportunities", "remove"],
+                    ["opportunities", "sync"],
+                    ["opportunities", "pull"],
+                ],
+            },
+            {
+                "id": "connections",
+                "description": "Local-first connection registry for code hosts, model hubs, data platforms, deployment targets, databases, and public research destinations, with secrets referenced by alias and optional hosted mirroring.",
+                "entrypoints": [
+                    ["connections", "providers"],
+                    ["connections", "list"],
+                    ["connections", "show"],
+                    ["connections", "add"],
+                    ["connections", "update"],
+                    ["connections", "remove"],
+                    ["connections", "sync"],
+                    ["connections", "pull"],
+                ],
+            },
+            {
+                "id": "agenda",
+                "description": "Local-first Codex-ranked action and suggestion lists that combine main-workspace context, GitHub pressure, opportunities, and connections into a refreshable operating agenda.",
+                "entrypoints": [
+                    ["agenda", "refresh"],
+                    ["agenda", "actions"],
+                    ["agenda", "suggestions"],
+                    ["agenda", "focus"],
+                    ["agenda", "set-north-star"],
+                ],
+            },
+            {
+                "id": "agents",
+                "description": "Parent/child AGENTS.md and CLAUDE.md guidance files with ORP-managed blocks that preserve existing human notes, scaffold missing files, and let project repos inherit umbrella-level direction.",
+                "entrypoints": [
+                    ["agents", "root", "show"],
+                    ["agents", "root", "set"],
+                    ["agents", "sync"],
+                    ["agents", "audit"],
+                ],
+            },
+            {
                 "id": "secrets",
                 "description": "Hosted secret store for global API key inventory, provider metadata, and project-scoped resolution.",
                 "entrypoints": [
@@ -8823,6 +10590,35 @@ def _about_payload() -> dict[str, Any]:
             {"name": "schedule_run", "path": ["schedule", "run"], "json_output": True},
             {"name": "schedule_enable", "path": ["schedule", "enable"], "json_output": True},
             {"name": "schedule_disable", "path": ["schedule", "disable"], "json_output": True},
+            {"name": "connections_providers", "path": ["connections", "providers"], "json_output": True},
+            {"name": "connections_list", "path": ["connections", "list"], "json_output": True},
+            {"name": "connections_show", "path": ["connections", "show"], "json_output": True},
+            {"name": "connections_add", "path": ["connections", "add"], "json_output": True},
+            {"name": "connections_update", "path": ["connections", "update"], "json_output": True},
+            {"name": "connections_remove", "path": ["connections", "remove"], "json_output": True},
+            {"name": "connections_sync", "path": ["connections", "sync"], "json_output": True},
+            {"name": "connections_pull", "path": ["connections", "pull"], "json_output": True},
+            {"name": "agenda_refresh", "path": ["agenda", "refresh"], "json_output": True},
+            {"name": "agenda_refresh_status", "path": ["agenda", "refresh-status"], "json_output": True},
+            {"name": "agenda_enable_refreshes", "path": ["agenda", "enable-refreshes"], "json_output": True},
+            {"name": "agenda_disable_refreshes", "path": ["agenda", "disable-refreshes"], "json_output": True},
+            {"name": "agenda_actions", "path": ["agenda", "actions"], "json_output": True},
+            {"name": "agenda_suggestions", "path": ["agenda", "suggestions"], "json_output": True},
+            {"name": "agenda_focus", "path": ["agenda", "focus"], "json_output": True},
+            {"name": "agenda_set_north_star", "path": ["agenda", "set-north-star"], "json_output": True},
+            {"name": "agents_root_show", "path": ["agents", "root", "show"], "json_output": True},
+            {"name": "agents_root_set", "path": ["agents", "root", "set"], "json_output": True},
+            {"name": "agents_sync", "path": ["agents", "sync"], "json_output": True},
+            {"name": "agents_audit", "path": ["agents", "audit"], "json_output": True},
+            {"name": "opportunities_list", "path": ["opportunities", "list"], "json_output": True},
+            {"name": "opportunities_show", "path": ["opportunities", "show"], "json_output": True},
+            {"name": "opportunities_focus", "path": ["opportunities", "focus"], "json_output": True},
+            {"name": "opportunities_create", "path": ["opportunities", "create"], "json_output": True},
+            {"name": "opportunities_add", "path": ["opportunities", "add"], "json_output": True},
+            {"name": "opportunities_update", "path": ["opportunities", "update"], "json_output": True},
+            {"name": "opportunities_remove", "path": ["opportunities", "remove"], "json_output": True},
+            {"name": "opportunities_sync", "path": ["opportunities", "sync"], "json_output": True},
+            {"name": "opportunities_pull", "path": ["opportunities", "pull"], "json_output": True},
             {"name": "kernel_validate", "path": ["kernel", "validate"], "json_output": True},
             {"name": "kernel_scaffold", "path": ["kernel", "scaffold"], "json_output": True},
             {"name": "kernel_stats", "path": ["kernel", "stats"], "json_output": True},
@@ -8941,7 +10737,12 @@ def _about_payload() -> dict[str, Any]:
             "Agent modes are lightweight optional overlays for taste, perspective shifts, and fresh movement; `orp mode nudge sleek-minimal-progressive --json` gives agents a deterministic reminder they can call on when they want a deeper, wider, top-down, or rotated lens without changing ORP's core artifact boundaries.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
             "Secrets are easiest to understand as saved keys and tokens: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, and local macOS Keychain caching plus hosted sync are optional layers on top.",
+            "Connections give ORP one place to remember service accounts, public data sources, deployment targets, and which saved secret alias or named secret bindings power each integration through `orp connections providers`, `orp connections list`, `orp connections show`, `orp connections add`, `orp connections update`, `orp connections remove`, `orp connections sync`, and `orp connections pull`.",
+            "Agenda refresh is built into ORP through `orp agenda refresh`, `orp agenda actions`, `orp agenda suggestions`, `orp agenda focus`, and `orp agenda set-north-star`, using a Codex reasoning pass over current workspace, GitHub, opportunities, and connection context to keep a ranked action list and a ranked suggestion list.",
+            "Recurring agenda refreshes are always explicit opt-in. Nothing runs on a schedule until the user enables it with `orp agenda enable-refreshes`; `orp agenda refresh-status` shows the current state and default morning/afternoon/evening presets.",
+            "Agent instruction hierarchy is built into ORP through `orp agents root show`, `orp agents root set`, `orp agents sync`, and `orp agents audit`, preserving existing human-written AGENTS.md and CLAUDE.md content outside ORP-managed blocks while linking project-level guidance back to an optional umbrella projects root.",
             "Machine runner identity, heartbeat, hosted sync, prompt-job execution, and lease control are built into ORP through `orp runner status`, `orp runner enable`, `orp runner disable`, `orp runner heartbeat`, `orp runner sync`, `orp runner work`, `orp runner cancel`, and `orp runner retry`.",
+            "Opportunity boards are built into ORP through `orp opportunities list`, `orp opportunities show`, `orp opportunities focus`, `orp opportunities create`, `orp opportunities add`, `orp opportunities update`, `orp opportunities remove`, `orp opportunities sync`, and `orp opportunities pull`, giving agents a separate lane for contests, programs, grants, and similar openings.",
             "Repo governance is built into ORP through `orp init`, `orp status`, `orp branch start`, `orp checkpoint create`, `orp backup`, `orp ready`, `orp doctor`, and `orp cleanup`.",
             "Hosted workspace operations are built directly into ORP under `orp workspaces ...`, plus the linked auth/ideas/feature/world/checkpoint/agent surfaces.",
         ],
@@ -9046,8 +10847,28 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp workspace list",
         },
         {
+            "label": "Run a Codex-backed agenda refresh across the main workspace and GitHub pressure",
+            "command": "orp agenda refresh --json",
+        },
+        {
+            "label": "Check whether recurring agenda refreshes are enabled on this machine",
+            "command": "orp agenda refresh-status --json",
+        },
+        {
+            "label": "Inspect the top action and suggestion slice",
+            "command": "orp agenda focus",
+        },
+        {
+            "label": "Inspect your saved opportunity boards and priorities",
+            "command": "orp opportunities list",
+        },
+        {
             "label": "Inspect saved paths and exact recovery commands for the main workspace",
             "command": "orp workspace tabs main",
+        },
+        {
+            "label": "Audit AGENTS.md and CLAUDE.md so parent/child guidance stays in sync",
+            "command": "orp agents audit",
         },
         {
             "label": "Save a new API key or token interactively when you need one",
@@ -9079,6 +10900,74 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Inspect the saved tabs in the main workspace ledger",
             "command": "orp workspace tabs main",
+        },
+        {
+            "label": "Inspect the configured umbrella projects root for AGENTS.md and CLAUDE.md inheritance",
+            "command": "orp agents root show",
+        },
+        {
+            "label": "Audit AGENTS.md and CLAUDE.md for the current repo",
+            "command": "orp agents audit",
+        },
+        {
+            "label": "Inspect the saved service and data connections for this user",
+            "command": "orp connections list",
+        },
+        {
+            "label": "Run a Codex-backed agenda refresh using current workspace, GitHub, and opportunity context",
+            "command": "orp agenda refresh --json",
+        },
+        {
+            "label": "Inspect whether recurring agenda refreshes are disabled or enabled",
+            "command": "orp agenda refresh-status --json",
+        },
+        {
+            "label": "Opt in to the default morning, afternoon, and evening agenda refresh schedule",
+            "command": "orp agenda enable-refreshes --json",
+        },
+        {
+            "label": "Disable all recurring agenda refresh windows",
+            "command": "orp agenda disable-refreshes --json",
+        },
+        {
+            "label": "Inspect the ranked action list",
+            "command": "orp agenda actions",
+        },
+        {
+            "label": "Inspect the ranked suggestion list",
+            "command": "orp agenda suggestions",
+        },
+        {
+            "label": "Inspect the top mixed agenda slice",
+            "command": "orp agenda focus",
+        },
+        {
+            "label": "Set an explicit north star for future agenda refreshes",
+            "command": 'orp agenda set-north-star "Advance the ocular controller and ORP ecosystems"',
+        },
+        {
+            "label": "List the built-in connection provider templates",
+            "command": "orp connections providers",
+        },
+        {
+            "label": "List the saved opportunity boards for this user",
+            "command": "orp opportunities list",
+        },
+        {
+            "label": "Pull the top active opportunities for the main board",
+            "command": "orp opportunities focus main-opportunities --limit 5",
+        },
+        {
+            "label": "Create one opportunity board for contests, programs, or grants",
+            "command": 'orp opportunities create main-opportunities --label "Main Opportunities"',
+        },
+        {
+            "label": "Add one tracked opportunity item with section and priority",
+            "command": 'orp opportunities add main-opportunities --title "vision-prize" --kind contest --section ocular-longevity --priority high',
+        },
+        {
+            "label": "Mirror the main opportunity board to hosted ORP",
+            "command": "orp opportunities sync main-opportunities --json",
         },
         {
             "label": "Add a saved path/session directly to the main workspace ledger",
@@ -9210,6 +11099,13 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             1,
             {
+                "label": "Set the shared projects root for umbrella AGENTS.md and CLAUDE.md guidance",
+                "command": "orp agents root set /absolute/path/to/projects",
+            },
+        )
+        quick_actions.insert(
+            2,
+            {
                 "label": "Add a new provider key interactively",
                 "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
             },
@@ -9288,26 +11184,40 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         quick_actions.insert(
             9,
             {
+                "label": "Audit AGENTS.md and CLAUDE.md for this repo",
+                "command": "orp agents audit",
+            },
+        )
+        quick_actions.insert(
+            10,
+            {
+                "label": "Inspect or set the shared projects root for umbrella agent guidance",
+                "command": "orp agents root show",
+            },
+        )
+        quick_actions.insert(
+            11,
+            {
                 "label": "Add a new provider key interactively",
                 "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
             },
         )
         quick_actions.insert(
-            10,
+            12,
             {
                 "label": "Inspect machine runner state",
                 "command": "orp runner status --json",
             },
         )
         quick_actions.insert(
-            11,
+            13,
             {
                 "label": "Inspect and repair governance health",
                 "command": "orp doctor --json",
             },
         )
         quick_actions.insert(
-            12,
+            14,
             {
                 "label": "Inspect safe cleanup candidates",
                 "command": "orp cleanup --json",
@@ -9379,6 +11289,57 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                     'orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"',
                     "orp workspace remove-tab main --path /absolute/path/to/project",
                     "orp workspace sync main",
+                ],
+            },
+            {
+                "id": "opportunities",
+                "description": "Saved opportunity boards for contests, programs, grants, and other openings, with editable sections, priorities, status tracking, and optional hosted mirroring for agents and operators.",
+                "entrypoints": [
+                    "orp opportunities list",
+                    "orp opportunities show main-opportunities",
+                    "orp opportunities focus main-opportunities --limit 5",
+                    'orp opportunities create main-opportunities --label "Main Opportunities"',
+                    'orp opportunities add main-opportunities --title "vision-prize" --kind contest --section ocular-longevity --priority high',
+                    "orp opportunities update main-opportunities vision-prize --status submitted",
+                    "orp opportunities remove main-opportunities vision-prize",
+                    "orp opportunities sync main-opportunities --json",
+                    "orp opportunities pull main-opportunities --json",
+                ],
+            },
+            {
+                "id": "connections",
+                "description": "Saved service and data connections for code hosts, model hubs, data sources, databases, deployment targets, and research destinations, referencing saved secret aliases or named secret bindings instead of storing credentials inline.",
+                "entrypoints": [
+                    "orp connections providers",
+                    "orp connections list",
+                    "orp connections show github-main",
+                    'orp connections add github-main --provider github --label "GitHub Main" --auth-secret-alias github-main',
+                    'orp connections add huggingface-main --provider huggingface --label "Hugging Face" --secret-binding primary=hf-main --secret-binding publish=hf-publish',
+                    "orp connections update github-main --status paused",
+                    "orp connections remove github-main",
+                    "orp connections sync --json",
+                    "orp connections pull --json",
+                ],
+            },
+            {
+                "id": "agenda",
+                "description": "A Codex-backed ORP operating agenda that keeps two ranked lists: urgent actions and strategic suggestions, refreshed from current workspace, GitHub, opportunities, and connection context.",
+                "entrypoints": [
+                    "orp agenda refresh --json",
+                    "orp agenda actions",
+                    "orp agenda suggestions",
+                    "orp agenda focus",
+                    'orp agenda set-north-star "Advance the ocular controller and ORP ecosystems"',
+                ],
+            },
+            {
+                "id": "agents",
+                "description": "Parent/child AGENTS.md and CLAUDE.md guidance files with ORP-managed blocks that preserve existing human notes while keeping umbrella and project guidance aligned.",
+                "entrypoints": [
+                    "orp agents root show",
+                    "orp agents root set /absolute/path/to/projects",
+                    "orp agents sync",
+                    "orp agents audit",
                 ],
             },
             {
@@ -9549,7 +11510,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
 
     lines: list[str] = []
     lines.append(f"ORP {tool.get('version', 'unknown')}")
-    lines.append("Agent-first CLI for workspace ledgers, secrets, scheduling, governed execution, and research workflows.")
+    lines.append("Agent-first CLI for workspace ledgers, operating agendas, secrets, scheduling, governed execution, and research workflows.")
     lines.append("")
     lines.append("Repo")
     lines.append(f"  root: {repo.get('root_path', '')}")
@@ -9617,6 +11578,9 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
         }
         visible_ability_ids = [
             "workspace",
+            "agenda",
+            "opportunities",
+            "connections",
             "secrets",
             "governance",
             "frontier",
@@ -10074,12 +12038,25 @@ def cmd_init(args: argparse.Namespace) -> int:
     }
     _write_git_runtime(repo_root, git_runtime)
 
+    agents_sync = _agents_sync_payload(
+        root=repo_root,
+        requested_role="project",
+        explicit_projects_root=str(getattr(args, "projects_root", "") or "").strip(),
+    )
+    for row in agents_sync.get("files", []) if isinstance(agents_sync.get("files"), list) else []:
+        file_key = _slugify_value(Path(str(row.get("name", "")).strip()).stem) or "agent_file"
+        files[file_key] = {
+            "path": _path_for_state(Path(str(row.get("path", "")).strip()), repo_root),
+            "action": str(row.get("action", "")).strip(),
+        }
+
     result = {
         "ok": True,
         "config_action": config_action,
         "config_path": str(config_path),
         "runtime_root": str(repo_root / "orp"),
         "files": files,
+        "agents": agents_sync,
         "git": {
             **git_snapshot,
             "initialized_by_orp": bool(git_init_result["initialized"]),
@@ -10102,6 +12079,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"initialized ORP governance runtime under {repo_root / 'orp'}")
         if git_init_result["initialized"]:
             print(f"initialized git repository with default branch {default_branch}")
+        print("synced AGENTS.md and CLAUDE.md with ORP-managed blocks")
         print(
             "git_state="
             + ",".join(
@@ -10120,6 +12098,52 @@ def cmd_init(args: argparse.Namespace) -> int:
         for action in next_actions:
             print(f"next={action}")
     return 0
+
+
+def cmd_agents_root_show(args: argparse.Namespace) -> int:
+    payload = _agents_root_show_payload()
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agents_root_show_report(payload))
+    return 0
+
+
+def cmd_agents_root_set(args: argparse.Namespace) -> int:
+    payload = _agents_root_set_payload(args.path)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agents_root_set_report(payload))
+    return 0
+
+
+def cmd_agents_sync(args: argparse.Namespace) -> int:
+    root = Path(str(getattr(args, "root", "")).strip() or str(getattr(args, "repo_root", "")).strip() or ".").resolve()
+    payload = _agents_sync_payload(
+        root=root,
+        requested_role=str(getattr(args, "role", "") or "auto").strip(),
+        explicit_projects_root=str(getattr(args, "projects_root", "") or "").strip(),
+    )
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agents_sync_report(payload))
+    return 0
+
+
+def cmd_agents_audit(args: argparse.Namespace) -> int:
+    root = Path(str(getattr(args, "root", "")).strip() or str(getattr(args, "repo_root", "")).strip() or ".").resolve()
+    payload = _agents_audit_payload(
+        root=root,
+        requested_role=str(getattr(args, "role", "") or "auto").strip(),
+        explicit_projects_root=str(getattr(args, "projects_root", "") or "").strip(),
+    )
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    print(_render_agents_audit_report(payload))
+    return 0 if payload.get("ok") else 1
 
 
 def _render_governance_status_text(payload: dict[str, Any]) -> str:
@@ -13176,6 +15200,2172 @@ def cmd_schedule_disable(args: argparse.Namespace) -> int:
 
     print(_render_schedule_disable_report(payload))
     return 0 if payload.get("ok") else 1
+
+
+def _render_opportunities_list_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Opportunity boards: {len(payload.get('boards', []))}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    boards = payload.get("boards", [])
+    if not boards:
+        lines.append("")
+        lines.append("No opportunity boards saved yet.")
+        lines.append("Start with: orp opportunities create main-opportunities")
+        return "\n".join(lines)
+    for index, board in enumerate(boards, start=1):
+        kinds = board.get("kind_counts", {})
+        kind_text = ", ".join(f"{kind} {count}" for kind, count in kinds.items()) or "none"
+        sections = ", ".join(board.get("sections", [])[:4]) or "(none)"
+        lines.append("")
+        lines.append(f"[{index}] {board.get('title', '')}")
+        label = str(board.get("label", "") or "").strip()
+        if label and label != board.get("title", ""):
+            lines.append(f"Label: {label}")
+        description = str(board.get("description", "") or "").strip()
+        if description:
+            lines.append(f"Description: {description}")
+        lines.append(f"Items: {board.get('item_count', 0)}")
+        lines.append(f"Kinds: {kind_text}")
+        lines.append(f"Sections: {sections}")
+        hosted = board.get("hosted_mirror", {}) if isinstance(board.get("hosted_mirror"), dict) else {}
+        if hosted.get("idea_id"):
+            lines.append(f"Hosted: synced via {hosted.get('idea_id', '')}")
+        lines.append(f"Updated: {board.get('updated_at_utc', '')}")
+    return "\n".join(lines)
+
+
+def _render_opportunities_show_report(payload: dict[str, Any]) -> str:
+    board = payload.get("board", {})
+    items = payload.get("items", [])
+    lines = [
+        f"Board: {board.get('title', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    label = str(board.get("label", "") or "").strip()
+    if label and label != board.get("title", ""):
+        lines.append(f"Label: {label}")
+    description = str(board.get("description", "") or "").strip()
+    if description:
+        lines.append(f"Description: {description}")
+    lines.append(f"Items: {len(items)}")
+    hosted = board.get("hosted_mirror", {}) if isinstance(board.get("hosted_mirror"), dict) else {}
+    if hosted.get("idea_id"):
+        lines.append(f"Hosted mirror: {hosted.get('idea_id', '')}")
+    lines.append(f"Updated: {board.get('updated_at_utc', '')}")
+    if not items:
+        lines.append("")
+        lines.append("No opportunity items saved in this board yet.")
+        return "\n".join(lines)
+    for index, item in enumerate(items, start=1):
+        lines.append("")
+        lines.append(f"{index:02d}. {item.get('item_id', '')} [{item.get('kind', 'opportunity')}]")
+        lines.append(f"    title: {item.get('title', '')}")
+        section = str(item.get("section", "") or "").strip()
+        if section:
+            lines.append(f"    section: {section}")
+        lines.append(f"    priority: {item.get('priority', '')}")
+        lines.append(f"    status: {item.get('status', '')}")
+        url = str(item.get("url", "") or "").strip()
+        if url:
+            lines.append(f"    url: {url}")
+        tags = item.get("tags", [])
+        if isinstance(tags, list) and tags:
+            lines.append(f"    tags: {', '.join(str(tag) for tag in tags)}")
+        summary = str(item.get("summary", "") or "").strip()
+        if summary:
+            lines.append(f"    summary: {summary}")
+        notes = str(item.get("notes", "") or "").strip()
+        if notes:
+            lines.append(f"    notes: {notes}")
+    return "\n".join(lines)
+
+
+def _render_opportunities_focus_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Board: {payload.get('board', {}).get('title', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Focus items: {len(payload.get('items', []))}",
+    ]
+    filters = payload.get("filters", {})
+    filter_bits = []
+    for key in ("section", "kind", "status", "priority_at_least"):
+        value = str(filters.get(key, "") or "").strip()
+        if value:
+            filter_bits.append(f"{key}={value}")
+    if filters.get("include_archived"):
+        filter_bits.append("include_archived=yes")
+    if filter_bits:
+        lines.append(f"Filters: {', '.join(filter_bits)}")
+    items = payload.get("items", [])
+    if not items:
+        lines.append("")
+        lines.append("No opportunity items matched the current focus filter.")
+        return "\n".join(lines)
+    for index, item in enumerate(items, start=1):
+        lines.append("")
+        lines.append(
+            f"{index:02d}. {item.get('title', '')} [{item.get('kind', 'opportunity')}]"
+        )
+        lines.append(
+            f"    priority: {item.get('priority', '')} | status: {item.get('status', '')}"
+        )
+        section = str(item.get("section", "") or "").strip()
+        if section:
+            lines.append(f"    section: {section}")
+        summary = str(item.get("summary", "") or "").strip()
+        if summary:
+            lines.append(f"    summary: {summary}")
+        url = str(item.get("url", "") or "").strip()
+        if url:
+            lines.append(f"    url: {url}")
+    return "\n".join(lines)
+
+
+def _render_opportunity_mutation_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Board: {payload.get('board', {}).get('title', '')}",
+        f"Action: {payload.get('action', '')}",
+    ]
+    if payload.get("action") == "remove":
+        removed = payload.get("removed_item", {})
+        lines.append(f"Removed: {removed.get('item_id', '')}")
+        lines.append(f"Title: {removed.get('title', '')}")
+    else:
+        item = payload.get("item", {})
+        lines.append(f"Item: {item.get('item_id', '')}")
+        lines.append(f"Title: {item.get('title', '')}")
+        lines.append(f"Kind: {item.get('kind', '')}")
+        lines.append(f"Priority: {item.get('priority', '')}")
+        lines.append(f"Status: {item.get('status', '')}")
+        section = str(item.get("section", "") or "").strip()
+        if section:
+            lines.append(f"Section: {section}")
+        url = str(item.get("url", "") or "").strip()
+        if url:
+            lines.append(f"URL: {url}")
+    lines.append(f"Saved items: {payload.get('board', {}).get('item_count', 0)}")
+    hosted = payload.get("board", {}).get("hosted_mirror", {}) if isinstance(payload.get("board", {}).get("hosted_mirror"), dict) else {}
+    if hosted.get("idea_id"):
+        lines.append(f"Hosted mirror: {hosted.get('idea_id', '')}")
+    lines.append(f"Registry: {payload.get('registry_path', '')}")
+    return "\n".join(lines)
+
+
+def _render_opportunities_sync_report(payload: dict[str, Any]) -> str:
+    board = payload.get("board", {}) if isinstance(payload.get("board"), dict) else {}
+    hosted = payload.get("hosted", {}) if isinstance(payload.get("hosted"), dict) else {}
+    lines = [
+        f"Board: {board.get('title', '')}",
+        f"Action: {payload.get('action', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Hosted idea: {hosted.get('idea_id', '')}",
+    ]
+    hosted_title = str(hosted.get("idea_title", "") or "").strip()
+    if hosted_title:
+        lines.append(f"Hosted title: {hosted_title}")
+    updated_at = str(hosted.get("updated_at_utc", "") or "").strip()
+    if updated_at:
+        lines.append(f"Hosted updated: {updated_at}")
+    lines.append(f"Saved items: {board.get('item_count', 0)}")
+    return "\n".join(lines)
+
+
+def cmd_opportunities_list(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    boards = []
+    for board in registry.get("boards", []):
+        items = [item for item in board.get("items", []) if isinstance(item, dict)]
+        board_payload = _opportunity_board_payload(board)
+        board_payload["kind_counts"] = _opportunity_counts_by_kind(items)
+        board_payload["sections"] = _opportunity_section_names(items)
+        boards.append(board_payload)
+    payload = {
+        "ok": True,
+        "schema_version": registry["schema_version"],
+        "registry_path": str(_opportunities_registry_path()),
+        "boards": boards,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunities_list_report(payload))
+    return 0
+
+
+def cmd_opportunities_show(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    _, board = _find_opportunity_board_index(registry, args.board_ref)
+    items = _sort_opportunity_items([item for item in board.get("items", []) if isinstance(item, dict)])
+    payload = {
+        "ok": True,
+        "registry_path": str(_opportunities_registry_path()),
+        "board": _opportunity_board_payload(board),
+        "items": items,
+    }
+    payload["board"]["item_count"] = len(items)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunities_show_report(payload))
+    return 0
+
+
+def cmd_opportunities_focus(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    _, board = _find_opportunity_board_index(registry, args.board_ref)
+    items = _filter_opportunity_items(
+        [item for item in board.get("items", []) if isinstance(item, dict)],
+        section=str(getattr(args, "section", "") or "").strip(),
+        kind=str(getattr(args, "kind", "") or "").strip(),
+        status=str(getattr(args, "status", "") or "").strip(),
+        priority_at_least=str(getattr(args, "priority_at_least", "") or "").strip(),
+        include_archived=bool(getattr(args, "include_archived", False)),
+    )
+    limit = int(getattr(args, "limit", 0) or 0)
+    if limit > 0:
+        items = items[:limit]
+    payload = {
+        "ok": True,
+        "registry_path": str(_opportunities_registry_path()),
+        "board": _opportunity_board_payload(board),
+        "filters": {
+            "section": str(getattr(args, "section", "") or "").strip(),
+            "kind": str(getattr(args, "kind", "") or "").strip(),
+            "status": str(getattr(args, "status", "") or "").strip(),
+            "priority_at_least": str(getattr(args, "priority_at_least", "") or "").strip(),
+            "include_archived": bool(getattr(args, "include_archived", False)),
+            "limit": limit,
+        },
+        "items": items,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunities_focus_report(payload))
+    return 0
+
+
+def cmd_opportunities_create(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    title = _normalize_workspace_title_input(getattr(args, "title_slug", ""), field_label="opportunity board title")
+    label = str(getattr(args, "label", "") or "").strip() or title
+    description = str(getattr(args, "description", "") or "").strip()
+    try:
+        _find_opportunity_board_index(registry, title)
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(f"Opportunity board '{title}' already exists.")
+    now = _now_utc()
+    board = {
+        "board_id": title,
+        "title": title,
+        "label": label,
+        "description": description,
+        "created_at_utc": now,
+        "updated_at_utc": now,
+        "items": [],
+        "hosted_mirror": {},
+    }
+    updated = {
+        "schema_version": registry["schema_version"],
+        "boards": [*registry.get("boards", []), board],
+    }
+    registry_path = _save_opportunities_registry(updated)
+    payload = {
+        "ok": True,
+        "action": "create",
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(board),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(
+        "\n".join(
+            [
+                f"Board: {board['title']}",
+                "Action: create",
+                f"Label: {board['label']}",
+                f"Saved items: 0",
+                f"Registry: {registry_path}",
+            ]
+        )
+    )
+    return 0
+
+
+def _build_opportunity_item_from_args(args: argparse.Namespace, *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+    existing = existing or {}
+
+    def _value(name: str, default: str) -> str:
+        if hasattr(args, name):
+            candidate = getattr(args, name)
+            if candidate is not None:
+                return str(candidate).strip()
+        return str(existing.get(name, default) or "").strip()
+
+    title = _value("title", "")
+    if not title:
+        raise RuntimeError("--title is required.")
+    kind = _value("kind", "opportunity").lower() or "opportunity"
+    if kind not in OPPORTUNITY_KINDS:
+        raise RuntimeError(f"--kind must be one of: {', '.join(OPPORTUNITY_KINDS)}")
+    priority = _value("priority", "medium").lower() or "medium"
+    if priority not in OPPORTUNITY_PRIORITIES:
+        raise RuntimeError(f"--priority must be one of: {', '.join(OPPORTUNITY_PRIORITIES)}")
+    status = _value("status", "active").lower() or "active"
+    if status not in OPPORTUNITY_STATUSES:
+        raise RuntimeError(f"--status must be one of: {', '.join(OPPORTUNITY_STATUSES)}")
+    tags: list[str]
+    if getattr(args, "clear_tags", False):
+        tags = []
+    elif hasattr(args, "tags") and args.tags is not None:
+        tags = _normalize_tag_list(list(args.tags))
+    else:
+        tags = list(existing.get("tags", []))
+    return {
+        "item_id": str(existing.get("item_id", "") or "").strip(),
+        "title": title,
+        "kind": kind,
+        "section": _value("section", ""),
+        "priority": priority,
+        "status": status,
+        "summary": _value("summary", ""),
+        "notes": _value("notes", ""),
+        "url": _value("url", ""),
+        "tags": tags,
+        "created_at_utc": str(existing.get("created_at_utc", "") or "").strip() or _now_utc(),
+        "updated_at_utc": _now_utc(),
+    }
+
+
+def cmd_opportunities_add(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    board_index, board = _find_opportunity_board_index(registry, args.board_ref)
+    item = _build_opportunity_item_from_args(args)
+    item["item_id"] = _next_opportunity_item_id(board, item["title"])
+    updated_board = copy.deepcopy(board)
+    updated_board["items"] = [*updated_board.get("items", []), item]
+    updated_board["updated_at_utc"] = _now_utc()
+    _, registry_path = _store_opportunity_board(registry, updated_board, board_index=board_index)
+    payload = {
+        "ok": True,
+        "action": "add",
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(updated_board),
+        "item": item,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunity_mutation_report(payload))
+    return 0
+
+
+def cmd_opportunities_update(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    board_index, board = _find_opportunity_board_index(registry, args.board_ref)
+    item_index, existing = _find_opportunity_item_index(board, args.item_ref)
+    updated_item = _build_opportunity_item_from_args(args, existing=existing)
+    updated_item["item_id"] = existing["item_id"]
+    updated_board = copy.deepcopy(board)
+    updated_board["items"][item_index] = updated_item
+    updated_board["updated_at_utc"] = _now_utc()
+    _, registry_path = _store_opportunity_board(registry, updated_board, board_index=board_index)
+    payload = {
+        "ok": True,
+        "action": "update",
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(updated_board),
+        "item": updated_item,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunity_mutation_report(payload))
+    return 0
+
+
+def cmd_opportunities_remove(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    board_index, board = _find_opportunity_board_index(registry, args.board_ref)
+    item_index, removed = _find_opportunity_item_index(board, args.item_ref)
+    updated_board = copy.deepcopy(board)
+    updated_board["items"] = [item for idx, item in enumerate(updated_board.get("items", [])) if idx != item_index]
+    updated_board["updated_at_utc"] = _now_utc()
+    _, registry_path = _store_opportunity_board(registry, updated_board, board_index=board_index)
+    payload = {
+        "ok": True,
+        "action": "remove",
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(updated_board),
+        "removed_item": removed,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_opportunity_mutation_report(payload))
+    return 0
+
+
+def cmd_opportunities_sync(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    board_index, board = _find_opportunity_board_index(registry, args.board_ref)
+    session = _require_hosted_session(args)
+    hosted = board.get("hosted_mirror", {}) if isinstance(board.get("hosted_mirror"), dict) else {}
+    remote_board: dict[str, Any] | None = None
+    remote_idea_id = str(hosted.get("idea_id", "") or "").strip()
+    if remote_idea_id:
+        try:
+            remote_board = _opportunity_board_from_idea(_get_remote_idea(args, remote_idea_id))
+        except HostedApiError as exc:
+            if "status=404" not in str(exc):
+                raise
+            remote_board = None
+    if remote_board is None:
+        try:
+            remote_board = _resolve_remote_opportunity_board(_list_remote_opportunity_boards(args), board["board_id"])
+        except RuntimeError:
+            remote_board = None
+
+    body = {
+        "title": _opportunity_board_hosted_title(board["title"]),
+        "notes": _opportunity_board_notes(board),
+        "visibility": "private",
+        "linkLabel": "orp-opportunities",
+    }
+    token = str(session.get("token", "")).strip()
+    if remote_board:
+        remote_hosted = remote_board.get("hosted_mirror", {}) if isinstance(remote_board.get("hosted_mirror"), dict) else {}
+        remote_idea_id = str(remote_hosted.get("idea_id", "") or "").strip()
+        current_idea = _get_remote_idea(args, remote_idea_id)
+        updated_at = str(current_idea.get("updatedAt", "") or "").strip()
+        if updated_at:
+            body["updatedAt"] = updated_at
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/ideas/{urlparse.quote(remote_idea_id)}",
+            method="PATCH",
+            token=token,
+            body=body,
+        )
+        action = "sync"
+    else:
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path="/api/cli/ideas",
+            method="POST",
+            token=token,
+            body=body,
+        )
+        action = "sync"
+
+    idea = _normalize_remote_idea_payload(payload)["idea"]
+    synced_board = copy.deepcopy(board)
+    synced_board["hosted_mirror"] = _normalize_opportunity_hosted_mirror(
+        {
+            "idea_id": str(idea.get("id", "") or "").strip(),
+            "idea_title": str(idea.get("title", "") or "").strip(),
+            "board_id": synced_board["board_id"],
+            "board_title": synced_board["title"],
+            "updated_at_utc": str(idea.get("updatedAt", "") or "").strip(),
+            "source_kind": "idea_bridge",
+        }
+    )
+    _, registry_path = _store_opportunity_board(registry, synced_board, board_index=board_index)
+    result = {
+        "ok": True,
+        "action": action,
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(synced_board),
+        "hosted": copy.deepcopy(synced_board["hosted_mirror"]),
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+    print(_render_opportunities_sync_report(result))
+    return 0
+
+
+def cmd_opportunities_pull(args: argparse.Namespace) -> int:
+    registry = _load_opportunities_registry()
+    local_board_index: int | None = None
+    local_board: dict[str, Any] | None = None
+    try:
+        local_board_index, local_board = _find_opportunity_board_index(registry, args.board_ref)
+    except RuntimeError:
+        local_board_index = None
+        local_board = None
+
+    remote_board: dict[str, Any] | None = None
+    if local_board:
+        hosted = local_board.get("hosted_mirror", {}) if isinstance(local_board.get("hosted_mirror"), dict) else {}
+        remote_idea_id = str(hosted.get("idea_id", "") or "").strip()
+        if remote_idea_id:
+            remote_board = _opportunity_board_from_idea(_get_remote_idea(args, remote_idea_id))
+    if remote_board is None:
+        remote_board = _resolve_remote_opportunity_board(_list_remote_opportunity_boards(args), args.board_ref)
+
+    _, registry_path = _store_opportunity_board(registry, remote_board, board_index=local_board_index)
+    result = {
+        "ok": True,
+        "action": "pull",
+        "registry_path": str(registry_path),
+        "board": _opportunity_board_payload(remote_board),
+        "hosted": copy.deepcopy(remote_board.get("hosted_mirror", {})) if isinstance(remote_board.get("hosted_mirror"), dict) else {},
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+    print(_render_opportunities_sync_report(result))
+    return 0
+
+
+def _render_connection_providers_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Connection providers: {len(payload.get('providers', []))}",
+        "Built-in templates are optional. Use --provider custom for anything ORP does not know yet.",
+    ]
+    for index, row in enumerate(payload.get("providers", []), start=1):
+        capabilities = ", ".join(row.get("capabilities", [])) or "(none)"
+        lines.append("")
+        lines.append(f"[{index}] {row.get('provider', '')}")
+        lines.append(f"Label: {row.get('label', '')}")
+        lines.append(f"Kind: {row.get('kind', '')}")
+        lines.append(f"Auth: {row.get('auth_kind', '')}")
+        lines.append(f"Capabilities: {capabilities}")
+        url = str(row.get("url", "") or "").strip()
+        if url:
+            lines.append(f"URL: {url}")
+    return "\n".join(lines)
+
+
+def _render_connections_list_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Connections: {len(payload.get('connections', []))}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    hosted = payload.get("hosted_mirror", {}) if isinstance(payload.get("hosted_mirror"), dict) else {}
+    if hosted.get("idea_id"):
+        lines.append(f"Hosted mirror: {hosted.get('idea_id', '')}")
+    connections = payload.get("connections", [])
+    if not connections:
+        lines.append("")
+        lines.append("No connections saved yet.")
+        lines.append("Start with: orp connections providers")
+        lines.append("Then: orp connections add github-main --provider github --label \"GitHub Main\" --auth-secret-alias github-main")
+        lines.append("Or:   orp connections add huggingface-main --provider huggingface --label \"Hugging Face\" --secret-binding primary=hf-main --secret-binding publish=hf-publish")
+        lines.append("Or:   orp connections add my-science-portal --provider custom --label \"My Science Portal\" --url https://example.org --secret-binding primary=my-science-token")
+        return "\n".join(lines)
+    for index, entry in enumerate(connections, start=1):
+        lines.append("")
+        lines.append(f"[{index}] {entry.get('connection_id', '')}")
+        label = str(entry.get("label", "") or "").strip()
+        if label and label != entry.get("connection_id", ""):
+            lines.append(f"Label: {label}")
+        lines.append(f"Provider: {entry.get('provider', '')}")
+        lines.append(f"Kind: {entry.get('kind', '')}")
+        lines.append(f"Status: {entry.get('status', '')}")
+        account = str(entry.get("account", "") or "").strip()
+        if account:
+            lines.append(f"Account: {account}")
+        secret_bindings = entry.get("secret_bindings", [])
+        if isinstance(secret_bindings, list) and secret_bindings:
+            parts = []
+            for binding in secret_bindings:
+                if not isinstance(binding, dict):
+                    continue
+                binding_id = str(binding.get("binding_id", "") or "").strip()
+                secret_alias = str(binding.get("secret_alias", "") or "").strip()
+                if binding_id and secret_alias:
+                    parts.append(f"{binding_id}={secret_alias}")
+            if parts:
+                lines.append(f"Secrets: {', '.join(parts)}")
+        capabilities = entry.get("capabilities", [])
+        if isinstance(capabilities, list) and capabilities:
+            lines.append(f"Capabilities: {', '.join(str(x) for x in capabilities)}")
+    return "\n".join(lines)
+
+
+def _render_connections_show_report(payload: dict[str, Any]) -> str:
+    entry = payload.get("connection", {}) if isinstance(payload.get("connection"), dict) else {}
+    lines = [
+        f"Connection: {entry.get('connection_id', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    hosted = payload.get("hosted_mirror", {}) if isinstance(payload.get("hosted_mirror"), dict) else {}
+    if hosted.get("idea_id"):
+        lines.append(f"Hosted mirror: {hosted.get('idea_id', '')}")
+    for label, key in (
+        ("Label", "label"),
+        ("Provider", "provider"),
+        ("Kind", "kind"),
+        ("Status", "status"),
+        ("Account", "account"),
+        ("Organization", "organization"),
+        ("URL", "url"),
+        ("Auth secret alias", "auth_secret_alias"),
+        ("Auth kind", "auth_kind"),
+    ):
+        value = str(entry.get(key, "") or "").strip()
+        if value:
+            lines.append(f"{label}: {value}")
+    secret_bindings = entry.get("secret_bindings", [])
+    if isinstance(secret_bindings, list) and secret_bindings:
+        lines.append("Secret bindings:")
+        for binding in secret_bindings:
+            if not isinstance(binding, dict):
+                continue
+            binding_id = str(binding.get("binding_id", "") or "").strip()
+            secret_alias = str(binding.get("secret_alias", "") or "").strip()
+            if not binding_id or not secret_alias:
+                continue
+            label = str(binding.get("label", "") or "").strip()
+            auth_kind = str(binding.get("auth_kind", "") or "").strip()
+            suffix = f" ({auth_kind})" if auth_kind else ""
+            if label and label.lower() != binding_id.replace("-", " ").lower():
+                lines.append(f"  - {binding_id}: {secret_alias}{suffix} [{label}]")
+            else:
+                lines.append(f"  - {binding_id}: {secret_alias}{suffix}")
+    capabilities = entry.get("capabilities", [])
+    if isinstance(capabilities, list) and capabilities:
+        lines.append(f"Capabilities: {', '.join(str(x) for x in capabilities)}")
+    tags = entry.get("tags", [])
+    if isinstance(tags, list) and tags:
+        lines.append(f"Tags: {', '.join(str(x) for x in tags)}")
+    notes = str(entry.get("notes", "") or "").strip()
+    if notes:
+        lines.append(f"Notes: {notes}")
+    return "\n".join(lines)
+
+
+def _render_connections_mutation_report(payload: dict[str, Any]) -> str:
+    entry = payload.get("connection", {}) if isinstance(payload.get("connection"), dict) else {}
+    lines = [
+        f"Connection: {entry.get('connection_id', '')}",
+        f"Action: {payload.get('action', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+    ]
+    lines.append(f"Provider: {entry.get('provider', '')}")
+    lines.append(f"Kind: {entry.get('kind', '')}")
+    secret_bindings = entry.get("secret_bindings", [])
+    if isinstance(secret_bindings, list) and secret_bindings:
+        parts = []
+        for binding in secret_bindings:
+            if not isinstance(binding, dict):
+                continue
+            binding_id = str(binding.get("binding_id", "") or "").strip()
+            secret_alias = str(binding.get("secret_alias", "") or "").strip()
+            if binding_id and secret_alias:
+                parts.append(f"{binding_id}={secret_alias}")
+        if parts:
+            lines.append(f"Secrets: {', '.join(parts)}")
+    return "\n".join(lines)
+
+
+def _render_connections_sync_report(payload: dict[str, Any]) -> str:
+    hosted = payload.get("hosted_mirror", {}) if isinstance(payload.get("hosted_mirror"), dict) else {}
+    lines = [
+        f"Action: {payload.get('action', '')}",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Hosted idea: {hosted.get('idea_id', '')}",
+        f"Connections: {payload.get('connection_count', 0)}",
+    ]
+    title = str(hosted.get("idea_title", "") or "").strip()
+    if title:
+        lines.append(f"Hosted title: {title}")
+    return "\n".join(lines)
+
+
+def _build_connection_from_args(args: argparse.Namespace, *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+    existing = existing or {}
+
+    def _value(name: str, default: str = "") -> str:
+        if hasattr(args, name):
+            candidate = getattr(args, name)
+            if candidate is not None:
+                return str(candidate).strip()
+        return str(existing.get(name, default) or "").strip()
+
+    connection_id = _value("connection_id") or str(existing.get("connection_id", "") or "").strip()
+    connection_id = _slugify_value(connection_id)
+    if not connection_id:
+        raise RuntimeError("Connection id is required.")
+    provider = _slugify_value(_value("provider", str(existing.get("provider", "custom") or "custom")))
+    if not provider:
+        raise RuntimeError("--provider is required.")
+    template = _connection_provider_template(provider)
+    kind = _value("kind", str(existing.get("kind", template.get("kind", "custom")) or template.get("kind", "custom") or "custom")).lower()
+    if kind not in CONNECTION_KINDS:
+        raise RuntimeError(f"--kind must be one of: {', '.join(CONNECTION_KINDS)}")
+    status = _value("status", str(existing.get("status", "active") or "active")).lower()
+    if status not in CONNECTION_STATUSES:
+        raise RuntimeError(f"--status must be one of: {', '.join(CONNECTION_STATUSES)}")
+    auth_kind = _value("auth_kind", str(existing.get("auth_kind", template.get("auth_kind", "token")) or template.get("auth_kind", "token") or "token")).lower()
+    existing_secret_bindings = _normalize_connection_secret_bindings(
+        existing.get("secret_bindings", []),
+        fallback_alias=str(existing.get("auth_secret_alias", "") or "").strip(),
+        default_auth_kind=auth_kind,
+    )
+    if hasattr(args, "clear_secret_bindings") and getattr(args, "clear_secret_bindings", False):
+        secret_bindings: list[dict[str, Any]] = []
+    elif hasattr(args, "secret_bindings") and getattr(args, "secret_bindings", None) is not None:
+        secret_bindings = _normalize_connection_secret_bindings(
+            list(getattr(args, "secret_bindings")),
+            fallback_alias=_value("auth_secret_alias", ""),
+            default_auth_kind=auth_kind,
+        )
+    else:
+        secret_bindings = _normalize_connection_secret_bindings(
+            existing_secret_bindings,
+            fallback_alias=_value("auth_secret_alias", str(existing.get("auth_secret_alias", "") or "")),
+            default_auth_kind=auth_kind,
+        )
+    if hasattr(args, "clear_capabilities") and getattr(args, "clear_capabilities", False):
+        capabilities: list[str] = []
+    elif hasattr(args, "capabilities") and getattr(args, "capabilities", None) is not None:
+        capabilities = _normalize_capability_list(list(getattr(args, "capabilities")))
+    else:
+        existing_caps = existing.get("capabilities", template.get("capabilities", []))
+        capabilities = _normalize_capability_list(existing_caps)
+    if hasattr(args, "clear_tags") and getattr(args, "clear_tags", False):
+        tags: list[str] = []
+    elif hasattr(args, "tags") and getattr(args, "tags", None) is not None:
+        tags = _normalize_tag_list(list(getattr(args, "tags")))
+    else:
+        tags = _normalize_tag_list(existing.get("tags", []))
+    return {
+        "connection_id": connection_id,
+        "provider": provider,
+        "label": _value("label", str(existing.get("label", template.get("label", connection_id)) or template.get("label", connection_id) or connection_id)),
+        "kind": kind,
+        "account": _value("account", str(existing.get("account", "") or "")),
+        "organization": _value("organization", str(existing.get("organization", "") or "")),
+        "url": _value("url", str(existing.get("url", template.get("url", "")) or template.get("url", "") or "")),
+        "auth_secret_alias": _primary_connection_secret_alias({"secret_bindings": secret_bindings, "auth_secret_alias": _value("auth_secret_alias", str(existing.get("auth_secret_alias", "") or ""))}),
+        "auth_kind": auth_kind,
+        "secret_bindings": secret_bindings,
+        "capabilities": capabilities,
+        "tags": tags,
+        "notes": _value("notes", str(existing.get("notes", "") or "")),
+        "status": status,
+        "created_at_utc": str(existing.get("created_at_utc", "") or "").strip() or _now_utc(),
+        "updated_at_utc": _now_utc(),
+    }
+
+
+def cmd_connections_providers(args: argparse.Namespace) -> int:
+    payload = {
+        "ok": True,
+        "providers": copy.deepcopy(CONNECTION_PROVIDER_TEMPLATES),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connection_providers_report(payload))
+    return 0
+
+
+def cmd_connections_list(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    provider_filter = _slugify_value(str(getattr(args, "provider", "") or "").strip())
+    kind_filter = str(getattr(args, "kind", "") or "").strip()
+    status_filter = str(getattr(args, "status", "") or "").strip()
+    connections = []
+    for entry in registry.get("connections", []):
+        if not isinstance(entry, dict):
+            continue
+        if provider_filter and _slugify_value(str(entry.get("provider", "") or "").strip()) != provider_filter:
+            continue
+        if kind_filter and str(entry.get("kind", "") or "").strip() != kind_filter:
+            continue
+        if status_filter and str(entry.get("status", "") or "").strip() != status_filter:
+            continue
+        connections.append(_connection_payload(entry))
+    payload = {
+        "ok": True,
+        "registry_path": str(_connections_registry_path()),
+        "hosted_mirror": copy.deepcopy(registry.get("hosted_mirror", {})) if isinstance(registry.get("hosted_mirror"), dict) else {},
+        "connections": connections,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connections_list_report(payload))
+    return 0
+
+
+def cmd_connections_show(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    _, entry = _find_connection_index(registry, args.connection_ref)
+    payload = {
+        "ok": True,
+        "registry_path": str(_connections_registry_path()),
+        "hosted_mirror": copy.deepcopy(registry.get("hosted_mirror", {})) if isinstance(registry.get("hosted_mirror"), dict) else {},
+        "connection": _connection_payload(entry),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connections_show_report(payload))
+    return 0
+
+
+def cmd_connections_add(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    connection_id = _slugify_value(str(getattr(args, "connection_id", "") or "").strip())
+    if not connection_id:
+        raise RuntimeError("Connection id is required.")
+    try:
+        _find_connection_index(registry, connection_id)
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(f"Connection '{connection_id}' already exists.")
+    entry = _build_connection_from_args(args)
+    _, registry_path = _store_connection_entry(registry, entry)
+    payload = {
+        "ok": True,
+        "action": "add",
+        "registry_path": str(registry_path),
+        "connection": _connection_payload(entry),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connections_mutation_report(payload))
+    return 0
+
+
+def cmd_connections_update(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    entry_index, existing = _find_connection_index(registry, args.connection_ref)
+    entry = _build_connection_from_args(args, existing=existing)
+    entry["connection_id"] = existing["connection_id"]
+    _, registry_path = _store_connection_entry(registry, entry, entry_index=entry_index)
+    payload = {
+        "ok": True,
+        "action": "update",
+        "registry_path": str(registry_path),
+        "connection": _connection_payload(entry),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connections_mutation_report(payload))
+    return 0
+
+
+def cmd_connections_remove(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    entry_index, entry = _find_connection_index(registry, args.connection_ref)
+    updated = copy.deepcopy(registry)
+    updated["connections"] = [row for idx, row in enumerate(updated.get("connections", [])) if idx != entry_index]
+    registry_path = _save_connections_registry(updated)
+    payload = {
+        "ok": True,
+        "action": "remove",
+        "registry_path": str(registry_path),
+        "connection": _connection_payload(entry),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_connections_mutation_report(payload))
+    return 0
+
+
+def cmd_connections_sync(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    session = _require_hosted_session(args)
+    hosted = registry.get("hosted_mirror", {}) if isinstance(registry.get("hosted_mirror"), dict) else {}
+    remote_registry: dict[str, Any] | None = None
+    remote_idea_id = str(hosted.get("idea_id", "") or "").strip()
+    if remote_idea_id:
+        try:
+            remote_registry = _connections_registry_from_idea(_get_remote_idea(args, remote_idea_id))
+        except HostedApiError as exc:
+            if "status=404" not in str(exc):
+                raise
+            remote_registry = None
+    if remote_registry is None:
+        for idea in _list_all_remote_ideas(args):
+            candidate = _connections_registry_from_idea(idea)
+            if candidate:
+                remote_registry = candidate
+                break
+    body = {
+        "title": CONNECTIONS_BRIDGE_TITLE,
+        "notes": _connections_notes(registry),
+        "visibility": "private",
+        "linkLabel": "orp-connections",
+    }
+    token = str(session.get("token", "")).strip()
+    if remote_registry and remote_registry.get("hosted_mirror", {}).get("idea_id"):
+        remote_idea_id = str(remote_registry["hosted_mirror"].get("idea_id", "") or "").strip()
+        current_idea = _get_remote_idea(args, remote_idea_id)
+        updated_at = str(current_idea.get("updatedAt", "") or "").strip()
+        if updated_at:
+            body["updatedAt"] = updated_at
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/ideas/{urlparse.quote(remote_idea_id)}",
+            method="PATCH",
+            token=token,
+            body=body,
+        )
+    else:
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path="/api/cli/ideas",
+            method="POST",
+            token=token,
+            body=body,
+        )
+    idea = _normalize_remote_idea_payload(payload)["idea"]
+    updated_registry = copy.deepcopy(registry)
+    updated_registry["hosted_mirror"] = _normalize_connections_hosted_mirror(
+        {
+            "idea_id": str(idea.get("id", "") or "").strip(),
+            "idea_title": str(idea.get("title", "") or "").strip(),
+            "updated_at_utc": str(idea.get("updatedAt", "") or "").strip(),
+            "source_kind": "idea_bridge",
+        }
+    )
+    registry_path = _save_connections_registry(updated_registry)
+    result = {
+        "ok": True,
+        "action": "sync",
+        "registry_path": str(registry_path),
+        "hosted_mirror": copy.deepcopy(updated_registry["hosted_mirror"]),
+        "connection_count": len(updated_registry.get("connections", [])),
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+    print(_render_connections_sync_report(result))
+    return 0
+
+
+def cmd_connections_pull(args: argparse.Namespace) -> int:
+    registry = _load_connections_registry()
+    remote_registry: dict[str, Any] | None = None
+    hosted = registry.get("hosted_mirror", {}) if isinstance(registry.get("hosted_mirror"), dict) else {}
+    remote_idea_id = str(hosted.get("idea_id", "") or "").strip()
+    if remote_idea_id:
+        remote_registry = _connections_registry_from_idea(_get_remote_idea(args, remote_idea_id))
+    if remote_registry is None:
+        for idea in _list_all_remote_ideas(args):
+            candidate = _connections_registry_from_idea(idea)
+            if candidate:
+                remote_registry = candidate
+                break
+    if remote_registry is None:
+        raise RuntimeError("No hosted ORP connections registry was found for this account.")
+    registry_path = _save_connections_registry(remote_registry)
+    result = {
+        "ok": True,
+        "action": "pull",
+        "registry_path": str(registry_path),
+        "hosted_mirror": copy.deepcopy(remote_registry.get("hosted_mirror", {})) if isinstance(remote_registry.get("hosted_mirror"), dict) else {},
+        "connection_count": len(remote_registry.get("connections", [])),
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+    print(_render_connections_sync_report(result))
+    return 0
+
+
+def _agenda_item_statuses(item_type: str) -> tuple[str, ...]:
+    return AGENDA_ACTION_STATUSES if item_type == "action" else AGENDA_SUGGESTION_STATUSES
+
+
+def _agenda_priority_rank(value: str) -> int:
+    try:
+        return AGENDA_PRIORITIES.index(str(value or "").strip().lower())
+    except ValueError:
+        return len(AGENDA_PRIORITIES)
+
+
+def _agenda_status_rank(value: str, *, item_type: str) -> int:
+    statuses = _agenda_item_statuses(item_type)
+    try:
+        return statuses.index(str(value or "").strip().lower())
+    except ValueError:
+        return len(statuses)
+
+
+def _normalize_agenda_item(raw: Any, *, item_type: str, fallback_rank: int = 0) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    title = str(raw.get("title", "") or "").strip()
+    project = str(raw.get("project", "") or "").strip()
+    source_ref = str(raw.get("source_ref", raw.get("sourceRef", raw.get("source", ""))) or "").strip()
+    item_id = str(raw.get("item_id", raw.get("itemId", raw.get("id", ""))) or "").strip()
+    if not item_id:
+        seed = " ".join(part for part in (project, source_ref, title) if part).strip() or title
+        item_id = _slugify_value(seed)
+    if not item_id:
+        return None
+    if not title:
+        title = item_id
+    priority = str(raw.get("priority", "medium") or "medium").strip().lower()
+    if priority not in AGENDA_PRIORITIES:
+        priority = "medium"
+    status = str(raw.get("status", "active") or "active").strip().lower()
+    valid_statuses = _agenda_item_statuses(item_type)
+    if status not in valid_statuses:
+        status = "active"
+    rank_raw = raw.get("rank", fallback_rank if fallback_rank > 0 else 0)
+    try:
+        rank = int(rank_raw)
+    except Exception:
+        rank = fallback_rank if fallback_rank > 0 else 0
+    created_at_utc = _normalize_timestamp_utc(
+        raw.get("created_at_utc", raw.get("createdAt", raw.get("created_at"))),
+        fallback=_now_utc(),
+    )
+    updated_at_utc = _normalize_timestamp_utc(
+        raw.get("updated_at_utc", raw.get("updatedAt", raw.get("updated_at"))),
+        fallback=created_at_utc,
+    )
+    return {
+        "item_id": item_id,
+        "title": title,
+        "kind": str(raw.get("kind", item_type) or item_type).strip(),
+        "priority": priority,
+        "status": status,
+        "project": project,
+        "source_kind": str(raw.get("source_kind", raw.get("sourceKind", "")) or "").strip(),
+        "source_ref": source_ref,
+        "url": str(raw.get("url", "") or "").strip(),
+        "why": str(raw.get("why", raw.get("reason", "")) or "").strip(),
+        "next_step": str(raw.get("next_step", raw.get("nextStep", "")) or "").strip(),
+        "rank": rank,
+        "tags": _normalize_tag_list(raw.get("tags", [])),
+        "created_at_utc": created_at_utc,
+        "updated_at_utc": updated_at_utc,
+    }
+
+
+def _sort_agenda_items(items: list[dict[str, Any]], *, item_type: str) -> list[dict[str, Any]]:
+    def _safe_rank(item: dict[str, Any]) -> int:
+        try:
+            value = int(item.get("rank", 0) or 0)
+        except Exception:
+            value = 0
+        return value if value > 0 else 999999
+
+    return sorted(
+        items,
+        key=lambda item: (
+            _safe_rank(item),
+            _agenda_priority_rank(str(item.get("priority", "") or "")),
+            _agenda_status_rank(str(item.get("status", "") or ""), item_type=item_type),
+            str(item.get("project", "") or "").lower(),
+            str(item.get("title", "") or "").lower(),
+        ),
+    )
+
+
+def _merge_agenda_items(
+    existing_items: list[dict[str, Any]],
+    refreshed_items: list[dict[str, Any]],
+    *,
+    item_type: str,
+) -> list[dict[str, Any]]:
+    existing_by_id = {
+        str(item.get("item_id", "") or "").strip(): item
+        for item in existing_items
+        if isinstance(item, dict) and str(item.get("item_id", "") or "").strip()
+    }
+    merged: list[dict[str, Any]] = []
+    for index, raw in enumerate(refreshed_items, start=1):
+        normalized = _normalize_agenda_item(raw, item_type=item_type, fallback_rank=index)
+        if not normalized:
+            continue
+        existing = existing_by_id.get(normalized["item_id"])
+        if existing:
+            normalized["created_at_utc"] = str(existing.get("created_at_utc", "") or "").strip() or normalized["created_at_utc"]
+        merged.append(normalized)
+    return _sort_agenda_items(merged, item_type=item_type)
+
+
+def _load_agenda_registry() -> dict[str, Any]:
+    payload = _read_json_if_exists(_agenda_registry_path())
+    actions_raw = payload.get("actions")
+    suggestions_raw = payload.get("suggestions")
+    actions: list[dict[str, Any]] = []
+    suggestions: list[dict[str, Any]] = []
+    if isinstance(actions_raw, list):
+        for index, raw in enumerate(actions_raw, start=1):
+            normalized = _normalize_agenda_item(raw, item_type="action", fallback_rank=index)
+            if normalized:
+                actions.append(normalized)
+    if isinstance(suggestions_raw, list):
+        for index, raw in enumerate(suggestions_raw, start=1):
+            normalized = _normalize_agenda_item(raw, item_type="suggestion", fallback_rank=index)
+            if normalized:
+                suggestions.append(normalized)
+    refresh_context = payload.get("refresh_context", payload.get("refreshContext", {}))
+    if not isinstance(refresh_context, dict):
+        refresh_context = {}
+    last_refresh = payload.get("last_refresh", payload.get("lastRefresh", {}))
+    if not isinstance(last_refresh, dict):
+        last_refresh = {}
+    return {
+        "schema_version": str(payload.get("schema_version", AGENDA_REGISTRY_SCHEMA_VERSION)).strip()
+        or AGENDA_REGISTRY_SCHEMA_VERSION,
+        "north_star": str(payload.get("north_star", payload.get("northStar", "")) or "").strip(),
+        "north_star_source": str(payload.get("north_star_source", payload.get("northStarSource", "")) or "").strip(),
+        "refresh_context": copy.deepcopy(refresh_context),
+        "last_refresh": copy.deepcopy(last_refresh),
+        "actions": _sort_agenda_items(actions, item_type="action"),
+        "suggestions": _sort_agenda_items(suggestions, item_type="suggestion"),
+    }
+
+
+def _save_agenda_registry(payload: dict[str, Any]) -> Path:
+    path = _agenda_registry_path()
+    _write_json(path, payload)
+    return path
+
+
+def _agenda_registry_payload(registry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": registry.get("schema_version", AGENDA_REGISTRY_SCHEMA_VERSION),
+        "north_star": str(registry.get("north_star", "") or "").strip(),
+        "north_star_source": str(registry.get("north_star_source", "") or "").strip(),
+        "refresh_context": copy.deepcopy(registry.get("refresh_context", {}))
+        if isinstance(registry.get("refresh_context"), dict)
+        else {},
+        "last_refresh": copy.deepcopy(registry.get("last_refresh", {}))
+        if isinstance(registry.get("last_refresh"), dict)
+        else {},
+        "actions": [copy.deepcopy(item) for item in registry.get("actions", []) if isinstance(item, dict)],
+        "suggestions": [copy.deepcopy(item) for item in registry.get("suggestions", []) if isinstance(item, dict)],
+    }
+
+
+def _read_json_text_maybe(path: str) -> Any:
+    raw = Path(path).expanduser().read_text(encoding="utf-8")
+    return json.loads(raw)
+
+
+def _strip_json_code_fence(text: str) -> str:
+    raw = str(text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", raw, count=1)
+        raw = re.sub(r"\s*```$", "", raw, count=1)
+    return raw.strip()
+
+
+def _agenda_workspace_fixture_payload(path: str) -> dict[str, Any]:
+    payload = _read_json_text_maybe(path)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_workspace_tabs_payload(*, workspace_ref: str, fixture_path: str = "") -> dict[str, Any]:
+    if fixture_path:
+        return _agenda_workspace_fixture_payload(fixture_path)
+    package_root = _tool_package_root()
+    cmd = [
+        "node",
+        str(package_root / "bin" / "orp.js"),
+        "workspace",
+        "tabs",
+        workspace_ref,
+        "--json",
+    ]
+    proc = subprocess.run(
+        cmd,
+        cwd=str(package_root),
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Unable to load workspace tabs for '{workspace_ref}': {proc.stderr.strip() or proc.stdout.strip() or 'unknown error'}"
+        )
+    try:
+        payload = json.loads(proc.stdout or "{}")
+    except Exception as exc:
+        raise RuntimeError(f"Workspace tabs output was not valid JSON: {exc}") from exc
+    return payload if isinstance(payload, dict) else {}
+
+
+def _repo_snapshot(path_text: str) -> dict[str, Any]:
+    path = Path(str(path_text or "").strip()).expanduser()
+    payload = {
+        "path": str(path),
+        "exists": path.exists(),
+        "git_present": False,
+        "branch": "",
+        "commit": "",
+        "recent_commit": "",
+        "dirty": False,
+        "status_lines": [],
+    }
+    if not path.exists():
+        return payload
+    try:
+        inside = subprocess.check_output(
+            ["git", "-C", str(path), "rev-parse", "--is-inside-work-tree"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        payload["git_present"] = inside == "true"
+    except Exception:
+        return payload
+    if not payload["git_present"]:
+        return payload
+    try:
+        payload["branch"] = subprocess.check_output(
+            ["git", "-C", str(path), "branch", "--show-current"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        pass
+    try:
+        payload["commit"] = subprocess.check_output(
+            ["git", "-C", str(path), "rev-parse", "--short", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        pass
+    try:
+        payload["recent_commit"] = subprocess.check_output(
+            ["git", "-C", str(path), "log", "--oneline", "-1"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        pass
+    try:
+        status_text = subprocess.check_output(
+            ["git", "-C", str(path), "status", "--short"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        status_lines = [line.rstrip() for line in status_text.splitlines() if line.strip()]
+        payload["dirty"] = bool(status_lines)
+        payload["status_lines"] = status_lines[:10]
+    except Exception:
+        pass
+    return payload
+
+
+def _agenda_default_board_ref(registry: dict[str, Any]) -> str:
+    boards = [board for board in registry.get("boards", []) if isinstance(board, dict)]
+    for candidate in boards:
+        if str(candidate.get("board_id", "") or "").strip() == "main-opportunities":
+            return "main-opportunities"
+    if boards:
+        return str(boards[0].get("board_id", "") or "").strip()
+    return ""
+
+
+def _agenda_focus_items(board: dict[str, Any], *, limit: int = 5) -> list[dict[str, Any]]:
+    items = _filter_opportunity_items(
+        [item for item in board.get("items", []) if isinstance(item, dict)],
+        include_archived=False,
+    )
+    if limit > 0:
+        items = items[:limit]
+    return items
+
+
+def _github_api_notification_to_payload(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    repository = raw.get("repository", {}) if isinstance(raw.get("repository"), dict) else {}
+    subject = raw.get("subject", {}) if isinstance(raw.get("subject"), dict) else {}
+    repo_name = str(
+        repository.get("full_name", repository.get("name", ""))
+        or repository.get("name", "")
+        or ""
+    ).strip()
+    reason = str(raw.get("reason", "") or "").strip()
+    subject_type = str(subject.get("type", "") or "").strip()
+    subject_title = str(subject.get("title", "") or "").strip() or "(untitled)"
+    raw_url = str(subject.get("url", raw.get("url", "")) or raw.get("url", "") or "").strip()
+    return {
+        "id": str(raw.get("id", "")) or _slugify_value(" ".join(part for part in (repo_name, subject_title, reason) if part)),
+        "repo": repo_name,
+        "reason": reason,
+        "subject_type": subject_type,
+        "title": subject_title,
+        "updated_at_utc": _normalize_timestamp_utc(raw.get("updated_at", raw.get("updatedAt", "")), fallback=""),
+        "unread": bool(raw.get("unread")),
+        "api_url": raw_url,
+        "url": _github_api_url_to_web(raw_url, subject_type=subject_type),
+    }
+
+
+def _github_api_url_to_web(raw_url: str, *, subject_type: str = "") -> str:
+    text = str(raw_url or "").strip()
+    if not text:
+        return ""
+    parsed = urlparse.urlparse(text)
+    path = parsed.path.strip("/")
+    parts = path.split("/")
+    if len(parts) >= 5 and parts[0] == "repos":
+        owner = parts[1]
+        repo = parts[2]
+        if parts[3] == "issues":
+            if str(subject_type or "").strip().lower() == "pullrequest":
+                return f"https://github.com/{owner}/{repo}/pull/{parts[4]}"
+            return f"https://github.com/{owner}/{repo}/issues/{parts[4]}"
+        if parts[3] == "pulls":
+            return f"https://github.com/{owner}/{repo}/pull/{parts[4]}"
+        if parts[3] == "commits":
+            return f"https://github.com/{owner}/{repo}/commit/{parts[4]}"
+    return text
+
+
+def _load_github_notifications(*, limit: int = 25, fixture_path: str = "") -> list[dict[str, Any]]:
+    rows: list[Any]
+    if fixture_path:
+        payload = _read_json_text_maybe(fixture_path)
+        rows = payload if isinstance(payload, list) else []
+    else:
+        proc = subprocess.run(
+            ["gh", "api", f"notifications?all=false&participating=false&per_page={int(limit)}"],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            stderr = proc.stderr.strip() or proc.stdout.strip()
+            raise RuntimeError(f"Unable to load GitHub notifications via gh: {stderr or 'unknown error'}")
+        try:
+            payload = json.loads(proc.stdout or "[]")
+        except Exception as exc:
+            raise RuntimeError(f"GitHub notifications output was not valid JSON: {exc}") from exc
+        rows = payload if isinstance(payload, list) else []
+    notifications: list[dict[str, Any]] = []
+    for row in rows:
+        normalized = _github_api_notification_to_payload(row)
+        if normalized:
+            notifications.append(normalized)
+    return notifications[: max(int(limit), 0) or len(notifications)]
+
+
+def _infer_agenda_north_star(*, workspace_tabs: list[dict[str, Any]], opportunity_items: list[dict[str, Any]]) -> str:
+    sections = []
+    seen_sections: set[str] = set()
+    for item in opportunity_items:
+        section = str(item.get("section", "") or "").strip()
+        if section and section not in seen_sections:
+            seen_sections.add(section)
+            sections.append(section)
+    if sections:
+        focus = ", ".join(sections[:3])
+        return f"Advance the highest-leverage work across {focus} while keeping the active main workspace projects moving."
+    projects = []
+    seen_projects: set[str] = set()
+    for tab in workspace_tabs:
+        title = str(tab.get("title", "") or "").strip()
+        if title and title not in seen_projects:
+            seen_projects.add(title)
+            projects.append(title)
+    if projects:
+        return (
+            "Advance the active main workspace projects with the clearest user-facing and research leverage: "
+            + ", ".join(projects[:5])
+            + "."
+        )
+    return "Advance the most valuable current research, software, and collaboration work in the main workspace."
+
+
+def _agenda_context_payload(args: argparse.Namespace) -> dict[str, Any]:
+    workspace_ref = str(getattr(args, "workspace_ref", "") or "main").strip() or "main"
+    workspace_payload = _load_workspace_tabs_payload(
+        workspace_ref=workspace_ref,
+        fixture_path=str(getattr(args, "workspace_fixture", "") or "").strip(),
+    )
+    workspace_tabs = workspace_payload.get("tabs", []) if isinstance(workspace_payload.get("tabs"), list) else []
+    unique_paths: list[str] = []
+    seen_paths: set[str] = set()
+    for tab in workspace_tabs:
+        if not isinstance(tab, dict):
+            continue
+        path_text = str(tab.get("path", "") or "").strip()
+        if path_text and path_text not in seen_paths:
+            seen_paths.add(path_text)
+            unique_paths.append(path_text)
+    repo_snapshots = [_repo_snapshot(path_text) for path_text in unique_paths[:8]]
+
+    connections_registry = _load_connections_registry()
+    connections = [
+        _connection_payload(entry)
+        for entry in connections_registry.get("connections", [])
+        if isinstance(entry, dict) and str(entry.get("status", "active") or "active").strip().lower() != "archived"
+    ]
+
+    opportunities_registry = _load_opportunities_registry()
+    board_ref_raw = str(getattr(args, "board_ref", "") or "").strip()
+    if not board_ref_raw:
+        board_ref_raw = _agenda_default_board_ref(opportunities_registry)
+    board_payload: dict[str, Any] = {}
+    opportunity_items: list[dict[str, Any]] = []
+    if board_ref_raw:
+        try:
+            _, board = _find_opportunity_board_index(opportunities_registry, board_ref_raw)
+            opportunity_items = _agenda_focus_items(board, limit=max(int(getattr(args, "opportunity_limit", 5) or 5), 1))
+            board_payload = _opportunity_board_payload(board)
+            board_payload["item_count"] = len(board.get("items", [])) if isinstance(board.get("items"), list) else 0
+        except RuntimeError:
+            board_payload = {}
+            opportunity_items = []
+
+    github_notifications = _load_github_notifications(
+        limit=max(int(getattr(args, "github_limit", 25) or 25), 1),
+        fixture_path=str(getattr(args, "github_fixture", "") or "").strip(),
+    )
+
+    north_star_override = str(getattr(args, "north_star", "") or "").strip()
+    context = {
+        "generated_at_utc": _now_utc(),
+        "workspace": {
+            "ref": workspace_ref,
+            "title": str(workspace_payload.get("workspace", {}).get("title", workspace_ref))
+            if isinstance(workspace_payload.get("workspace"), dict)
+            else workspace_ref,
+            "tab_count": len(workspace_tabs),
+            "tabs": workspace_tabs,
+            "repo_snapshots": repo_snapshots,
+        },
+        "connections": {
+            "count": len(connections),
+            "items": connections[:20],
+        },
+        "opportunities": {
+            "board": board_payload,
+            "focus_items": opportunity_items,
+        },
+        "github": {
+            "notification_count": len(github_notifications),
+            "notifications": github_notifications,
+        },
+        "north_star": north_star_override or _infer_agenda_north_star(workspace_tabs=workspace_tabs, opportunity_items=opportunity_items),
+        "north_star_source": "explicit" if north_star_override else "inferred",
+    }
+    return context
+
+
+def _build_agenda_refresh_prompt(context: dict[str, Any]) -> str:
+    north_star = str(context.get("north_star", "") or "").strip()
+    return (
+        "You are ORP's agenda refresh agent. Read the structured context and produce two ranked lists:\n"
+        "1. actions = concrete items that likely require attention now\n"
+        "2. suggestions = valuable next expansions toward the north star after urgent items are clear\n\n"
+        "Prioritize GitHub thread pressure, review requests, comments, CI or repo follow-up, and meaningful leverage across the current main workspace projects.\n"
+        "If there are no urgent actions, keep actions short and let suggestions do more of the expansion work.\n"
+        "Return strict JSON only with this shape:\n"
+        "{\n"
+        '  "north_star": "string",\n'
+        '  "actions": [\n'
+        "    {\n"
+        '      "title": "string",\n'
+        '      "kind": "review-request|issue-follow-up|ci-follow-up|project-follow-up|publish-follow-up|other",\n'
+        '      "priority": "critical|high|medium|low",\n'
+        '      "status": "active|watching",\n'
+        '      "project": "string",\n'
+        '      "source_kind": "github|workspace|opportunities|connections|mixed",\n'
+        '      "source_ref": "string",\n'
+        '      "url": "string",\n'
+        '      "why": "string",\n'
+        '      "next_step": "string",\n'
+        '      "rank": 1\n'
+        "    }\n"
+        "  ],\n"
+        '  "suggestions": [\n'
+        "    {\n"
+        '      "title": "string",\n'
+        '      "kind": "explore|expand|stabilize|publish|follow-up|other",\n'
+        '      "priority": "critical|high|medium|low",\n'
+        '      "status": "active|watching",\n'
+        '      "project": "string",\n'
+        '      "source_kind": "workspace|opportunities|connections|mixed",\n'
+        '      "source_ref": "string",\n'
+        '      "url": "string",\n'
+        '      "why": "string",\n'
+        '      "next_step": "string",\n'
+        '      "rank": 1\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        f"North star:\n{north_star}\n\n"
+        "Context JSON:\n"
+        + json.dumps(context, indent=2, ensure_ascii=False)
+    )
+
+
+def _run_agenda_codex_prompt(
+    *,
+    prompt: str,
+    repo_root: Path,
+    codex_bin: str,
+    sandbox: str,
+    codex_config_profile: str = "",
+) -> dict[str, Any]:
+    output_path = Path(tempfile.gettempdir()) / f"orp-agenda-response-{uuid.uuid4().hex[:12]}.txt"
+    cmd = [
+        codex_bin,
+        "exec",
+        "--skip-git-repo-check",
+        "--output-last-message",
+        str(output_path),
+        "--sandbox",
+        sandbox,
+        "-c",
+        "approval_policy=never",
+        "-",
+    ]
+    env = dict(os.environ)
+    if codex_config_profile:
+        env["CODEX_PROFILE"] = codex_config_profile
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(repo_root),
+            input=prompt,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "exitCode": 127,
+            "stdout": "",
+            "stderr": f"{codex_bin} not found on PATH.",
+            "body": "",
+            "summary": f"{codex_bin} not found on PATH.",
+            "command": " ".join(cmd),
+        }
+    body = ""
+    if output_path.exists():
+        try:
+            body = output_path.read_text(encoding="utf-8")
+        except Exception:
+            body = ""
+        try:
+            output_path.unlink()
+        except Exception:
+            pass
+    return {
+        "ok": proc.returncode == 0,
+        "exitCode": int(proc.returncode),
+        "stdout": proc.stdout or "",
+        "stderr": proc.stderr or "",
+        "body": body,
+        "summary": _summarize_checkpoint_response(body or proc.stdout or proc.stderr),
+        "command": " ".join(cmd),
+    }
+
+
+def _parse_agenda_response(raw_text: str) -> dict[str, Any]:
+    cleaned = _strip_json_code_fence(raw_text)
+    try:
+        payload = json.loads(cleaned)
+    except Exception as exc:
+        raise RuntimeError(f"Agenda refresh did not return valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Agenda refresh JSON root must be an object.")
+    actions = payload.get("actions")
+    suggestions = payload.get("suggestions")
+    if not isinstance(actions, list):
+        raise RuntimeError("Agenda refresh JSON must include an `actions` list.")
+    if not isinstance(suggestions, list):
+        raise RuntimeError("Agenda refresh JSON must include a `suggestions` list.")
+    return payload
+
+
+def _agenda_refresh_payload(args: argparse.Namespace) -> dict[str, Any]:
+    registry = _load_agenda_registry()
+    context = _agenda_context_payload(args)
+    north_star = str(getattr(args, "north_star", "") or "").strip() or str(registry.get("north_star", "") or "").strip() or str(context.get("north_star", "") or "").strip()
+    north_star_source = (
+        "explicit"
+        if str(getattr(args, "north_star", "") or "").strip()
+        else (str(registry.get("north_star_source", "") or "").strip() or str(context.get("north_star_source", "") or "").strip() or "inferred")
+    )
+    context["north_star"] = north_star
+    context["north_star_source"] = north_star_source
+    prompt = _build_agenda_refresh_prompt(context)
+    response_fixture = str(getattr(args, "response_fixture", "") or "").strip()
+    if response_fixture:
+        body = Path(response_fixture).expanduser().read_text(encoding="utf-8")
+        codex_run = {
+            "ok": True,
+            "exitCode": 0,
+            "stdout": "",
+            "stderr": "",
+            "body": body,
+            "summary": "Loaded agenda refresh response fixture.",
+            "command": "(fixture)",
+        }
+    else:
+        codex_run = _run_agenda_codex_prompt(
+            prompt=prompt,
+            repo_root=Path(args.repo_root).resolve(),
+            codex_bin=str(getattr(args, "codex_bin", "") or "").strip() or os.environ.get("CODEX_BIN", "").strip() or "codex",
+            sandbox=str(getattr(args, "sandbox", "read-only") or "read-only").strip() or "read-only",
+            codex_config_profile=str(getattr(args, "codex_config_profile", "") or "").strip(),
+        )
+        if not codex_run.get("ok"):
+            raise RuntimeError(
+                f"Agenda refresh Codex run failed: {str(codex_run.get('stderr', '') or codex_run.get('summary', '') or 'unknown error').strip()}"
+            )
+    structured = _parse_agenda_response(str(codex_run.get("body", "") or ""))
+    refreshed_at = _now_utc()
+    refreshed_registry = {
+        "schema_version": AGENDA_REGISTRY_SCHEMA_VERSION,
+        "north_star": str(structured.get("north_star", north_star) or north_star).strip() or north_star,
+        "north_star_source": north_star_source,
+        "refresh_context": context,
+        "last_refresh": {
+            "refreshed_at_utc": refreshed_at,
+            "workspace_ref": str(context.get("workspace", {}).get("ref", "")) if isinstance(context.get("workspace"), dict) else "",
+            "board_ref": str(context.get("opportunities", {}).get("board", {}).get("board_id", ""))
+            if isinstance(context.get("opportunities"), dict) and isinstance(context.get("opportunities", {}).get("board"), dict)
+            else "",
+            "github_notification_count": len(context.get("github", {}).get("notifications", []))
+            if isinstance(context.get("github"), dict)
+            else 0,
+            "codex_summary": str(codex_run.get("summary", "") or "").strip(),
+            "codex_command": str(codex_run.get("command", "") or "").strip(),
+        },
+        "actions": _merge_agenda_items(
+            [item for item in registry.get("actions", []) if isinstance(item, dict)],
+            [item for item in structured.get("actions", []) if isinstance(item, dict)],
+            item_type="action",
+        ),
+        "suggestions": _merge_agenda_items(
+            [item for item in registry.get("suggestions", []) if isinstance(item, dict)],
+            [item for item in structured.get("suggestions", []) if isinstance(item, dict)],
+            item_type="suggestion",
+        ),
+    }
+    registry_path = _save_agenda_registry(_agenda_registry_payload(refreshed_registry))
+    return {
+        "ok": True,
+        "registry_path": str(registry_path),
+        "north_star": refreshed_registry["north_star"],
+        "north_star_source": refreshed_registry["north_star_source"],
+        "actions": copy.deepcopy(refreshed_registry["actions"]),
+        "suggestions": copy.deepcopy(refreshed_registry["suggestions"]),
+        "last_refresh": copy.deepcopy(refreshed_registry["last_refresh"]),
+        "refresh_context": copy.deepcopy(refreshed_registry["refresh_context"]),
+    }
+
+
+def _agenda_refresh_job_name(window: str) -> str:
+    normalized_window = str(window or "").strip().lower()
+    if normalized_window not in AGENDA_REFRESH_WINDOWS:
+        raise RuntimeError(f"Unsupported agenda refresh window: {window}")
+    return f"agenda-refresh-{normalized_window}"
+
+
+def _agenda_refresh_window_rows() -> list[dict[str, Any]]:
+    registry = _load_schedule_registry()
+    jobs = registry.get("jobs", []) if isinstance(registry.get("jobs"), list) else []
+    rows: list[dict[str, Any]] = []
+    for window in AGENDA_REFRESH_WINDOWS:
+        default_text = str(AGENDA_DEFAULT_REFRESH_TIMES.get(window, "")).strip()
+        default_hour, default_minute = _parse_hhmm(default_text, flag_name=f"--{window}")
+        matching_job: dict[str, Any] | None = None
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            if str(job.get("name", "")).strip() == _agenda_refresh_job_name(window):
+                matching_job = job
+                break
+        job_payload = _schedule_job_runtime_payload(matching_job) if matching_job else {}
+        schedule = job_payload.get("schedule", {}) if isinstance(job_payload, dict) else {}
+        hour = int(schedule.get("hour", default_hour)) if schedule else default_hour
+        minute = int(schedule.get("minute", default_minute)) if schedule else default_minute
+        rows.append(
+            {
+                "window": window,
+                "default_time": f"{default_hour:02d}:{default_minute:02d}",
+                "configured_time": f"{hour:02d}:{minute:02d}",
+                "enabled": bool(job_payload.get("enabled")) if job_payload else False,
+                "job": job_payload,
+            }
+        )
+    return rows
+
+
+def _agenda_refresh_status_payload() -> dict[str, Any]:
+    windows = _agenda_refresh_window_rows()
+    enabled_count = sum(1 for row in windows if row.get("enabled"))
+    return {
+        "ok": True,
+        "registry_path": str(_schedule_registry_path()),
+        "enabled": enabled_count > 0,
+        "fully_enabled": enabled_count == len(AGENDA_REFRESH_WINDOWS),
+        "defaults": copy.deepcopy(AGENDA_DEFAULT_REFRESH_TIMES),
+        "windows": windows,
+        "message": (
+            "Scheduled agenda refreshes are disabled by default until you explicitly enable them."
+            if enabled_count == 0
+            else "Scheduled agenda refreshes are enabled only for the windows shown below."
+        ),
+    }
+
+
+def _agenda_enable_refreshes_payload(args: argparse.Namespace) -> dict[str, Any]:
+    repo_root = Path(str(getattr(args, "repo_root", "")).strip() or ".").expanduser().resolve()
+    windows_payload: list[dict[str, Any]] = []
+    ok = True
+    for window in AGENDA_REFRESH_WINDOWS:
+        raw_time = str(getattr(args, window, "") or AGENDA_DEFAULT_REFRESH_TIMES[window]).strip()
+        hour, minute = _parse_hhmm(raw_time, flag_name=f"--{window}")
+        job_payload = _upsert_schedule_agenda_refresh_job(
+            name=_agenda_refresh_job_name(window),
+            repo_root=repo_root,
+            window=window,
+            hour=hour,
+            minute=minute,
+            workspace_ref=str(getattr(args, "workspace_ref", "") or "main").strip() or "main",
+            board_ref=str(getattr(args, "board_ref", "") or "").strip(),
+            opportunity_limit=int(getattr(args, "opportunity_limit", 5) or 5),
+            github_limit=int(getattr(args, "github_limit", 25) or 25),
+            codex_bin=str(getattr(args, "codex_bin", "") or "").strip(),
+            codex_config_profile=str(getattr(args, "codex_config_profile", "") or "").strip(),
+            sandbox=str(getattr(args, "sandbox", "read-only") or "read-only").strip() or "read-only",
+        )
+        enabled_payload = _enable_schedule_job(job_payload, hour=hour, minute=minute)
+        ok = ok and bool(enabled_payload.get("ok"))
+        windows_payload.append(
+            {
+                "window": window,
+                "time": f"{hour:02d}:{minute:02d}",
+                "job": enabled_payload.get("job", {}),
+                "created": bool(job_payload.get("created")),
+                "ok": bool(enabled_payload.get("ok")),
+                "message": str(enabled_payload.get("message", "")).strip(),
+            }
+        )
+    return {
+        "ok": ok,
+        "registry_path": str(_schedule_registry_path()),
+        "workspace_ref": str(getattr(args, "workspace_ref", "") or "main").strip() or "main",
+        "board_ref": str(getattr(args, "board_ref", "") or "").strip(),
+        "defaults": copy.deepcopy(AGENDA_DEFAULT_REFRESH_TIMES),
+        "windows": windows_payload,
+        "message": (
+            "Enabled scheduled agenda refreshes. These Codex-backed refreshes only run because you explicitly enabled them."
+        ),
+    }
+
+
+def _agenda_disable_refreshes_payload() -> dict[str, Any]:
+    registry = _load_schedule_registry()
+    jobs = registry.get("jobs", []) if isinstance(registry.get("jobs"), list) else []
+    windows_payload: list[dict[str, Any]] = []
+    ok = True
+    for window in AGENDA_REFRESH_WINDOWS:
+        target_name = _agenda_refresh_job_name(window)
+        matching_job: dict[str, Any] | None = None
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            if str(job.get("name", "")).strip() == target_name:
+                matching_job = job
+                break
+        if matching_job is None:
+            windows_payload.append(
+                {
+                    "window": window,
+                    "ok": True,
+                    "removed": False,
+                    "message": "No scheduled agenda refresh exists for this window.",
+                    "job": {},
+                }
+            )
+            continue
+        disabled_payload = _disable_schedule_job(matching_job)
+        ok = ok and bool(disabled_payload.get("ok"))
+        windows_payload.append(
+            {
+                "window": window,
+                "ok": bool(disabled_payload.get("ok")),
+                "removed": bool(disabled_payload.get("removed")),
+                "message": str(disabled_payload.get("message", "")).strip(),
+                "job": disabled_payload.get("job", {}),
+            }
+        )
+    return {
+        "ok": ok,
+        "registry_path": str(_schedule_registry_path()),
+        "windows": windows_payload,
+        "message": "Disabled the scheduled agenda refresh windows that were currently enabled.",
+    }
+
+
+def _agenda_filtered_items(
+    items: list[dict[str, Any]],
+    *,
+    item_type: str,
+    status: str = "",
+    priority_at_least: str = "",
+    limit: int = 0,
+    include_archived: bool = False,
+) -> list[dict[str, Any]]:
+    status_value = str(status or "").strip().lower()
+    min_rank = _agenda_priority_rank(priority_at_least) if priority_at_least else None
+    filtered: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_status = str(item.get("status", "") or "").strip().lower()
+        if not include_archived and item_status == "archived":
+            continue
+        if status_value and item_status != status_value:
+            continue
+        if min_rank is not None and _agenda_priority_rank(str(item.get("priority", "") or "")) > min_rank:
+            continue
+        filtered.append(item)
+    filtered = _sort_agenda_items(filtered, item_type=item_type)
+    if limit and limit > 0:
+        filtered = filtered[:limit]
+    return filtered
+
+
+def _render_agenda_refresh_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Agenda registry: {payload.get('registry_path', '')}",
+        f"North star: {payload.get('north_star', '')}",
+        f"North star source: {payload.get('north_star_source', '')}",
+        f"Actions: {len(payload.get('actions', []))}",
+        f"Suggestions: {len(payload.get('suggestions', []))}",
+    ]
+    last_refresh = payload.get("last_refresh", {}) if isinstance(payload.get("last_refresh"), dict) else {}
+    refreshed_at = str(last_refresh.get("refreshed_at_utc", "") or "").strip()
+    if refreshed_at:
+        lines.append(f"Refreshed at: {refreshed_at}")
+    codex_summary = str(last_refresh.get("codex_summary", "") or "").strip()
+    if codex_summary:
+        lines.append(f"Codex summary: {codex_summary}")
+    return "\n".join(lines)
+
+
+def _render_agenda_items_report(payload: dict[str, Any], *, item_type: str) -> str:
+    label = "Actions" if item_type == "action" else "Suggestions"
+    lines = [
+        f"{label}: {len(payload.get('items', []))}",
+        f"Agenda registry: {payload.get('registry_path', '')}",
+        f"North star: {payload.get('north_star', '')}",
+    ]
+    filters = payload.get("filters", {}) if isinstance(payload.get("filters"), dict) else {}
+    filter_bits = []
+    for key in ("status", "priority_at_least"):
+        value = str(filters.get(key, "") or "").strip()
+        if value:
+            filter_bits.append(f"{key}={value}")
+    if filters.get("include_archived"):
+        filter_bits.append("include_archived=yes")
+    if filter_bits:
+        lines.append(f"Filters: {', '.join(filter_bits)}")
+    items = payload.get("items", [])
+    if not items:
+        lines.append("")
+        lines.append(f"No {label.lower()} matched the current filter.")
+        return "\n".join(lines)
+    for index, item in enumerate(items, start=1):
+        lines.append("")
+        lines.append(f"{index:02d}. {item.get('title', '')}")
+        lines.append(f"    priority: {item.get('priority', '')} | status: {item.get('status', '')}")
+        project = str(item.get("project", "") or "").strip()
+        if project:
+            lines.append(f"    project: {project}")
+        source_bits = []
+        source_kind = str(item.get("source_kind", "") or "").strip()
+        source_ref = str(item.get("source_ref", "") or "").strip()
+        if source_kind:
+            source_bits.append(source_kind)
+        if source_ref:
+            source_bits.append(source_ref)
+        if source_bits:
+            lines.append(f"    source: {' | '.join(source_bits)}")
+        url = str(item.get("url", "") or "").strip()
+        if url:
+            lines.append(f"    url: {url}")
+        why = str(item.get("why", "") or "").strip()
+        if why:
+            lines.append(f"    why: {why}")
+        next_step = str(item.get("next_step", "") or "").strip()
+        if next_step:
+            lines.append(f"    next: {next_step}")
+    return "\n".join(lines)
+
+
+def _render_agenda_focus_report(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Agenda registry: {payload.get('registry_path', '')}",
+        f"North star: {payload.get('north_star', '')}",
+        f"Actions shown: {len(payload.get('actions', []))}",
+        f"Suggestions shown: {len(payload.get('suggestions', []))}",
+    ]
+    actions = payload.get("actions", [])
+    suggestions = payload.get("suggestions", [])
+    if actions:
+        lines.append("")
+        lines.append("Actions")
+        for index, item in enumerate(actions, start=1):
+            lines.append(f"{index:02d}. {item.get('title', '')} [{item.get('priority', '')}]")
+            next_step = str(item.get("next_step", "") or "").strip()
+            if next_step:
+                lines.append(f"    next: {next_step}")
+    if suggestions:
+        lines.append("")
+        lines.append("Suggestions")
+        for index, item in enumerate(suggestions, start=1):
+            lines.append(f"{index:02d}. {item.get('title', '')} [{item.get('priority', '')}]")
+            next_step = str(item.get("next_step", "") or "").strip()
+            if next_step:
+                lines.append(f"    next: {next_step}")
+    return "\n".join(lines)
+
+
+def _render_agenda_refresh_status_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Agenda Refresh Schedule",
+        "",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Enabled: {'yes' if payload.get('enabled') else 'no'}",
+        f"Fully enabled: {'yes' if payload.get('fully_enabled') else 'no'}",
+        f"Message: {payload.get('message', '')}",
+    ]
+    windows = payload.get("windows", []) if isinstance(payload.get("windows"), list) else []
+    for row in windows:
+        lines.extend(
+            [
+                "",
+                f"- {row.get('window', '')}",
+                f"  default: {row.get('default_time', '')}",
+                f"  configured: {row.get('configured_time', '')}",
+                f"  enabled: {'yes' if row.get('enabled') else 'no'}",
+            ]
+        )
+    if not payload.get("enabled"):
+        lines.extend(
+            [
+                "",
+                "Nothing runs automatically until you enable it.",
+                "Starter enable command:",
+                "  orp agenda enable-refreshes --json",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _render_agenda_enable_refreshes_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Agenda Refreshes Enabled",
+        "",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Workspace: {payload.get('workspace_ref', '')}",
+        f"Board: {payload.get('board_ref', '') or 'auto'}",
+        f"Message: {payload.get('message', '')}",
+    ]
+    windows = payload.get("windows", []) if isinstance(payload.get("windows"), list) else []
+    for row in windows:
+        lines.extend(
+            [
+                "",
+                f"- {row.get('window', '')}",
+                f"  time: {row.get('time', '')}",
+                f"  enabled: {'yes' if row.get('ok') else 'no'}",
+                f"  created: {'yes' if row.get('created') else 'no'}",
+                f"  message: {row.get('message', '')}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "These recurring Codex refreshes are opt-in and now active only because you enabled them.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _render_agenda_disable_refreshes_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Agenda Refreshes Disabled",
+        "",
+        f"Registry: {payload.get('registry_path', '')}",
+        f"Message: {payload.get('message', '')}",
+    ]
+    windows = payload.get("windows", []) if isinstance(payload.get("windows"), list) else []
+    for row in windows:
+        lines.extend(
+            [
+                "",
+                f"- {row.get('window', '')}",
+                f"  removed: {'yes' if row.get('removed') else 'no'}",
+                f"  message: {row.get('message', '')}",
+            ]
+        )
+    lines.append("")
+    lines.append("Nothing will refresh on a schedule unless you explicitly enable it again.")
+    return "\n".join(lines)
+
+
+def cmd_agenda_refresh(args: argparse.Namespace) -> int:
+    payload = _agenda_refresh_payload(args)
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agenda_refresh_report(payload))
+    return 0
+
+
+def cmd_agenda_refresh_status(args: argparse.Namespace) -> int:
+    payload = _agenda_refresh_status_payload()
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agenda_refresh_status_report(payload))
+    return 0
+
+
+def cmd_agenda_enable_refreshes(args: argparse.Namespace) -> int:
+    payload = _agenda_enable_refreshes_payload(args)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    print(_render_agenda_enable_refreshes_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_agenda_disable_refreshes(args: argparse.Namespace) -> int:
+    payload = _agenda_disable_refreshes_payload()
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    print(_render_agenda_disable_refreshes_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_agenda_actions(args: argparse.Namespace) -> int:
+    registry = _load_agenda_registry()
+    items = _agenda_filtered_items(
+        [item for item in registry.get("actions", []) if isinstance(item, dict)],
+        item_type="action",
+        status=str(getattr(args, "status", "") or "").strip(),
+        priority_at_least=str(getattr(args, "priority_at_least", "") or "").strip(),
+        limit=int(getattr(args, "limit", 0) or 0),
+        include_archived=bool(getattr(args, "include_archived", False)),
+    )
+    payload = {
+        "ok": True,
+        "registry_path": str(_agenda_registry_path()),
+        "north_star": str(registry.get("north_star", "") or "").strip(),
+        "filters": {
+            "status": str(getattr(args, "status", "") or "").strip(),
+            "priority_at_least": str(getattr(args, "priority_at_least", "") or "").strip(),
+            "include_archived": bool(getattr(args, "include_archived", False)),
+            "limit": int(getattr(args, "limit", 0) or 0),
+        },
+        "items": items,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agenda_items_report(payload, item_type="action"))
+    return 0
+
+
+def cmd_agenda_suggestions(args: argparse.Namespace) -> int:
+    registry = _load_agenda_registry()
+    items = _agenda_filtered_items(
+        [item for item in registry.get("suggestions", []) if isinstance(item, dict)],
+        item_type="suggestion",
+        status=str(getattr(args, "status", "") or "").strip(),
+        priority_at_least=str(getattr(args, "priority_at_least", "") or "").strip(),
+        limit=int(getattr(args, "limit", 0) or 0),
+        include_archived=bool(getattr(args, "include_archived", False)),
+    )
+    payload = {
+        "ok": True,
+        "registry_path": str(_agenda_registry_path()),
+        "north_star": str(registry.get("north_star", "") or "").strip(),
+        "filters": {
+            "status": str(getattr(args, "status", "") or "").strip(),
+            "priority_at_least": str(getattr(args, "priority_at_least", "") or "").strip(),
+            "include_archived": bool(getattr(args, "include_archived", False)),
+            "limit": int(getattr(args, "limit", 0) or 0),
+        },
+        "items": items,
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agenda_items_report(payload, item_type="suggestion"))
+    return 0
+
+
+def cmd_agenda_focus(args: argparse.Namespace) -> int:
+    registry = _load_agenda_registry()
+    action_limit = int(getattr(args, "action_limit", 5) or 5)
+    suggestion_limit = int(getattr(args, "suggestion_limit", 5) or 5)
+    payload = {
+        "ok": True,
+        "registry_path": str(_agenda_registry_path()),
+        "north_star": str(registry.get("north_star", "") or "").strip(),
+        "actions": _agenda_filtered_items(
+            [item for item in registry.get("actions", []) if isinstance(item, dict)],
+            item_type="action",
+            limit=action_limit,
+        ),
+        "suggestions": _agenda_filtered_items(
+            [item for item in registry.get("suggestions", []) if isinstance(item, dict)],
+            item_type="suggestion",
+            limit=suggestion_limit,
+        ),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(_render_agenda_focus_report(payload))
+    return 0
+
+
+def cmd_agenda_set_north_star(args: argparse.Namespace) -> int:
+    registry = _load_agenda_registry()
+    north_star = str(getattr(args, "text", "") or "").strip()
+    if not north_star:
+        raise RuntimeError("North star text is required.")
+    updated = _agenda_registry_payload(registry)
+    updated["north_star"] = north_star
+    updated["north_star_source"] = "explicit"
+    last_refresh = updated.get("last_refresh", {})
+    if isinstance(last_refresh, dict):
+        last_refresh["north_star_updated_at_utc"] = _now_utc()
+        updated["last_refresh"] = last_refresh
+    registry_path = _save_agenda_registry(updated)
+    payload = {
+        "ok": True,
+        "registry_path": str(registry_path),
+        "north_star": north_star,
+        "north_star_source": "explicit",
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(f"Agenda registry: {registry_path}")
+    print(f"North star: {north_star}")
+    print("North star source: explicit")
+    return 0
 
 
 def cmd_collaborate_workflows(args: argparse.Namespace) -> int:
@@ -18295,6 +22485,451 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_schedule_disable)
     s_schedule_disable.set_defaults(func=cmd_schedule_disable, json_output=False)
 
+    s_agenda = sub.add_parser(
+        "agenda",
+        help="Codex-backed ORP agenda lane for ranked actions and ranked suggestions",
+        description=(
+            "ORP agenda is a local-first operating lane that refreshes two ranked lists:\n"
+            "  - actions: likely things that need attention now\n"
+            "  - suggestions: valuable next expansions toward the current north star\n\n"
+            "A refresh is a real Codex reasoning pass over the current main-workspace ledger, GitHub pressure,\n"
+            "connections, and opportunities context.\n\n"
+            "Recurring agenda refreshes are always explicit opt-in. Nothing starts making scheduled Codex calls\n"
+            "until you enable them yourself.\n\n"
+            "Typical rhythm:\n"
+            "  1. Run `orp agenda refresh --json`\n"
+            "  2. Inspect `orp agenda focus`\n"
+            "  3. Optionally inspect `orp agenda refresh-status`\n"
+            "  4. Optionally enable the default morning/afternoon/evening schedule or set your own times\n"
+            "  5. Dive into `orp agenda actions` or `orp agenda suggestions`\n"
+            "  6. Optionally set an explicit north star for future refreshes"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  orp agenda refresh --json\n"
+            "  orp agenda refresh-status --json\n"
+            "  orp agenda enable-refreshes --json\n"
+            "  orp agenda enable-refreshes --morning 08:30 --afternoon 13:00 --evening 18:30 --json\n"
+            "  orp agenda disable-refreshes --json\n"
+            "  orp agenda actions\n"
+            "  orp agenda suggestions\n"
+            "  orp agenda focus\n"
+            "  orp agenda set-north-star \"Advance the ocular controller and ORP ecosystems\""
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    agenda_sub = s_agenda.add_subparsers(dest="agenda_cmd", required=True)
+
+    s_agenda_refresh = agenda_sub.add_parser("refresh", help="Run one Codex-backed agenda refresh and save the ranked lists locally")
+    s_agenda_refresh.add_argument("--workspace-ref", default="main", help="Workspace ledger reference to mine for project context (default: main)")
+    s_agenda_refresh.add_argument("--board-ref", default="", help="Opportunity board reference to use for context (default: main-opportunities or first board)")
+    s_agenda_refresh.add_argument("--north-star", default="", help="Explicit north star override for this refresh")
+    s_agenda_refresh.add_argument("--opportunity-limit", type=int, default=5, help="Maximum focused opportunity items to include in context (default: 5)")
+    s_agenda_refresh.add_argument("--github-limit", type=int, default=25, help="Maximum GitHub notifications to include in context (default: 25)")
+    s_agenda_refresh.add_argument("--codex-bin", default="", help="Codex executable path")
+    s_agenda_refresh.add_argument("--codex-config-profile", default="", help="Optional Codex config profile passed via CODEX_PROFILE")
+    s_agenda_refresh.add_argument("--sandbox", choices=["read-only", "workspace-write"], default="read-only", help="Sandbox mode for the agenda Codex refresh (default: read-only)")
+    s_agenda_refresh.add_argument("--workspace-fixture", default="", help="Test fixture path for workspace tabs JSON")
+    s_agenda_refresh.add_argument("--github-fixture", default="", help="Test fixture path for GitHub notifications JSON")
+    s_agenda_refresh.add_argument("--response-fixture", default="", help="Test fixture path for the Codex JSON response body")
+    add_json_flag(s_agenda_refresh)
+    s_agenda_refresh.set_defaults(func=cmd_agenda_refresh, json_output=False)
+
+    s_agenda_refresh_status = agenda_sub.add_parser(
+        "refresh-status",
+        help="Show whether recurring agenda refreshes are enabled and which times are configured",
+    )
+    add_json_flag(s_agenda_refresh_status)
+    s_agenda_refresh_status.set_defaults(func=cmd_agenda_refresh_status, json_output=False)
+
+    s_agenda_enable_refreshes = agenda_sub.add_parser(
+        "enable-refreshes",
+        help="Explicitly opt in to recurring agenda refreshes using the default or user-chosen times",
+    )
+    s_agenda_enable_refreshes.add_argument("--workspace-ref", default="main", help="Workspace ledger reference used by scheduled refreshes (default: main)")
+    s_agenda_enable_refreshes.add_argument("--board-ref", default="", help="Opportunity board reference used by scheduled refreshes (default: auto)")
+    s_agenda_enable_refreshes.add_argument("--morning", default=AGENDA_DEFAULT_REFRESH_TIMES["morning"], help=f"Morning refresh time in local HH:MM (default: {AGENDA_DEFAULT_REFRESH_TIMES['morning']})")
+    s_agenda_enable_refreshes.add_argument("--afternoon", default=AGENDA_DEFAULT_REFRESH_TIMES["afternoon"], help=f"Afternoon refresh time in local HH:MM (default: {AGENDA_DEFAULT_REFRESH_TIMES['afternoon']})")
+    s_agenda_enable_refreshes.add_argument("--evening", default=AGENDA_DEFAULT_REFRESH_TIMES["evening"], help=f"Evening refresh time in local HH:MM (default: {AGENDA_DEFAULT_REFRESH_TIMES['evening']})")
+    s_agenda_enable_refreshes.add_argument("--opportunity-limit", type=int, default=5, help="Maximum focused opportunity items to include in scheduled context (default: 5)")
+    s_agenda_enable_refreshes.add_argument("--github-limit", type=int, default=25, help="Maximum GitHub notifications to include in scheduled context (default: 25)")
+    s_agenda_enable_refreshes.add_argument("--codex-bin", default="", help="Codex executable path for scheduled agenda refreshes")
+    s_agenda_enable_refreshes.add_argument("--codex-config-profile", default="", help="Optional Codex config profile passed via CODEX_PROFILE")
+    s_agenda_enable_refreshes.add_argument("--sandbox", choices=["read-only", "workspace-write"], default="read-only", help="Sandbox mode for the scheduled agenda Codex refreshes (default: read-only)")
+    add_json_flag(s_agenda_enable_refreshes)
+    s_agenda_enable_refreshes.set_defaults(func=cmd_agenda_enable_refreshes, json_output=False)
+
+    s_agenda_disable_refreshes = agenda_sub.add_parser(
+        "disable-refreshes",
+        help="Disable all recurring agenda refresh windows on this machine",
+    )
+    add_json_flag(s_agenda_disable_refreshes)
+    s_agenda_disable_refreshes.set_defaults(func=cmd_agenda_disable_refreshes, json_output=False)
+
+    s_agenda_actions = agenda_sub.add_parser("actions", help="Show the ranked action list")
+    s_agenda_actions.add_argument("--status", choices=list(AGENDA_ACTION_STATUSES), default="", help="Optional status filter")
+    s_agenda_actions.add_argument("--priority-at-least", choices=list(AGENDA_PRIORITIES), default="", help="Only include actions at or above this priority")
+    s_agenda_actions.add_argument("--include-archived", action="store_true", help="Include archived items")
+    s_agenda_actions.add_argument("--limit", type=int, default=0, help="Optional maximum actions to show")
+    add_json_flag(s_agenda_actions)
+    s_agenda_actions.set_defaults(func=cmd_agenda_actions, json_output=False)
+
+    s_agenda_suggestions = agenda_sub.add_parser("suggestions", help="Show the ranked suggestion list")
+    s_agenda_suggestions.add_argument("--status", choices=list(AGENDA_SUGGESTION_STATUSES), default="", help="Optional status filter")
+    s_agenda_suggestions.add_argument("--priority-at-least", choices=list(AGENDA_PRIORITIES), default="", help="Only include suggestions at or above this priority")
+    s_agenda_suggestions.add_argument("--include-archived", action="store_true", help="Include archived items")
+    s_agenda_suggestions.add_argument("--limit", type=int, default=0, help="Optional maximum suggestions to show")
+    add_json_flag(s_agenda_suggestions)
+    s_agenda_suggestions.set_defaults(func=cmd_agenda_suggestions, json_output=False)
+
+    s_agenda_focus = agenda_sub.add_parser("focus", help="Show the top mixed agenda slice")
+    s_agenda_focus.add_argument("--action-limit", type=int, default=5, help="How many actions to show (default: 5)")
+    s_agenda_focus.add_argument("--suggestion-limit", type=int, default=5, help="How many suggestions to show (default: 5)")
+    add_json_flag(s_agenda_focus)
+    s_agenda_focus.set_defaults(func=cmd_agenda_focus, json_output=False)
+
+    s_agenda_north_star = agenda_sub.add_parser("set-north-star", help="Store an explicit north star used by future agenda refreshes")
+    s_agenda_north_star.add_argument("text", help="North star text")
+    add_json_flag(s_agenda_north_star)
+    s_agenda_north_star.set_defaults(func=cmd_agenda_set_north_star, json_output=False)
+
+    s_agents = sub.add_parser(
+        "agents",
+        help="Parent/child AGENTS.md and CLAUDE.md guidance management",
+        description=(
+            "ORP agents keeps AGENTS.md and CLAUDE.md legible across an umbrella projects root and child repos.\n\n"
+            "It preserves human-written notes outside ORP-managed blocks, scaffolds missing files, and refreshes only\n"
+            "the ORP-managed guide/snippet sections when you sync.\n\n"
+            "Typical rhythm:\n"
+            "  1. Set a shared umbrella projects root once if you keep many repos under one parent directory\n"
+            "  2. Run `orp init` or `orp agents sync` inside a repo\n"
+            "  3. Let child repos inherit high-level north-star guidance from the umbrella root\n"
+            "  4. Audit with `orp agents audit` whenever you want to confirm the files still line up"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  orp agents root show\n"
+            "  orp agents root set /absolute/path/to/projects\n"
+            "  orp agents sync\n"
+            "  orp agents sync --role umbrella --root /absolute/path/to/projects\n"
+            "  orp agents sync --projects-root /absolute/path/to/projects\n"
+            "  orp agents audit\n"
+            "  orp init --projects-root /absolute/path/to/projects"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    agents_sub = s_agents.add_subparsers(dest="agents_cmd", required=True)
+
+    s_agents_root = agents_sub.add_parser("root", help="Show or set the shared umbrella projects root")
+    agents_root_sub = s_agents_root.add_subparsers(dest="agents_root_cmd", required=True)
+
+    s_agents_root_show = agents_root_sub.add_parser("show", help="Show the configured umbrella projects root")
+    add_json_flag(s_agents_root_show)
+    s_agents_root_show.set_defaults(func=cmd_agents_root_show, json_output=False)
+
+    s_agents_root_set = agents_root_sub.add_parser(
+        "set",
+        help="Set the shared umbrella projects root and scaffold umbrella AGENTS.md and CLAUDE.md there",
+    )
+    s_agents_root_set.add_argument("path", help="Absolute or user-relative path to the shared projects root")
+    add_json_flag(s_agents_root_set)
+    s_agents_root_set.set_defaults(func=cmd_agents_root_set, json_output=False)
+
+    s_agents_sync = agents_sub.add_parser(
+        "sync",
+        help="Sync ORP-managed AGENTS.md and CLAUDE.md blocks for one repo or umbrella root",
+    )
+    s_agents_sync.add_argument("--root", default="", help="Root directory to sync (default: --repo-root)")
+    s_agents_sync.add_argument(
+        "--role",
+        choices=["auto", "project", "umbrella"],
+        default="auto",
+        help="Treat the root as a project repo, an umbrella projects root, or detect automatically (default: auto)",
+    )
+    s_agents_sync.add_argument(
+        "--projects-root",
+        default="",
+        help="Explicit umbrella projects root for parent/child inheritance (default: auto)",
+    )
+    add_json_flag(s_agents_sync)
+    s_agents_sync.set_defaults(func=cmd_agents_sync, json_output=False)
+
+    s_agents_audit = agents_sub.add_parser(
+        "audit",
+        help="Audit whether AGENTS.md and CLAUDE.md exist and whether their ORP-managed blocks are in sync",
+    )
+    s_agents_audit.add_argument("--root", default="", help="Root directory to audit (default: --repo-root)")
+    s_agents_audit.add_argument(
+        "--role",
+        choices=["auto", "project", "umbrella"],
+        default="auto",
+        help="Treat the root as a project repo, an umbrella projects root, or detect automatically (default: auto)",
+    )
+    s_agents_audit.add_argument(
+        "--projects-root",
+        default="",
+        help="Explicit umbrella projects root for parent/child inheritance (default: auto)",
+    )
+    add_json_flag(s_agents_audit)
+    s_agents_audit.set_defaults(func=cmd_agents_audit, json_output=False)
+
+    s_opportunities = sub.add_parser(
+        "opportunities",
+        help="Local-first opportunity boards for contests, programs, grants, and similar openings",
+        description=(
+            "ORP opportunities are saved boards for contests, programs, grants, fellowships, and similar openings.\n\n"
+            "Use them when you want a separate editable lane for priorities and opportunities without overloading `workspace`.\n\n"
+            "Typical rhythm:\n"
+            "  1. Create a board like `main-opportunities`\n"
+            "  2. Add items with kind, section, priority, status, and links\n"
+            "  3. Show the board whenever the agent needs the current landscape\n"
+            "  4. Optionally sync the board to hosted ORP so another machine can pull it later"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  orp opportunities create main-opportunities --label \"Main Opportunities\"\n"
+            "  orp opportunities add main-opportunities --title \"vision-prize\" --kind contest --section ocular-longevity --priority high\n"
+            "  orp opportunities show main-opportunities\n"
+            "  orp opportunities focus main-opportunities --limit 5\n"
+            "  orp opportunities update main-opportunities vision-prize --status submitted\n"
+            "  orp opportunities remove main-opportunities vision-prize\n"
+            "  orp opportunities sync main-opportunities --json\n"
+            "  orp opportunities pull main-opportunities --json"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    opportunities_sub = s_opportunities.add_subparsers(dest="opportunities_cmd", required=True)
+
+    s_opportunities_list = opportunities_sub.add_parser("list", help="List saved opportunity boards")
+    add_json_flag(s_opportunities_list)
+    s_opportunities_list.set_defaults(func=cmd_opportunities_list, json_output=False)
+
+    s_opportunities_show = opportunities_sub.add_parser("show", help="Show one saved opportunity board")
+    s_opportunities_show.add_argument("board_ref", help="Opportunity board slug or label")
+    add_json_flag(s_opportunities_show)
+    s_opportunities_show.set_defaults(func=cmd_opportunities_show, json_output=False)
+
+    s_opportunities_focus = opportunities_sub.add_parser(
+        "focus",
+        help="Show the prioritized active slice of one opportunity board",
+    )
+    s_opportunities_focus.add_argument("board_ref", help="Opportunity board slug or label")
+    s_opportunities_focus.add_argument("--section", default="", help="Optional section filter")
+    s_opportunities_focus.add_argument(
+        "--kind",
+        choices=list(OPPORTUNITY_KINDS),
+        default="",
+        help="Optional kind filter",
+    )
+    s_opportunities_focus.add_argument(
+        "--status",
+        choices=list(OPPORTUNITY_STATUSES),
+        default="",
+        help="Optional status filter",
+    )
+    s_opportunities_focus.add_argument(
+        "--priority-at-least",
+        choices=list(OPPORTUNITY_PRIORITIES),
+        default="",
+        help="Only include opportunities at or above this priority",
+    )
+    s_opportunities_focus.add_argument("--include-archived", action="store_true", help="Include archived items")
+    s_opportunities_focus.add_argument("--limit", type=int, default=10, help="Maximum items to show (default: 10)")
+    add_json_flag(s_opportunities_focus)
+    s_opportunities_focus.set_defaults(func=cmd_opportunities_focus, json_output=False)
+
+    s_opportunities_create = opportunities_sub.add_parser("create", help="Create one saved opportunity board")
+    s_opportunities_create.add_argument("title_slug", help="Board title in lowercase-dash format")
+    s_opportunities_create.add_argument("--label", default="", help="Optional human label")
+    s_opportunities_create.add_argument("--description", default="", help="Optional board description")
+    add_json_flag(s_opportunities_create)
+    s_opportunities_create.set_defaults(func=cmd_opportunities_create, json_output=False)
+
+    s_opportunities_add = opportunities_sub.add_parser("add", help="Add one tracked opportunity item to a board")
+    s_opportunities_add.add_argument("board_ref", help="Opportunity board slug or label")
+    s_opportunities_add.add_argument("--title", required=True, help="Opportunity title")
+    s_opportunities_add.add_argument(
+        "--kind",
+        choices=list(OPPORTUNITY_KINDS),
+        default="opportunity",
+        help="Opportunity kind (default: opportunity)",
+    )
+    s_opportunities_add.add_argument("--section", default="", help="Optional section or subject lane")
+    s_opportunities_add.add_argument(
+        "--priority",
+        choices=list(OPPORTUNITY_PRIORITIES),
+        default="medium",
+        help="Priority (default: medium)",
+    )
+    s_opportunities_add.add_argument(
+        "--status",
+        choices=list(OPPORTUNITY_STATUSES),
+        default="active",
+        help="Status (default: active)",
+    )
+    s_opportunities_add.add_argument("--url", default="", help="Optional URL")
+    s_opportunities_add.add_argument("--summary", default="", help="Optional short summary")
+    s_opportunities_add.add_argument("--notes", default="", help="Optional notes")
+    s_opportunities_add.add_argument("--tag", dest="tags", action="append", default=None, help="Repeatable subject tag")
+    add_json_flag(s_opportunities_add)
+    s_opportunities_add.set_defaults(func=cmd_opportunities_add, json_output=False)
+
+    s_opportunities_update = opportunities_sub.add_parser("update", help="Update one tracked opportunity item")
+    s_opportunities_update.add_argument("board_ref", help="Opportunity board slug or label")
+    s_opportunities_update.add_argument("item_ref", help="Opportunity item id or title slug")
+    s_opportunities_update.add_argument("--title", default=None, help="Updated opportunity title")
+    s_opportunities_update.add_argument(
+        "--kind",
+        choices=list(OPPORTUNITY_KINDS),
+        default=None,
+        help="Updated opportunity kind",
+    )
+    s_opportunities_update.add_argument("--section", default=None, help="Updated section or subject lane")
+    s_opportunities_update.add_argument(
+        "--priority",
+        choices=list(OPPORTUNITY_PRIORITIES),
+        default=None,
+        help="Updated priority",
+    )
+    s_opportunities_update.add_argument(
+        "--status",
+        choices=list(OPPORTUNITY_STATUSES),
+        default=None,
+        help="Updated status",
+    )
+    s_opportunities_update.add_argument("--url", default=None, help="Updated URL")
+    s_opportunities_update.add_argument("--summary", default=None, help="Updated short summary")
+    s_opportunities_update.add_argument("--notes", default=None, help="Updated notes")
+    s_opportunities_update.add_argument("--tag", dest="tags", action="append", default=None, help="Replace tags with these values")
+    s_opportunities_update.add_argument("--clear-tags", action="store_true", help="Clear all tags")
+    add_json_flag(s_opportunities_update)
+    s_opportunities_update.set_defaults(func=cmd_opportunities_update, json_output=False)
+
+    s_opportunities_remove = opportunities_sub.add_parser("remove", help="Remove one tracked opportunity item")
+    s_opportunities_remove.add_argument("board_ref", help="Opportunity board slug or label")
+    s_opportunities_remove.add_argument("item_ref", help="Opportunity item id or title slug")
+    add_json_flag(s_opportunities_remove)
+    s_opportunities_remove.set_defaults(func=cmd_opportunities_remove, json_output=False)
+
+    s_opportunities_sync = opportunities_sub.add_parser(
+        "sync",
+        help="Mirror one local opportunity board to the authenticated hosted ORP account",
+    )
+    s_opportunities_sync.add_argument("board_ref", help="Opportunity board slug or label")
+    add_base_url_flag(s_opportunities_sync)
+    add_json_flag(s_opportunities_sync)
+    s_opportunities_sync.set_defaults(func=cmd_opportunities_sync, json_output=False)
+
+    s_opportunities_pull = opportunities_sub.add_parser(
+        "pull",
+        help="Pull one hosted opportunity board into the local registry",
+    )
+    s_opportunities_pull.add_argument("board_ref", help="Opportunity board slug, label, or hosted idea id")
+    add_base_url_flag(s_opportunities_pull)
+    add_json_flag(s_opportunities_pull)
+    s_opportunities_pull.set_defaults(func=cmd_opportunities_pull, json_output=False)
+
+    s_connections = sub.add_parser(
+        "connections",
+        help="Local-first connection registry for service accounts, data sources, and publishing destinations",
+        description=(
+            "ORP connections are saved service and data integrations for code hosts, model hubs, data platforms, deploy targets,\n"
+            "databases, public research destinations, and internal systems.\n\n"
+            "Use them when you want one agent-readable place to remember which account, URL, capability set, and secret alias or named secret bindings power each integration.\n\n"
+            "Typical rhythm:\n"
+            "  1. Inspect the built-in provider templates if they help\n"
+            "  2. Add a connection with either a known provider or `custom`\n"
+            "  3. Show or list the registry whenever the agent needs to fetch or publish work\n"
+            "  4. Optionally sync the whole registry to hosted ORP for another machine"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  orp connections providers\n"
+            "  orp connections add github-main --provider github --label \"GitHub Main\" --account cody --auth-secret-alias github-main\n"
+            "  orp connections add huggingface-main --provider huggingface --label \"Hugging Face\" --secret-binding read=hf-read --secret-binding publish=hf-publish\n"
+            "  orp connections add my-science-portal --provider custom --label \"My Science Portal\" --url https://example.org --secret-binding primary=my-science-token\n"
+            "  orp connections add zenodo-main --provider zenodo --label \"Zenodo Main\" --auth-secret-alias zenodo-main --capability publish\n"
+            "  orp connections show github-main\n"
+            "  orp connections list\n"
+            "  orp connections update github-main --status paused\n"
+            "  orp connections remove github-main\n"
+            "  orp connections sync --json\n"
+            "  orp connections pull --json"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    connections_sub = s_connections.add_subparsers(dest="connections_cmd", required=True)
+
+    s_connections_providers = connections_sub.add_parser("providers", help="List built-in provider templates; use custom for anything new or niche")
+    add_json_flag(s_connections_providers)
+    s_connections_providers.set_defaults(func=cmd_connections_providers, json_output=False)
+
+    s_connections_list = connections_sub.add_parser("list", help="List saved connections")
+    s_connections_list.add_argument("--provider", default="", help="Optional provider filter")
+    s_connections_list.add_argument("--kind", choices=list(CONNECTION_KINDS), default="", help="Optional kind filter")
+    s_connections_list.add_argument("--status", choices=list(CONNECTION_STATUSES), default="", help="Optional status filter")
+    add_json_flag(s_connections_list)
+    s_connections_list.set_defaults(func=cmd_connections_list, json_output=False)
+
+    s_connections_show = connections_sub.add_parser("show", help="Show one saved connection")
+    s_connections_show.add_argument("connection_ref", help="Connection id, label, provider, or account")
+    add_json_flag(s_connections_show)
+    s_connections_show.set_defaults(func=cmd_connections_show, json_output=False)
+
+    s_connections_add = connections_sub.add_parser("add", help="Add one saved connection")
+    s_connections_add.add_argument("connection_id", help="Connection id in lowercase-dash format")
+    s_connections_add.add_argument("--provider", required=True, help="Provider slug like github, huggingface, kaggle, vercel, neon, zenodo, arxiv, or custom for anything ORP does not know yet")
+    s_connections_add.add_argument("--label", default="", help="Optional human label")
+    s_connections_add.add_argument("--kind", choices=list(CONNECTION_KINDS), default=None, help="Connection kind")
+    s_connections_add.add_argument("--account", default="", help="Account, username, or project owner")
+    s_connections_add.add_argument("--organization", default="", help="Organization, org, or team name")
+    s_connections_add.add_argument("--url", default="", help="Base URL or canonical profile URL")
+    s_connections_add.add_argument("--auth-secret-alias", dest="auth_secret_alias", default="", help="Saved ORP secret alias used to authenticate this connection")
+    s_connections_add.add_argument("--secret-binding", dest="secret_bindings", action="append", default=None, help="Repeatable secret binding like primary=github-main or publish=zenodo-main")
+    s_connections_add.add_argument("--auth-kind", default=None, help="Authentication mode like token, api_key, oauth, ssh, or none")
+    s_connections_add.add_argument("--capability", dest="capabilities", action="append", default=None, help="Repeatable capability slug like repo-read, publish, datasets, deploy")
+    s_connections_add.add_argument("--tag", dest="tags", action="append", default=None, help="Repeatable tag")
+    s_connections_add.add_argument("--notes", default="", help="Optional notes")
+    s_connections_add.add_argument("--status", choices=list(CONNECTION_STATUSES), default="active", help="Connection status (default: active)")
+    add_json_flag(s_connections_add)
+    s_connections_add.set_defaults(func=cmd_connections_add, json_output=False)
+
+    s_connections_update = connections_sub.add_parser("update", help="Update one saved connection")
+    s_connections_update.add_argument("connection_ref", help="Connection id, label, provider, or account")
+    s_connections_update.add_argument("--provider", default=None, help="Updated provider slug, or custom for anything ORP does not know yet")
+    s_connections_update.add_argument("--label", default=None, help="Updated human label")
+    s_connections_update.add_argument("--kind", choices=list(CONNECTION_KINDS), default=None, help="Updated kind")
+    s_connections_update.add_argument("--account", default=None, help="Updated account")
+    s_connections_update.add_argument("--organization", default=None, help="Updated organization")
+    s_connections_update.add_argument("--url", default=None, help="Updated URL")
+    s_connections_update.add_argument("--auth-secret-alias", dest="auth_secret_alias", default=None, help="Updated ORP secret alias")
+    s_connections_update.add_argument("--secret-binding", dest="secret_bindings", action="append", default=None, help="Replace secret bindings with entries like primary=github-main or publish=zenodo-main")
+    s_connections_update.add_argument("--clear-secret-bindings", action="store_true", help="Clear all named secret bindings")
+    s_connections_update.add_argument("--auth-kind", default=None, help="Updated auth kind")
+    s_connections_update.add_argument("--capability", dest="capabilities", action="append", default=None, help="Replace capabilities with these values")
+    s_connections_update.add_argument("--clear-capabilities", action="store_true", help="Clear all capabilities")
+    s_connections_update.add_argument("--tag", dest="tags", action="append", default=None, help="Replace tags with these values")
+    s_connections_update.add_argument("--clear-tags", action="store_true", help="Clear all tags")
+    s_connections_update.add_argument("--notes", default=None, help="Updated notes")
+    s_connections_update.add_argument("--status", choices=list(CONNECTION_STATUSES), default=None, help="Updated status")
+    add_json_flag(s_connections_update)
+    s_connections_update.set_defaults(func=cmd_connections_update, json_output=False)
+
+    s_connections_remove = connections_sub.add_parser("remove", help="Remove one saved connection")
+    s_connections_remove.add_argument("connection_ref", help="Connection id, label, provider, or account")
+    add_json_flag(s_connections_remove)
+    s_connections_remove.set_defaults(func=cmd_connections_remove, json_output=False)
+
+    s_connections_sync = connections_sub.add_parser("sync", help="Mirror the local connections registry to hosted ORP")
+    add_base_url_flag(s_connections_sync)
+    add_json_flag(s_connections_sync)
+    s_connections_sync.set_defaults(func=cmd_connections_sync, json_output=False)
+
+    s_connections_pull = connections_sub.add_parser("pull", help="Pull the hosted connections registry into the local machine")
+    add_base_url_flag(s_connections_pull)
+    add_json_flag(s_connections_pull)
+    s_connections_pull.set_defaults(func=cmd_connections_pull, json_output=False)
+
     s_auth = sub.add_parser("auth", help="Hosted workspace authentication operations")
     auth_sub = s_auth.add_subparsers(dest="auth_cmd", required=True)
 
@@ -19479,6 +24114,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-protected-branch-work",
         action="store_true",
         help="Allow ORP governance to treat protected-branch work as explicitly permitted",
+    )
+    s_init.add_argument(
+        "--projects-root",
+        default="",
+        help="Optional shared umbrella projects root used to link this repo's AGENTS.md and CLAUDE.md back to a parent guide",
     )
     s_init.add_argument(
         "--json",

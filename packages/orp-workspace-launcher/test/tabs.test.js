@@ -50,11 +50,35 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
     sourceType: "hosted-idea",
     sourceLabel: "Workspace idea",
     title: "Workspace idea",
-    notes: `
-/Volumes/Code_2TB/code/collaboration: codex resume abc-123
-/Volumes/Code_2TB/code/anthropic-lab: claude resume claude-456
-/Volumes/Code_2TB/code/collaboration
-`,
+    workspaceManifest: {
+      version: "1",
+      workspaceId: "workspace-idea",
+      machine: {
+        machineId: "mac-studio:darwin",
+        machineLabel: "Mac Studio",
+        platform: "darwin",
+      },
+      tabs: [
+        {
+          path: "/Volumes/Code_2TB/code/collaboration",
+          title: "collaboration",
+          remoteUrl: "git@github.com:org/collaboration.git",
+          bootstrapCommand: "npm install",
+          resumeCommand: "codex resume abc-123",
+        },
+        {
+          path: "/Volumes/Code_2TB/code/anthropic-lab",
+          title: "anthropic-lab",
+          remoteUrl: "git@github.com:anthropic/anthropic-lab.git",
+          remoteBranch: "main",
+          resumeCommand: "claude resume claude-456",
+        },
+        {
+          path: "/Volumes/Code_2TB/code/collaboration",
+        },
+      ],
+    },
+    notes: "",
   });
 
   const report = buildWorkspaceTabsReport(
@@ -66,9 +90,17 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
     parsed,
   );
 
-  assert.match(report.workspaceId, /^workspace-/);
+  assert.equal(report.workspaceId, "workspace-idea");
+  assert.equal(report.machine?.machineLabel, "Mac Studio");
   assert.equal(report.tabCount, 3);
   assert.equal(report.tabs[0]?.title, "collaboration");
+  assert.equal(report.tabs[0]?.remoteUrl, "git@github.com:org/collaboration.git");
+  assert.equal(report.tabs[0]?.bootstrapCommand, "npm install");
+  assert.equal(report.tabs[0]?.cloneCommand, "git clone 'git@github.com:org/collaboration.git' 'collaboration'");
+  assert.equal(
+    report.tabs[0]?.setupCommand,
+    "git clone 'git@github.com:org/collaboration.git' 'collaboration' && cd 'collaboration' && npm install",
+  );
   assert.equal(report.tabs[0]?.resumeCommand, "codex resume abc-123");
   assert.equal(
     report.tabs[0]?.restartCommand,
@@ -77,6 +109,7 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
   assert.equal(report.tabs[0]?.codexSessionId, "abc-123");
   assert.equal(report.tabs[1]?.title, "anthropic-lab");
   assert.equal(report.tabs[1]?.resumeCommand, "claude resume claude-456");
+  assert.equal(report.tabs[1]?.remoteBranch, "main");
   assert.equal(
     report.tabs[1]?.restartCommand,
     "cd '/Volumes/Code_2TB/code/anthropic-lab' && claude resume claude-456",
@@ -96,10 +129,17 @@ test("runWorkspaceTabs prints JSON without launch commands", async () => {
         version: "1",
         workspaceId: "orp-main",
         title: "ORP Main",
+        machine: {
+          machineId: "mac-studio:darwin",
+          machineLabel: "Mac Studio",
+          platform: "darwin",
+        },
         tabs: [
           {
             title: "orp",
             path: "/Volumes/Code_2TB/code/orp",
+            remoteUrl: "git@github.com:SproutSeeds/orp.git",
+            bootstrapCommand: "npm install",
             resumeCommand: "claude resume claude-999",
             resumeTool: "claude",
             resumeSessionId: "claude-999",
@@ -121,8 +161,11 @@ test("runWorkspaceTabs prints JSON without launch commands", async () => {
 
   assert.equal(code, 0);
   assert.equal(parsed.workspaceId, "orp-main");
+  assert.equal(parsed.machine.machineLabel, "Mac Studio");
   assert.equal(parsed.tabCount, 2);
   assert.equal(parsed.tabs[0]?.title, "orp");
+  assert.equal(parsed.tabs[0]?.remoteUrl, "git@github.com:SproutSeeds/orp.git");
+  assert.equal(parsed.tabs[0]?.bootstrapCommand, "npm install");
   assert.equal(parsed.tabs[0]?.resumeCommand, "claude resume claude-999");
   assert.equal(parsed.tabs[0]?.restartCommand, "cd '/Volumes/Code_2TB/code/orp' && claude resume claude-999");
   assert.equal(parsed.tabs[0]?.claudeSessionId, "claude-999");
@@ -142,6 +185,7 @@ test("buildWorkspaceTabsReport canonicalizes Claude resume commands from tool an
         {
           title: "anthropic-lab",
           path: "/Volumes/Code_2TB/code/anthropic-lab",
+          remoteUrl: "git@github.com:anthropic/anthropic-lab.git",
           resumeTool: "claude",
           resumeSessionId: "claude-456",
         },
@@ -160,6 +204,7 @@ test("buildWorkspaceTabsReport canonicalizes Claude resume commands from tool an
   );
 
   assert.equal(report.tabs[0]?.resumeCommand, "claude --resume claude-456");
+  assert.equal(report.tabs[0]?.cloneCommand, "git clone 'git@github.com:anthropic/anthropic-lab.git' 'anthropic-lab'");
   assert.equal(
     report.tabs[0]?.restartCommand,
     "cd '/Volumes/Code_2TB/code/anthropic-lab' && claude --resume claude-456",

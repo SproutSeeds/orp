@@ -83,6 +83,10 @@ test("parseWorkspaceAddTabArgs accepts explicit resume metadata", () => {
     "main",
     "--path",
     "/Volumes/Code_2TB/code/new-project",
+    "--remote-url",
+    "git@github.com:org/new-project.git",
+    "--bootstrap-command",
+    "npm install",
     "--resume-tool",
     "claude",
     "--resume-session-id",
@@ -92,6 +96,8 @@ test("parseWorkspaceAddTabArgs accepts explicit resume metadata", () => {
 
   assert.equal(parsed.ideaId, "main");
   assert.equal(parsed.path, "/Volumes/Code_2TB/code/new-project");
+  assert.equal(parsed.remoteUrl, "git@github.com:org/new-project.git");
+  assert.equal(parsed.bootstrapCommand, "npm install");
   assert.equal(parsed.resumeTool, "claude");
   assert.equal(parsed.resumeSessionId, "claude-456");
   assert.equal(parsed.json, true);
@@ -128,8 +134,12 @@ test("parseWorkspaceCreateArgs validates slug titles and optional seed metadata"
     "main-cody-1",
     "--slot",
     "main",
+    "--machine-label",
+    "Mac Studio",
     "--path",
     "/Volumes/Code_2TB/code/orp",
+    "--remote-url",
+    "git@github.com:SproutSeeds/orp.git",
     "--resume-tool",
     "claude",
     "--resume-session-id",
@@ -139,7 +149,9 @@ test("parseWorkspaceCreateArgs validates slug titles and optional seed metadata"
 
   assert.equal(parsed.title, "main-cody-1");
   assert.equal(parsed.slotName, "main");
+  assert.equal(parsed.machineLabel, "Mac Studio");
   assert.equal(parsed.path, "/Volumes/Code_2TB/code/orp");
+  assert.equal(parsed.remoteUrl, "git@github.com:SproutSeeds/orp.git");
   assert.equal(parsed.resumeTool, "claude");
   assert.equal(parsed.resumeSessionId, "claude-456");
   assert.equal(parsed.json, true);
@@ -157,6 +169,8 @@ test("addTabToManifest canonicalizes Claude resume commands from tool plus sessi
   const result = addTabToManifest(sampleManifest(), {
     path: "/Volumes/Code_2TB/code/anthropic-lab",
     title: "anthropic-lab",
+    remoteUrl: "git@github.com:anthropic/anthropic-lab.git",
+    bootstrapCommand: "uv sync",
     resumeTool: "claude",
     resumeSessionId: "claude-456",
   });
@@ -165,6 +179,8 @@ test("addTabToManifest canonicalizes Claude resume commands from tool plus sessi
   assert.equal(result.manifest.tabs.length, 3);
   assert.equal(result.manifest.tabs[2]?.path, "/Volumes/Code_2TB/code/anthropic-lab");
   assert.equal(result.manifest.tabs[2]?.title, "anthropic-lab");
+  assert.equal(result.manifest.tabs[2]?.remoteUrl, "git@github.com:anthropic/anthropic-lab.git");
+  assert.equal(result.manifest.tabs[2]?.bootstrapCommand, "uv sync");
   assert.equal(result.manifest.tabs[2]?.resumeCommand, "claude --resume claude-456");
   assert.equal(result.manifest.tabs[2]?.resumeTool, "claude");
   assert.equal(result.manifest.tabs[2]?.sessionId, "claude-456");
@@ -250,6 +266,10 @@ test("runWorkspaceAddTab updates a local workspace manifest file", async () => {
         manifestPath,
         "--path",
         "/Volumes/Code_2TB/code/anthropic-lab",
+        "--remote-url",
+        "git@github.com:anthropic/anthropic-lab.git",
+        "--bootstrap-command",
+        "uv sync",
         "--resume-tool",
         "claude",
         "--resume-session-id",
@@ -263,8 +283,11 @@ test("runWorkspaceAddTab updates a local workspace manifest file", async () => {
     assert.equal(code, 0);
     assert.equal(payload.action, "add-tab");
     assert.equal(payload.tabCount, 3);
+    assert.equal(payload.tab.remoteUrl, "git@github.com:anthropic/anthropic-lab.git");
+    assert.equal(payload.tab.bootstrapCommand, "uv sync");
     assert.equal(payload.tab.resumeCommand, "claude --resume claude-456");
     assert.equal(saved.tabs.length, 3);
+    assert.equal(saved.tabs[2]?.remoteUrl, "git@github.com:anthropic/anthropic-lab.git");
     assert.equal(saved.tabs[2]?.resumeCommand, "claude --resume claude-456");
   });
 });
@@ -339,8 +362,14 @@ test("runWorkspaceCreate creates a local managed workspace and auto-assigns main
     const { code, stdout } = await captureStdout(() =>
       runWorkspaceCreate([
         "main-cody-1",
+        "--machine-label",
+        "Mac Studio",
         "--path",
         "/Volumes/Code_2TB/code/orp",
+        "--remote-url",
+        "git@github.com:SproutSeeds/orp.git",
+        "--bootstrap-command",
+        "npm install",
         "--resume-tool",
         "claude",
         "--resume-session-id",
@@ -357,7 +386,28 @@ test("runWorkspaceCreate creates a local managed workspace and auto-assigns main
     assert.equal(payload.workspaceTitle, "main-cody-1");
     assert.equal(payload.tabCount, 1);
     assert.equal(saved.title, "main-cody-1");
+    assert.equal(saved.machine.machineLabel, "Mac Studio");
+    assert.equal(saved.tabs[0]?.remoteUrl, "git@github.com:SproutSeeds/orp.git");
+    assert.equal(saved.tabs[0]?.bootstrapCommand, "npm install");
     assert.equal(saved.tabs[0]?.resumeCommand, "claude --resume claude-456");
     assert.equal(slots.slots.main.title, "main-cody-1");
+  });
+});
+
+test("runWorkspaceCreate allows an empty local ledger before any tabs are added", async () => {
+  await withTempConfigHome(async () => {
+    const { code, stdout } = await captureStdout(() =>
+      runWorkspaceCreate([
+        "empty-ledger",
+        "--json",
+      ]),
+    );
+    const payload = JSON.parse(stdout);
+    const saved = JSON.parse(await fs.readFile(payload.manifestPath, "utf8"));
+
+    assert.equal(code, 0);
+    assert.equal(payload.workspaceTitle, "empty-ledger");
+    assert.equal(payload.tabCount, 0);
+    assert.deepEqual(saved.tabs, []);
   });
 });

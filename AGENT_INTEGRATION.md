@@ -6,6 +6,14 @@ integrate ORP by adding an **ORP section** to that file.
 This makes ORP the agent’s default operating mode: explicit claim levels, reproducible verification, first-class failed paths,
 and dispute resolution by verification/downgrade (not debate).
 
+If you are working inside an ORP-governed repo, ORP can also scaffold and maintain the repo's own `AGENTS.md` and
+`CLAUDE.md` files:
+
+- `orp init` now scaffolds them if missing and refreshes ORP-managed blocks if they already exist
+- `orp agents sync` refreshes the ORP-managed blocks later without replacing surrounding human notes
+- `orp agents audit` checks whether those files are still aligned
+- `orp agents root set /absolute/path/to/projects` establishes an optional umbrella parent directory so child repos can inherit high-level guidance
+
 ## Core Rule
 
 Do not let ORP process scaffolding masquerade as evidence or repository truth.

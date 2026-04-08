@@ -1,6 +1,14 @@
 import process from "node:process";
 
-import { buildDirectCommand, buildLaunchPlan, deriveWorkspaceId, getResumeCommand, parseWorkspaceSource } from "./core-plan.js";
+import {
+  buildCloneCommand,
+  buildDirectCommand,
+  buildLaunchPlan,
+  buildSetupCommand,
+  deriveWorkspaceId,
+  getResumeCommand,
+  parseWorkspaceSource,
+} from "./core-plan.js";
 import { loadWorkspaceSource } from "./orp.js";
 
 export function parseWorkspaceTabsArgs(argv = []) {
@@ -61,6 +69,7 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
     sourceLabel: source.sourceLabel,
     title: parsed.manifest?.title || source.title,
     workspaceId: deriveWorkspaceId(source, parsed),
+    machine: parsed.manifest?.machine || null,
     parseMode: parsed.parseMode,
     tabCount: launchTabs.length,
     skippedCount: parsed.skipped.length,
@@ -68,10 +77,16 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
       index: index + 1,
       title: tab.title,
       path: tab.path,
+      remoteUrl: tab.remoteUrl || null,
+      remoteBranch: tab.remoteBranch || null,
+      bootstrapCommand: tab.bootstrapCommand || null,
       resumeCommand: getResumeCommand(tab),
       restartCommand: buildDirectCommand(
         {
           path: tab.path,
+          remoteUrl: tab.remoteUrl || null,
+          remoteBranch: tab.remoteBranch || null,
+          bootstrapCommand: tab.bootstrapCommand || null,
           resumeCommand: tab.resumeCommand || null,
           resumeTool: tab.resumeTool || null,
           resumeSessionId: tab.sessionId || null,
@@ -79,6 +94,8 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
         },
         { resume: true },
       ),
+      cloneCommand: buildCloneCommand(tab),
+      setupCommand: buildSetupCommand(tab),
       resumeTool: tab.resumeTool || null,
       resumeSessionId: tab.sessionId || null,
       codexSessionId: tab.resumeTool === "codex" ? tab.sessionId || null : null,
@@ -92,6 +109,13 @@ export function summarizeWorkspaceTabs(report) {
   const lines = [
     `Source: ${report.sourceLabel}`,
     `Workspace ID: ${report.workspaceId}`,
+    ...(report.machine?.machineLabel
+      ? [
+          `Machine: ${report.machine.machineLabel}${
+            report.machine.platform ? ` (${report.machine.platform})` : ""
+          }${report.machine.machineId ? ` [${report.machine.machineId}]` : ""}`,
+        ]
+      : []),
     `Saved tabs: ${report.tabCount}`,
     `Parse mode: ${report.parseMode}`,
     "",
@@ -100,6 +124,18 @@ export function summarizeWorkspaceTabs(report) {
   for (const tab of report.tabs) {
     lines.push(`${String(tab.index).padStart(2, "0")}. ${tab.title}`);
     lines.push(`    path: ${tab.path}`);
+    if (tab.remoteUrl) {
+      lines.push(`    remote: ${tab.remoteUrl}${tab.remoteBranch ? ` [branch ${tab.remoteBranch}]` : ""}`);
+    }
+    if (tab.cloneCommand) {
+      lines.push(`    clone: ${tab.cloneCommand}`);
+    }
+    if (tab.bootstrapCommand) {
+      lines.push(`    bootstrap: ${tab.bootstrapCommand}`);
+    }
+    if (tab.setupCommand) {
+      lines.push(`    setup: ${tab.setupCommand}`);
+    }
     if (tab.resumeCommand) {
       lines.push(`    resume: ${tab.restartCommand}`);
     }
@@ -135,8 +171,9 @@ Options:
   -h, --help              Show this help text
 
 Notes:
-  - This shows the saved tab order plus any stored \`codex resume ...\` or \`claude --resume ...\` command metadata.
+  - This shows the saved tab order plus any stored local path, remote repo, bootstrap command, and \`codex resume ...\` / \`claude --resume ...\` metadata.
   - The human-readable \`resume:\` line is already copyable and includes the saved \`cd ... && resume ...\` recovery command.
+  - When a tab also has \`remote:\` or \`setup:\` lines, those are the portable cross-machine clues for cloning and preparing the repo on another rig.
   - The selector can be \`main\`, \`offhand\`, a hosted idea id, a hosted workspace id, a local workspace id, or a saved workspace title/slug.
 `);
 }
