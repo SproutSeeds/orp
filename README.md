@@ -326,6 +326,12 @@ For an agent or script, use stdin:
 printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai --value-stdin
 ```
 
+If a service needs both a username and a secret, store the username with it:
+
+```bash
+orp secrets add --alias huggingface-login --label "Hugging Face Login" --provider huggingface --kind password --username cody
+```
+
 After that:
 
 ```bash
@@ -356,6 +362,7 @@ does not contain the key itself. It means:
 For secrets, the simplest plain-English rule is:
 
 - `orp secrets add ...` = save a new key
+- `orp secrets add ... --username <name>` = save a new login credential plus its username
 - `orp secrets list` = see what is saved
 - `orp secrets show ...` = inspect one saved key record
 - `orp secrets resolve ...` = get the key value for use right now

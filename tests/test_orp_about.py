@@ -521,8 +521,9 @@ class OrpAboutTests(unittest.TestCase):
             cwd=str(REPO_ROOT),
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
-        self.assertIn("saved keys and tokens", proc.stdout)
+        self.assertIn("saved credentials and related login metadata", proc.stdout)
         self.assertIn("Run `orp secrets add ...`", proc.stdout)
+        self.assertIn("--username", proc.stdout)
         self.assertIn("--value-stdin", proc.stdout)
         self.assertIn('orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai', proc.stdout)
 

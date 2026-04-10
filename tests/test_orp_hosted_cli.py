@@ -328,6 +328,7 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(body["alias"], "openai-primary")
             self.assertEqual(body["label"], "OpenAI Primary")
             self.assertEqual(body["provider"], "openai")
+            self.assertEqual(body["username"], "cody")
             self.assertEqual(body["value"], "sk-test")
             self.assertEqual(
                 body["bindings"],
@@ -366,6 +367,7 @@ class HostedCliShapeTests(unittest.TestCase):
                         label="OpenAI Primary",
                         provider="openai",
                         kind="api_key",
+                        username="cody",
                         env_var_name="OPENAI_API_KEY",
                         value="sk-test",
                         value_stdin=False,
@@ -497,6 +499,7 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(body["alias"], "openai-primary")
             self.assertEqual(body["label"], "OpenAI Primary")
             self.assertEqual(body["provider"], "openai")
+            self.assertEqual(body["username"], "cody")
             self.assertEqual(body["value"], "sk-test")
             self.assertEqual(
                 body["bindings"],
@@ -536,6 +539,7 @@ class HostedCliShapeTests(unittest.TestCase):
                         label="OpenAI Primary",
                         provider="openai",
                         kind="api_key",
+                        username="cody",
                         env_var_name="OPENAI_API_KEY",
                         value="sk-test",
                         value_stdin=False,
@@ -660,6 +664,7 @@ class HostedCliShapeTests(unittest.TestCase):
                     "label": "OpenAI Primary",
                     "provider": "openai",
                     "kind": "api_key",
+                    "username": "cody",
                     "envVarName": "OPENAI_API_KEY",
                     "bindings": [],
                 },
@@ -710,10 +715,12 @@ class HostedCliShapeTests(unittest.TestCase):
             entry = payload["items"][0]
             self.assertEqual(entry["alias"], "openai-primary")
             self.assertEqual(entry["provider"], "openai")
+            self.assertEqual(entry["username"], "cody")
             self.assertEqual(entry["keychain_service"], "orp.secret.openai")
             registry_path = Path(td) / "orp" / "secrets-keychain.json"
             registry = json.loads(registry_path.read_text(encoding="utf-8"))
             self.assertEqual(registry["items"][0]["alias"], "openai-primary")
+            self.assertEqual(registry["items"][0]["username"], "cody")
 
     def test_secrets_keychain_list_filters_current_project(self) -> None:
         module = load_cli_module()
@@ -739,6 +746,7 @@ class HostedCliShapeTests(unittest.TestCase):
                             "label": "OpenAI Primary",
                             "provider": "openai",
                             "kind": "api_key",
+                            "username": "cody",
                             "env_var_name": "OPENAI_API_KEY",
                             "status": "active",
                             "keychain_service": "orp.secret.openai",
@@ -761,6 +769,7 @@ class HostedCliShapeTests(unittest.TestCase):
                             "label": "Anthropic Primary",
                             "provider": "anthropic",
                             "kind": "api_key",
+                            "username": "anthropic-user",
                             "env_var_name": "ANTHROPIC_API_KEY",
                             "status": "active",
                             "keychain_service": "orp.secret.anthropic",
@@ -810,6 +819,7 @@ class HostedCliShapeTests(unittest.TestCase):
                             "label": "OpenAI Primary",
                             "provider": "openai",
                             "kind": "api_key",
+                            "username": "cody",
                             "env_var_name": "OPENAI_API_KEY",
                             "status": "active",
                             "keychain_service": "orp.secret.openai",
@@ -834,6 +844,7 @@ class HostedCliShapeTests(unittest.TestCase):
             payload = json.loads(buf.getvalue())
             self.assertEqual(payload["source"], "keychain")
             self.assertEqual(payload["secret"]["alias"], "openai-primary")
+            self.assertEqual(payload["secret"]["username"], "cody")
             self.assertEqual(payload["value"], "sk-local")
 
     def test_secrets_resolve_local_first_uses_keychain_cache(self) -> None:
@@ -867,6 +878,7 @@ class HostedCliShapeTests(unittest.TestCase):
                             "label": "OpenAI Primary",
                             "provider": "openai",
                             "kind": "api_key",
+                            "username": "cody",
                             "env_var_name": "OPENAI_API_KEY",
                             "status": "active",
                             "value_version": "",

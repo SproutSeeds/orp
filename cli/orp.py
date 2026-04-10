@@ -10736,7 +10736,7 @@ def _about_payload() -> dict[str, Any]:
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
             "Agent modes are lightweight optional overlays for taste, perspective shifts, and fresh movement; `orp mode nudge sleek-minimal-progressive --json` gives agents a deterministic reminder they can call on when they want a deeper, wider, top-down, or rotated lens without changing ORP's core artifact boundaries.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
-            "Secrets are easiest to understand as saved keys and tokens: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, and local macOS Keychain caching plus hosted sync are optional layers on top.",
+            "Secrets are easiest to understand as saved credentials and related login metadata: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, optional usernames can be stored alongside the secret when a service needs them, and local macOS Keychain caching plus hosted sync are optional layers on top.",
             "Connections give ORP one place to remember service accounts, public data sources, deployment targets, and which saved secret alias or named secret bindings power each integration through `orp connections providers`, `orp connections list`, `orp connections show`, `orp connections add`, `orp connections update`, `orp connections remove`, `orp connections sync`, and `orp connections pull`.",
             "Agenda refresh is built into ORP through `orp agenda refresh`, `orp agenda actions`, `orp agenda suggestions`, `orp agenda focus`, and `orp agenda set-north-star`, using a Codex reasoning pass over current workspace, GitHub, opportunities, and connection context to keep a ranked action list and a ranked suggestion list.",
             "Recurring agenda refreshes are always explicit opt-in. Nothing runs on a schedule until the user enables it with `orp agenda enable-refreshes`; `orp agenda refresh-status` shows the current state and default morning/afternoon/evening presets.",
@@ -10998,7 +10998,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp workspaces list --json",
         },
         {
-            "label": "Inspect saved keys and tokens already known to ORP",
+            "label": "Inspect saved credentials and usernames already known to ORP",
             "command": "orp secrets list --json",
         },
         {
@@ -11365,7 +11365,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             },
             {
                 "id": "secrets",
-                "description": "Saved API keys and tokens, with an interactive human flow, a stdin agent flow, optional local macOS Keychain caching, and optional hosted sync.",
+                "description": "Saved API keys, tokens, passwords, and optional usernames, with an interactive human flow, a stdin agent flow, optional local macOS Keychain caching, and optional hosted sync.",
                 "entrypoints": [
                     "orp secrets list --json",
                     "orp secrets show <alias-or-id> --json",
@@ -18573,6 +18573,7 @@ def _print_secret_human(
             ("secret.label", str(secret.get("label", "")).strip()),
             ("secret.provider", str(secret.get("provider", "")).strip()),
             ("secret.kind", str(secret.get("kind", "")).strip()),
+            ("secret.username", str(secret.get("username", "")).strip()),
             ("secret.env_var_name", str(secret.get("envVarName", "")).strip()),
             ("secret.preview", str(secret.get("valuePreview", "")).strip()),
             ("secret.version", str(secret.get("valueVersion", "")).strip()),
@@ -18630,6 +18631,7 @@ def _keychain_comment_for_secret(secret: dict[str, Any]) -> str:
         "secret_id": str(secret.get("id", "")).strip(),
         "alias": str(secret.get("alias", "")).strip(),
         "provider": str(secret.get("provider", "")).strip(),
+        "username": str(secret.get("username", "")).strip(),
         "env_var_name": str(secret.get("envVarName", "")).strip(),
     }
     return json.dumps(payload, sort_keys=True)
@@ -18692,6 +18694,7 @@ def _build_keychain_registry_entry(
         "label": str(secret.get("label", "")).strip(),
         "provider": str(secret.get("provider", "")).strip(),
         "kind": str(secret.get("kind", "")).strip(),
+        "username": str(secret.get("username", "")).strip(),
         "env_var_name": str(secret.get("envVarName", "")).strip(),
         "status": str(secret.get("status", "")).strip(),
         "value_version": str(secret.get("valueVersion", "")).strip(),
@@ -18712,6 +18715,7 @@ def _secret_payload_from_keychain_entry(entry: dict[str, Any]) -> dict[str, Any]
         "label": str(entry.get("label", "")).strip(),
         "provider": str(entry.get("provider", "")).strip(),
         "kind": str(entry.get("kind", "")).strip(),
+        "username": str(entry.get("username", "")).strip(),
         "envVarName": str(entry.get("env_var_name", "")).strip(),
         "status": str(entry.get("status", "")).strip(),
         "valueVersion": str(entry.get("value_version", "")).strip(),
@@ -20371,6 +20375,10 @@ def cmd_secrets_add(args: argparse.Namespace) -> int:
         "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
         "value": value,
     }
+    username = getattr(args, "username", None)
+    if username is not None:
+        text = str(username).strip()
+        body["username"] = text or None
     env_var_name = getattr(args, "env_var_name", None)
     if env_var_name is not None:
         text = str(env_var_name).strip()
@@ -20427,6 +20435,10 @@ def cmd_secrets_ensure(args: argparse.Namespace) -> int:
             "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
             "value": value,
         }
+        username = getattr(args, "username", None)
+        if username is not None:
+            text = str(username).strip()
+            body["username"] = text or None
         env_var_name = getattr(args, "env_var_name", None)
         if env_var_name is not None:
             text = str(env_var_name).strip()
@@ -20509,6 +20521,7 @@ def cmd_secrets_update(args: argparse.Namespace) -> int:
         ("label", "label"),
         ("provider", "provider"),
         ("kind", "kind"),
+        ("username", "username"),
         ("env_var_name", "envVarName"),
         ("notes", "notes"),
         ("status", "status"),
@@ -20516,7 +20529,7 @@ def cmd_secrets_update(args: argparse.Namespace) -> int:
         value = getattr(args, attr_name, None)
         if value is not None:
             text = str(value).strip()
-            if body_key in {"envVarName", "notes"}:
+            if body_key in {"username", "envVarName", "notes"}:
                 body[body_key] = text or None
             else:
                 body[body_key] = text
@@ -23197,9 +23210,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets = sub.add_parser(
         "secrets",
-        help="Save and reuse API keys and tokens locally, with optional hosted sync",
+        help="Save and reuse API keys, tokens, passwords, and related login usernames",
         description=(
-            "ORP secrets are easiest to understand as saved keys and tokens.\n\n"
+            "ORP secrets are easiest to understand as saved credentials and related login metadata.\n\n"
             "Human flow:\n"
             "  1. Run `orp secrets add ...`\n"
             "  2. Paste the value when ORP prompts `Secret value:`\n"
@@ -23211,6 +23224,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai\n"
+            "  orp secrets add --alias huggingface-login --label \"Hugging Face Login\" --provider huggingface --kind password --username cody\n"
             "  printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai --value-stdin\n"
             "  orp secrets list\n"
             "  orp secrets resolve openai-primary --reveal"
@@ -23250,6 +23264,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="api_key",
         help="Secret kind (default: api_key)",
     )
+    s_secrets_add.add_argument(
+        "--username",
+        default=None,
+        help="Optional username or login identifier that belongs with this credential",
+    )
     s_secrets_add.add_argument("--env-var-name", default=None, help="Optional env var name, for example OPENAI_API_KEY")
     s_secrets_add.add_argument("--value", default=None, help="Secret value")
     s_secrets_add.add_argument(
@@ -23281,6 +23300,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["api_key", "access_token", "password", "other"],
         default="api_key",
         help="Secret kind when create-if-missing is needed (default: api_key)",
+    )
+    s_secrets_ensure.add_argument(
+        "--username",
+        default=None,
+        help="Optional username or login identifier to store on create-if-missing flows",
     )
     s_secrets_ensure.add_argument(
         "--env-var-name",
@@ -23359,6 +23383,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Secret kind",
     )
+    s_secrets_update.add_argument("--username", default=None, help="Updated username or login identifier")
     s_secrets_update.add_argument("--env-var-name", default=None, help="Updated env var name")
     s_secrets_update.add_argument("--value", default=None, help="New secret value")
     s_secrets_update.add_argument(

@@ -441,6 +441,17 @@ That is the clearest beginner flow:
 4. list or show it later
 5. resolve it when you need to use it
 
+If the service needs a username too, save that alongside the secret:
+
+```bash
+orp secrets add --alias huggingface-login --label "Hugging Face Login" --provider huggingface --kind password --username cody
+```
+
+That means ORP can remember both:
+
+- the secret value
+- the related username/login identifier
+
 #### Agent or script flow
 
 If an agent or script needs to save a key non-interactively, use stdin:

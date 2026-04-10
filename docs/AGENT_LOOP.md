@@ -61,6 +61,7 @@ read:
 - If the task needs an API key or token that is not already available, save it first:
   - human interactive path:
     - `orp secrets add --alias <alias> --label "<label>" --provider <provider>`
+    - `orp secrets add --alias <alias> --label "<label>" --provider <provider> --kind password --username <login>`
   - agent/script path:
     - `printf '%s' '<secret>' | orp secrets add --alias <alias> --label "<label>" --provider <provider> --value-stdin`
   - convenience path:
