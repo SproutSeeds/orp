@@ -46,6 +46,22 @@ class HostedCliShapeTests(unittest.TestCase):
             }
         )
 
+    def test_hosted_html_404_is_reported_without_dumping_page(self) -> None:
+        module = load_cli_module()
+        error = module._hosted_api_error(
+            base_url="https://orp.earth",
+            path="/api/cli/secrets",
+            method="GET",
+            status=404,
+            payload={"error": "<!DOCTYPE html><html><body>not found</body></html>"},
+        )
+
+        message = str(error)
+        self.assertIn("Hosted ORP returned an HTML error page instead of JSON", message)
+        self.assertIn("path=/api/cli/secrets", message)
+        self.assertIn("hosted API route may not be deployed", message)
+        self.assertNotIn("<!DOCTYPE html>", message)
+
     def test_ideas_list_accepts_items_and_next_cursor_shape(self) -> None:
         module = load_cli_module()
 

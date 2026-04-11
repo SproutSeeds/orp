@@ -3443,6 +3443,9 @@ def _hosted_api_error(
     payload: dict[str, Any] | None,
 ) -> HostedApiError:
     message = str((payload or {}).get("error") or (payload or {}).get("message") or f"Request failed: {status}")
+    stripped_message = message.lstrip()
+    if stripped_message.startswith("<!DOCTYPE html") or stripped_message.startswith("<html"):
+        message = "Hosted ORP returned an HTML error page instead of JSON"
     suffix = f" (status={status} path={path})"
     hint = ""
     if status == 401:
@@ -3450,7 +3453,13 @@ def _hosted_api_error(
     elif status == 403:
         hint = " The hosted ORP app rejected the operation. Check permissions on the target record."
     elif status == 404:
-        hint = " The hosted record may have changed. Re-list the resource and retry."
+        if message == "Hosted ORP returned an HTML error page instead of JSON":
+            hint = (
+                " The hosted API route may not be deployed at this base URL. "
+                "Check ORP_BASE_URL or deploy the hosted ORP app."
+            )
+        else:
+            hint = " The hosted record may have changed. Re-list the resource and retry."
     elif status == 409:
         hint = " The hosted record changed since you last fetched it. Re-open it and retry the update."
     return HostedApiError(f"{message}{suffix}.{hint}".replace("..", "."))
