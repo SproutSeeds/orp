@@ -19,3 +19,6 @@ node_modules/
 
 # Local Coda workspace state
 /.coda/
+
+# Local Clawdad runtime state
+/.clawdad/
