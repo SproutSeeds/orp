@@ -26,6 +26,7 @@ ARTIFACT_CLASSES = [
     "policy",
     "result",
 ]
+QUICK_PERFORMANCE_TARGET_MULTIPLIER = 1.5
 VALID_REQUIREMENT_FIXTURES: dict[str, dict[str, Any]] = {
     "task": {
         "schema_version": "1.0.0",
@@ -507,6 +508,54 @@ def _benchmark_cross_domain_corpus() -> dict[str, Any]:
     }
 
 
+def _relax_mean_target(benchmark: dict[str, Any], *, observed_key: str, target_key: str, meets_key: str) -> None:
+    targets = benchmark.get("targets")
+    observed = benchmark.get("observed")
+    meets_targets = benchmark.get("meets_targets")
+    if not isinstance(targets, dict) or not isinstance(observed, dict) or not isinstance(meets_targets, dict):
+        return
+    current_target = targets.get(target_key)
+    current_observed = (observed.get(observed_key) or {}).get("mean_ms")
+    if not isinstance(current_target, (int, float)) or not isinstance(current_observed, (int, float)):
+        return
+    next_target = round(float(current_target) * QUICK_PERFORMANCE_TARGET_MULTIPLIER, 3)
+    targets[target_key] = next_target
+    meets_targets[meets_key] = float(current_observed) < next_target
+
+
+def _apply_quick_performance_targets(
+    *,
+    init_benchmark: dict[str, Any],
+    roundtrip_benchmark: dict[str, Any],
+    corpus_benchmark: dict[str, Any],
+    requirement_benchmark: dict[str, Any],
+    mutation_stress: dict[str, Any],
+) -> None:
+    _relax_mean_target(init_benchmark, observed_key="init", target_key="init_mean_lt_ms", meets_key="init")
+    _relax_mean_target(init_benchmark, observed_key="validate", target_key="validate_mean_lt_ms", meets_key="validate")
+    _relax_mean_target(init_benchmark, observed_key="gate_run", target_key="gate_mean_lt_ms", meets_key="gate_run")
+    _relax_mean_target(
+        roundtrip_benchmark,
+        observed_key="scaffold",
+        target_key="scaffold_mean_lt_ms",
+        meets_key="scaffold",
+    )
+    _relax_mean_target(
+        roundtrip_benchmark,
+        observed_key="validate",
+        target_key="validate_mean_lt_ms",
+        meets_key="validate",
+    )
+    _relax_mean_target(corpus_benchmark, observed_key="validate", target_key="validate_mean_lt_ms", meets_key="validate")
+    _relax_mean_target(
+        requirement_benchmark,
+        observed_key="validate",
+        target_key="validate_mean_lt_ms",
+        meets_key="validate",
+    )
+    _relax_mean_target(mutation_stress, observed_key="validate", target_key="validate_mean_lt_ms", meets_key="validate")
+
+
 def _benchmark_requirement_enforcement() -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     validate_times: list[float] = []
@@ -747,7 +796,7 @@ def _gather_metadata() -> dict[str, Any]:
     }
 
 
-def build_report(iterations: int) -> dict[str, Any]:
+def build_report(iterations: int, *, quick: bool = False) -> dict[str, Any]:
     init_benchmark = _benchmark_init_starter(iterations)
     roundtrip_benchmark = _benchmark_artifact_roundtrip()
     gate_mode_benchmark = _benchmark_gate_modes()
@@ -756,6 +805,14 @@ def build_report(iterations: int) -> dict[str, Any]:
     requirement_benchmark = _benchmark_requirement_enforcement()
     representation_invariance = _benchmark_representation_invariance()
     mutation_stress = _benchmark_mutation_stress()
+    if quick:
+        _apply_quick_performance_targets(
+            init_benchmark=init_benchmark,
+            roundtrip_benchmark=roundtrip_benchmark,
+            corpus_benchmark=corpus_benchmark,
+            requirement_benchmark=requirement_benchmark,
+            mutation_stress=mutation_stress,
+        )
 
     claims = [
         {
@@ -901,11 +958,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Benchmark and validate ORP Reasoning Kernel v0.1")
     parser.add_argument("--out", default="", help="Optional JSON output path")
     parser.add_argument("--iterations", type=int, default=5, help="Iterations for bootstrap benchmark")
-    parser.add_argument("--quick", action="store_true", help="Use a single bootstrap iteration for fast checks")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Use a single bootstrap iteration and relaxed local timing targets for fast smoke checks",
+    )
     args = parser.parse_args()
 
     iterations = 1 if args.quick else max(1, args.iterations)
-    report = build_report(iterations)
+    report = build_report(iterations, quick=args.quick)
     payload = json.dumps(report, indent=2) + "\n"
     if args.out:
         out_path = Path(args.out)

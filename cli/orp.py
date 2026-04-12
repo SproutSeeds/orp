@@ -286,7 +286,7 @@ YOUTUBE_ANDROID_CLIENT_VERSION = "20.10.38"
 YOUTUBE_ANDROID_USER_AGENT = (
     f"com.google.android.youtube/{YOUTUBE_ANDROID_CLIENT_VERSION} (Linux; U; Android 14)"
 )
-AGENT_MODE_REGISTRY_VERSION = "1.0.0"
+AGENT_MODE_REGISTRY_VERSION = "1.2.0"
 AGENT_MODES: list[dict[str, Any]] = [
     {
         "id": "sleek-minimal-progressive",
@@ -597,6 +597,175 @@ AGENT_MODES: list[dict[str, Any]] = [
             },
         ],
     },
+    {
+        "id": "granular-breakdown",
+        "aliases": ["breakdown", "breakdown-mode", "stepwise-breakdown", "gb"],
+        "label": "Granular Breakdown",
+        "summary": "An optional comprehension overlay for breaking complex work into smaller pieces, ordered dependencies, and concrete next moves.",
+        "operator_reminder": "Use this when the work is hard to hold in your head, when the user sounds confused, or when a plan needs more intentional granularity before execution.",
+        "activation_phrase": "Break it down until it can move.",
+        "invocation_style": "Optional but core-loop friendly. Call it whenever comprehension, onboarding, or safe execution would improve with smaller steps.",
+        "when_to_use": [
+            "When a project, error, or plan feels too large to reason about at once.",
+            "When the user asks what something means or seems unsure about the workflow.",
+            "When a change has several dependencies that should be sequenced before implementation.",
+            "When a handoff needs to be understandable to a future agent or collaborator.",
+        ],
+        "perspective_shifts": [
+            "Turn the blob into named parts before debating solutions.",
+            "Separate current state, desired state, blockers, and next action.",
+            "Order the parts by dependency, risk, and user comprehension.",
+            "Prefer a small verified loop over a large impressive explanation.",
+        ],
+        "principles": [
+            "Granularity is a service to comprehension, not a performance of detail.",
+            "Every breakdown should create a next move, not just a longer list.",
+            "Name assumptions before building on top of them.",
+            "Compress again after decomposing so the user gets clarity, not clutter.",
+        ],
+        "ritual": [
+            "Name the whole problem in one sentence.",
+            "Split it into current state, desired state, and missing bridge.",
+            "List the smallest meaningful steps in dependency order.",
+            "Identify the next test or confirmation that proves movement.",
+        ],
+        "questions": [
+            "What are the actual pieces here?",
+            "Which piece needs to be understood first for the rest to make sense?",
+            "What is blocking action versus only blocking confidence?",
+            "What is the smallest safe step that would reduce ambiguity?",
+            "After the breakdown, what can we compress back into one clear sentence?",
+        ],
+        "anti_patterns": [
+            "Making a breakdown so exhaustive that it becomes another wall of confusion.",
+            "Skipping the dependency order and calling a pile of bullets a plan.",
+            "Explaining implementation details before naming the user's actual question.",
+            "Using granularity to delay the next concrete move.",
+        ],
+        "micro_loop": [
+            "Name the whole confusing thing in one plain sentence.",
+            "Split it into current state, desired state, missing bridge, and dependency order.",
+            "Choose one small verification that reduces ambiguity, then compress the result back down.",
+        ],
+        "breakdown_sequence": [
+            {
+                "level_id": "L0_whole_frame",
+                "title": "Whole Frame",
+                "purpose": "Start broad enough that the user and future agent know what object is being decomposed.",
+                "prompt": "What is the broad claim, request, or confusion in one plain sentence?",
+                "output": "One sentence that names the top-level object without trying to solve it yet.",
+                "completion_check": "A future reader can tell what cathedral we are talking about before seeing any stones.",
+            },
+            {
+                "level_id": "L1_boundary",
+                "title": "Boundary",
+                "purpose": "Separate proof, implementation, and discovery so the breakdown does not overclaim.",
+                "prompt": "What is the exact desired state, and what is explicitly not being claimed yet?",
+                "output": "A narrowed north star plus falsifier, exception, or overclaim boundaries.",
+                "completion_check": "The target is smaller than the dream and honest about what remains unproved or undone.",
+            },
+            {
+                "level_id": "L2_major_lanes",
+                "title": "Major Lanes",
+                "purpose": "Break the top-level target into a small number of non-overlapping lanes.",
+                "prompt": "Which 3-7 lanes or phases cover the work without overlapping too much?",
+                "output": "Named lanes such as counting language, compatibility language, graph reduction, matching bounds, margin lift, finite closure.",
+                "completion_check": "Every important concern has a lane, and no lane is pretending to be the whole proof or project.",
+            },
+            {
+                "level_id": "L3_subclaims",
+                "title": "Subclaims",
+                "purpose": "Turn each lane into named obligations that can be owned, proved, tested, or handed off.",
+                "prompt": "What smaller claims, tasks, or lemmas make each lane true?",
+                "output": "Task IDs with statements, hypotheses, dependencies, and proof or work type.",
+                "completion_check": "Each subclaim is small enough to discuss independently and large enough to matter.",
+            },
+            {
+                "level_id": "L4_atomic_obligations",
+                "title": "Atomic Obligations",
+                "purpose": "Descend until each item is concrete enough to verify independently.",
+                "prompt": "Can each subclaim be split until it is either a definition check, counting identity, graph identity, finite check, data check, API check, or implementation step?",
+                "output": "Sub-sub-lemmas or atomic tasks with a falsifier boundary for each.",
+                "completion_check": "Every atomic item can be proved, computed, tested, or falsified without needing the whole plan in memory.",
+            },
+            {
+                "level_id": "L5_dependency_ladder",
+                "title": "Dependency Ladder",
+                "purpose": "Order the atomic pieces by prerequisite, risk, and comprehension value.",
+                "prompt": "What has to be true before the next rung can safely happen?",
+                "output": "A dependency-ordered ladder with blockers, ready steps, and downstream unlocks.",
+                "completion_check": "The first few moves are ordered for real dependency reasons, not just narrative convenience.",
+            },
+            {
+                "level_id": "L6_active_target",
+                "title": "Active Target",
+                "purpose": "Choose the first actionable rung and the current target theorem, task, or patch.",
+                "prompt": "What is the first actionable rung, what is the current target rung, and why is it the best next place to work?",
+                "output": "Current packet, first actionable step, target step, and why this is the next best move.",
+                "completion_check": "The next move is obvious enough that an agent can start without re-deriving the full breakdown.",
+            },
+            {
+                "level_id": "L7_durable_checklist",
+                "title": "Durable Checklist",
+                "purpose": "Promote important breakdowns out of chat memory and into a referenceable artifact.",
+                "prompt": "Where does this breakdown live so future agents can update it without depending on chat memory?",
+                "output": "A markdown checklist plus an optional machine-readable JSON checklist with statuses, dependencies, source artifacts, and falsifier boundaries.",
+                "completion_check": "The repo has a checklist that can move steps from todo to next to done without losing context.",
+            },
+            {
+                "level_id": "L8_compress_and_continue",
+                "title": "Compress And Continue",
+                "purpose": "End simpler than we began by turning the full ladder back into the next honest move.",
+                "prompt": "After decomposing the work, what is the shortest useful summary and the next verification?",
+                "output": "A compact summary, the active target, and one verification command, artifact, or proof check.",
+                "completion_check": "The user gets clarity and momentum, not just a larger pile of scaffolding.",
+            },
+        ],
+        "durable_artifact_rule": "If the breakdown becomes operationally important, write it to a durable checklist artifact with step IDs, dependencies, statuses, source artifacts, falsifier boundaries, and the first active target.",
+        "breakdown_output_contract": [
+            "Broad Frame",
+            "Boundary",
+            "Major Lanes",
+            "Subclaims",
+            "Atomic Obligations",
+            "Dependency Ladder",
+            "Active Target",
+            "Durable Checklist",
+            "Next Verification",
+        ],
+        "nudge_cards": [
+            {
+                "title": "Name The Blob",
+                "prompt": "Write the whole confusing thing as one sentence, then split it into three named parts.",
+                "twist": "If a part cannot be named plainly, it is not understood yet.",
+                "release": "A named part is easier to move than an unnamed worry.",
+            },
+            {
+                "title": "Current / Desired / Bridge",
+                "prompt": "Separate current state, desired state, and the missing bridge before proposing the fix.",
+                "twist": "Do not let the desired state masquerade as the plan.",
+                "release": "The bridge is where the real work usually lives.",
+            },
+            {
+                "title": "Dependency Ladder",
+                "prompt": "Order the next steps by what must be true before the following step can safely happen.",
+                "twist": "Put user comprehension on the ladder, not only code dependencies.",
+                "release": "A good ladder makes the climb feel obvious.",
+            },
+            {
+                "title": "Tiny Verified Loop",
+                "prompt": "Choose one small action and one verification that would reduce ambiguity within the next pass.",
+                "twist": "The step should be small enough to finish, but real enough to matter.",
+                "release": "Confidence compounds through verified movement.",
+            },
+            {
+                "title": "Explain Then Compress",
+                "prompt": "Break the topic down in detail, then compress the result into the shortest useful summary.",
+                "twist": "Do not leave the user with the scaffolding if the building is now clear.",
+                "release": "The best breakdown ends simpler than it began.",
+            },
+        ],
+    },
 ]
 
 
@@ -641,6 +810,7 @@ def _agent_mode_public_payload(mode: dict[str, Any]) -> dict[str, Any]:
         "questions": [str(row).strip() for row in mode.get("questions", []) if str(row).strip()],
         "anti_patterns": [str(row).strip() for row in mode.get("anti_patterns", []) if str(row).strip()],
         "nudge_card_count": len(mode.get("nudge_cards", [])) if isinstance(mode.get("nudge_cards"), list) else 0,
+        "breakdown_sequence_count": len(mode.get("breakdown_sequence", [])) if isinstance(mode.get("breakdown_sequence"), list) else 0,
     }
 
 
@@ -659,6 +829,13 @@ def _agent_mode_nudge(mode: dict[str, Any], *, seed: str = "") -> dict[str, Any]
     digest = hashlib.sha256(f"{mode['id']}::{effective_seed}".encode("utf-8")).hexdigest()
     index = int(digest[:8], 16) % len(cards)
     card = cards[index]
+    micro_loop = mode.get("micro_loop", [])
+    if not isinstance(micro_loop, list) or not micro_loop:
+        micro_loop = [
+            "Choose the right lens first: deeper, higher, wider, or rotated.",
+            "Make one pass sleeker by removing friction and generic weight.",
+            "Make one pass playful or progressive by trying one meaningful shift in angle.",
+        ]
     return {
         "mode": _agent_mode_public_payload(mode),
         "seed": effective_seed,
@@ -669,11 +846,57 @@ def _agent_mode_nudge(mode: dict[str, Any], *, seed: str = "") -> dict[str, Any]
             "twist": str(card.get("twist", "")).strip(),
             "release": str(card.get("release", "")).strip(),
         },
-        "micro_loop": [
-            "Choose the right lens first: deeper, higher, wider, or rotated.",
-            "Make one pass sleeker by removing friction and generic weight.",
-            "Make one pass playful or progressive by trying one meaningful shift in angle.",
-        ],
+        "micro_loop": [str(row).strip() for row in micro_loop if str(row).strip()],
+    }
+
+
+def _agent_mode_breakdown(mode: dict[str, Any], *, topic: str = "") -> dict[str, Any]:
+    sequence = mode.get("breakdown_sequence", [])
+    if not isinstance(sequence, list) or not sequence:
+        raise RuntimeError("This mode does not define a breakdown sequence.")
+
+    normalized_sequence: list[dict[str, str]] = []
+    for row in sequence:
+        if not isinstance(row, dict):
+            continue
+        normalized_sequence.append(
+            {
+                "level_id": str(row.get("level_id", row.get("level", ""))).strip(),
+                "title": str(row.get("title", row.get("label", ""))).strip(),
+                "purpose": str(row.get("purpose", "")).strip(),
+                "prompt": str(row.get("prompt", row.get("question", ""))).strip(),
+                "output": str(row.get("output", "")).strip(),
+                "completion_check": str(row.get("completion_check", "")).strip(),
+            }
+        )
+
+    artifact_rule = str(mode.get("durable_artifact_rule", mode.get("artifact_rule", ""))).strip()
+    output_contract = [
+        str(row).strip()
+        for row in mode.get(
+            "breakdown_output_contract",
+            [
+                "Broad Frame",
+                "Boundary",
+                "Major Lanes",
+                "Subclaims",
+                "Atomic Obligations",
+                "Dependency Ladder",
+                "Active Target",
+                "Durable Checklist",
+                "Next Verification",
+            ],
+        )
+        if str(row).strip()
+    ]
+
+    return {
+        "mode": _agent_mode_public_payload(mode),
+        "topic": str(topic or "").strip(),
+        "sequence": normalized_sequence,
+        "durable_artifact_rule": artifact_rule,
+        "artifact_rule": artifact_rule,
+        "output_contract": output_contract,
     }
 
 
@@ -10641,6 +10864,7 @@ def _about_payload() -> dict[str, Any]:
             {"name": "mode_list", "path": ["mode", "list"], "json_output": True},
             {"name": "mode_show", "path": ["mode", "show"], "json_output": True},
             {"name": "mode_nudge", "path": ["mode", "nudge"], "json_output": True},
+            {"name": "mode_breakdown", "path": ["mode", "breakdown"], "json_output": True},
             {"name": "secrets_list", "path": ["secrets", "list"], "json_output": True},
             {"name": "secrets_show", "path": ["secrets", "show"], "json_output": True},
             {"name": "secrets_add", "path": ["secrets", "add"], "json_output": True},
@@ -10743,7 +10967,7 @@ def _about_payload() -> dict[str, Any]:
             "Knowledge exchange is a built-in ORP ability exposed through `orp exchange repo synthesize`, producing structured exchange artifacts and transfer maps for local or remote source repositories.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
-            "Agent modes are lightweight optional overlays for taste, perspective shifts, and fresh movement; `orp mode nudge sleek-minimal-progressive --json` gives agents a deterministic reminder they can call on when they want a deeper, wider, top-down, or rotated lens without changing ORP's core artifact boundaries.",
+            "Agent modes are lightweight optional overlays for taste, perspective shifts, fresh movement, and intentional comprehension breakdowns; `orp mode breakdown granular-breakdown --json` gives agents a broad-to-atomic ladder for complex work, while `orp mode nudge granular-breakdown --json` gives a short reminder card.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
             "Secrets are easiest to understand as saved credentials and related login metadata: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, optional usernames can be stored alongside the secret when a service needs them, and local macOS Keychain caching plus hosted sync are optional layers on top.",
             "Connections give ORP one place to remember service accounts, public data sources, deployment targets, and which saved secret alias or named secret bindings power each integration through `orp connections providers`, `orp connections list`, `orp connections show`, `orp connections add`, `orp connections update`, `orp connections remove`, `orp connections sync`, and `orp connections pull`.",
@@ -10899,6 +11123,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "label": "Get an optional creativity/perspective nudge",
             "command": "orp mode nudge sleek-minimal-progressive --json",
         },
+        {
+            "label": "Break complex work into smaller intentional steps",
+            "command": "orp mode breakdown granular-breakdown --json",
+        },
     ]
 
     quick_actions = [
@@ -11001,6 +11229,14 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Get an optional creative perspective nudge for agent work",
             "command": "orp mode nudge sleek-minimal-progressive --json",
+        },
+        {
+            "label": "Get an optional breakdown nudge when work needs more granularity",
+            "command": "orp mode nudge granular-breakdown --json",
+        },
+        {
+            "label": "Generate a broad-to-atomic breakdown ladder for complex work",
+            "command": "orp mode breakdown granular-breakdown --json",
         },
         {
             "label": "List first-class hosted workspaces",
@@ -11365,11 +11601,14 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             },
             {
                 "id": "modes",
-                "description": "Lightweight optional cognitive overlays for taste, creativity, perspective shifts, and exploratory momentum.",
+                "description": "Lightweight optional cognitive overlays for taste, creativity, perspective shifts, exploratory momentum, and granular comprehension breakdowns.",
                 "entrypoints": [
                     "orp mode list --json",
                     "orp mode show sleek-minimal-progressive --json",
                     "orp mode nudge sleek-minimal-progressive --json",
+                    "orp mode show granular-breakdown --json",
+                    "orp mode nudge granular-breakdown --json",
+                    "orp mode breakdown granular-breakdown --json",
                 ],
             },
             {
@@ -15033,6 +15272,7 @@ def cmd_mode_show(args: argparse.Namespace) -> int:
             ("mode.activation_phrase", mode_payload["activation_phrase"]),
             ("mode.invocation_style", mode_payload["invocation_style"]),
             ("mode.nudge_card_count", mode_payload["nudge_card_count"]),
+            ("mode.breakdown_sequence_count", mode_payload["breakdown_sequence_count"]),
         ]
     )
     for key in ("when_to_use", "perspective_shifts", "principles", "ritual", "questions", "anti_patterns"):
@@ -15069,6 +15309,43 @@ def cmd_mode_nudge(args: argparse.Namespace) -> int:
     )
     print("nudge.micro_loop:")
     for row in payload["micro_loop"]:
+        print(f"- {row}")
+    return 0
+
+
+def cmd_mode_breakdown(args: argparse.Namespace) -> int:
+    mode = _agent_mode(getattr(args, "mode_ref", ""))
+    payload = {
+        "ok": True,
+        **_agent_mode_breakdown(mode, topic=str(getattr(args, "topic", "") or "").strip()),
+    }
+    if args.json_output:
+        _print_json(payload)
+        return 0
+
+    pairs = [
+        ("mode.id", payload["mode"]["id"]),
+        ("mode.label", payload["mode"]["label"]),
+        ("mode.activation_phrase", payload["mode"]["activation_phrase"]),
+    ]
+    if payload["topic"]:
+        pairs.append(("breakdown.topic", payload["topic"]))
+    pairs.append(("breakdown.sequence_count", len(payload["sequence"])))
+    _print_pairs(pairs)
+
+    print("breakdown.sequence:")
+    for index, row in enumerate(payload["sequence"], start=1):
+        title = row.get("title", "")
+        level_id = row.get("level_id", "")
+        print(f"{index}. {title} [{level_id}]")
+        for key in ("purpose", "prompt", "output", "completion_check"):
+            value = str(row.get(key, "")).strip()
+            if value:
+                print(f"   {key}: {value}")
+    if payload["durable_artifact_rule"]:
+        print(f"durable_artifact_rule={payload['durable_artifact_rule']}")
+    print("output_contract:")
+    for row in payload["output_contract"]:
         print(f"- {row}")
     return 0
 
@@ -22366,7 +22643,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_mode = sub.add_parser(
         "mode",
-        help="Agent-first creative and cognitive overlay modes",
+        help="Agent-first cognitive overlay modes for creativity, perspective, and breakdown",
     )
     mode_sub = s_mode.add_subparsers(dest="mode_cmd", required=True)
 
@@ -22381,7 +22658,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_mode_nudge = mode_sub.add_parser(
         "nudge",
-        help="Return a deterministic creativity nudge card for one agent mode",
+        help="Return a deterministic nudge card for one agent mode",
     )
     s_mode_nudge.add_argument("mode_ref", help="Mode id or alias")
     s_mode_nudge.add_argument(
@@ -22391,6 +22668,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_mode_nudge)
     s_mode_nudge.set_defaults(func=cmd_mode_nudge, json_output=False)
+
+    s_mode_breakdown = mode_sub.add_parser(
+        "breakdown",
+        help="Return a broad-to-atomic breakdown ladder for one agent mode",
+    )
+    s_mode_breakdown.add_argument("mode_ref", help="Mode id or alias")
+    s_mode_breakdown.add_argument(
+        "--topic",
+        default="",
+        help="Optional topic label for the breakdown target",
+    )
+    add_json_flag(s_mode_breakdown)
+    s_mode_breakdown.set_defaults(func=cmd_mode_breakdown, json_output=False)
 
     s_update = sub.add_parser(
         "update",

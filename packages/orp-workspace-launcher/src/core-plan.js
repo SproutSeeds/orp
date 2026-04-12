@@ -282,6 +282,37 @@ function normalizeStructuredTab(rawTab, index) {
   };
 }
 
+function normalizeStructuredProject(rawProject, projectIndex) {
+  if (!rawProject || typeof rawProject !== "object" || Array.isArray(rawProject)) {
+    throw new Error(`workspace project ${projectIndex + 1} must be an object`);
+  }
+
+  const projectPath = validateAbsolutePath(rawProject.path, `workspace project ${projectIndex + 1} path`);
+  const sessions = Array.isArray(rawProject.sessions) && rawProject.sessions.length > 0 ? rawProject.sessions : [{}];
+
+  return sessions.map((rawSession, sessionIndex) => {
+    if (!rawSession || typeof rawSession !== "object" || Array.isArray(rawSession)) {
+      throw new Error(`workspace project ${projectIndex + 1} session ${sessionIndex + 1} must be an object`);
+    }
+    return normalizeStructuredTab(
+      {
+        title: rawSession.title ?? rawProject.title,
+        path: projectPath,
+        remoteUrl: rawSession.remoteUrl ?? rawProject.remoteUrl,
+        remoteBranch: rawSession.remoteBranch ?? rawProject.remoteBranch,
+        bootstrapCommand: rawSession.bootstrapCommand ?? rawProject.bootstrapCommand,
+        resumeCommand: rawSession.resumeCommand,
+        resumeTool: rawSession.resumeTool,
+        resumeSessionId: rawSession.resumeSessionId ?? rawSession.sessionId,
+        codexSessionId: rawSession.codexSessionId,
+        claudeSessionId: rawSession.claudeSessionId,
+        tmuxSessionName: rawSession.tmuxSessionName,
+      },
+      sessionIndex,
+    );
+  });
+}
+
 export function normalizeWorkspaceManifest(rawManifest) {
   if (!rawManifest || typeof rawManifest !== "object" || Array.isArray(rawManifest)) {
     throw new Error("workspace manifest must be a JSON object");
@@ -292,11 +323,15 @@ export function normalizeWorkspaceManifest(rawManifest) {
     throw new Error(`unsupported workspace manifest version: ${version}`);
   }
 
-  if (!Array.isArray(rawManifest.tabs)) {
-    throw new Error("workspace manifest must include a tabs array");
+  const hasProjects = Array.isArray(rawManifest.projects);
+  const hasTabs = Array.isArray(rawManifest.tabs);
+  if (!hasProjects && !hasTabs) {
+    throw new Error("workspace manifest must include a tabs array or projects array");
   }
 
-  const tabs = rawManifest.tabs.map((tab, index) => normalizeStructuredTab(tab, index));
+  const tabs = hasProjects
+    ? rawManifest.projects.flatMap((project, index) => normalizeStructuredProject(project, index))
+    : rawManifest.tabs.map((tab, index) => normalizeStructuredTab(tab, index));
   return {
     version,
     workspaceId: normalizeOptionalString(rawManifest.workspaceId),
@@ -332,6 +367,57 @@ export function deriveBaseTitle(entry) {
   }
   const normalized = normalizeDisplayPath(entry.path);
   return path.basename(normalized) || normalized;
+}
+
+export function buildWorkspaceProjectGroups(entries = []) {
+  const groups = new Map();
+
+  for (const entry of entries) {
+    const projectPath = validateAbsolutePath(entry.path, "workspace project path");
+    if (!groups.has(projectPath)) {
+      groups.set(projectPath, {
+        title: deriveBaseTitle(entry),
+        path: projectPath,
+        remoteUrl: normalizeOptionalUrl(entry.remoteUrl, "workspace project remoteUrl"),
+        remoteBranch: normalizeOptionalString(entry.remoteBranch),
+        bootstrapCommand: normalizeOptionalCommand(entry.bootstrapCommand),
+        sessions: [],
+      });
+    }
+
+    const project = groups.get(projectPath);
+    project.remoteUrl = project.remoteUrl || normalizeOptionalUrl(entry.remoteUrl, "workspace project remoteUrl");
+    project.remoteBranch = project.remoteBranch || normalizeOptionalString(entry.remoteBranch);
+    project.bootstrapCommand = project.bootstrapCommand || normalizeOptionalCommand(entry.bootstrapCommand);
+
+    const resume = resolveResumeMetadata(entry);
+    project.sessions.push(
+      Object.fromEntries(
+        Object.entries({
+          title: normalizeOptionalString(entry.title) || deriveBaseTitle(entry),
+          resumeCommand: resume.resumeCommand || undefined,
+          resumeTool: resume.resumeTool || undefined,
+          resumeSessionId: resume.resumeSessionId || undefined,
+          codexSessionId: resume.resumeTool === "codex" ? resume.resumeSessionId || undefined : undefined,
+          claudeSessionId: resume.resumeTool === "claude" ? resume.resumeSessionId || undefined : undefined,
+        }).filter(([, value]) => value !== undefined),
+      ),
+    );
+  }
+
+  return [...groups.values()].map((project) =>
+    Object.fromEntries(
+      Object.entries({
+        title: project.title,
+        path: project.path,
+        remoteUrl: project.remoteUrl || undefined,
+        remoteBranch: project.remoteBranch || undefined,
+        bootstrapCommand: project.bootstrapCommand || undefined,
+        sessionCount: project.sessions.length,
+        sessions: project.sessions,
+      }).filter(([, value]) => value !== undefined),
+    ),
+  );
 }
 
 export function deriveTmuxSessionName(entry, options = {}) {

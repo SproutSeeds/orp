@@ -5,6 +5,7 @@ import {
   buildDirectCommand,
   buildLaunchPlan,
   buildSetupCommand,
+  buildWorkspaceProjectGroups,
   deriveWorkspaceId,
   getResumeCommand,
   parseWorkspaceSource,
@@ -63,6 +64,7 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
     tmux: false,
     resume: true,
   });
+  const projectGroups = buildWorkspaceProjectGroups(launchTabs);
 
   return {
     sourceType: source.sourceType,
@@ -72,7 +74,24 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
     machine: parsed.manifest?.machine || null,
     parseMode: parsed.parseMode,
     tabCount: launchTabs.length,
+    projectCount: projectGroups.length,
     skippedCount: parsed.skipped.length,
+    projects: projectGroups.map((project) => ({
+      ...project,
+      sessions: project.sessions.map((session) => ({
+        ...session,
+        restartCommand: buildDirectCommand(
+          {
+            path: project.path,
+            resumeCommand: session.resumeCommand || null,
+            resumeTool: session.resumeTool || null,
+            resumeSessionId: session.resumeSessionId || null,
+            sessionId: session.resumeSessionId || null,
+          },
+          { resume: true },
+        ),
+      })),
+    })),
     tabs: launchTabs.map((tab, index) => ({
       index: index + 1,
       title: tab.title,
@@ -116,6 +135,7 @@ export function summarizeWorkspaceTabs(report) {
           }${report.machine.machineId ? ` [${report.machine.machineId}]` : ""}`,
         ]
       : []),
+    `Saved projects: ${report.projectCount}`,
     `Saved tabs: ${report.tabCount}`,
     `Parse mode: ${report.parseMode}`,
     "",
@@ -172,6 +192,7 @@ Options:
 
 Notes:
   - This shows the saved tab order plus any stored local path, remote repo, bootstrap command, and \`codex resume ...\` / \`claude --resume ...\` metadata.
+  - JSON output includes grouped \`projects[].sessions[]\` so duplicate project paths can be reviewed and sunset together.
   - The human-readable \`resume:\` line is already copyable and includes the saved \`cd ... && resume ...\` recovery command.
   - When a tab also has \`remote:\` or \`setup:\` lines, those are the portable cross-machine clues for cloning and preparing the repo on another rig.
   - The selector can be \`main\`, \`offhand\`, a hosted idea id, a hosted workspace id, a local workspace id, or a saved workspace title/slug.

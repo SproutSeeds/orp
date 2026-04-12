@@ -34,7 +34,14 @@ Add a new saved tab manually:
 orp workspace ledger add main --path /absolute/path/to/frg-site --resume-command "codex resume 019d348d-5031-78e1-9840-a66deaac33ae"
 orp workspace add-tab main --path /absolute/path/to/anthropic-lab --resume-tool claude --resume-session-id claude-456
 orp workspace add-tab main --path /absolute/path/to/orp-web-app --remote-url git@github.com:SproutSeeds/orp-web-app.git --bootstrap-command "pnpm install"
+orp workspace add-tab main --path /absolute/path/to/orp --title "release hardening" --resume-tool codex --resume-session-id 019d32d3-d8b2-7fa2-aaec-c74b5134afd6 --append
 ```
+
+When several saved sessions point at the same project path, ORP now also writes
+a grouped `projects` object in the manifest. The flat `tabs` list remains for
+older tools, but agents should prefer `projects[].sessions[]` when they need to
+understand all active Codex or Claude threads for one repo before pruning or
+sunsetting a session.
 
 Remove a saved tab manually:
 

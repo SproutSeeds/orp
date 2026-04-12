@@ -5,6 +5,7 @@ import process from "node:process";
 
 import {
   buildDirectCommand,
+  buildWorkspaceProjectGroups,
   deriveBaseTitle,
   normalizeWorkspaceManifest,
   parseWorkspaceSource,
@@ -110,6 +111,7 @@ function buildWorkspaceResultTab(tab) {
 
 function materializeWorkspaceManifest(manifest) {
   const normalized = normalizeWorkspaceManifest(manifest);
+  const tabs = normalized.tabs.map((tab) => materializeWorkspaceTab(tab));
   return Object.fromEntries(
     Object.entries({
       version: normalized.version,
@@ -117,7 +119,8 @@ function materializeWorkspaceManifest(manifest) {
       title: normalized.title || undefined,
       machine: normalized.machine || undefined,
       capture: normalized.capture || undefined,
-      tabs: normalized.tabs.map((tab) => materializeWorkspaceTab(tab)),
+      projects: buildWorkspaceProjectGroups(normalized.tabs),
+      tabs,
     }).filter(([, value]) => value !== undefined),
   );
 }
@@ -670,7 +673,7 @@ Options:
   --resume-tool <tool>   Build the resume command from \`codex\` or \`claude\`
   --resume-session-id <id> Resume session id to save with the tab
   --current-codex        Save the current \`CODEX_THREAD_ID\` as a Codex resume target
-  --append               Always append a new saved tab instead of updating an existing matching tab
+  --append               Add another saved session for the same project path instead of updating the existing one
   --hosted-workspace-id <id> Edit a first-class hosted workspace directly
   --workspace-file <path> Edit a local structured workspace manifest
   --json                 Print the updated workspace edit result as JSON
@@ -681,6 +684,7 @@ Examples:
   orp workspace add-tab main --here --current-codex
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-tool claude --resume-session-id claude-456
+  orp workspace add-tab main --path /absolute/path/to/new-project --title "second active thread" --resume-tool codex --resume-session-id 019d... --append
   orp workspace add-tab main --path /absolute/path/to/new-project --remote-url git@github.com:org/new-project.git --bootstrap-command "npm install"
 `);
 }

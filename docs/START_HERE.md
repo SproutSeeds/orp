@@ -191,6 +191,17 @@ If you want ORP to remember an ongoing repo path plus a resumable session, add i
 orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <session-id>"
 ```
 
+If the same project has more than one active thread, append another session for
+that path:
+
+```bash
+orp workspace add-tab main --path /absolute/path/to/project --title "release hardening" --resume-tool codex --resume-session-id <session-id> --append
+```
+
+ORP keeps the flat `tabs` list for copyable recovery order, and also stores a
+grouped `projects` object so all sessions for the same repo live together under
+`projects[].sessions[]`.
+
 For Claude:
 
 ```bash
@@ -652,12 +663,22 @@ When the work feels too linear, too trapped, or too narrow:
 orp mode nudge sleek-minimal-progressive --json
 ```
 
-This is optional. It does not override the protocol. It just gives the agent or operator a lightweight perspective shift.
+When the work feels too big, confusing, or hard to sequence:
+
+```bash
+orp mode breakdown granular-breakdown --json
+orp mode nudge granular-breakdown --json
+```
+
+Use `breakdown` for the full broad-to-atomic ladder and `nudge` for a short
+reminder card. Both are optional. They do not override the protocol. They just
+give the agent or operator a clearer thinking scaffold.
 
 It is there to help with:
 
 - getting unstuck
 - zooming in or out
+- breaking complex work into smaller intentional steps
 - rotating the angle of attack
 - keeping the work fresh without making the workflow sloppy
 

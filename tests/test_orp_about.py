@@ -417,6 +417,8 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("orp opportunities sync main-opportunities --json", commands)
             self.assertIn("orp whoami --json", commands)
             self.assertIn("orp mode nudge sleek-minimal-progressive --json", commands)
+            self.assertIn("orp mode breakdown granular-breakdown --json", commands)
+            self.assertIn("orp mode nudge granular-breakdown --json", commands)
             self.assertIn("orp workspaces list --json", commands)
             self.assertIn("orp secrets list --json", commands)
             self.assertIn('orp secrets add --alias <alias> --label "<label>" --provider <provider>', commands)

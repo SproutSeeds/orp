@@ -97,6 +97,59 @@ function matchPreviousHostedTab(tab, previousTabs) {
   return match;
 }
 
+function buildHostedProjectGroups(tabs) {
+  const groups = new Map();
+  for (const tab of tabs) {
+    const projectRoot = normalizeOptionalString(tab.project_root);
+    if (!projectRoot) {
+      continue;
+    }
+    if (!groups.has(projectRoot)) {
+      groups.set(projectRoot, {
+        title: normalizeOptionalString(tab.repo_label) || path.basename(String(projectRoot).replace(/\/+$/, "")) || projectRoot,
+        project_root: projectRoot,
+        remote_url: normalizeOptionalString(tab.remote_url),
+        remote_branch: normalizeOptionalString(tab.remote_branch),
+        bootstrap_command: normalizeOptionalString(tab.bootstrap_command),
+        sessions: [],
+      });
+    }
+    const project = groups.get(projectRoot);
+    project.remote_url = project.remote_url || normalizeOptionalString(tab.remote_url);
+    project.remote_branch = project.remote_branch || normalizeOptionalString(tab.remote_branch);
+    project.bootstrap_command = project.bootstrap_command || normalizeOptionalString(tab.bootstrap_command);
+    project.sessions.push(
+      Object.fromEntries(
+        Object.entries({
+          tab_id: normalizeOptionalString(tab.tab_id),
+          title: normalizeOptionalString(tab.title),
+          resume_command: normalizeOptionalString(tab.resume_command),
+          resume_tool: normalizeOptionalString(tab.resume_tool),
+          resume_session_id: normalizeOptionalString(tab.resume_session_id),
+          codex_session_id: normalizeOptionalString(tab.codex_session_id),
+          claude_session_id: normalizeOptionalString(tab.claude_session_id),
+          status: normalizeOptionalString(tab.status),
+          current_task: normalizeOptionalString(tab.current_task),
+        }).filter(([, value]) => value !== undefined && value !== null),
+      ),
+    );
+  }
+
+  return [...groups.values()].map((project) =>
+    Object.fromEntries(
+      Object.entries({
+        title: project.title,
+        project_root: project.project_root,
+        remote_url: project.remote_url || undefined,
+        remote_branch: project.remote_branch || undefined,
+        bootstrap_command: project.bootstrap_command || undefined,
+        session_count: project.sessions.length,
+        sessions: project.sessions,
+      }).filter(([, value]) => value !== undefined && value !== null),
+    ),
+  );
+}
+
 export function buildHostedWorkspaceState(manifest, options = {}) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     throw new Error("workspace manifest is required to build a hosted workspace state payload");
@@ -172,6 +225,7 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       }).filter(([, value]) => value !== undefined && value !== null),
     );
   });
+  const projects = buildHostedProjectGroups(tabs);
 
   const captureContext = Object.fromEntries(
     Object.entries({
@@ -210,7 +264,9 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       captured_at_utc: capturedAt,
       updated_at_utc: updatedAt,
       tab_count: tabs.length,
+      project_count: projects.length,
       capture_context: Object.keys(captureContext).length > 0 ? captureContext : undefined,
+      projects,
       tabs,
     }).filter(([, value]) => value !== undefined && value !== null),
   );

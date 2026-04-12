@@ -38,6 +38,7 @@ class OrpModeTests(unittest.TestCase):
         self.assertIn("ruthless-simplification", ids)
         self.assertIn("systems-constellation", ids)
         self.assertIn("bold-concept-generation", ids)
+        self.assertIn("granular-breakdown", ids)
 
     def test_mode_show_accepts_typo_alias(self) -> None:
         module = load_cli_module()
@@ -98,6 +99,63 @@ class OrpModeTests(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertEqual(payload["mode"]["label"], "Systems Constellation")
         self.assertGreaterEqual(payload["mode"]["nudge_card_count"], 4)
+
+    def test_mode_show_supports_granular_breakdown_alias(self) -> None:
+        module = load_cli_module()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = module.cmd_mode_show(
+                argparse.Namespace(
+                    mode_ref="breakdown",
+                    json_output=True,
+                )
+            )
+        self.assertEqual(result, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["mode"]["id"], "granular-breakdown")
+        self.assertIn("breakdown-mode", payload["mode"]["aliases"])
+        self.assertIn("smaller pieces", payload["mode"]["summary"])
+        self.assertGreaterEqual(payload["mode"]["nudge_card_count"], 5)
+
+    def test_granular_breakdown_nudge_has_breakdown_micro_loop(self) -> None:
+        module = load_cli_module()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = module.cmd_mode_nudge(
+                argparse.Namespace(
+                    mode_ref="granular-breakdown",
+                    seed="core-loop",
+                    json_output=True,
+                )
+            )
+        self.assertEqual(result, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["mode"]["id"], "granular-breakdown")
+        self.assertTrue(any("current state" in row for row in payload["micro_loop"]))
+        self.assertTrue(any("compress" in row for row in payload["micro_loop"]))
+
+    def test_granular_breakdown_returns_broad_to_atomic_sequence(self) -> None:
+        module = load_cli_module()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = module.cmd_mode_breakdown(
+                argparse.Namespace(
+                    mode_ref="breakdown",
+                    topic="p848 margin lift",
+                    json_output=True,
+                )
+            )
+        self.assertEqual(result, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["mode"]["id"], "granular-breakdown")
+        self.assertEqual(payload["topic"], "p848 margin lift")
+        level_ids = [row["level_id"] for row in payload["sequence"]]
+        self.assertEqual(level_ids[0], "L0_whole_frame")
+        self.assertIn("L4_atomic_obligations", level_ids)
+        self.assertIn("L5_dependency_ladder", level_ids)
+        self.assertIn("L7_durable_checklist", level_ids)
+        self.assertIn("checklist", payload["durable_artifact_rule"])
+        self.assertIn("Atomic Obligations", payload["output_contract"])
 
 
 if __name__ == "__main__":

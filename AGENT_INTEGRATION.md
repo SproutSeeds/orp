@@ -48,8 +48,12 @@ If the agent only remembers one ORP loop, it should be this:
    ```bash
    orp frontier state --json
    ```
-5. do the next honest move
-6. checkpoint it honestly
+5. if the work feels confusing or too large, break it down before moving
+   ```bash
+   orp mode breakdown granular-breakdown --json
+   ```
+6. do the next honest move
+7. checkpoint it honestly
    ```bash
    orp checkpoint create -m "checkpoint note" --json
    ```
@@ -60,6 +64,7 @@ That is the ORP rhythm in one line:
 - inspect repo safety
 - resolve access
 - inspect context
+- break down complexity when comprehension would help
 - do the work
 - checkpoint it honestly
 

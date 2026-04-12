@@ -93,6 +93,10 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
   assert.equal(report.workspaceId, "workspace-idea");
   assert.equal(report.machine?.machineLabel, "Mac Studio");
   assert.equal(report.tabCount, 3);
+  assert.equal(report.projectCount, 2);
+  assert.equal(report.projects[0]?.path, "/Volumes/Code_2TB/code/collaboration");
+  assert.equal(report.projects[0]?.sessionCount, 2);
+  assert.equal(report.projects[0]?.sessions[0]?.restartCommand, "cd '/Volumes/Code_2TB/code/collaboration' && codex resume abc-123");
   assert.equal(report.tabs[0]?.title, "collaboration");
   assert.equal(report.tabs[0]?.remoteUrl, "git@github.com:org/collaboration.git");
   assert.equal(report.tabs[0]?.bootstrapCommand, "npm install");
@@ -163,6 +167,8 @@ test("runWorkspaceTabs prints JSON without launch commands", async () => {
   assert.equal(parsed.workspaceId, "orp-main");
   assert.equal(parsed.machine.machineLabel, "Mac Studio");
   assert.equal(parsed.tabCount, 2);
+  assert.equal(parsed.projectCount, 2);
+  assert.equal(parsed.projects[0]?.sessions[0]?.restartCommand, "cd '/Volumes/Code_2TB/code/orp' && claude resume claude-999");
   assert.equal(parsed.tabs[0]?.title, "orp");
   assert.equal(parsed.tabs[0]?.remoteUrl, "git@github.com:SproutSeeds/orp.git");
   assert.equal(parsed.tabs[0]?.bootstrapCommand, "npm install");

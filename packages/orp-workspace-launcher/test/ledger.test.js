@@ -243,6 +243,40 @@ test("addTabToManifest asks for a title when multiple saved tabs share a path", 
   );
 });
 
+test("normalizeWorkspaceManifest expands grouped project sessions", () => {
+  const manifest = normalizeWorkspaceManifest({
+    version: "1",
+    workspaceId: "main-cody-1",
+    title: "main-cody-1",
+    projects: [
+      {
+        title: "orp",
+        path: "/Volumes/Code_2TB/code/orp",
+        remoteUrl: "git@github.com:SproutSeeds/orp.git",
+        sessions: [
+          {
+            title: "orp release",
+            resumeTool: "codex",
+            resumeSessionId: "019d32d3-d8b2-7fa2-aaec-c74b5134afd6",
+          },
+          {
+            title: "orp docs",
+            resumeCommand: "claude --resume 469d99b2-2997-42bf-a8f5-3812c808ef29",
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(manifest.tabs.length, 2);
+  assert.equal(manifest.tabs[0]?.path, "/Volumes/Code_2TB/code/orp");
+  assert.equal(manifest.tabs[0]?.title, "orp release");
+  assert.equal(manifest.tabs[0]?.resumeTool, "codex");
+  assert.equal(manifest.tabs[1]?.title, "orp docs");
+  assert.equal(manifest.tabs[1]?.resumeTool, "claude");
+  assert.equal(manifest.tabs[1]?.sessionId, "469d99b2-2997-42bf-a8f5-3812c808ef29");
+});
+
 test("removeTabsFromManifest can target a saved tab by path and resume session id", () => {
   const result = removeTabsFromManifest(sampleManifest(), {
     path: "/Volumes/Code_2TB/code/frg-site",
@@ -325,6 +359,44 @@ test("runWorkspaceAddTab upserts an existing tab and returns the rendered recove
     );
     assert.equal(saved.tabs.length, 2);
     assert.equal(saved.tabs[0]?.resumeCommand, "codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
+  });
+});
+
+test("runWorkspaceAddTab stores same-project sessions under a grouped project object", async () => {
+  await withTempConfigHome(async () => {
+    const tempDir = await makeTempDir();
+    const manifestPath = path.join(tempDir, "workspace.json");
+    await fs.writeFile(manifestPath, `${JSON.stringify(sampleManifest(), null, 2)}\n`, "utf8");
+
+    const { code, stdout } = await captureStdout(() =>
+      runWorkspaceAddTab([
+        "--workspace-file",
+        manifestPath,
+        "--path",
+        "/Volumes/Code_2TB/code/orp",
+        "--title",
+        "orp second session",
+        "--resume-tool",
+        "codex",
+        "--resume-session-id",
+        "019d32d3-d8b2-7fa2-aaec-c74b5134afd6",
+        "--append",
+        "--json",
+      ]),
+    );
+    const payload = JSON.parse(stdout);
+    const saved = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+
+    assert.equal(code, 0);
+    assert.equal(payload.action, "add-tab");
+    assert.equal(payload.mutation, "added");
+    assert.equal(payload.tabCount, 3);
+    const orpProject = saved.projects.find((project) => project.path === "/Volumes/Code_2TB/code/orp");
+    assert.ok(orpProject);
+    assert.equal(orpProject.sessionCount, 2);
+    assert.equal(orpProject.sessions[1]?.title, "orp second session");
+    assert.equal(orpProject.sessions[1]?.resumeCommand, "codex resume 019d32d3-d8b2-7fa2-aaec-c74b5134afd6");
+    assert.equal(saved.tabs.length, 3);
   });
 });
 

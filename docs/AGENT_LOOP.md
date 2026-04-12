@@ -16,6 +16,11 @@ read:
   exploratory reframing, run:
   - `orp mode nudge sleek-minimal-progressive --json`
   - Treat it as an optional lens for deeper, wider, top-down, or rotated perspective shifts.
+- If the task feels confusing, too large to hold at once, or likely to benefit
+  from more intentional granularity, run:
+  - `orp mode breakdown granular-breakdown --json`
+  - Optionally follow with `orp mode nudge granular-breakdown --json` if you only need a short reminder card.
+  - Treat it as a broad-to-atomic ladder: whole frame, boundary, major lanes, subclaims, atomic obligations, dependency order, durable checklist, and next verification.
 - If packs matter, run `orp pack list --json`.
 - Read `PROTOCOL.md` before making claims.
 - If the repo uses parent/child agent guidance, run `orp agents audit --json` so you know `AGENTS.md` and `CLAUDE.md` are aligned before taking a long-running path.

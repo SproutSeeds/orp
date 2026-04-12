@@ -122,9 +122,11 @@ orp report summary
 orp frontier state
 orp schedule list
 orp mode nudge sleek-minimal-progressive
+orp mode breakdown granular-breakdown
+orp mode nudge granular-breakdown
 ```
 
-That sequence covers discovery, agent-guide alignment, workspace recovery, agenda refresh, secret resolution, governance, artifacts, planning, automation, and perspective-shift support.
+That sequence covers discovery, agent-guide alignment, workspace recovery, agenda refresh, secret resolution, governance, artifacts, planning, automation, perspective-shift support, and intentional breakdown when the work needs more granular comprehension. Use `mode breakdown` for the full broad-to-atomic ladder; use `mode nudge` when you only need a short reminder card.
 
 The shorter rule is:
 
@@ -403,6 +405,9 @@ orp about --json
 orp mode list --json
 orp mode show sleek-minimal-progressive --json
 orp mode nudge sleek-minimal-progressive --json
+orp mode show granular-breakdown --json
+orp mode breakdown granular-breakdown --json
+orp mode nudge granular-breakdown --json
 orp update --json
 orp maintenance status --json
 ```
@@ -427,6 +432,7 @@ orp workspace create mac-main --machine-label "Mac Studio"
 orp workspace list
 orp workspace tabs main
 orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <id>"
+orp workspace add-tab main --path /absolute/path/to/project --title "second active thread" --resume-tool claude --resume-session-id <id> --append
 orp workspace remove-tab main --path /absolute/path/to/project
 orp workspace sync main
 orp secrets list --json

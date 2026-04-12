@@ -2,6 +2,7 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 
 import {
+  buildWorkspaceProjectGroups,
   deriveBaseTitle,
   deriveWorkspaceId,
   getResumeCommand,
@@ -208,6 +209,7 @@ function serializeWorkspaceManifest(manifest) {
       }).filter(([, value]) => value !== undefined),
     ),
   );
+  const projects = buildWorkspaceProjectGroups(manifest.tabs);
 
   const normalized = Object.fromEntries(
     Object.entries({
@@ -215,6 +217,7 @@ function serializeWorkspaceManifest(manifest) {
       workspaceId: normalizeOptionalString(manifest.workspaceId) ?? undefined,
       title: normalizeOptionalString(manifest.title) ?? undefined,
       machine: manifest.machine ?? undefined,
+      projects,
       tabs,
     }).filter(([, value]) => value !== undefined),
   );

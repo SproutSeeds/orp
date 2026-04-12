@@ -77,3 +77,49 @@ Use this when the work needs bigger options before it needs tighter polish.
 - import principles from other domains
 - keep one unreasonable idea alive long enough to inspect it
 - prune only after a genuinely bold pass exists
+
+### `granular-breakdown`
+
+Use this when the work needs more intentional granularity so the user, agent,
+or future collaborator can actually understand and continue it.
+
+- name the whole problem plainly
+- split the work into current state, desired state, and missing bridge
+- order steps by dependency, risk, and comprehension
+- choose one small verification that proves movement
+- compress the result back into a clear summary after the breakdown
+
+Recommended commands:
+
+```bash
+orp mode show granular-breakdown --json
+orp mode breakdown granular-breakdown --json
+orp mode nudge granular-breakdown --json
+```
+
+Use `breakdown` when the task needs a real ladder from broad framing to atomic
+subtasks or sub-lemmas. Use `nudge` when the agent only needs a compact reminder
+card for the next pass.
+
+Use this regularly as part of the research/development loop when:
+
+- the user asks what a feature, command, or error means
+- the plan is correct but too large to hold at once
+- a repo handoff needs to be understandable to the next agent
+- a high-level goal needs to become a safe sequence of small moves
+
+The full breakdown ladder is:
+
+- whole frame
+- boundary
+- major lanes
+- subclaims
+- atomic obligations
+- dependency ladder
+- active target
+- durable checklist
+- next verification
+
+If the breakdown becomes operationally important, promote it into a durable
+checklist artifact with stable IDs, dependencies, statuses, source artifacts,
+falsifier boundaries, and the first active target.
