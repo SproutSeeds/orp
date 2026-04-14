@@ -6,6 +6,23 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.24 - 2026-04-14
+
+This release restores the ORP CI and npm publish path after recent workflow
+failures, while preserving the existing user-facing CLI surface.
+
+### Fixed
+
+- Hardened hosted keychain sync tests so Ubuntu CI does not require the macOS
+  `security` binary.
+- Made source-checkout update tests force the intended unsafe/safe states
+  instead of depending on ambient GitHub Actions checkout behavior.
+- Moved quick kernel benchmark unittest coverage to deterministic report-shape
+  and functional-evidence checks, leaving committed benchmark threshold policy
+  in the dedicated kernel CI checker.
+- Stabilized runner work completion sync so the touched linked-session
+  timestamp and runner sync payload share one completion timestamp.
+
 ## v0.4.18 - 2026-04-02
 
 This release makes workspace tab recovery smoother in the shell while also
