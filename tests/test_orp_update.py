@@ -38,7 +38,14 @@ class OrpUpdateTests(unittest.TestCase):
         )
 
     def test_update_json_reports_source_checkout_safely(self) -> None:
-        proc = self.run_update("--json", env={"ORP_UPDATE_LATEST_VERSION": "9.9.9"})
+        proc = self.run_update(
+            "--json",
+            env={
+                "ORP_UPDATE_LATEST_VERSION": "9.9.9",
+                "ORP_UPDATE_SOURCE_READY": "0",
+                "ORP_UPDATE_SOURCE_REASON": "Source checkout is not in a safe auto-pull state.",
+            },
+        )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         payload = json.loads(proc.stdout)
         self.assertEqual(payload["status"], "update_available")
@@ -87,7 +94,15 @@ class OrpUpdateTests(unittest.TestCase):
         self.assertIn(f"Current version: {PACKAGE_VERSION}", proc.stdout)
 
     def test_update_yes_refuses_when_source_checkout_is_not_safe_to_pull(self) -> None:
-        proc = self.run_update("--json", "--yes", env={"ORP_UPDATE_LATEST_VERSION": "9.9.9"})
+        proc = self.run_update(
+            "--json",
+            "--yes",
+            env={
+                "ORP_UPDATE_LATEST_VERSION": "9.9.9",
+                "ORP_UPDATE_SOURCE_READY": "0",
+                "ORP_UPDATE_SOURCE_REASON": "Source checkout is not in a safe auto-pull state.",
+            },
+        )
         self.assertEqual(proc.returncode, 1, msg=proc.stderr + "\n" + proc.stdout)
         payload = json.loads(proc.stdout)
         self.assertFalse(payload["apply"]["ok"])

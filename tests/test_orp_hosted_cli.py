@@ -699,6 +699,7 @@ class HostedCliShapeTests(unittest.TestCase):
             "idea_id": "",
         }
         module._keychain_supported = lambda: True
+        module._ensure_keychain_supported = lambda: None
         module._run_keychain_command = lambda args, input_text=None: subprocess.CompletedProcess(
             ["security", *args],
             0,
