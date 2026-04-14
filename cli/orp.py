@@ -7338,8 +7338,9 @@ def _runner_sync_payload_for_roots(
     args: argparse.Namespace,
     *,
     linked_email: str = "",
+    synced_at_utc: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    synced_at_utc = _now_utc()
+    synced_at_utc = _normalize_timestamp_utc(synced_at_utc, fallback=_now_utc())
     linked_projects: list[dict[str, Any]] = []
     sessions: list[dict[str, Any]] = []
     included_project_roots: list[str] = []
@@ -8367,12 +8368,15 @@ def _perform_runner_sync_for_roots(
     args: argparse.Namespace,
     session: dict[str, Any],
     machine: dict[str, Any],
+    *,
+    synced_at_utc: str = "",
 ) -> dict[str, Any]:
     sync_payload, sync_summary = _runner_sync_payload_for_roots(
         repo_roots,
         machine,
         args,
         linked_email=str(session.get("email", "")).strip(),
+        synced_at_utc=synced_at_utc,
     )
     if not sync_payload["linkedProjects"]:
         raise RuntimeError("No linked project is available to sync.")
@@ -8722,9 +8726,11 @@ def _run_runner_work_once(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     if run_result.get("ok"):
+        completed_at_utc = _now_utc()
         touched_session = _touch_link_session_last_active(
             selected_repo_root,
             str(selected_session.get("orp_session_id", "")).strip(),
+            timestamp_utc=completed_at_utc,
         )
         try:
             sync_result = _perform_runner_sync_for_roots(
@@ -8733,6 +8739,7 @@ def _run_runner_work_once(args: argparse.Namespace) -> dict[str, Any]:
                 args,
                 session,
                 machine,
+                synced_at_utc=completed_at_utc,
             )
         except Exception as exc:
             sync_error = str(exc)
