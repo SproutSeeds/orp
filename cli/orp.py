@@ -134,6 +134,9 @@ DEFAULT_HOSTED_BASE_URL = "https://orp.earth"
 KERNEL_SCHEMA_VERSION = "1.0.0"
 FRONTIER_SCHEMA_VERSION = "1.0.0"
 FRONTIER_BANDS = ("exact", "structured", "horizon")
+FRONTIER_ACTIVE_STATUSES = {"active", "in_progress", "running"}
+FRONTIER_PENDING_STATUSES = {"", "pending", "planned", "ready"}
+FRONTIER_TERMINAL_STATUSES = {"complete", "completed", "done", "skipped", "terminal"}
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
 MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
@@ -5869,10 +5872,12 @@ def _frontier_paths(repo_root: Path) -> dict[str, Path]:
         "roadmap_json": root / "roadmap.json",
         "checklist_json": root / "checklist.json",
         "stack_json": root / "version-stack.json",
+        "additional_json": root / "additional-items.json",
         "state_md": root / "STATE.md",
         "roadmap_md": root / "ROADMAP.md",
         "checklist_md": root / "CHECKLIST.md",
         "stack_md": root / "VERSION_STACK.md",
+        "additional_md": root / "ADDITIONAL_ITEMS.md",
     }
 
 
@@ -5920,6 +5925,18 @@ def _default_frontier_stack_payload(program_id: str, label: str) -> dict[str, An
             "blocked_by": [],
         },
         "versions": [],
+    }
+
+
+def _default_frontier_additional_payload(program_id: str = "", label: str = "") -> dict[str, Any]:
+    return {
+        "schema_version": FRONTIER_SCHEMA_VERSION,
+        "kind": "orp_frontier_additional_items",
+        "program_id": str(program_id).strip(),
+        "label": str(label).strip(),
+        "active_list_id": "",
+        "active_item_id": "",
+        "lists": [],
     }
 
 
@@ -5974,6 +5991,485 @@ def _frontier_find_phase(
         if isinstance(phase, dict) and str(phase.get("id", "")).strip() == phase_id:
             return phase
     return None
+
+
+def _frontier_load_additional(repo_root: Path, stack: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = _read_json_if_exists(_frontier_paths(repo_root)["additional_json"])
+    if not payload:
+        stack_payload = stack if isinstance(stack, dict) else _read_json_if_exists(_frontier_paths(repo_root)["stack_json"])
+        return _default_frontier_additional_payload(
+            str((stack_payload or {}).get("program_id", "")).strip(),
+            str((stack_payload or {}).get("label", "")).strip(),
+        )
+    if not isinstance(payload.get("lists"), list):
+        payload["lists"] = []
+    payload["active_list_id"] = str(payload.get("active_list_id", "")).strip()
+    payload["active_item_id"] = str(payload.get("active_item_id", "")).strip()
+    return payload
+
+
+def _frontier_find_additional_list(payload: dict[str, Any], list_id: str) -> dict[str, Any] | None:
+    lists = payload.get("lists")
+    if not isinstance(lists, list):
+        return None
+    for row in lists:
+        if isinstance(row, dict) and str(row.get("id", "")).strip() == list_id:
+            return row
+    return None
+
+
+def _frontier_find_additional_item(item_list: dict[str, Any], item_id: str) -> dict[str, Any] | None:
+    items = item_list.get("items")
+    if not isinstance(items, list):
+        return None
+    for item in items:
+        if isinstance(item, dict) and str(item.get("id", "")).strip() == item_id:
+            return item
+    return None
+
+
+def _frontier_active_additional_item(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    list_id = str(payload.get("active_list_id", "")).strip()
+    item_id = str(payload.get("active_item_id", "")).strip()
+    if not list_id or not item_id:
+        return (None, None)
+    item_list = _frontier_find_additional_list(payload, list_id)
+    if not isinstance(item_list, dict):
+        return (None, None)
+    item = _frontier_find_additional_item(item_list, item_id)
+    if not isinstance(item, dict):
+        return (None, None)
+    return (item_list, item)
+
+
+def _frontier_normalize_additional_statuses(payload: dict[str, Any]) -> None:
+    lists = payload.get("lists")
+    if not isinstance(lists, list):
+        payload["lists"] = []
+        return
+    for item_list in lists:
+        if not isinstance(item_list, dict):
+            continue
+        items = item_list.get("items")
+        if not isinstance(items, list):
+            item_list["items"] = []
+            items = item_list["items"]
+        for item in items:
+            if isinstance(item, dict):
+                item["status"] = str(item.get("status", "")).strip() or "pending"
+        if items and all(str(item.get("status", "")).strip() in {"complete", "skipped"} for item in items if isinstance(item, dict)):
+            item_list["status"] = "complete"
+        else:
+            item_list["status"] = str(item_list.get("status", "")).strip() or "pending"
+
+
+def _frontier_next_pending_additional_item(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    _frontier_normalize_additional_statuses(payload)
+    lists = payload.get("lists")
+    if not isinstance(lists, list):
+        return (None, None)
+    for item_list in lists:
+        if not isinstance(item_list, dict) or str(item_list.get("status", "")).strip() in {"complete", "skipped"}:
+            continue
+        items = item_list.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if isinstance(item, dict) and str(item.get("status", "")).strip() in {"", "pending"}:
+                return (item_list, item)
+    return (None, None)
+
+
+def _frontier_status(raw: Any, *, default: str = "pending") -> str:
+    text = str(raw or "").strip().lower().replace(" ", "_").replace("-", "_")
+    return text or default
+
+
+def _frontier_status_is_active(raw: Any) -> bool:
+    return _frontier_status(raw, default="") in FRONTIER_ACTIVE_STATUSES
+
+
+def _frontier_status_is_pending(raw: Any) -> bool:
+    return _frontier_status(raw, default="") in FRONTIER_PENDING_STATUSES
+
+
+def _frontier_status_is_terminal(raw: Any) -> bool:
+    return _frontier_status(raw, default="") in FRONTIER_TERMINAL_STATUSES
+
+
+def _frontier_diagnostic_ok(issues: list[dict[str, Any]], *, strict: bool = False) -> bool:
+    if any(str(issue.get("severity", "")).strip() == "error" for issue in issues):
+        return False
+    if strict and any(str(issue.get("severity", "")).strip() == "warning" for issue in issues):
+        return False
+    return True
+
+
+def _frontier_stack_summary(stack: dict[str, Any] | None) -> dict[str, int]:
+    summary = {
+        "versions": 0,
+        "milestones": 0,
+        "phases": 0,
+    }
+    if not isinstance(stack, dict):
+        return summary
+    versions = stack.get("versions")
+    if not isinstance(versions, list):
+        return summary
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+        summary["versions"] += 1
+        milestones = version.get("milestones")
+        if not isinstance(milestones, list):
+            continue
+        for milestone in milestones:
+            if not isinstance(milestone, dict):
+                continue
+            summary["milestones"] += 1
+            phases = milestone.get("phases")
+            if isinstance(phases, list):
+                summary["phases"] += len([phase for phase in phases if isinstance(phase, dict)])
+    return summary
+
+
+def _frontier_compact_additional_item(item_list: dict[str, Any], item: dict[str, Any]) -> dict[str, str]:
+    return {
+        "list_id": str(item_list.get("id", "")).strip(),
+        "list_label": str(item_list.get("label", "")).strip(),
+        "item_id": str(item.get("id", "")).strip(),
+        "item_label": str(item.get("label", "")).strip(),
+        "status": _frontier_status(item.get("status")),
+    }
+
+
+def _frontier_additional_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    active_list_id = str(payload.get("active_list_id", "")).strip()
+    active_item_id = str(payload.get("active_item_id", "")).strip()
+    summary: dict[str, Any] = {
+        "lists": 0,
+        "items": 0,
+        "pending_items": 0,
+        "active_items": 0,
+        "complete_items": 0,
+        "skipped_items": 0,
+        "open_items": 0,
+        "active_list_id": active_list_id,
+        "active_item_id": active_item_id,
+        "active_pointer_partial": bool(active_list_id) != bool(active_item_id),
+        "active_pointer_valid": False,
+        "active_item_status": "",
+        "next_pending": None,
+    }
+    lists = payload.get("lists")
+    if not isinstance(lists, list):
+        return summary
+    summary["lists"] = len([row for row in lists if isinstance(row, dict)])
+    for item_list in lists:
+        if not isinstance(item_list, dict):
+            continue
+        items = item_list.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            status = _frontier_status(item.get("status"))
+            summary["items"] += 1
+            if _frontier_status_is_active(status):
+                summary["active_items"] += 1
+                summary["open_items"] += 1
+            elif status == "skipped":
+                summary["skipped_items"] += 1
+            elif _frontier_status_is_terminal(status):
+                summary["complete_items"] += 1
+            else:
+                summary["pending_items"] += 1
+                summary["open_items"] += 1
+                if summary["next_pending"] is None:
+                    summary["next_pending"] = _frontier_compact_additional_item(item_list, item)
+
+            if (
+                active_list_id
+                and active_item_id
+                and str(item_list.get("id", "")).strip() == active_list_id
+                and str(item.get("id", "")).strip() == active_item_id
+            ):
+                summary["active_pointer_valid"] = True
+                summary["active_item_status"] = status
+
+    return summary
+
+
+def _frontier_terminal_declared(state: dict[str, Any] | None, stack: dict[str, Any] | None) -> bool:
+    state_obj = state if isinstance(state, dict) else {}
+    stack_obj = stack if isinstance(stack, dict) else {}
+    if bool(state_obj.get("terminal")) or bool(stack_obj.get("terminal")):
+        return True
+    completion_status = _frontier_status(
+        state_obj.get("completion_status", state_obj.get("completionStatus", stack_obj.get("completion_status", ""))),
+        default="",
+    )
+    return completion_status in {"complete", "completed", "done", "terminal"}
+
+
+def _frontier_build_continuation_payload(
+    repo_root: Path,
+    stack: dict[str, Any] | None,
+    state: dict[str, Any] | None,
+    *,
+    include_structural_issues: bool = True,
+    strict: bool = False,
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    paths = _frontier_paths(repo_root)
+    stack_obj = stack if isinstance(stack, dict) else None
+    state_obj = state if isinstance(state, dict) else None
+
+    if stack_obj is None and include_structural_issues:
+        issues.append({"severity": "error", "code": "missing_stack", "message": "frontier version stack is missing."})
+    if state_obj is None and include_structural_issues:
+        issues.append({"severity": "error", "code": "missing_state", "message": "frontier state is missing."})
+
+    additional = _frontier_load_additional(repo_root, stack_obj)
+    additional_summary = _frontier_additional_summary(additional)
+    stack_summary = _frontier_stack_summary(stack_obj)
+    blockers = _coerce_string_list(state_obj.get("blocked_by") if isinstance(state_obj, dict) else [])
+    terminal_declared = _frontier_terminal_declared(state_obj, stack_obj)
+    active_primary = False
+    active_primary_status = ""
+    active_primary_kind = ""
+    active_primary_id = ""
+    next_action = str(state_obj.get("next_action", "")).strip() if isinstance(state_obj, dict) else ""
+    suggested_next_command = ""
+
+    if stack_obj is not None and state_obj is not None:
+        active_version = str(state_obj.get("active_version", "")).strip()
+        active_milestone = str(state_obj.get("active_milestone", "")).strip()
+        active_phase = str(state_obj.get("active_phase", "")).strip()
+        version = _frontier_find_version(stack_obj, active_version) if active_version else None
+        _, milestone = _frontier_find_milestone(stack_obj, active_milestone) if active_milestone else (None, None)
+        phase = _frontier_find_phase(milestone, active_phase) if active_phase and isinstance(milestone, dict) else None
+
+        if isinstance(version, dict):
+            version_status = _frontier_status(version.get("status", ""))
+            if _frontier_status_is_terminal(version_status):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "stale_active_version_complete",
+                        "message": f"active version `{active_version}` is marked `{version_status}`; advance the frontier or declare terminal completion.",
+                    }
+                )
+            elif active_version:
+                active_primary = True
+                active_primary_kind = "version"
+                active_primary_id = active_version
+                active_primary_status = version_status
+
+        if isinstance(milestone, dict):
+            milestone_status = _frontier_status(milestone.get("status", ""))
+            if _frontier_status_is_terminal(milestone_status):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "stale_active_milestone_complete",
+                        "message": f"active milestone `{active_milestone}` is marked `{milestone_status}`; advance the frontier or declare terminal completion.",
+                    }
+                )
+                if active_primary_kind == "version":
+                    active_primary = False
+            elif active_milestone:
+                active_primary = True
+                active_primary_kind = "milestone"
+                active_primary_id = active_milestone
+                active_primary_status = milestone_status
+
+        if isinstance(phase, dict):
+            phase_status = _frontier_status(phase.get("status", ""))
+            if _frontier_status_is_terminal(phase_status):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "stale_active_phase_complete",
+                        "message": f"active phase `{active_phase}` is marked `{phase_status}`; record the handoff and move the frontier to the next phase or queue item.",
+                    }
+                )
+                active_primary = False
+            elif active_phase:
+                active_primary = True
+                active_primary_kind = "phase"
+                active_primary_id = active_phase
+                active_primary_status = phase_status
+
+    if additional_summary["active_pointer_partial"]:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "partial_active_additional_pointer",
+                "message": "frontier additional queue has only one of active_list_id or active_item_id set.",
+            }
+        )
+
+    active_list_id = str(additional_summary["active_list_id"]).strip()
+    active_item_id = str(additional_summary["active_item_id"]).strip()
+    if active_list_id or active_item_id:
+        active_list, active_item = _frontier_active_additional_item(additional)
+        if active_list is None:
+            issues.append(
+                {"severity": "error", "code": "missing_active_additional_list", "message": f"active additional list `{active_list_id}` does not exist."}
+            )
+        elif active_item is None:
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "missing_active_additional_item",
+                    "message": f"active additional item `{active_item_id}` does not exist in list `{active_list_id}`.",
+                }
+            )
+        else:
+            active_status = _frontier_status(active_item.get("status", ""))
+            if _frontier_status_is_terminal(active_status):
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": "stale_active_additional_item",
+                        "message": f"active additional item `{active_list_id}/{active_item_id}` is marked `{active_status}`; complete the handoff and activate the next pending item.",
+                    }
+                )
+            elif not _frontier_status_is_active(active_status):
+                issues.append(
+                    {
+                        "severity": "warning",
+                        "code": "active_additional_item_not_marked_active",
+                        "message": f"active additional item `{active_list_id}/{active_item_id}` is marked `{active_status}` instead of active.",
+                    }
+                )
+            if not next_action:
+                next_action = _frontier_additional_item_summary(active_list, active_item)
+
+    if not active_item_id and int(additional_summary["pending_items"]) > 0:
+        issues.append(
+            {
+                "severity": "warning",
+                "code": "pending_additional_without_active_pointer",
+                "message": "frontier additional queue has pending work but no active item; run `orp frontier additional activate-next` before delegating queue work.",
+            }
+        )
+        suggested_next_command = "orp frontier additional activate-next --json"
+        next_pending = additional_summary.get("next_pending")
+        if isinstance(next_pending, dict) and not next_action:
+            next_action = (
+                f"Activate additional item {next_pending.get('list_id', '')}/{next_pending.get('item_id', '')}: "
+                f"{next_pending.get('item_label', '')}"
+            )
+
+    defined_work = int(stack_summary["versions"]) + int(stack_summary["milestones"]) + int(stack_summary["phases"]) + int(additional_summary["items"])
+    if (
+        defined_work > 0
+        and not blockers
+        and not terminal_declared
+        and not active_primary
+        and int(additional_summary["active_items"]) == 0
+        and int(additional_summary["pending_items"]) == 0
+    ):
+        issues.append(
+            {
+                "severity": "warning",
+                "code": "no_frontier_continuation_or_terminal_declaration",
+                "message": "frontier has defined work but no active/open continuation and no terminal completion declaration.",
+            }
+        )
+
+    summary = {
+        "defined_work": defined_work,
+        "blocked": bool(blockers),
+        "terminal_declared": terminal_declared,
+        "active_primary": active_primary,
+        "active_primary_kind": active_primary_kind,
+        "active_primary_id": active_primary_id,
+        "active_primary_status": active_primary_status,
+        "additional": additional_summary,
+    }
+    return {
+        "ok": _frontier_diagnostic_ok(issues, strict=strict),
+        "strict": strict,
+        "issues": issues,
+        "summary": summary,
+        "next_action": next_action,
+        "suggested_next_command": suggested_next_command,
+        "paths": {key: _path_for_state(value, repo_root) for key, value in paths.items()},
+    }
+
+
+def _frontier_continuation_payload(repo_root: Path, *, strict: bool = False) -> dict[str, Any]:
+    paths = _frontier_paths(repo_root)
+    stack = _read_json_if_exists(paths["stack_json"])
+    state = _read_json_if_exists(paths["state_json"])
+    return _frontier_build_continuation_payload(repo_root, stack, state, include_structural_issues=True, strict=strict)
+
+
+def _frontier_additional_item_summary(item_list: dict[str, Any], item: dict[str, Any]) -> str:
+    bits = [
+        f"ORP additional item {str(item_list.get('id', '')).strip()}/{str(item.get('id', '')).strip()}: {str(item.get('label', '')).strip()}",
+    ]
+    goal = str(item.get("goal", "")).strip()
+    if goal:
+        bits.append(f"Goal: {goal}")
+    criteria = _coerce_string_list(item.get("success_criteria"))
+    if criteria:
+        bits.append("Success: " + "; ".join(criteria))
+    return " ".join(bits)
+
+
+def _render_frontier_additional_md(payload: dict[str, Any]) -> str:
+    lines = [
+        f"# Additional Frontier Items: {payload.get('label', '') or payload.get('program_id', '')}",
+        "",
+        f"- active_list_id: `{payload.get('active_list_id', '') or '(none)'}`",
+        f"- active_item_id: `{payload.get('active_item_id', '') or '(none)'}`",
+        "",
+    ]
+    lists = payload.get("lists")
+    if isinstance(lists, list) and lists:
+        for item_list in lists:
+            if not isinstance(item_list, dict):
+                continue
+            lines.append(
+                f"## `{item_list.get('id', '')}` {item_list.get('label', '')} (`{item_list.get('status', '') or 'pending'}`)"
+            )
+            lines.append("")
+            items = item_list.get("items")
+            if isinstance(items, list) and items:
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    marker = "x" if str(item.get("status", "")).strip() == "complete" else " "
+                    lines.append(
+                        f"- [{marker}] `{item.get('id', '')}` {item.get('label', '')} (`{item.get('status', '') or 'pending'}`)"
+                    )
+                    goal = str(item.get("goal", "")).strip()
+                    if goal:
+                        lines.append(f"  - goal: {goal}")
+            else:
+                lines.append("- `(no items)`")
+            lines.append("")
+    else:
+        lines.append("- `(no additional lists yet)`")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _frontier_write_additional_views(repo_root: Path, payload: dict[str, Any]) -> dict[str, str]:
+    paths = _frontier_paths(repo_root)
+    paths["root"].mkdir(parents=True, exist_ok=True)
+    _frontier_normalize_additional_statuses(payload)
+    _write_json(paths["additional_json"], payload)
+    _write_text(paths["additional_md"], _render_frontier_additional_md(payload) + "\n")
+    return {
+        "additional_json": _path_for_state(paths["additional_json"], repo_root),
+        "additional_md": _path_for_state(paths["additional_md"], repo_root),
+    }
 
 
 def _frontier_set_current_frontier(stack: dict[str, Any], state: dict[str, Any]) -> None:
@@ -6179,6 +6675,11 @@ def _frontier_write_materialized_views(repo_root: Path, stack: dict[str, Any], s
     _frontier_set_current_frontier(stack, state)
     roadmap = _frontier_build_roadmap_payload(stack, state)
     checklist = _frontier_build_checklist_payload(stack, state)
+    additional = _frontier_load_additional(repo_root, stack)
+    if not str(additional.get("program_id", "")).strip():
+        additional["program_id"] = str(stack.get("program_id", "")).strip()
+    if not str(additional.get("label", "")).strip():
+        additional["label"] = str(stack.get("label", "")).strip()
     _write_json(paths["state_json"], state)
     _write_json(paths["stack_json"], stack)
     _write_json(paths["roadmap_json"], roadmap)
@@ -6187,6 +6688,7 @@ def _frontier_write_materialized_views(repo_root: Path, stack: dict[str, Any], s
     _write_text(paths["roadmap_md"], _render_frontier_roadmap_md(roadmap) + "\n")
     _write_text(paths["checklist_md"], _render_frontier_checklist_md(checklist) + "\n")
     _write_text(paths["stack_md"], _render_frontier_stack_md(stack) + "\n")
+    _frontier_write_additional_views(repo_root, additional)
     return {key: _path_for_state(value, repo_root) for key, value in paths.items() if key != "root"}
 
 
@@ -6245,14 +6747,44 @@ def _frontier_doctor_payload(repo_root: Path) -> dict[str, Any]:
                         )
                     if band == "exact":
                         exact_milestones += 1
+                        milestone_id = str(milestone_row.get("id", "")).strip()
+                        if active_milestone and milestone_id and milestone_id != active_milestone:
+                            issues.append(
+                                {
+                                    "severity": "warning",
+                                    "code": "exact_milestone_not_live",
+                                    "message": f"milestone `{milestone_id}` is marked exact but the live milestone is `{active_milestone}`.",
+                                }
+                            )
             if exact_milestones > 1:
                 issues.append(
                     {"severity": "warning", "code": "multiple_exact_milestones", "message": f"{exact_milestones} milestones are marked exact; the planning rule expects only one live exact milestone."}
                 )
 
+        continuation = _frontier_build_continuation_payload(
+            repo_root,
+            stack,
+            state,
+            include_structural_issues=False,
+        )
+        issues.extend(continuation["issues"])
+    else:
+        continuation = _frontier_build_continuation_payload(
+            repo_root,
+            stack if isinstance(stack, dict) else None,
+            state if isinstance(state, dict) else None,
+            include_structural_issues=False,
+        )
+
     return {
-        "ok": not any(issue["severity"] == "error" for issue in issues),
+        "ok": _frontier_diagnostic_ok(issues),
         "issues": issues,
+        "continuation": {
+            "ok": continuation["ok"],
+            "summary": continuation["summary"],
+            "next_action": continuation["next_action"],
+            "suggested_next_command": continuation["suggested_next_command"],
+        },
         "paths": {key: _path_for_state(value, repo_root) for key, value in paths.items()},
     }
 
@@ -10769,12 +11301,16 @@ def _about_payload() -> dict[str, Any]:
             },
             {
                 "id": "frontier",
-                "description": "Version-stack, milestone, phase, and live-frontier control for long-running agent-first research programs.",
+                "description": "Version-stack, milestone, phase, additional-queue, and continuation-preflight control for long-running agent-first research programs.",
                 "entrypoints": [
                     ["frontier", "init"],
                     ["frontier", "state"],
                     ["frontier", "roadmap"],
                     ["frontier", "checklist"],
+                    ["frontier", "continuation-status"],
+                    ["frontier", "preflight-delegate"],
+                    ["frontier", "additional", "list"],
+                    ["frontier", "additional", "activate-next"],
                     ["frontier", "stack"],
                     ["frontier", "add-version"],
                     ["frontier", "add-milestone"],
@@ -10942,6 +11478,13 @@ def _about_payload() -> dict[str, Any]:
             {"name": "frontier_state", "path": ["frontier", "state"], "json_output": True},
             {"name": "frontier_roadmap", "path": ["frontier", "roadmap"], "json_output": True},
             {"name": "frontier_checklist", "path": ["frontier", "checklist"], "json_output": True},
+            {"name": "frontier_continuation_status", "path": ["frontier", "continuation-status"], "json_output": True},
+            {"name": "frontier_preflight_delegate", "path": ["frontier", "preflight-delegate"], "json_output": True},
+            {"name": "frontier_additional_list", "path": ["frontier", "additional", "list"], "json_output": True},
+            {"name": "frontier_additional_add_list", "path": ["frontier", "additional", "add-list"], "json_output": True},
+            {"name": "frontier_additional_add_item", "path": ["frontier", "additional", "add-item"], "json_output": True},
+            {"name": "frontier_additional_activate_next", "path": ["frontier", "additional", "activate-next"], "json_output": True},
+            {"name": "frontier_additional_complete_active", "path": ["frontier", "additional", "complete-active"], "json_output": True},
             {"name": "frontier_stack", "path": ["frontier", "stack"], "json_output": True},
             {"name": "frontier_add_version", "path": ["frontier", "add-version"], "json_output": True},
             {"name": "frontier_add_milestone", "path": ["frontier", "add-milestone"], "json_output": True},
@@ -10973,7 +11516,7 @@ def _about_payload() -> dict[str, Any]:
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Knowledge exchange is a built-in ORP ability exposed through `orp exchange repo synthesize`, producing structured exchange artifacts and transfer maps for local or remote source repositories.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
-            "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, and the farther major-version stack.",
+            "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, the additional work queue, and strict continuation preflight before delegation.",
             "Agent modes are lightweight optional overlays for taste, perspective shifts, fresh movement, and intentional comprehension breakdowns; `orp mode breakdown granular-breakdown --json` gives agents a broad-to-atomic ladder for complex work, while `orp mode nudge granular-breakdown --json` gives a short reminder card.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
             "Secrets are easiest to understand as saved credentials and related login metadata: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, optional usernames can be stored alongside the secret when a service needs them, and local macOS Keychain caching plus hosted sync are optional layers on top.",
@@ -13532,6 +14075,245 @@ def cmd_frontier_checklist(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_frontier_additional_list(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = _frontier_load_additional(repo_root, stack)
+    lists = payload.get("lists")
+    rows = lists if isinstance(lists, list) else []
+    pending_items = 0
+    active_items = 0
+    complete_items = 0
+    for item_list in rows:
+        if not isinstance(item_list, dict):
+            continue
+        items = item_list.get("items")
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status", "")).strip() or "pending"
+            if status == "active":
+                active_items += 1
+            elif status == "complete":
+                complete_items += 1
+            else:
+                pending_items += 1
+    result = {
+        "ok": True,
+        **payload,
+        "summary": {
+            "lists": len(rows),
+            "pending_items": pending_items,
+            "active_items": active_items,
+            "complete_items": complete_items,
+        },
+        "paths": {
+            "additional_json": _path_for_state(_frontier_paths(repo_root)["additional_json"], repo_root),
+            "additional_md": _path_for_state(_frontier_paths(repo_root)["additional_md"], repo_root),
+        },
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"lists={len(rows)}")
+        print(f"active_list_id={payload.get('active_list_id', '') or '(none)'}")
+        print(f"active_item_id={payload.get('active_item_id', '') or '(none)'}")
+        print(f"pending_items={pending_items}")
+        print(f"active_items={active_items}")
+        print(f"complete_items={complete_items}")
+    return 0
+
+
+def cmd_frontier_additional_add_list(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = _frontier_load_additional(repo_root, stack)
+    list_id = str(args.id).strip()
+    if _frontier_find_additional_list(payload, list_id) is not None:
+        raise RuntimeError(f"frontier additional list `{list_id}` already exists.")
+    item_list = {
+        "id": list_id,
+        "label": str(args.label).strip(),
+        "status": str(args.status or "pending").strip() or "pending",
+        "items": [],
+    }
+    lists = payload.get("lists")
+    if not isinstance(lists, list):
+        lists = []
+        payload["lists"] = lists
+    lists.append(item_list)
+    written = _frontier_write_additional_views(repo_root, payload)
+    result = {"ok": True, "list": item_list, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"list_id={list_id}")
+        print(f"label={item_list['label']}")
+    return 0
+
+
+def cmd_frontier_additional_add_item(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = _frontier_load_additional(repo_root, stack)
+    list_id = str(args.list).strip()
+    item_list = _frontier_find_additional_list(payload, list_id)
+    if item_list is None:
+        raise RuntimeError(f"frontier additional list `{list_id}` was not found.")
+    item_id = str(args.id).strip()
+    if _frontier_find_additional_item(item_list, item_id) is not None:
+        raise RuntimeError(f"frontier additional item `{item_id}` already exists in list `{list_id}`.")
+    item = {
+        "id": item_id,
+        "label": str(args.label).strip(),
+        "status": str(args.status or "pending").strip() or "pending",
+        "goal": str(args.goal or "").strip(),
+        "depends_on": _coerce_string_list(getattr(args, "depends_on", [])),
+        "requirements": _coerce_string_list(getattr(args, "requirement", [])),
+        "success_criteria": _coerce_string_list(getattr(args, "success_criterion", [])),
+        "plans": _coerce_string_list(getattr(args, "plan", [])),
+    }
+    items = item_list.get("items")
+    if not isinstance(items, list):
+        items = []
+        item_list["items"] = items
+    items.append(item)
+    written = _frontier_write_additional_views(repo_root, payload)
+    result = {"ok": True, "list_id": list_id, "item": item, "paths": written}
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"list_id={list_id}")
+        print(f"item_id={item_id}")
+        print(f"label={item['label']}")
+    return 0
+
+
+def cmd_frontier_additional_activate_next(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = _frontier_load_additional(repo_root, stack)
+    active_list, active_item = _frontier_active_additional_item(payload)
+    already_active = active_list is not None and active_item is not None and str(active_item.get("status", "")).strip() == "active"
+    if not already_active:
+        active_list, active_item = _frontier_next_pending_additional_item(payload)
+        if active_list is not None and active_item is not None:
+            active_list["status"] = "active"
+            active_item["status"] = "active"
+            payload["active_list_id"] = str(active_list.get("id", "")).strip()
+            payload["active_item_id"] = str(active_item.get("id", "")).strip()
+        else:
+            payload["active_list_id"] = ""
+            payload["active_item_id"] = ""
+    written = _frontier_write_additional_views(repo_root, payload)
+    activated = active_list is not None and active_item is not None
+    result = {
+        "ok": True,
+        "activated": activated,
+        "already_active": already_active,
+        "active_list_id": payload.get("active_list_id", ""),
+        "active_item_id": payload.get("active_item_id", ""),
+        "list": active_list if activated else None,
+        "item": active_item if activated else None,
+        "next_action": _frontier_additional_item_summary(active_list, active_item) if activated else "",
+        "paths": written,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"activated={'true' if activated else 'false'}")
+        if activated:
+            print(f"active_list_id={result['active_list_id']}")
+            print(f"active_item_id={result['active_item_id']}")
+            print(f"next_action={result['next_action']}")
+    return 0
+
+
+def cmd_frontier_additional_complete_active(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    payload = _frontier_load_additional(repo_root, stack)
+    active_list, active_item = _frontier_active_additional_item(payload)
+    completed = active_list is not None and active_item is not None
+    list_completed = False
+    if completed:
+        active_item["status"] = str(args.status or "complete").strip() or "complete"
+        items = active_list.get("items")
+        if isinstance(items, list) and all(
+            str(item.get("status", "")).strip() in {"complete", "skipped"} for item in items if isinstance(item, dict)
+        ):
+            active_list["status"] = "complete"
+            list_completed = True
+        payload["active_list_id"] = ""
+        payload["active_item_id"] = ""
+    written = _frontier_write_additional_views(repo_root, payload)
+    result = {
+        "ok": True,
+        "completed": completed,
+        "list_completed": list_completed,
+        "list": active_list if completed else None,
+        "item": active_item if completed else None,
+        "paths": written,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"completed={'true' if completed else 'false'}")
+        print(f"list_completed={'true' if list_completed else 'false'}")
+    return 0
+
+
+def _print_frontier_diagnostic_payload(payload: dict[str, Any]) -> None:
+    print(f"ok={'true' if payload.get('ok') else 'false'}")
+    print(f"next_action={payload.get('next_action', '') or '(none)'}")
+    suggested = str(payload.get("suggested_next_command", "")).strip()
+    if suggested:
+        print(f"suggested_next_command={suggested}")
+    summary = payload.get("summary")
+    if isinstance(summary, dict):
+        print(f"active_primary={summary.get('active_primary_kind', '') or '(none)'}:{summary.get('active_primary_id', '') or '(none)'}")
+        additional = summary.get("additional")
+        if isinstance(additional, dict):
+            print(f"pending_additional_items={additional.get('pending_items', 0)}")
+            print(f"active_additional={additional.get('active_list_id', '') or '(none)'}/{additional.get('active_item_id', '') or '(none)'}")
+    for issue in payload.get("issues", []):
+        if isinstance(issue, dict):
+            print(f"issue={issue.get('severity','')}:{issue.get('code','')}:{issue.get('message','')}")
+
+
+def cmd_frontier_continuation_status(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    strict = bool(getattr(args, "strict", False))
+    payload = _frontier_continuation_payload(repo_root, strict=strict)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_frontier_diagnostic_payload(payload)
+    return 0 if payload["ok"] else 1
+
+
+def cmd_frontier_preflight_delegate(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _frontier_doctor_payload(repo_root)
+    payload["strict"] = True
+    payload["ok"] = _frontier_diagnostic_ok(payload.get("issues", []), strict=True)
+    continuation = payload.get("continuation") if isinstance(payload.get("continuation"), dict) else {}
+    payload["next_action"] = continuation.get("next_action", "")
+    payload["suggested_next_command"] = continuation.get("suggested_next_command", "")
+    payload["summary"] = continuation.get("summary", {})
+    payload["preflight"] = {
+        "ready": bool(payload["ok"]),
+        "purpose": "Block delegation when the frontier cannot prove a single safe continuation or terminal state.",
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        _print_frontier_diagnostic_payload(payload)
+    return 0 if payload["ok"] else 1
+
+
 def cmd_frontier_add_version(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     stack = _frontier_load_stack(repo_root)
@@ -13739,6 +14521,9 @@ def cmd_frontier_render(args: argparse.Namespace) -> int:
 def cmd_frontier_doctor(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
     payload = _frontier_doctor_payload(repo_root)
+    strict = bool(getattr(args, "strict", False))
+    payload["strict"] = strict
+    payload["ok"] = _frontier_diagnostic_ok(payload.get("issues", []), strict=strict)
     fixes_applied: list[str] = []
     if args.fix and payload["ok"]:
         stack = _frontier_load_stack(repo_root)
@@ -24592,6 +25377,114 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_frontier_checklist)
     s_frontier_checklist.set_defaults(func=cmd_frontier_checklist, json_output=False)
 
+    s_frontier_continuation_status = frontier_sub.add_parser(
+        "continuation-status",
+        help="Show whether the frontier has a safe next continuation, blocker, or terminal declaration",
+    )
+    s_frontier_continuation_status.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when continuation warnings are present",
+    )
+    add_json_flag(s_frontier_continuation_status)
+    s_frontier_continuation_status.set_defaults(func=cmd_frontier_continuation_status, json_output=False)
+
+    s_frontier_preflight_delegate = frontier_sub.add_parser(
+        "preflight-delegate",
+        help="Fail delegation when frontier continuation is stale, ambiguous, or not activated",
+    )
+    add_json_flag(s_frontier_preflight_delegate)
+    s_frontier_preflight_delegate.set_defaults(func=cmd_frontier_preflight_delegate, json_output=False)
+
+    s_frontier_additional = frontier_sub.add_parser(
+        "additional",
+        help="Manage queued additional Frontier work that should run after the active delegate objective",
+    )
+    frontier_additional_sub = s_frontier_additional.add_subparsers(dest="frontier_additional_cmd", required=True)
+
+    s_frontier_additional_list = frontier_additional_sub.add_parser(
+        "list",
+        help="Show additional Frontier work lists and their item states",
+    )
+    add_json_flag(s_frontier_additional_list)
+    s_frontier_additional_list.set_defaults(func=cmd_frontier_additional_list, json_output=False)
+
+    s_frontier_additional_add_list = frontier_additional_sub.add_parser(
+        "add-list",
+        help="Add an additional work list that delegates may drain after the active objective",
+    )
+    s_frontier_additional_add_list.add_argument("--id", required=True, help="Additional list id")
+    s_frontier_additional_add_list.add_argument("--label", required=True, help="Additional list label")
+    s_frontier_additional_add_list.add_argument(
+        "--status",
+        default="pending",
+        choices=["pending", "active", "complete"],
+        help="List status (default: pending)",
+    )
+    add_json_flag(s_frontier_additional_add_list)
+    s_frontier_additional_add_list.set_defaults(func=cmd_frontier_additional_add_list, json_output=False)
+
+    s_frontier_additional_add_item = frontier_additional_sub.add_parser(
+        "add-item",
+        help="Add one item to an additional Frontier work list",
+    )
+    s_frontier_additional_add_item.add_argument("--list", required=True, help="Parent additional list id")
+    s_frontier_additional_add_item.add_argument("--id", required=True, help="Additional item id")
+    s_frontier_additional_add_item.add_argument("--label", required=True, help="Additional item label")
+    s_frontier_additional_add_item.add_argument(
+        "--status",
+        default="pending",
+        choices=["pending", "active", "complete", "skipped"],
+        help="Item status (default: pending)",
+    )
+    s_frontier_additional_add_item.add_argument("--goal", default="", help="Optional item goal")
+    s_frontier_additional_add_item.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        help="Dependency item, phase, or milestone id (repeatable)",
+    )
+    s_frontier_additional_add_item.add_argument(
+        "--requirement",
+        action="append",
+        default=[],
+        help="Requirement identifier or note (repeatable)",
+    )
+    s_frontier_additional_add_item.add_argument(
+        "--success-criterion",
+        action="append",
+        default=[],
+        help="Item success criterion (repeatable)",
+    )
+    s_frontier_additional_add_item.add_argument(
+        "--plan",
+        action="append",
+        default=[],
+        help="Plan id or plan note (repeatable)",
+    )
+    add_json_flag(s_frontier_additional_add_item)
+    s_frontier_additional_add_item.set_defaults(func=cmd_frontier_additional_add_item, json_output=False)
+
+    s_frontier_additional_activate_next = frontier_additional_sub.add_parser(
+        "activate-next",
+        help="Activate and print the next pending additional Frontier item",
+    )
+    add_json_flag(s_frontier_additional_activate_next)
+    s_frontier_additional_activate_next.set_defaults(func=cmd_frontier_additional_activate_next, json_output=False)
+
+    s_frontier_additional_complete_active = frontier_additional_sub.add_parser(
+        "complete-active",
+        help="Mark the active additional Frontier item complete",
+    )
+    s_frontier_additional_complete_active.add_argument(
+        "--status",
+        default="complete",
+        choices=["complete", "skipped"],
+        help="Completion status for the active item (default: complete)",
+    )
+    add_json_flag(s_frontier_additional_complete_active)
+    s_frontier_additional_complete_active.set_defaults(func=cmd_frontier_additional_complete_active, json_output=False)
+
     s_frontier_stack = frontier_sub.add_parser(
         "stack",
         help="Show the larger major-version stack",
@@ -24744,6 +25637,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--fix",
         action="store_true",
         help="Re-render materialized frontier views when the frontier is otherwise consistent",
+    )
+    s_frontier_doctor.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return non-zero when frontier warnings are present",
     )
     add_json_flag(s_frontier_doctor)
     s_frontier_doctor.set_defaults(func=cmd_frontier_doctor, json_output=False)

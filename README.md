@@ -29,6 +29,13 @@ ORP is a unified CLI for research and research-like engineering. It helps humans
 
 ORP also supports optional modular **Instruments** for shaping inquiry upstream of claims. Instruments are process-only and do not change the verification boundary. See `modules/instruments/README.md` and `docs/WHY_INSTRUMENTS.md`.
 
+ORP also watches always-on personal-agent runtimes such as Hermes Agent and
+OpenClaw from a borrowing-ideas perspective. Those systems can inspire better
+gateways, skills, background notifications, model routing, and dashboards, but
+ORP remains the durable workspace ledger, agenda, routing, governance, and
+checkpoint layer. See
+[Agent Runtime Borrowing Notes](docs/AGENT_RUNTIME_BORROWING_NOTES.md).
+
 ## Watch It Run
 
 A short ORP command-family walkthrough:
@@ -471,9 +478,19 @@ orp report summary --json
 orp frontier state --json
 orp frontier roadmap --json
 orp frontier checklist --json
+orp frontier continuation-status --json
+orp frontier preflight-delegate --json
+orp frontier additional list --json
+orp frontier doctor --strict --json
 orp compute decide --input orp.compute.json --json
 orp compute run-local --input orp.compute.json --task orp.compute.task.json --json
 ```
+
+Frontier continuation checks are the handoff guard for long-running delegated
+research. `orp frontier preflight-delegate --json` fails when the live
+milestone/phase is stale, an additional queue item is complete but still active,
+pending queue work has not been activated, or the frontier has no declared next
+step or terminal completion.
 
 Scanning, synthesis, and collaboration:
 

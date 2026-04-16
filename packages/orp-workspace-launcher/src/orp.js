@@ -197,6 +197,59 @@ export async function fetchHostedWorkspacesPayload(options = {}) {
   };
 }
 
+export function findHostedWorkspaceLinkedToIdea(workspaces = [], ideaId) {
+  const targetIdeaId = normalizeOptionalString(ideaId);
+  if (!targetIdeaId || !Array.isArray(workspaces)) {
+    return null;
+  }
+
+  return (
+    workspaces.find((workspace) => {
+      if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) {
+        return false;
+      }
+      const sourceKind = normalizeOptionalString(workspace.source_kind ?? workspace.sourceKind) || "hosted";
+      if (sourceKind === "idea_bridge") {
+        return false;
+      }
+      const linkedIdea = getObjectValue(workspace, "linked_idea", "linkedIdea");
+      return getTextValue(linkedIdea, "idea_id", "ideaId") === targetIdeaId;
+    }) || null
+  );
+}
+
+export async function findHostedWorkspaceByLinkedIdea(ideaId, options = {}) {
+  const payload = await fetchHostedWorkspacesPayload(options);
+  return findHostedWorkspaceLinkedToIdea(payload.workspaces, ideaId);
+}
+
+export async function createHostedWorkspaceForIdea({ title, ideaId, description = null, visibility = null } = {}, options = {}) {
+  const workspaceTitle = slugify(title) || (ideaId ? `workspace-${String(ideaId).slice(0, 8).toLowerCase()}` : "workspace");
+  const invocation = resolveOrpInvocation(options);
+  const args = [...invocation.prefixArgs, "workspaces", "add", "--title", workspaceTitle];
+  if (description != null) {
+    args.push("--description", String(description));
+  }
+  if (visibility != null) {
+    args.push("--visibility", String(visibility));
+  }
+  const linkedIdeaId = normalizeOptionalString(ideaId);
+  if (linkedIdeaId) {
+    args.push("--idea-id", linkedIdeaId);
+  }
+  if (options.baseUrl) {
+    args.push("--base-url", options.baseUrl);
+  }
+  args.push("--json");
+
+  const result = await runCommand(invocation.command, args, options);
+  const payload = parseOrpJsonResult(result, "Failed to create ORP hosted workspace.");
+  if (!payload || payload.ok !== true || !payload.workspace) {
+    throw new Error("ORP returned an unexpected hosted workspace creation payload.");
+  }
+  return payload;
+}
+
 function buildWorkspaceTitleFromIdea(idea, manifest) {
   return normalizeOptionalString(manifest?.title) || normalizeOptionalString(idea?.title) || null;
 }
@@ -857,12 +910,19 @@ export async function loadWorkspaceSource(options = {}) {
   const selector = options.ideaId;
   const slotTarget = await resolveWorkspaceSlotTarget(selector, options);
   if (slotTarget?.target) {
-    return loadWorkspaceSource({
+    const resolvedSource = await loadWorkspaceSource({
       ...options,
       ideaId: slotTarget.target.ideaId,
       workspaceFile: slotTarget.target.workspaceFile,
       hostedWorkspaceId: slotTarget.target.hostedWorkspaceId,
     });
+    return {
+      ...resolvedSource,
+      resolvedSlotName: slotTarget.slotName,
+      resolvedSlotMode: slotTarget.mode,
+      resolvedSlot: slotTarget.slot || null,
+      resolvedSlotCandidate: slotTarget.candidate || null,
+    };
   }
   if (slotTarget?.slotName && slotTarget.mode === "unset") {
     throw new Error(

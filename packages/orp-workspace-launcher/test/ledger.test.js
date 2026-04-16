@@ -57,6 +57,120 @@ async function withTempConfigHome(fn) {
   }
 }
 
+async function makeFakeIdeaBridgeOrpCommand(tempDir, options = {}) {
+  const scriptPath = path.join(tempDir, "fake-orp.cjs");
+  const logPath = path.join(tempDir, "orp-calls.jsonl");
+  const failCreate = options.failCreate === true;
+  const script = `#!/usr/bin/env node
+const fs = require("node:fs");
+
+const args = process.argv.slice(2);
+const logPath = process.env.FAKE_ORP_LOG;
+if (logPath) {
+  fs.appendFileSync(logPath, JSON.stringify({ args }) + "\\n", "utf8");
+}
+
+const ideaId = "idea-main-123";
+const bridgeWorkspaceId = "captured-iterm-window-20260401t032225z";
+const hostedWorkspaceId = "ws-main-cody-1";
+const failCreate = ${JSON.stringify(failCreate)};
+const baseTabs = [
+  { tab_id: "tab-orp", title: "orp", project_root: "/Volumes/Code_2TB/code/orp" },
+  { tab_id: "tab-frg", title: "frg-site", project_root: "/Volumes/Code_2TB/code/frg-site" },
+];
+
+function write(payload) {
+  process.stdout.write(JSON.stringify(payload) + "\\n");
+}
+
+function linkedIdea() {
+  return {
+    idea_id: ideaId,
+    idea_title: "Terminal paths and codex sessions 03-26-2026",
+    relationship: "primary",
+  };
+}
+
+function state(tabs) {
+  return {
+    captured_at_utc: "2026-04-15T12:00:00.000Z",
+    updated_at_utc: "2026-04-15T12:00:00.000Z",
+    tab_count: tabs.length,
+    capture_context: {
+      source_app: "test",
+      mode: "snapshot",
+      machine_id: "test-mac:darwin",
+      machine_label: "Test Mac",
+      platform: "darwin",
+    },
+    tabs,
+  };
+}
+
+function bridgeWorkspace() {
+  return {
+    workspace_id: bridgeWorkspaceId,
+    title: "Main Cody 1",
+    source_kind: "idea_bridge",
+    linked_idea: linkedIdea(),
+    state: state(baseTabs),
+  };
+}
+
+function hostedWorkspace(tabs = []) {
+  return {
+    workspace_id: hostedWorkspaceId,
+    title: "main-cody-1",
+    source_kind: "hosted",
+    linked_idea: linkedIdea(),
+    state: state(tabs),
+  };
+}
+
+if (args[0] === "workspaces" && args[1] === "list") {
+  write({ ok: true, source: "hosted", workspaces: [bridgeWorkspace()], has_more: false, cursor: "" });
+} else if (args[0] === "workspaces" && args[1] === "show") {
+  if (args[2] === bridgeWorkspaceId) {
+    write({ ok: true, workspace: bridgeWorkspace() });
+  } else if (args[2] === hostedWorkspaceId) {
+    write({ ok: true, workspace: hostedWorkspace(baseTabs) });
+  } else {
+    process.stderr.write("unknown workspace: " + args[2] + "\\n");
+    process.exit(1);
+  }
+} else if (args[0] === "workspaces" && args[1] === "add") {
+  if (failCreate) {
+    process.stderr.write("Hosted ORP returned an HTML error page instead of JSON (status=404 path=/api/cli/workspaces)\\n");
+    process.exit(1);
+  }
+  const title = args[args.indexOf("--title") + 1];
+  const linked = args[args.indexOf("--idea-id") + 1];
+  if (title !== "main-cody-1" || linked !== ideaId) {
+    process.stderr.write("unexpected add args: " + JSON.stringify(args) + "\\n");
+    process.exit(1);
+  }
+  write({ ok: true, workspace: hostedWorkspace([]) });
+} else if (args[0] === "workspaces" && args[1] === "push-state") {
+  const stateFile = args[args.indexOf("--state-file") + 1];
+  const pushedState = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  write({ ok: true, workspace: hostedWorkspace(pushedState.tabs || []) });
+} else if (args[0] === "ideas" && args[1] === "list") {
+  write({ ok: true, ideas: [], has_more: false, cursor: "" });
+} else if (args[0] === "idea" && args[1] === "update") {
+  process.stderr.write("idea update should not be called\\n");
+  process.exit(2);
+} else {
+  process.stderr.write("unexpected args: " + JSON.stringify(args) + "\\n");
+  process.exit(1);
+}
+`;
+
+  await fs.writeFile(scriptPath, script, "utf8");
+  await fs.chmod(scriptPath, 0o755);
+  await fs.writeFile(logPath, "", "utf8");
+  return { scriptPath, logPath };
+}
+
 function sampleManifest() {
   return normalizeWorkspaceManifest({
     version: "1",
@@ -323,6 +437,118 @@ test("runWorkspaceAddTab updates a local workspace manifest file", async () => {
     assert.equal(saved.tabs.length, 3);
     assert.equal(saved.tabs[2]?.remoteUrl, "git@github.com:anthropic/anthropic-lab.git");
     assert.equal(saved.tabs[2]?.resumeCommand, "claude --resume claude-456");
+  });
+});
+
+test("runWorkspaceAddTab promotes idea-bridge workspaces to hosted workspace state", async () => {
+  await withTempConfigHome(async (configHome) => {
+    const tempDir = await makeTempDir();
+    const { scriptPath, logPath } = await makeFakeIdeaBridgeOrpCommand(tempDir);
+    const originalLogPath = process.env.FAKE_ORP_LOG;
+    process.env.FAKE_ORP_LOG = logPath;
+
+    try {
+      const { code, stdout } = await captureStdout(() =>
+        runWorkspaceAddTab([
+          "main",
+          "--path",
+          "/Volumes/Code_2TB/code/anthropic-lab",
+          "--title",
+          "anthropic-lab",
+          "--remote-url",
+          "git@github.com:anthropic/anthropic-lab.git",
+          "--resume-tool",
+          "codex",
+          "--resume-session-id",
+          "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+          "--orp-command",
+          scriptPath,
+          "--json",
+        ]),
+      );
+      const payload = JSON.parse(stdout);
+      const calls = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line).args);
+      const slots = JSON.parse(await fs.readFile(path.join(configHome, "orp", "workspace-slots.json"), "utf8"));
+
+      assert.equal(code, 0);
+      assert.equal(payload.persistedTo, "hosted-workspace");
+      assert.equal(payload.promotedFromIdeaId, "idea-main-123");
+      assert.equal(payload.createdHostedWorkspace, true);
+      assert.equal(payload.workspaceSourceId, "ws-main-cody-1");
+      assert.equal(payload.tabCount, 3);
+      assert.equal(payload.tab.restartCommand, "cd '/Volumes/Code_2TB/code/anthropic-lab' && codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
+      assert.equal(payload.manifest.tabs[2]?.path, "/Volumes/Code_2TB/code/anthropic-lab");
+      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "add"));
+      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "push-state"));
+      assert.equal(calls.some((args) => args[0] === "idea" && args[1] === "update"), false);
+      assert.equal(slots.slots.main.kind, "hosted-workspace");
+      assert.equal(slots.slots.main.hostedWorkspaceId, "ws-main-cody-1");
+    } finally {
+      if (originalLogPath == null) {
+        delete process.env.FAKE_ORP_LOG;
+      } else {
+        process.env.FAKE_ORP_LOG = originalLogPath;
+      }
+    }
+  });
+});
+
+test("runWorkspaceAddTab falls back to local ledger when hosted workspace creation is unavailable", async () => {
+  await withTempConfigHome(async (configHome) => {
+    const tempDir = await makeTempDir();
+    const { scriptPath, logPath } = await makeFakeIdeaBridgeOrpCommand(tempDir, { failCreate: true });
+    const originalLogPath = process.env.FAKE_ORP_LOG;
+    process.env.FAKE_ORP_LOG = logPath;
+
+    try {
+      const { code, stdout } = await captureStdout(() =>
+        runWorkspaceAddTab([
+          "main",
+          "--path",
+          "/Volumes/Code_2TB/code/anthropic-lab",
+          "--title",
+          "anthropic-lab",
+          "--remote-url",
+          "git@github.com:anthropic/anthropic-lab.git",
+          "--resume-tool",
+          "codex",
+          "--resume-session-id",
+          "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9",
+          "--orp-command",
+          scriptPath,
+          "--json",
+        ]),
+      );
+      const payload = JSON.parse(stdout);
+      const calls = (await fs.readFile(logPath, "utf8"))
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line).args);
+      const saved = JSON.parse(await fs.readFile(payload.manifestPath, "utf8"));
+      const slots = JSON.parse(await fs.readFile(path.join(configHome, "orp", "workspace-slots.json"), "utf8"));
+
+      assert.equal(code, 0);
+      assert.equal(payload.persistedTo, "workspace-file");
+      assert.equal(payload.promotedFromIdeaId, "idea-main-123");
+      assert.match(payload.hostedMigrationSkippedReason, /status=404/);
+      assert.equal(payload.tabCount, 3);
+      assert.equal(saved.tabs[2]?.path, "/Volumes/Code_2TB/code/anthropic-lab");
+      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "add"));
+      assert.equal(calls.some((args) => args[0] === "idea" && args[1] === "update"), false);
+      assert.equal(slots.slots.main.kind, "workspace-file");
+      assert.equal(slots.slots.main.manifestPath, payload.manifestPath);
+    } finally {
+      if (originalLogPath == null) {
+        delete process.env.FAKE_ORP_LOG;
+      } else {
+        process.env.FAKE_ORP_LOG = originalLogPath;
+      }
+    }
   });
 });
 

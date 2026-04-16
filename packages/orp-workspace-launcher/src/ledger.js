@@ -14,12 +14,12 @@ import {
 import { buildHostedWorkspaceState } from "./hosted-state.js";
 import {
   buildWorkspaceManifestFromHostedWorkspacePayload,
-  fetchIdeaPayload,
+  createHostedWorkspaceForIdea,
   fetchHostedWorkspacePayload,
+  findHostedWorkspaceByLinkedIdea,
   loadWorkspaceSource,
   pushHostedWorkspaceState,
   resolveWorkspaceWatchTargets,
-  updateIdeaPayload,
 } from "./orp.js";
 import {
   cacheManagedWorkspaceManifest,
@@ -28,7 +28,7 @@ import {
   registerWorkspaceManifest,
   setWorkspaceSlot,
 } from "./registry.js";
-import { buildWorkspaceSyncPreview, resolveWorkspaceSyncTargetIdeaId, validateWorkspaceTitle } from "./sync.js";
+import { validateWorkspaceTitle } from "./sync.js";
 
 function normalizeOptionalString(value) {
   if (value == null) {
@@ -125,6 +125,103 @@ function materializeWorkspaceManifest(manifest) {
   );
 }
 
+function getObjectValue(record, ...keys) {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function getHostedWorkspaceId(workspace) {
+  return normalizeOptionalString(workspace?.workspace_id ?? workspace?.workspaceId ?? workspace?.id);
+}
+
+function getHostedWorkspaceTitle(workspace) {
+  return normalizeOptionalString(workspace?.title) || getHostedWorkspaceId(workspace);
+}
+
+function buildHostedWorkspaceSlotAssignment(workspace) {
+  const workspaceId = getHostedWorkspaceId(workspace);
+  if (!workspaceId) {
+    return null;
+  }
+  const title = getHostedWorkspaceTitle(workspace);
+  return {
+    kind: "hosted-workspace",
+    selector: title || workspaceId,
+    workspaceId,
+    title: title || undefined,
+    hostedWorkspaceId: workspaceId,
+  };
+}
+
+function buildWorkspaceFileSlotAssignment(manifest, manifestPath) {
+  const workspaceId = normalizeOptionalString(manifest?.workspaceId);
+  const title = normalizeOptionalString(manifest?.title) || workspaceId || undefined;
+  return {
+    kind: "workspace-file",
+    selector: title || workspaceId || manifestPath,
+    workspaceId: workspaceId || undefined,
+    title,
+    manifestPath,
+  };
+}
+
+async function assignMatchingWorkspaceSlots(source, manifest, assignment, options = {}) {
+  if (!assignment) {
+    return {};
+  }
+
+  const slotNames = new Set();
+  if (source.resolvedSlotName) {
+    slotNames.add(source.resolvedSlotName);
+  }
+
+  const sourceWorkspaceIds = new Set(
+    [
+      manifest?.workspaceId,
+      source.workspaceManifest?.workspaceId,
+      getHostedWorkspaceId(source.hostedWorkspace),
+      source.hostedWorkspaceId,
+    ]
+      .map((value) => normalizeOptionalString(value))
+      .filter(Boolean),
+  );
+  const sourcePaths = new Set(
+    [source.sourcePath, assignment.manifestPath]
+      .map((value) => normalizeOptionalString(value))
+      .filter(Boolean)
+      .map((value) => path.resolve(value)),
+  );
+
+  const slotsResult = await loadWorkspaceSlots(options).catch(() => ({ slots: {} }));
+  for (const [slotName, slot] of Object.entries(slotsResult.slots || {})) {
+    if (!slot || typeof slot !== "object" || Array.isArray(slot)) {
+      continue;
+    }
+    const slotIds = [
+      slot.workspaceId,
+      slot.hostedWorkspaceId,
+      slot.selector,
+    ]
+      .map((value) => normalizeOptionalString(value))
+      .filter(Boolean);
+    const slotPath = normalizeOptionalString(slot.manifestPath);
+    if (slotIds.some((value) => sourceWorkspaceIds.has(value)) || (slotPath && sourcePaths.has(path.resolve(slotPath)))) {
+      slotNames.add(slotName);
+    }
+  }
+
+  const assignedSlots = {};
+  for (const slotName of slotNames) {
+    assignedSlots[slotName] = (await setWorkspaceSlot(slotName, assignment, options)).slot;
+  }
+  return assignedSlots;
+}
+
 function normalizeEditableManifest(source, parsed) {
   const baseManifest = parsed.manifest
     ? {
@@ -177,6 +274,51 @@ function normalizeEditableManifest(source, parsed) {
       };
 
   return normalizeWorkspaceManifest(baseManifest);
+}
+
+async function findOrCreateHostedWorkspaceForIdea(ideaId, source, manifest, options = {}) {
+  const existingWorkspace = await findHostedWorkspaceByLinkedIdea(ideaId, options);
+  if (existingWorkspace) {
+    return {
+      workspace: existingWorkspace,
+      created: false,
+    };
+  }
+
+  const linkedIdea =
+    source.sourceType === "hosted-idea"
+      ? source.idea
+      : getObjectValue(source.hostedWorkspace, "linked_idea", "linkedIdea");
+  const title =
+    manifest.title ||
+    manifest.workspaceId ||
+    source.title ||
+    normalizeOptionalString(linkedIdea?.idea_title ?? linkedIdea?.ideaTitle) ||
+    normalizeOptionalString(linkedIdea?.title) ||
+    ideaId;
+  const created = await createHostedWorkspaceForIdea({ title, ideaId }, options);
+  return {
+    workspace: created.workspace,
+    created: true,
+    createdPayload: created,
+  };
+}
+
+async function persistIdeaBackedWorkspaceToLocalCache(ideaId, source, manifest, reason, options = {}) {
+  const managedCache = await cacheManagedWorkspaceManifest(manifest, options);
+  const assignment = buildWorkspaceFileSlotAssignment(manifest, managedCache.manifestPath);
+  const assignedSlots = await assignMatchingWorkspaceSlots(source, manifest, assignment, options);
+  return {
+    persistedTo: "workspace-file",
+    ideaId,
+    promotedFromIdeaId: ideaId,
+    hostedMigrationSkippedReason: reason instanceof Error ? reason.message : String(reason || "Hosted workspace API unavailable."),
+    manifestPath: managedCache.manifestPath,
+    registryPath: managedCache.registryPath,
+    assignedSlots,
+    managedCache,
+    manifest,
+  };
 }
 
 function parseLedgerSelectorArgs(
@@ -593,40 +735,46 @@ async function persistWorkspaceManifest(source, manifest, options = {}) {
   }
 
   if (watchTargets.syncIdeaSelector) {
-    const targetSource = await loadWorkspaceSource({
-      ...options,
-      ideaId: watchTargets.syncIdeaSelector,
-    });
-    const targetIdeaId = resolveWorkspaceSyncTargetIdeaId(targetSource);
-    if (!targetIdeaId) {
-      throw new Error(`Workspace source does not resolve to a syncable hosted idea: ${watchTargets.syncIdeaSelector}`);
+    const ideaId = watchTargets.syncIdeaSelector;
+    let promoted;
+    try {
+      promoted = await findOrCreateHostedWorkspaceForIdea(ideaId, source, manifest, options);
+    } catch (error) {
+      return persistIdeaBackedWorkspaceToLocalCache(ideaId, source, manifest, error, options);
     }
-    const targetPayload =
-      targetSource.sourceType === "hosted-idea" && targetSource.idea?.id === targetIdeaId
-        ? targetSource.payload
-        : await fetchIdeaPayload(targetIdeaId, options);
-    const liveSource = {
-      sourceType: "workspace-file",
-      sourceLabel: `edited-workspace:${watchTargets.syncIdeaSelector}`,
-      title: manifest.title || manifest.workspaceId || source.title || watchTargets.syncIdeaSelector,
-      workspaceManifest: manifest,
-      notes: "",
-    };
-    const parsed = parseWorkspaceSource(liveSource);
-    const preview = buildWorkspaceSyncPreview({
-      source: liveSource,
-      parsed,
-      targetIdea: targetPayload.idea,
-      workspaceTitle: manifest.title || manifest.workspaceId || undefined,
+    const workspaceId = getHostedWorkspaceId(promoted.workspace);
+    if (!workspaceId) {
+      throw new Error(`Hosted workspace for idea ${ideaId} did not include a workspace id.`);
+    }
+
+    const previousWorkspace = promoted.created
+      ? promoted.workspace
+      : (await fetchHostedWorkspacePayload(workspaceId, options)).workspace;
+    const state = buildHostedWorkspaceState(manifest, {
+      previousWorkspace,
+      capturedAt: manifest.capture?.capturedAt,
+      updatedAt: new Date().toISOString(),
     });
-    const updatedIdea = await updateIdeaPayload(targetIdeaId, { notes: preview.nextNotes }, options);
-    const managedCache = await cacheManagedWorkspaceManifest(preview.manifest, options);
+    const pushResult = await pushHostedWorkspaceState(workspaceId, state, options);
+    const cachedManifest = buildWorkspaceManifestFromHostedWorkspacePayload(pushResult);
+    const managedCache = await cacheManagedWorkspaceManifest(cachedManifest, options);
+    const workspaceForSlot = pushResult.workspace || promoted.workspace;
+    const assignedSlots = await assignMatchingWorkspaceSlots(
+      source,
+      cachedManifest,
+      buildHostedWorkspaceSlotAssignment(workspaceForSlot),
+      options,
+    );
     return {
-      persistedTo: "hosted-idea",
-      ideaId: targetIdeaId,
-      updatedIdea,
+      persistedTo: "hosted-workspace",
+      ideaId,
+      promotedFromIdeaId: ideaId,
+      createdHostedWorkspace: promoted.created,
+      workspaceId,
+      pushResult,
+      assignedSlots,
       managedCache,
-      manifest: preview.manifest,
+      manifest: cachedManifest,
     };
   }
 
@@ -780,8 +928,14 @@ function summarizeWorkspaceLedgerMutation(result) {
     lines.push(`Canonical source: ORP idea ${result.ideaId}`);
   } else if (result.persistedTo === "hosted-workspace") {
     lines.push(`Canonical source: hosted workspace ${result.workspaceId}`);
+    if (result.promotedFromIdeaId) {
+      lines.push(`Linked idea: ${result.promotedFromIdeaId}`);
+    }
   } else if (result.persistedTo === "workspace-file") {
     lines.push(`Saved file: ${result.manifestPath}`);
+    if (result.hostedMigrationSkippedReason) {
+      lines.push(`Hosted migration skipped: ${result.hostedMigrationSkippedReason}`);
+    }
   }
 
   if (result.managedCachePath) {
@@ -809,9 +963,14 @@ async function runWorkspaceLedgerMutation(options, mutate, action) {
     removedTabs: (mutated.removedTabs || []).map((tab) => buildWorkspaceResultTab(tab)),
     persistedTo: persisted.persistedTo,
     ideaId: persisted.ideaId || null,
+    promotedFromIdeaId: persisted.promotedFromIdeaId || null,
+    createdHostedWorkspace: persisted.createdHostedWorkspace || false,
+    hostedMigrationSkippedReason: persisted.hostedMigrationSkippedReason || null,
     workspaceSourceId: persisted.workspaceId || null,
     manifestPath: persisted.manifestPath || null,
     managedCachePath: persisted.managedCache?.manifestPath || null,
+    assignedSlot: persisted.assignedSlot || Object.values(persisted.assignedSlots || {})[0] || null,
+    assignedSlots: persisted.assignedSlots || null,
     manifest: finalManifest,
   };
 

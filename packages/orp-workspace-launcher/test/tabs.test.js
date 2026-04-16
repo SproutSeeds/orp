@@ -123,6 +123,66 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
   assert.equal(report.tabs[2]?.codexSessionId, null);
 });
 
+test("buildWorkspaceTabsReport ranks Codex tabs by recent local session activity", async () => {
+  const tempDir = await makeTempDir();
+  const codexHome = path.join(tempDir, "codex-home");
+  const sessionsDir = path.join(codexHome, "sessions", "2026", "04", "15");
+  await fs.mkdir(sessionsDir, { recursive: true });
+
+  const olderSessionId = "019d0000-0000-7000-8000-000000000001";
+  const newerSessionId = "019d0000-0000-7000-8000-000000000002";
+  const olderPath = path.join(sessionsDir, `rollout-2026-04-15T01-00-00-${olderSessionId}.jsonl`);
+  const newerPath = path.join(sessionsDir, `rollout-2026-04-15T02-00-00-${newerSessionId}.jsonl`);
+  await fs.writeFile(olderPath, "{}\n", "utf8");
+  await fs.writeFile(newerPath, "{}\n", "utf8");
+  await fs.utimes(olderPath, new Date("2026-04-15T01:00:00Z"), new Date("2026-04-15T01:00:00Z"));
+  await fs.utimes(newerPath, new Date("2026-04-15T02:00:00Z"), new Date("2026-04-15T02:00:00Z"));
+
+  const parsed = parseWorkspaceSource({
+    sourceType: "workspace-file",
+    sourceLabel: "/tmp/workspace.json",
+    title: "workspace",
+    workspaceManifest: {
+      version: "1",
+      workspaceId: "orp-main",
+      tabs: [
+        {
+          title: "older-project",
+          path: "/Volumes/Code_2TB/code/older-project",
+          resumeCommand: `codex resume ${olderSessionId}`,
+        },
+        {
+          title: "no-session-project",
+          path: "/Volumes/Code_2TB/code/no-session-project",
+        },
+        {
+          title: "newer-project",
+          path: "/Volumes/Code_2TB/code/newer-project",
+          resumeCommand: `codex resume ${newerSessionId}`,
+        },
+      ],
+    },
+    notes: "",
+  });
+
+  const report = buildWorkspaceTabsReport(
+    {
+      sourceType: "workspace-file",
+      sourceLabel: "/tmp/workspace.json",
+      title: "workspace",
+    },
+    parsed,
+    { codexHome },
+  );
+
+  assert.equal(report.tabs[0]?.title, "newer-project");
+  assert.equal(report.tabs[1]?.title, "older-project");
+  assert.equal(report.tabs[2]?.title, "no-session-project");
+  assert.equal(report.projects[0]?.path, "/Volumes/Code_2TB/code/newer-project");
+  assert.equal(report.projects[1]?.path, "/Volumes/Code_2TB/code/older-project");
+  assert.equal(report.projects[2]?.path, "/Volumes/Code_2TB/code/no-session-project");
+});
+
 test("runWorkspaceTabs prints JSON without launch commands", async () => {
   const tempDir = await makeTempDir();
   const manifestPath = path.join(tempDir, "workspace.json");

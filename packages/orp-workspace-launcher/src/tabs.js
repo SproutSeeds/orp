@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 
 import {
@@ -11,6 +14,144 @@ import {
   parseWorkspaceSource,
 } from "./core-plan.js";
 import { loadWorkspaceSource } from "./orp.js";
+
+const SESSION_ID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function normalizeOptionalString(value) {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveCodexHome(options = {}) {
+  return (
+    normalizeOptionalString(options.codexHome) ||
+    normalizeOptionalString(process.env.CODEX_HOME) ||
+    path.join(os.homedir(), ".codex")
+  );
+}
+
+function collectCodexSessionIds(tabs = []) {
+  return new Set(
+    tabs
+      .filter((tab) => tab.resumeTool === "codex")
+      .map((tab) => normalizeOptionalString(tab.sessionId))
+      .map((sessionId) => sessionId?.toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function sessionIdsInFilename(filename, wantedSessionIds) {
+  const matches = new Set();
+  for (const match of filename.matchAll(SESSION_ID_PATTERN)) {
+    const sessionId = match[0].toLowerCase();
+    if (wantedSessionIds.has(sessionId)) {
+      matches.add(sessionId);
+    }
+  }
+
+  if (matches.size > 0) {
+    return matches;
+  }
+
+  for (const sessionId of wantedSessionIds) {
+    if (filename.includes(sessionId)) {
+      matches.add(sessionId);
+    }
+  }
+  return matches;
+}
+
+function rememberActivity(activityBySessionId, sessionId, filePath, stat) {
+  const current = activityBySessionId.get(sessionId);
+  if (!current || stat.mtimeMs > current.mtimeMs) {
+    activityBySessionId.set(sessionId, {
+      mtimeMs: stat.mtimeMs,
+      filePath,
+    });
+  }
+}
+
+function scanActivityDirectory(rootDir, wantedSessionIds, activityBySessionId) {
+  let entries;
+  try {
+    entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      scanActivityDirectory(entryPath, wantedSessionIds, activityBySessionId);
+      continue;
+    }
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const matchingSessionIds = sessionIdsInFilename(entry.name, wantedSessionIds);
+    if (matchingSessionIds.size === 0) {
+      continue;
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(entryPath);
+    } catch {
+      continue;
+    }
+    for (const sessionId of matchingSessionIds) {
+      rememberActivity(activityBySessionId, sessionId, entryPath, stat);
+    }
+  }
+}
+
+function buildCodexActivityIndex(tabs = [], options = {}) {
+  const wantedSessionIds = collectCodexSessionIds(tabs);
+  if (wantedSessionIds.size === 0) {
+    return new Map();
+  }
+
+  const activityBySessionId = new Map();
+  const codexHome = resolveCodexHome(options);
+  scanActivityDirectory(path.join(codexHome, "sessions"), wantedSessionIds, activityBySessionId);
+  scanActivityDirectory(path.join(codexHome, "shell_snapshots"), wantedSessionIds, activityBySessionId);
+  return activityBySessionId;
+}
+
+function orderTabsByRecentActivity(tabs = [], options = {}) {
+  const activityBySessionId = buildCodexActivityIndex(tabs, options);
+  const rankedTabs = tabs.map((tab, originalIndex) => {
+    const sessionActivity =
+      tab.resumeTool === "codex" && tab.sessionId ? activityBySessionId.get(String(tab.sessionId).toLowerCase()) : null;
+    return {
+      tab,
+      originalIndex,
+      activityMs: sessionActivity?.mtimeMs || 0,
+    };
+  });
+
+  const projectActivity = new Map();
+  for (const ranked of rankedTabs) {
+    const current = projectActivity.get(ranked.tab.path) || 0;
+    projectActivity.set(ranked.tab.path, Math.max(current, ranked.activityMs));
+  }
+
+  return rankedTabs
+    .sort((left, right) => {
+      const leftProjectActivity = projectActivity.get(left.tab.path) || 0;
+      const rightProjectActivity = projectActivity.get(right.tab.path) || 0;
+      return (
+        rightProjectActivity - leftProjectActivity ||
+        right.activityMs - left.activityMs ||
+        left.originalIndex - right.originalIndex
+      );
+    })
+    .map((ranked) => ranked.tab);
+}
 
 export function parseWorkspaceTabsArgs(argv = []) {
   const options = {
@@ -64,7 +205,8 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
     tmux: false,
     resume: true,
   });
-  const projectGroups = buildWorkspaceProjectGroups(launchTabs);
+  const orderedLaunchTabs = orderTabsByRecentActivity(launchTabs, options);
+  const projectGroups = buildWorkspaceProjectGroups(orderedLaunchTabs);
 
   return {
     sourceType: source.sourceType,
@@ -73,7 +215,7 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
     workspaceId: deriveWorkspaceId(source, parsed),
     machine: parsed.manifest?.machine || null,
     parseMode: parsed.parseMode,
-    tabCount: launchTabs.length,
+    tabCount: orderedLaunchTabs.length,
     projectCount: projectGroups.length,
     skippedCount: parsed.skipped.length,
     projects: projectGroups.map((project) => ({
@@ -92,7 +234,7 @@ export function buildWorkspaceTabsReport(source, parsed, options = {}) {
         ),
       })),
     })),
-    tabs: launchTabs.map((tab, index) => ({
+    tabs: orderedLaunchTabs.map((tab, index) => ({
       index: index + 1,
       title: tab.title,
       path: tab.path,
@@ -191,7 +333,8 @@ Options:
   -h, --help              Show this help text
 
 Notes:
-  - This shows the saved tab order plus any stored local path, remote repo, bootstrap command, and \`codex resume ...\` / \`claude --resume ...\` metadata.
+  - This shows activity-ranked saved tabs plus any stored local path, remote repo, bootstrap command, and \`codex resume ...\` / \`claude --resume ...\` metadata.
+  - Codex-backed tabs are ranked by the latest matching local session or shell snapshot activity; ties keep the saved ledger order.
   - JSON output includes grouped \`projects[].sessions[]\` so duplicate project paths can be reviewed and sunset together.
   - The human-readable \`resume:\` line is already copyable and includes the saved \`cd ... && resume ...\` recovery command.
   - When a tab also has \`remote:\` or \`setup:\` lines, those are the portable cross-machine clues for cloning and preparing the repo on another rig.

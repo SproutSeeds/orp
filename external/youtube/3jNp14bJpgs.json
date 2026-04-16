@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "youtube_source",
+  "retrieved_at_utc": "2026-04-15T09:10:53Z",
+  "source_url": "https://www.youtube.com/watch?v=3jNp14bJpgs",
+  "canonical_url": "https://www.youtube.com/watch?v=3jNp14bJpgs",
+  "video_id": "3jNp14bJpgs",
+  "title": "HERMES AGENT SETUP: the OpenClaw killer is here",
+  "author_name": "Wes Roth",
+  "author_url": "https://www.youtube.com/@WesRoth",
+  "thumbnail_url": "https://i.ytimg.com/vi/3jNp14bJpgs/hqdefault.jpg",
+  "channel_id": "UCqcbQf6yw5KzRoDDcZ_wBSw",
+  "description": "Go to: http://hostinger.com/hermeswesroth\nand use code: WESROTH \nfor an additional discount on HOSTINGER yearly plans.\n\n______________________________________________\nMy Links \ud83d\udd17\n\u27a1\ufe0f Twitter: https://x.com/WesRoth\n\u27a1\ufe0f AI Newsletter: https://natural20.beehiiv.com/subscribe\n\nWant to work with me?\nBrand, sponsorship & business inquiries: wesroth@smoothmedia.co\n\nCheck out my AI Podcast where me and Dylan interview AI experts:\nhttps://www.youtube.com/playlist?list=PLb1th0f6y4XSKLYenSVDUXFjSHsZTTfhk\n______________________________________________\n\n00:00 Nous Agent\n03:20 Hermes Agent Skills\n05:00 Free AI Models\n07:04 Install on VPS (Hostinger sponsored)\n12:30 Telegram \"The BotFather\"\n14:33 Terminal\n20:57 Hermes CLI\n25:00 \"hermes setup\"\n30:00 Gateway and Telegram\n33:55 manually changing the .env file\n\n\n\n#ai #openai #llm",
+  "duration_seconds": 2564,
+  "published_at": "2026-04-15T02:05:33-07:00",
+  "playability_status": "OK",
+  "transcript_track_count": 0,
+  "available_transcript_tracks": [],
+  "transcript_available": false,
+  "transcript_language": "",
+  "transcript_track_name": "",
+  "transcript_track_source": "",
+  "transcript_kind": "none",
+  "transcript_fetch_mode": "none",
+  "transcript_text": "",
+  "transcript_segments": [],
+  "transcript_sources_tried": [],
+  "warnings": [
+    "No caption tracks were available for this video."
+  ],
+  "text_bundle": "Title: HERMES AGENT SETUP: the OpenClaw killer is here\n\nAuthor: Wes Roth\n\nDuration seconds: 2564\n\nDescription:\nGo to: http://hostinger.com/hermeswesroth\nand use code: WESROTH \nfor an additional discount on HOSTINGER yearly plans.\n\n______________________________________________\nMy Links \ud83d\udd17\n\u27a1\ufe0f Twitter: https://x.com/WesRoth\n\u27a1\ufe0f AI Newsletter: https://natural20.beehiiv.com/subscribe\n\nWant to work with me?\nBrand, sponsorship & business inquiries: wesroth@smoothmedia.co\n\nCheck out my AI Podcast where me and Dylan interview AI experts:\nhttps://www.youtube.com/playlist?list=PLb1th0f6y4XSKLYenSVDUXFjSHsZTTfhk\n______________________________________________\n\n00:00 Nous Agent\n03:20 Hermes Agent Skills\n05:00 Free AI Models\n07:04 Install on VPS (Hostinger sponsored)\n12:30 Telegram \"The BotFather\"\n14:33 Terminal\n20:57 Hermes CLI\n25:00 \"hermes setup\"\n30:00 Gateway and Telegram\n33:55 manually changing the .env file\n\n\n\n#ai #openai #llm"
+}

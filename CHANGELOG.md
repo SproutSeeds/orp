@@ -6,6 +6,33 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.25 - 2026-04-16
+
+This release strengthens ORP continuation handling for long-running delegated
+research programs and improves workspace-ledger migration for hosted workspaces.
+
+### Added
+
+- Added `orp frontier continuation-status` and `orp frontier preflight-delegate`
+  so agents can check whether a frontier has a safe next step, blocker, or
+  terminal declaration before handing work to a delegation loop.
+- Added strict frontier doctor behavior with `orp frontier doctor --strict`,
+  including stale active phase/milestone checks, stale active additional-queue
+  checks, and warnings when pending additional work has not been activated.
+- Added `orp frontier additional ...` queue commands and materialized
+  `additional-items.json` / `ADDITIONAL_ITEMS.md` views for post-objective work
+  that must continue after the active delegate item.
+- Added agent-runtime borrowing notes as a design reference for ORP's boundary
+  with always-on personal-agent systems.
+
+### Changed
+
+- Updated workspace launcher behavior so idea-bridge workspaces can be promoted
+  into hosted workspace state when the hosted API is available, with local
+  ledger fallback when it is not.
+- Updated workspace tab reports to rank Codex-backed tabs by recent local
+  session activity while keeping saved order as the tie-breaker.
+
 ## v0.4.24 - 2026-04-14
 
 This release restores the ORP CI and npm publish path after recent workflow

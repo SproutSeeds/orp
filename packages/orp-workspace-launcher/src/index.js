@@ -44,10 +44,13 @@ export { runWorkspaceSlot } from "./slot.js";
 export { buildWorkspaceTabsReport, parseWorkspaceTabsArgs, runWorkspaceTabs, summarizeWorkspaceTabs } from "./tabs.js";
 export {
   buildWorkspaceManifestFromHostedWorkspacePayload,
+  createHostedWorkspaceForIdea,
   fetchHostedWorkspacePayload,
   fetchIdeaPayload,
   fetchIdeasPayload,
   fetchHostedWorkspacesPayload,
+  findHostedWorkspaceByLinkedIdea,
+  findHostedWorkspaceLinkedToIdea,
   loadWorkspaceSource,
   pushHostedWorkspaceState,
   chooseImplicitMainCandidate,
