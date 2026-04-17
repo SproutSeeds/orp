@@ -6,6 +6,36 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.26 - 2026-04-17
+
+This release adds ORP-native project context and OpenAI research-loop support,
+so agents can initialize a directory, keep its operating lens refreshed, and
+use explicit high-reasoning or web-synthesis API calls only when the local
+loop needs them.
+
+### Added
+
+- Added `orp project refresh` and `orp project show` for `orp/project.json`,
+  a process-only project context lens that records authority surfaces,
+  directory signals, evolution policy, and research call timing.
+- Added `orp research ask`, `orp research status`, and `orp research show` for
+  durable OpenAI research runs with dry-run planning by default and explicit
+  `--execute` live calls.
+- Added a tiny `scripts/orp-mcp` stdio wrapper exposing the research commands
+  as MCP tools for Codex-like clients.
+- Added versioned schemas for research runs and project context artifacts.
+- Added `orp secrets keychain-add` so users can save a local machine OpenAI key
+  or other provider credential without relying on hosted secret storage.
+
+### Changed
+
+- Updated `orp init`, `orp status`, `orp about`, and `orp home` to expose the
+  project context lifecycle as a first-class ORP surface.
+- Documented the research timing rule: decompose locally first, call high
+  reasoning for ambiguous decision gates, call web synthesis for current public
+  facts and citations, and reserve Deep Research for heavier source conflicts
+  or literature-scale synthesis.
+
 ## v0.4.25 - 2026-04-16
 
 This release strengthens ORP continuation handling for long-running delegated

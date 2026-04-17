@@ -1,0 +1,531 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest import mock
+import subprocess
+import sys
+import tempfile
+import unittest
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CLI = REPO_ROOT / "cli" / "orp.py"
+
+
+def load_cli_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("orp_cli_research_test", CLI)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(CLI), "--repo-root", str(root), *args],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+
+
+class OrpResearchTests(unittest.TestCase):
+    def test_research_ask_dry_run_persists_plan_and_state(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            proc = run_cli(
+                root,
+                "research",
+                "ask",
+                "Where should the OpenAI research loop live?",
+                "--run-id",
+                "research-dry",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["run_id"], "research-dry")
+            self.assertEqual(payload["status"], "planned")
+            self.assertFalse(payload["execute"])
+            self.assertEqual(payload["profile_id"], "openai-council")
+            self.assertEqual({row["status"] for row in payload["lane_statuses"]}, {"planned"})
+            self.assertIn("planning_only", payload["synthesis"]["confidence"])
+
+            answer_path = root / payload["artifacts"]["answer_json"]
+            summary_path = root / payload["artifacts"]["summary_md"]
+            lanes_root = root / payload["artifacts"]["lanes_root"]
+            self.assertTrue(answer_path.exists())
+            self.assertTrue(summary_path.exists())
+            self.assertTrue((lanes_root / "openai_reasoning_high.json").exists())
+            self.assertEqual(
+                [row["call_moment"] for row in payload["lane_statuses"]],
+                ["thinking_reasoning_high", "web_synthesis", "pro_deep_research"],
+            )
+            self.assertEqual({row["api_called"] for row in payload["lane_statuses"]}, {False})
+
+            answer = json.loads(answer_path.read_text(encoding="utf-8"))
+            self.assertEqual(answer["kind"], "research_run")
+            self.assertEqual(answer["breakdown"]["question"], "Where should the OpenAI research loop live?")
+            self.assertEqual(
+                [row["moment_id"] for row in answer["call_moments"]],
+                ["plan", "thinking_reasoning_high", "web_synthesis", "pro_deep_research"],
+            )
+            reasoning_lane = json.loads((lanes_root / "openai_reasoning_high.json").read_text(encoding="utf-8"))
+            self.assertEqual(reasoning_lane["call_moment"], "thinking_reasoning_high")
+            self.assertFalse(reasoning_lane["api_call"]["called"])
+            self.assertEqual(reasoning_lane["api_call"]["secret_alias"], "openai-primary")
+            self.assertFalse(reasoning_lane["api_call"]["secret_value_persisted"])
+            self.assertEqual(answer["synthesis"]["completed_lane_count"], 0)
+            self.assertIn("No live research lane has completed", answer["synthesis"]["answer"])
+
+            state = json.loads((root / "orp" / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["last_research_run_id"], "research-dry")
+            self.assertIn("research-dry", state["research_runs"])
+
+            status_proc = run_cli(root, "research", "status", "latest", "--json")
+            self.assertEqual(status_proc.returncode, 0, msg=status_proc.stderr + "\n" + status_proc.stdout)
+            status_payload = json.loads(status_proc.stdout)
+            self.assertEqual(status_payload["run_id"], "research-dry")
+            self.assertEqual(status_payload["status"], "planned")
+
+    def test_research_ask_with_lane_fixtures_synthesizes_completed_lanes(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            fixture_dir = root / "fixtures"
+            fixture_dir.mkdir()
+            reasoning_fixture = fixture_dir / "reasoning.json"
+            reasoning_fixture.write_text(
+                json.dumps(
+                    {
+                        "text": "OpenAI frontier lane says ORP should own durability and tool-call surfaces.",
+                        "citations": [
+                            {
+                                "type": "url_citation",
+                                "title": "ORP docs",
+                                "url": "https://example.com/orp",
+                            }
+                        ],
+                        "confidence": "high",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            web_fixture = fixture_dir / "web.txt"
+            web_fixture.write_text(
+                "OpenAI web lane says ORP should call OpenAI provider APIs directly.",
+                encoding="utf-8",
+            )
+
+            proc = run_cli(
+                root,
+                "research",
+                "ask",
+                "Where should this system live?",
+                "--run-id",
+                "research-fixture",
+                "--lane-fixture",
+                f"openai_reasoning_high={reasoning_fixture}",
+                "--lane-fixture",
+                f"openai_web_synthesis={web_fixture}",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "partial")
+            self.assertEqual(payload["synthesis"]["completed_lane_count"], 2)
+            self.assertEqual(payload["synthesis"]["confidence"], "multi_lane")
+            self.assertIn("ORP should own durability", payload["synthesis"]["answer"])
+            self.assertIn("ORP should call OpenAI provider APIs directly", payload["synthesis"]["answer"])
+            self.assertEqual(payload["synthesis"]["citations"][0]["url"], "https://example.com/orp")
+
+            show_proc = run_cli(root, "research", "show", "research-fixture", "--json")
+            self.assertEqual(show_proc.returncode, 0, msg=show_proc.stderr + "\n" + show_proc.stdout)
+            show_payload = json.loads(show_proc.stdout)
+            self.assertEqual(show_payload["run_id"], "research-fixture")
+            lane_statuses = {row["lane_id"]: row["status"] for row in show_payload["lanes"]}
+            self.assertEqual(lane_statuses["openai_reasoning_high"], "complete")
+            self.assertEqual(lane_statuses["openai_web_synthesis"], "complete")
+            self.assertEqual(lane_statuses["openai_deep_research"], "planned")
+
+    def test_openai_adapter_uses_responses_model_reasoning_and_web_search(self) -> None:
+        module = load_cli_module()
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "resp_test",
+                        "status": "completed",
+                        "model": "gpt-5.4",
+                        "output": [
+                            {"type": "web_search_call", "status": "completed"},
+                            {
+                                "type": "message",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": "OpenAI Responses answer.",
+                                        "annotations": [
+                                            {
+                                                "type": "url_citation",
+                                                "title": "Source",
+                                                "url": "https://example.com",
+                                                "start_index": 0,
+                                                "end_index": 6,
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                        ],
+                        "usage": {"input_tokens": 11, "output_tokens": 7},
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(request, timeout=0):
+            captured["url"] = request.full_url
+            captured["headers"] = dict(request.header_items())
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        lane = {
+            "lane_id": "openai_web_synthesis",
+            "call_moment": "web_synthesis",
+            "label": "OpenAI web synthesis",
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "reasoning_effort": "medium",
+            "text_verbosity": "high",
+            "web_search": True,
+            "web_search_tool": "web_search",
+            "search_context_size": "high",
+            "external_web_access": False,
+            "max_tool_calls": 3,
+            "max_output_tokens": 777,
+        }
+        with mock.patch.dict(module.os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            with mock.patch.object(module.urlrequest, "urlopen", side_effect=fake_urlopen):
+                result = module._research_run_openai_lane(
+                    lane,
+                    "Prompt body",
+                    timeout_sec=13,
+                    started_at_utc="2026-04-17T00:00:00Z",
+                )
+
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["adapter"], "openai_responses")
+        self.assertEqual(result["call_moment"], "web_synthesis")
+        self.assertTrue(result["api_call"]["called"])
+        self.assertEqual(result["api_call"]["call_moment"], "web_synthesis")
+        self.assertEqual(result["api_call"]["secret_source"], "env:OPENAI_API_KEY")
+        self.assertIn("tools", result["api_call"]["request_body_keys"])
+        self.assertEqual(result["api_call"]["tools"], ["web_search"])
+        self.assertFalse(result["api_call"]["secret_value_persisted"])
+        self.assertEqual(result["text"], "OpenAI Responses answer.")
+        self.assertEqual(result["tool_call_count"], 1)
+        self.assertEqual(result["citations"][0]["url"], "https://example.com")
+        self.assertEqual(captured["url"], "https://api.openai.com/v1/responses")
+        body = captured["body"]
+        self.assertEqual(body["model"], "gpt-5.4")
+        self.assertEqual(body["input"], "Prompt body")
+        self.assertEqual(body["reasoning"], {"effort": "medium"})
+        self.assertEqual(body["text"], {"verbosity": "high"})
+        self.assertEqual(body["max_tool_calls"], 3)
+        self.assertEqual(body["max_output_tokens"], 777)
+        self.assertEqual(
+            body["tools"],
+            [
+                {
+                    "type": "web_search",
+                    "search_context_size": "high",
+                    "external_web_access": False,
+                }
+            ],
+        )
+        headers = {str(k).lower(): v for k, v in captured["headers"].items()}
+        self.assertEqual(headers["authorization"], "Bearer sk-openai-test")
+
+    def test_research_secret_value_resolves_keychain_alias(self) -> None:
+        module = load_cli_module()
+        entry = {
+            "keychain_service": "orp.secret.openai",
+            "keychain_account": "openai-primary",
+        }
+        lane = {
+            "provider": "openai",
+            "env_var": "OPENAI_API_KEY",
+            "secret_alias": "openai-primary",
+        }
+
+        with mock.patch.dict(module.os.environ, {"OPENAI_API_KEY": ""}):
+            with mock.patch.object(module, "_select_keychain_entry", return_value=entry) as select_entry:
+                with mock.patch.object(module, "_read_keychain_secret_value", return_value="sk-local-test"):
+                    value, source, issue = module._research_secret_value_for_lane(lane)
+
+        self.assertEqual(value, "sk-local-test")
+        self.assertEqual(source, "keychain")
+        self.assertEqual(issue, "")
+        select_entry.assert_called_once_with(
+            secret_ref="openai-primary",
+            provider="openai",
+            world_id="",
+            idea_id="",
+        )
+
+    def test_openai_adapter_records_incomplete_details(self) -> None:
+        module = load_cli_module()
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "resp_incomplete_test",
+                        "status": "incomplete",
+                        "model": "gpt-5.4",
+                        "incomplete_details": {"reason": "max_output_tokens"},
+                        "output": [{"type": "reasoning", "summary": []}],
+                        "usage": {
+                            "input_tokens": 10,
+                            "output_tokens": 20,
+                            "output_tokens_details": {"reasoning_tokens": 20},
+                        },
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(_request, timeout=0):
+            return FakeResponse()
+
+        lane = {
+            "lane_id": "openai_reasoning_high",
+            "call_moment": "thinking_reasoning_high",
+            "label": "OpenAI reasoning high",
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "reasoning_effort": "high",
+            "max_output_tokens": 20,
+        }
+        with mock.patch.dict(module.os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            with mock.patch.object(module.urlrequest, "urlopen", side_effect=fake_urlopen):
+                result = module._research_run_openai_lane(
+                    lane,
+                    "Prompt body",
+                    timeout_sec=13,
+                    started_at_utc="2026-04-17T00:00:00Z",
+                )
+
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["provider_status"], "incomplete")
+        self.assertEqual(result["incomplete_details"], {"reason": "max_output_tokens"})
+        self.assertEqual(result["provider_error"], None)
+        self.assertEqual(result["output_types"], ["reasoning"])
+        self.assertEqual(result["usage"]["output_tokens_details"]["reasoning_tokens"], 20)
+
+    def test_openai_deep_research_lane_uses_background_and_reasoning_summary(self) -> None:
+        module = load_cli_module()
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "resp_deep_test",
+                        "status": "in_progress",
+                        "model": "o3-deep-research-2025-06-26",
+                        "output": [],
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(request, timeout=0):
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse()
+
+        lane = {
+            "lane_id": "openai_deep_research",
+            "call_moment": "pro_deep_research",
+            "label": "OpenAI Pro / Deep Research",
+            "provider": "openai",
+            "model": "o3-deep-research-2025-06-26",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "reasoning_summary": "auto",
+            "web_search": True,
+            "web_search_tool": "web_search_preview",
+            "background": True,
+            "max_tool_calls": 40,
+        }
+        with mock.patch.dict(module.os.environ, {"OPENAI_API_KEY": "sk-openai-test"}):
+            with mock.patch.object(module.urlrequest, "urlopen", side_effect=fake_urlopen):
+                result = module._research_run_openai_lane(
+                    lane,
+                    "Prompt body",
+                    timeout_sec=13,
+                    started_at_utc="2026-04-17T00:00:00Z",
+                )
+
+        body = captured["body"]
+        self.assertEqual(body["model"], "o3-deep-research-2025-06-26")
+        self.assertTrue(body["background"])
+        self.assertEqual(body["reasoning"], {"summary": "auto"})
+        self.assertEqual(body["tools"], [{"type": "web_search_preview", "search_context_size": "medium"}])
+        self.assertEqual(body["max_tool_calls"], 40)
+        self.assertEqual(result["status"], "in_progress")
+        self.assertEqual(result["provider_response_id"], "resp_deep_test")
+        self.assertEqual(result["call_moment"], "pro_deep_research")
+        self.assertTrue(result["api_call"]["called"])
+        self.assertEqual(result["api_call"]["tools"], ["web_search_preview"])
+        self.assertEqual(result["output_types"], [])
+
+    def test_direct_anthropic_adapter_uses_messages_api(self) -> None:
+        module = load_cli_module()
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "msg_test",
+                        "model": "claude-opus-4-7",
+                        "content": [{"type": "text", "text": "Anthropic direct answer."}],
+                        "stop_reason": "end_turn",
+                        "usage": {"input_tokens": 11, "output_tokens": 7},
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(request, timeout=0):
+            captured["url"] = request.full_url
+            captured["headers"] = dict(request.header_items())
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        lane = {
+            "lane_id": "anthropic_opus",
+            "label": "Anthropic Opus critique",
+            "provider": "anthropic",
+            "model": "claude-opus-4-7",
+            "adapter": "anthropic_messages",
+            "env_var": "ANTHROPIC_API_KEY",
+            "max_tokens": 1234,
+        }
+        with mock.patch.dict(module.os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test"}):
+            with mock.patch.object(module.urlrequest, "urlopen", side_effect=fake_urlopen):
+                result = module._research_run_anthropic_lane(
+                    lane,
+                    "Prompt body",
+                    timeout_sec=9,
+                    started_at_utc="2026-04-17T00:00:00Z",
+                )
+
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["adapter"], "anthropic_messages")
+        self.assertEqual(result["text"], "Anthropic direct answer.")
+        self.assertEqual(captured["url"], "https://api.anthropic.com/v1/messages")
+        self.assertEqual(captured["body"]["model"], "claude-opus-4-7")
+        self.assertEqual(captured["body"]["max_tokens"], 1234)
+        self.assertEqual(captured["body"]["messages"][0]["content"], "Prompt body")
+        headers = {str(k).lower(): v for k, v in captured["headers"].items()}
+        self.assertEqual(headers["x-api-key"], "sk-ant-test")
+        self.assertEqual(headers["anthropic-version"], "2023-06-01")
+
+    def test_direct_xai_adapter_uses_chat_completions_api(self) -> None:
+        module = load_cli_module()
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "xai_test",
+                        "model": "grok-4.20-reasoning",
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "xAI direct answer.",
+                                }
+                            }
+                        ],
+                        "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                    }
+                ).encode("utf-8")
+
+        def fake_urlopen(request, timeout=0):
+            captured["url"] = request.full_url
+            captured["headers"] = dict(request.header_items())
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return FakeResponse()
+
+        lane = {
+            "lane_id": "xai_grok",
+            "label": "xAI Grok 4.20 pass",
+            "provider": "xai",
+            "model": "grok-4.20-reasoning",
+            "adapter": "xai_chat_completions",
+            "env_var": "XAI_API_KEY",
+            "max_tokens": 2345,
+        }
+        with mock.patch.dict(module.os.environ, {"XAI_API_KEY": "xai-test"}):
+            with mock.patch.object(module.urlrequest, "urlopen", side_effect=fake_urlopen):
+                result = module._research_run_xai_lane(
+                    lane,
+                    "Prompt body",
+                    timeout_sec=11,
+                    started_at_utc="2026-04-17T00:00:00Z",
+                )
+
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["adapter"], "xai_chat_completions")
+        self.assertEqual(result["text"], "xAI direct answer.")
+        self.assertEqual(captured["url"], "https://api.x.ai/v1/chat/completions")
+        self.assertEqual(captured["body"]["model"], "grok-4.20-reasoning")
+        self.assertEqual(captured["body"]["max_tokens"], 2345)
+        self.assertEqual(captured["body"]["messages"][-1]["content"], "Prompt body")
+        headers = {str(k).lower(): v for k, v in captured["headers"].items()}
+        self.assertEqual(headers["authorization"], "Bearer xai-test")
+
+
+if __name__ == "__main__":
+    unittest.main()

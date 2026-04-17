@@ -43,6 +43,7 @@ orp home
 orp agents root set /absolute/path/to/projects
 orp init
 orp agents audit
+orp project show --json
 orp workspace create main-cody-1
 orp workspace tabs main
 orp agenda refresh --json
@@ -64,6 +65,7 @@ That gets you:
 - an optional umbrella projects root for parent/child agent guidance
 - repo governance initialized
 - repo-level AGENTS.md and CLAUDE.md scaffolded or refreshed
+- `orp/project.json` created as the local project context lens
 - a local workspace ledger
 - the main recovery surface
 - a local operating agenda
@@ -72,6 +74,8 @@ That gets you:
 - secrets setup
 - a clean repo-governance read
 - a first intentional checkpoint
+
+`orp/project.json` records the current directory's authority surfaces, directory signals, and default research call timing. It is refreshed by `orp init` and can evolve with the directory through `orp project refresh --json`, especially after adding or changing roadmap, spec, agent-guidance, docs, manifest, or command-surface files.
 
 ## Beginner Flow
 

@@ -102,6 +102,9 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(payload["files"]["handoff"]["path"], "orp/HANDOFF.md")
             self.assertEqual(payload["files"]["checkpoint_log"]["path"], "orp/checkpoints/CHECKPOINT_LOG.md")
             self.assertEqual(payload["files"]["starter_kernel"]["path"], "analysis/orp.kernel.task.yml")
+            self.assertEqual(payload["files"]["project_context"]["path"], "orp/project.json")
+            self.assertEqual(payload["project_context"]["path"], "orp/project.json")
+            self.assertEqual(payload["project_context"]["research_default_timing"], "after_local_decomposition_before_action")
             self.assertIn("agents", payload)
             self.assertEqual(payload["agents"]["role"], "project")
             self.assertTrue(any("protected" in row for row in payload["warnings"]))
@@ -112,21 +115,61 @@ class OrpInitTests(unittest.TestCase):
             self.assertTrue((root / "orp" / "agent-policy.json").exists())
             self.assertTrue((root / "orp" / "HANDOFF.md").exists())
             self.assertTrue((root / "orp" / "checkpoints" / "CHECKPOINT_LOG.md").exists())
+            self.assertTrue((root / "orp" / "project.json").exists())
             self.assertTrue((root / "analysis" / "orp.kernel.task.yml").exists())
             self.assertTrue((root / "AGENTS.md").exists())
             self.assertTrue((root / "CLAUDE.md").exists())
             self.assertIn("<!-- ORP:AGENT_GUIDE:BEGIN -->", (root / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertIn("<!-- ORP:BEGIN -->", (root / "AGENTS.md").read_text(encoding="utf-8"))
 
+            project_context = json.loads((root / "orp" / "project.json").read_text(encoding="utf-8"))
+            self.assertEqual(project_context["kind"], "orp_project_context")
+            self.assertEqual(project_context["schema_version"], "1.0.0")
+            self.assertEqual(project_context["research_policy"]["default_timing"], "after_local_decomposition_before_action")
+            call_moments = {row["moment_id"] for row in project_context["research_policy"]["call_moments"]}
+            self.assertIn("thinking_reasoning_high", call_moments)
+            self.assertIn("web_synthesis", call_moments)
+            self.assertIn("pro_deep_research", call_moments)
+            surface_paths = {row["path"] for row in project_context["authority_surfaces"]}
+            self.assertIn("AGENTS.md", surface_paths)
+            self.assertIn("CLAUDE.md", surface_paths)
+            self.assertIn("orp.yml", surface_paths)
+            self.assertIn("analysis/orp.kernel.task.yml", surface_paths)
+
             state = json.loads((root / "orp" / "state.json").read_text(encoding="utf-8"))
             self.assertTrue(state["governance"]["orp_governed"])
             self.assertEqual(state["governance"]["mode"], "repo_governance")
             self.assertEqual(state["governance"]["default_branch"], "main")
             self.assertEqual(state["governance"]["manifest_path"], "orp/governance.json")
+            self.assertEqual(state["project_context"]["path"], "orp/project.json")
+            self.assertEqual(state["project_context"]["research_default_timing"], "after_local_decomposition_before_action")
 
             branch = _run_git(root, "symbolic-ref", "--short", "HEAD")
             self.assertEqual(branch.returncode, 0, msg=branch.stderr + "\n" + branch.stdout)
             self.assertEqual(branch.stdout.strip(), "main")
+
+    def test_project_refresh_evolves_with_directory_surfaces(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            init_proc = _run_cli(root, "init", "--json")
+            self.assertEqual(init_proc.returncode, 0, msg=init_proc.stderr + "\n" + init_proc.stdout)
+
+            _write_file(root / "docs" / "ROADMAP.md", "# Roadmap\n\n- Ship the project context lens.\n")
+
+            refresh_proc = _run_cli(root, "project", "refresh", "--json")
+            self.assertEqual(refresh_proc.returncode, 0, msg=refresh_proc.stderr + "\n" + refresh_proc.stdout)
+            refresh_payload = json.loads(refresh_proc.stdout)
+            self.assertTrue(refresh_payload["ok"])
+            self.assertEqual(refresh_payload["action"], "updated")
+            self.assertEqual(refresh_payload["project_context_path"], "orp/project.json")
+            self.assertEqual(refresh_payload["research_policy"]["default_timing"], "after_local_decomposition_before_action")
+
+            show_proc = _run_cli(root, "project", "show", "--json")
+            self.assertEqual(show_proc.returncode, 0, msg=show_proc.stderr + "\n" + show_proc.stdout)
+            show_payload = json.loads(show_proc.stdout)
+            surface_paths = {row["path"] for row in show_payload["authority_surfaces"]}
+            self.assertIn("docs/ROADMAP.md", surface_paths)
+            self.assertTrue(show_payload["directory_signals"]["has_docs"])
 
     def test_init_json_detects_existing_origin_on_feature_branch(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -188,6 +231,9 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(payload["config_path"], "orp.yml")
             self.assertEqual(payload["handoff_path"], "orp/HANDOFF.md")
             self.assertEqual(payload["checkpoint_log_path"], "orp/checkpoints/CHECKPOINT_LOG.md")
+            self.assertEqual(payload["project_context"]["path"], "orp/project.json")
+            self.assertTrue(payload["project_context"]["exists"])
+            self.assertEqual(payload["project_context"]["research_default_timing"], "after_local_decomposition_before_action")
             self.assertTrue(payload["agent_policy_exists"])
             self.assertTrue(payload["manifest_exists"])
             self.assertTrue(payload["git"]["present"])

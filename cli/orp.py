@@ -139,6 +139,8 @@ FRONTIER_PENDING_STATUSES = {"", "pending", "planned", "ready"}
 FRONTIER_TERMINAL_STATUSES = {"complete", "completed", "done", "skipped", "terminal"}
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
+RESEARCH_RUN_SCHEMA_VERSION = "1.0.0"
+PROJECT_CONTEXT_SCHEMA_VERSION = "1.0.0"
 MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
 SCHEDULE_REGISTRY_SCHEMA_VERSION = "1.0.0"
 AGENDA_REGISTRY_SCHEMA_VERSION = "1.0.0"
@@ -5845,6 +5847,9 @@ def _default_state_payload() -> dict[str, Any]:
         "last_erdos_sync": {},
         "last_discover_scan_id": "",
         "discovery_scans": {},
+        "last_research_run_id": "",
+        "research_runs": {},
+        "project_context": {},
         "governance": {},
     }
 
@@ -5853,6 +5858,7 @@ def _ensure_dirs(repo_root: Path) -> None:
     (repo_root / "orp" / "packets").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "artifacts").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "discovery" / "github").mkdir(parents=True, exist_ok=True)
+    (repo_root / "orp" / "research").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "checkpoints").mkdir(parents=True, exist_ok=True)
     (repo_root / "orp" / "handoffs").mkdir(parents=True, exist_ok=True)
     state_path = repo_root / "orp" / "state.json"
@@ -9604,6 +9610,238 @@ def _effective_remote_context(
     }
 
 
+def _project_context_path(repo_root: Path) -> Path:
+    return repo_root / "orp" / "project.json"
+
+
+def _project_surface(path: Path, repo_root: Path, *, kind: str, role: str) -> dict[str, Any]:
+    rel_path = _path_for_state(path, repo_root)
+    exists = path.exists()
+    size_bytes = path.stat().st_size if exists and path.is_file() else 0
+    return {
+        "path": rel_path,
+        "kind": kind,
+        "role": role,
+        "exists": exists,
+        "size_bytes": int(size_bytes),
+    }
+
+
+def _project_authority_surfaces(repo_root: Path) -> list[dict[str, Any]]:
+    candidates: list[tuple[str, str, str]] = [
+        ("AGENTS.md", "agent_guidance", "project_agent_rules"),
+        ("CLAUDE.md", "agent_guidance", "project_agent_rules"),
+        ("README.md", "overview", "project_overview"),
+        ("llms.txt", "llm_discovery", "machine_readable_discovery"),
+        ("orp.yml", "orp_config", "runtime_config"),
+        ("analysis/orp.kernel.task.yml", "kernel_artifact", "starter_task_contract"),
+        ("docs/START_HERE.md", "operator_docs", "starter_flow"),
+        ("docs/ROADMAP.md", "roadmap", "planning_authority"),
+        ("ROADMAP.md", "roadmap", "planning_authority"),
+        ("TODO.md", "task_notes", "planning_authority"),
+        ("package.json", "manifest", "javascript_manifest"),
+        ("pyproject.toml", "manifest", "python_manifest"),
+        ("Cargo.toml", "manifest", "rust_manifest"),
+        ("go.mod", "manifest", "go_manifest"),
+        ("Makefile", "command_surface", "build_commands"),
+        ("justfile", "command_surface", "build_commands"),
+    ]
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for rel_path, kind, role in candidates:
+        path = repo_root / rel_path
+        row = _project_surface(path, repo_root, kind=kind, role=role)
+        if row["exists"] or kind in {"agent_guidance", "orp_config", "kernel_artifact"}:
+            rows.append(row)
+            seen.add(str(row["path"]))
+
+    docs_root = repo_root / "docs"
+    if docs_root.exists() and docs_root.is_dir():
+        doc_paths = sorted(
+            path
+            for path in docs_root.glob("*.md")
+            if path.is_file()
+            and _path_for_state(path, repo_root) not in seen
+            and path.name.upper() not in {"README.MD"}
+        )
+        for path in doc_paths[:12]:
+            lower_name = path.name.lower()
+            kind = "project_doc"
+            role = "supporting_context"
+            if "roadmap" in lower_name or "plan" in lower_name:
+                kind = "roadmap"
+                role = "planning_authority"
+            elif "research" in lower_name:
+                kind = "research_doc"
+                role = "research_context"
+            elif "spec" in lower_name or "protocol" in lower_name:
+                kind = "spec"
+                role = "project_authority"
+            rows.append(_project_surface(path, repo_root, kind=kind, role=role))
+
+    return rows
+
+
+def _project_directory_signals(repo_root: Path, surfaces: list[dict[str, Any]]) -> dict[str, Any]:
+    surface_paths = {str(row.get("path", "")).strip() for row in surfaces if isinstance(row, dict)}
+    source_dirs = [
+        rel
+        for rel in ("src", "lib", "app", "cli", "packages", "research", "analysis", "tests", "test", "docs")
+        if (repo_root / rel).exists()
+    ]
+    languages: list[str] = []
+    if "package.json" in surface_paths:
+        languages.append("javascript")
+    if "pyproject.toml" in surface_paths:
+        languages.append("python")
+    if "Cargo.toml" in surface_paths:
+        languages.append("rust")
+    if "go.mod" in surface_paths:
+        languages.append("go")
+    if any((repo_root / rel).exists() for rel in ("lakefile.lean", "lakefile.toml")):
+        languages.append("lean")
+    return {
+        "source_dirs": source_dirs,
+        "languages_or_stacks": _unique_strings(languages),
+        "has_tests": any((repo_root / rel).exists() for rel in ("tests", "test", "__tests__")),
+        "has_docs": (repo_root / "docs").exists(),
+        "has_orp_config": "orp.yml" in surface_paths,
+        "authority_surface_count": len([row for row in surfaces if row.get("exists")]),
+    }
+
+
+def _project_research_trigger_policy() -> dict[str, Any]:
+    return {
+        "default_timing": "after_local_decomposition_before_action",
+        "provider_calls_are_explicit": True,
+        "live_calls_require_execute": True,
+        "secret_alias": "openai-primary",
+        "env_var": "OPENAI_API_KEY",
+        "call_moments": [
+            {
+                "moment_id": "plan",
+                "calls_api": False,
+                "when": "Always run first during project refresh or research ask; inspect local authority surfaces and decompose the question.",
+            },
+            {
+                "moment_id": "thinking_reasoning_high",
+                "calls_api": True,
+                "lane": "openai_reasoning_high",
+                "model": "gpt-5.4",
+                "when": "Use when the directory has a decision gate, route choice, proof strategy, architecture tradeoff, or ambiguous next action.",
+            },
+            {
+                "moment_id": "web_synthesis",
+                "calls_api": True,
+                "lane": "openai_web_synthesis",
+                "model": "gpt-5.4",
+                "when": "Use when the answer depends on current public facts, external docs, papers, project status, or citations.",
+            },
+            {
+                "moment_id": "pro_deep_research",
+                "calls_api": True,
+                "lane": "openai_deep_research",
+                "model": "o3-deep-research-2025-06-26",
+                "when": "Use only after reasoning/web lanes expose a research-heavy gap, disagreement, source-quality issue, or literature-scale synthesis need.",
+                "capability_note": "Requires an OpenAI organization verified for Deep Research model access.",
+            },
+        ],
+        "skip_research_when": [
+            "the next action is already executable from local project authority",
+            "the question is only a deterministic local status or file lookup",
+            "the task is implementation-ready and no external/public evidence is needed",
+        ],
+        "escalate_to_deep_research_when": [
+            "web synthesis finds conflicting or weak public sources",
+            "the project must compare multiple papers, standards, providers, or public claims",
+            "the output needs a citation-rich report rather than a short decision memo",
+        ],
+    }
+
+
+def _project_evolution_policy() -> dict[str, Any]:
+    return {
+        "refresh_surfaces": [
+            "orp init",
+            "orp project refresh",
+            "after adding or changing roadmap/spec/agent-guidance files",
+            "after installing a profile pack or changing command surfaces",
+            "before a research loop whose answer depends on project state",
+        ],
+        "evolution_loop": [
+            "scan authority surfaces",
+            "classify what is local, public, executable, or human-gated",
+            "choose whether reasoning, web synthesis, or deep research is justified",
+            "act only after the decision gate has enough evidence",
+            "checkpoint the resulting project state",
+        ],
+        "boundary": "ORP project context is process-only. It guides routing and research timing but is not evidence.",
+    }
+
+
+def _project_context_payload(repo_root: Path, *, source: str) -> dict[str, Any]:
+    context_path = _project_context_path(repo_root)
+    existing = _read_json_if_exists(context_path)
+    generated_at = _now_utc()
+    initialized_at = str(existing.get("initialized_at_utc", "")).strip() or generated_at
+    surfaces = _project_authority_surfaces(repo_root)
+    signals = _project_directory_signals(repo_root, surfaces)
+    research_policy = _project_research_trigger_policy()
+    return {
+        "schema_version": PROJECT_CONTEXT_SCHEMA_VERSION,
+        "kind": "orp_project_context",
+        "project": {
+            "name": repo_root.name or "project",
+            "root": str(repo_root),
+        },
+        "initialized_at_utc": initialized_at,
+        "refreshed_at_utc": generated_at,
+        "refresh_source": source,
+        "authority_surfaces": surfaces,
+        "directory_signals": signals,
+        "research_policy": research_policy,
+        "evolution_policy": _project_evolution_policy(),
+        "next_actions": [
+            "orp project refresh --json",
+            "orp agents audit",
+            "orp status --json",
+            'orp research ask "<decision question>" --json',
+        ],
+        "notes": [
+            "This file is ORP process context for the local directory.",
+            "It is refreshed as the project evolves and should not be cited as proof or canonical evidence.",
+            "Provider research calls remain opt-in through `orp research ask --execute`.",
+        ],
+    }
+
+
+def _write_project_context(repo_root: Path, *, source: str) -> tuple[dict[str, Any], str]:
+    path = _project_context_path(repo_root)
+    existed = path.exists()
+    payload = _project_context_payload(repo_root, source=source)
+    _write_json(path, payload)
+    state_path = repo_root / "orp" / "state.json"
+    state = {**_default_state_payload(), **_read_json_if_exists(state_path)}
+    state["project_context"] = {
+        "path": _path_for_state(path, repo_root),
+        "schema_version": PROJECT_CONTEXT_SCHEMA_VERSION,
+        "refreshed_at_utc": payload["refreshed_at_utc"],
+        "refresh_source": source,
+        "authority_surface_count": payload["directory_signals"]["authority_surface_count"],
+        "research_default_timing": payload["research_policy"]["default_timing"],
+    }
+    _write_json(state_path, state)
+    return payload, "updated" if existed else "created"
+
+
+def _load_project_context(repo_root: Path) -> dict[str, Any]:
+    path = _project_context_path(repo_root)
+    payload = _read_json_if_exists(path)
+    if not payload:
+        raise RuntimeError("No ORP project context found. Run `orp init` or `orp project refresh --json` first.")
+    return payload
+
+
 def _init_kernel_task_template(repo_name: str) -> str:
     safe_name = str(repo_name or "").strip() or "my-project"
     return (
@@ -10533,6 +10771,18 @@ def _governance_status_payload(repo_root: Path, config_arg: str) -> dict[str, An
         str(governance_state.get("checkpoint_log_path", "orp/checkpoints/CHECKPOINT_LOG.md")),
         "orp/checkpoints/CHECKPOINT_LOG.md",
     )
+    project_context_path = _project_context_path(repo_root)
+    project_context = _read_json_if_exists(project_context_path)
+    project_context_signals = (
+        project_context.get("directory_signals")
+        if isinstance(project_context.get("directory_signals"), dict)
+        else {}
+    )
+    project_research_policy = (
+        project_context.get("research_policy")
+        if isinstance(project_context.get("research_policy"), dict)
+        else {}
+    )
 
     manifest = _read_json_if_exists(manifest_path)
     orp_governed = bool(governance_state.get("orp_governed")) or bool(manifest.get("repo", {}).get("orp_governed"))
@@ -10622,6 +10872,9 @@ def _governance_status_payload(repo_root: Path, config_arg: str) -> dict[str, An
             warnings.append("checkpoint log is missing from ORP governance runtime.")
         if not agent_policy_path.exists():
             warnings.append("agent policy file is missing from ORP governance runtime.")
+        if not project_context_path.exists():
+            warnings.append("project context lens is missing from ORP governance runtime.")
+            next_actions.append("orp project refresh --json")
 
     if remote_context["mode"] == "local_only":
         notes.append("local-first mode active; no remote is required.")
@@ -10710,6 +10963,15 @@ def _governance_status_payload(repo_root: Path, config_arg: str) -> dict[str, An
         "handoff_exists": handoff_path.exists(),
         "checkpoint_log_path": _path_for_state(checkpoint_log_path, repo_root),
         "checkpoint_log_exists": checkpoint_log_path.exists(),
+        "project_context": {
+            "path": _path_for_state(project_context_path, repo_root),
+            "exists": project_context_path.exists(),
+            "schema_version": str(project_context.get("schema_version", "")).strip(),
+            "refreshed_at_utc": str(project_context.get("refreshed_at_utc", "")).strip(),
+            "refresh_source": str(project_context.get("refresh_source", "")).strip(),
+            "authority_surface_count": int(project_context_signals.get("authority_surface_count", 0) or 0),
+            "research_default_timing": str(project_research_policy.get("default_timing", "")).strip(),
+        },
         "git_runtime_path": _path_for_state(_git_runtime_path(repo_root) or Path(".git/orp/runtime.json"), repo_root),
         "git": {
             **git_snapshot,
@@ -11104,10 +11366,13 @@ def _about_payload() -> dict[str, Any]:
             "agent_loop": "docs/AGENT_LOOP.md",
             "discover": "docs/DISCOVER.md",
             "exchange": "docs/EXCHANGE.md",
+            "research_council": "docs/RESEARCH_COUNCIL.md",
             "profile_packs": "docs/PROFILE_PACKS.md",
+            "research_mcp_server": "scripts/orp-mcp",
         },
         "artifacts": {
             "state_json": "orp/state.json",
+            "project_context_json": "orp/project.json",
             "run_json": "orp/artifacts/<run_id>/RUN.json",
             "run_summary_md": "orp/artifacts/<run_id>/RUN_SUMMARY.md",
             "packet_json": "orp/packets/<packet_id>.json",
@@ -11117,6 +11382,9 @@ def _about_payload() -> dict[str, Any]:
             "exchange_json": "orp/exchange/<exchange_id>/EXCHANGE.json",
             "exchange_summary_md": "orp/exchange/<exchange_id>/EXCHANGE_SUMMARY.md",
             "exchange_transfer_map_md": "orp/exchange/<exchange_id>/TRANSFER_MAP.md",
+            "research_answer_json": "orp/research/<run_id>/ANSWER.json",
+            "research_summary_md": "orp/research/<run_id>/RUN_SUMMARY.md",
+            "research_lanes_root": "orp/research/<run_id>/lanes/",
         },
         "schemas": {
             "config": "spec/v1/orp.config.schema.json",
@@ -11126,6 +11394,8 @@ def _about_payload() -> dict[str, Any]:
             "kernel_extension": "spec/v1/kernel-extension.schema.json",
             "youtube_source": "spec/v1/youtube-source.schema.json",
             "exchange_report": "spec/v1/exchange-report.schema.json",
+            "research_run": "spec/v1/research-run.schema.json",
+            "project_context": "spec/v1/project-context.schema.json",
             "profile_pack": "spec/v1/profile-pack.schema.json",
             "link_project": "spec/v1/link-project.schema.json",
             "link_session": "spec/v1/link-session.schema.json",
@@ -11217,6 +11487,14 @@ def _about_payload() -> dict[str, Any]:
                 ],
             },
             {
+                "id": "project",
+                "description": "Local project context lens for authority surfaces, directory signals, research call timing, and explicit evolution as the repo changes.",
+                "entrypoints": [
+                    ["project", "refresh"],
+                    ["project", "show"],
+                ],
+            },
+            {
                 "id": "secrets",
                 "description": "Hosted secret store for global API key inventory, provider metadata, and project-scoped resolution.",
                 "entrypoints": [
@@ -11287,6 +11565,15 @@ def _about_payload() -> dict[str, Any]:
                 "description": "Structured local-first synthesis of another repository or project directory into exchange artifacts and transfer maps.",
                 "entrypoints": [
                     ["exchange", "repo", "synthesize"],
+                ],
+            },
+            {
+                "id": "research",
+                "description": "Durable OpenAI research-loop runs with decomposition, explicit API call moments, provider lanes, and synthesis artifacts.",
+                "entrypoints": [
+                    ["research", "ask"],
+                    ["research", "status"],
+                    ["research", "show"],
                 ],
             },
             {
@@ -11385,6 +11672,8 @@ def _about_payload() -> dict[str, Any]:
             {"name": "agents_root_set", "path": ["agents", "root", "set"], "json_output": True},
             {"name": "agents_sync", "path": ["agents", "sync"], "json_output": True},
             {"name": "agents_audit", "path": ["agents", "audit"], "json_output": True},
+            {"name": "project_refresh", "path": ["project", "refresh"], "json_output": True},
+            {"name": "project_show", "path": ["project", "show"], "json_output": True},
             {"name": "opportunities_list", "path": ["opportunities", "list"], "json_output": True},
             {"name": "opportunities_show", "path": ["opportunities", "show"], "json_output": True},
             {"name": "opportunities_focus", "path": ["opportunities", "focus"], "json_output": True},
@@ -11412,6 +11701,7 @@ def _about_payload() -> dict[str, Any]:
             {"name": "secrets_show", "path": ["secrets", "show"], "json_output": True},
             {"name": "secrets_add", "path": ["secrets", "add"], "json_output": True},
             {"name": "secrets_ensure", "path": ["secrets", "ensure"], "json_output": True},
+            {"name": "secrets_keychain_add", "path": ["secrets", "keychain-add"], "json_output": True},
             {"name": "secrets_keychain_list", "path": ["secrets", "keychain-list"], "json_output": True},
             {"name": "secrets_keychain_show", "path": ["secrets", "keychain-show"], "json_output": True},
             {"name": "secrets_sync_keychain", "path": ["secrets", "sync-keychain"], "json_output": True},
@@ -11468,6 +11758,9 @@ def _about_payload() -> dict[str, Any]:
             {"name": "discover_profile_init", "path": ["discover", "profile", "init"], "json_output": True},
             {"name": "discover_github_scan", "path": ["discover", "github", "scan"], "json_output": True},
             {"name": "exchange_repo_synthesize", "path": ["exchange", "repo", "synthesize"], "json_output": True},
+            {"name": "research_ask", "path": ["research", "ask"], "json_output": True},
+            {"name": "research_status", "path": ["research", "status"], "json_output": True},
+            {"name": "research_show", "path": ["research", "show"], "json_output": True},
             {"name": "collaborate_init", "path": ["collaborate", "init"], "json_output": True},
             {"name": "collaborate_workflows", "path": ["collaborate", "workflows"], "json_output": True},
             {"name": "collaborate_gates", "path": ["collaborate", "gates"], "json_output": True},
@@ -11515,6 +11808,8 @@ def _about_payload() -> dict[str, Any]:
             "YouTube inspection is a built-in ORP ability exposed through `orp youtube inspect`, returning public metadata plus full transcript text and segments whenever public caption tracks are available.",
             "Discovery profiles in ORP are portable search-intent files managed directly by ORP.",
             "Knowledge exchange is a built-in ORP ability exposed through `orp exchange repo synthesize`, producing structured exchange artifacts and transfer maps for local or remote source repositories.",
+            "Research council runs are built into ORP through `orp research ask`, `orp research status`, and `orp research show`, with dry-run decomposition by default and explicit `--execute` for live provider calls.",
+            "Project context is built into ORP through `orp project refresh` and `orp project show`; it records local authority surfaces and research timing policy for the current directory without calling providers.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, the additional work queue, and strict continuation preflight before delegation.",
             "Agent modes are lightweight optional overlays for taste, perspective shifts, fresh movement, and intentional comprehension breakdowns; `orp mode breakdown granular-breakdown --json` gives agents a broad-to-atomic ladder for complex work, while `orp mode nudge granular-breakdown --json` gives a short reminder card.",
@@ -11654,6 +11949,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp agents audit",
         },
         {
+            "label": "Refresh the local project context lens before research-heavy work",
+            "command": "orp project refresh --json",
+        },
+        {
             "label": "Save a new API key or token interactively when you need one",
             "command": 'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
         },
@@ -11695,6 +11994,14 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Audit AGENTS.md and CLAUDE.md for the current repo",
             "command": "orp agents audit",
+        },
+        {
+            "label": "Inspect the local project context lens",
+            "command": "orp project show --json",
+        },
+        {
+            "label": "Refresh the local project context lens",
+            "command": "orp project refresh --json",
         },
         {
             "label": "Inspect the saved service and data connections for this user",
@@ -11805,6 +12112,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp secrets keychain-list --json",
         },
         {
+            "label": "Save a key directly into the local ORP macOS Keychain store",
+            "command": "orp secrets keychain-add --alias <alias> --provider <provider> --value-stdin --json",
+        },
+        {
             "label": "Sync one hosted secret into the local macOS Keychain",
             "command": "orp secrets sync-keychain <alias-or-id> --json",
         },
@@ -11835,6 +12146,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
         {
             "label": "Deeply synthesize another repo or local project into exchange artifacts",
             "command": "orp exchange repo synthesize /path/to/source --json",
+        },
+        {
+            "label": "Decompose a question into an OpenAI research-loop run",
+            "command": 'orp research ask "What should we investigate?" --json',
         },
         {
             "label": "Inspect local repo governance status",
@@ -12138,6 +12453,14 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                 ],
             },
             {
+                "id": "project",
+                "description": "Local project context lens for authority surfaces, directory signals, research call timing, and explicit evolution as the repo changes.",
+                "entrypoints": [
+                    "orp project refresh --json",
+                    "orp project show --json",
+                ],
+            },
+            {
                 "id": "hosted",
                 "description": "Hosted identity, ideas, first-class workspace records, runner lanes, and control-plane status.",
                 "entrypoints": [
@@ -12169,6 +12492,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                     "orp secrets show <alias-or-id> --json",
                     'orp secrets add --alias <alias> --label "<label>" --provider <provider>',
                     "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
+                    "orp secrets keychain-add --alias <alias> --provider <provider> --value-stdin --json",
                     "orp secrets keychain-list --json",
                     "orp secrets keychain-show <alias-or-id> --json",
                     "orp secrets sync-keychain <alias-or-id> --json",
@@ -12235,6 +12559,16 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                 "description": "Structured local-first synthesis of another repo or project directory into exchange artifacts and transfer maps.",
                 "entrypoints": [
                     "orp exchange repo synthesize /path/to/source --json",
+                ],
+            },
+            {
+                "id": "research",
+                "description": "Durable OpenAI research-loop question answering that records the decomposition, API call moments, optional live calls, and synthesized answer under orp/research.",
+                "entrypoints": [
+                    'orp research ask "What should we investigate?" --json',
+                    'orp research ask "What should we investigate?" --execute --json',
+                    "orp research status latest --json",
+                    "orp research show latest --json",
                 ],
             },
             {
@@ -12380,6 +12714,7 @@ def _render_home_screen(payload: dict[str, Any]) -> str:
             "opportunities",
             "connections",
             "secrets",
+            "project",
             "governance",
             "frontier",
             "schedule",
@@ -12848,6 +13183,12 @@ def cmd_init(args: argparse.Namespace) -> int:
             "action": str(row.get("action", "")).strip(),
         }
 
+    project_context, project_context_action = _write_project_context(repo_root, source="init")
+    files["project_context"] = {
+        "path": _path_for_state(_project_context_path(repo_root), repo_root),
+        "action": project_context_action,
+    }
+
     result = {
         "ok": True,
         "config_action": config_action,
@@ -12855,6 +13196,12 @@ def cmd_init(args: argparse.Namespace) -> int:
         "runtime_root": str(repo_root / "orp"),
         "files": files,
         "agents": agents_sync,
+        "project_context": {
+            "path": _path_for_state(_project_context_path(repo_root), repo_root),
+            "action": project_context_action,
+            "authority_surface_count": project_context["directory_signals"]["authority_surface_count"],
+            "research_default_timing": project_context["research_policy"]["default_timing"],
+        },
         "git": {
             **git_snapshot,
             "initialized_by_orp": bool(git_init_result["initialized"]),
@@ -12878,6 +13225,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         if git_init_result["initialized"]:
             print(f"initialized git repository with default branch {default_branch}")
         print("synced AGENTS.md and CLAUDE.md with ORP-managed blocks")
+        print(f"project_context={_path_for_state(_project_context_path(repo_root), repo_root)}")
         print(
             "git_state="
             + ",".join(
@@ -12895,6 +13243,48 @@ def cmd_init(args: argparse.Namespace) -> int:
             print(f"warning={warning}")
         for action in next_actions:
             print(f"next={action}")
+    return 0
+
+
+def cmd_project_refresh(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _ensure_dirs(repo_root)
+    payload, action = _write_project_context(repo_root, source="project_refresh")
+    result = {
+        "ok": True,
+        "action": action,
+        "project_context_path": _path_for_state(_project_context_path(repo_root), repo_root),
+        "project": payload.get("project", {}),
+        "authority_surface_count": payload.get("directory_signals", {}).get("authority_surface_count", 0),
+        "directory_signals": payload.get("directory_signals", {}),
+        "research_policy": payload.get("research_policy", {}),
+        "next_actions": payload.get("next_actions", []),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"action={action}")
+        print(f"project_context={result['project_context_path']}")
+        print(f"authority_surface_count={result['authority_surface_count']}")
+        print(f"research_default_timing={payload.get('research_policy', {}).get('default_timing', '')}")
+        for next_action in result["next_actions"]:
+            print(f"next={next_action}")
+    return 0
+
+
+def cmd_project_show(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload = _load_project_context(repo_root)
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"project={payload.get('project', {}).get('name', '')}")
+        print(f"root={payload.get('project', {}).get('root', '')}")
+        print(f"refreshed_at_utc={payload.get('refreshed_at_utc', '')}")
+        print(f"research_default_timing={payload.get('research_policy', {}).get('default_timing', '')}")
+        for surface in payload.get("authority_surfaces", []):
+            if isinstance(surface, dict) and surface.get("exists"):
+                print(f"surface={surface.get('path', '')}:{surface.get('kind', '')}:{surface.get('role', '')}")
     return 0
 
 
@@ -12949,6 +13339,7 @@ def _render_governance_status_text(payload: dict[str, Any]) -> str:
     runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
     validation = payload.get("validation", {}) if isinstance(payload.get("validation"), dict) else {}
     readiness = payload.get("readiness", {}) if isinstance(payload.get("readiness"), dict) else {}
+    project_context = payload.get("project_context", {}) if isinstance(payload.get("project_context"), dict) else {}
     last_branch_action = (
         runtime.get("last_branch_action")
         if isinstance(runtime.get("last_branch_action"), dict)
@@ -12987,6 +13378,10 @@ def _render_governance_status_text(payload: dict[str, Any]) -> str:
         f"paths.config={payload.get('config_path', '')}",
         f"paths.handoff={payload.get('handoff_path', '')}",
         f"paths.checkpoint_log={payload.get('checkpoint_log_path', '')}",
+        f"paths.project_context={project_context.get('path', '')}",
+        f"project_context.exists={'true' if project_context.get('exists') else 'false'}",
+        f"project_context.refreshed_at={project_context.get('refreshed_at_utc', '') or '(never)'}",
+        f"project_context.research_default_timing={project_context.get('research_default_timing', '') or '(unset)'}",
         f"paths.git_runtime={payload.get('git_runtime_path', '')}",
         f"readiness.local_ready={'true' if readiness.get('local_ready') else 'false'}",
         f"readiness.remote_ready={'true' if readiness.get('remote_ready') else 'false'}",
@@ -15978,6 +16373,1418 @@ def cmd_exchange_repo_synthesize(args: argparse.Namespace) -> int:
     print(f"artifacts.exchange_json={payload['artifacts']['exchange_json']}")
     print(f"artifacts.summary_md={payload['artifacts']['summary_md']}")
     print(f"artifacts.transfer_map_md={payload['artifacts']['transfer_map_md']}")
+    return 0
+
+
+def _research_id() -> str:
+    return "research-" + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+
+
+def _research_root(repo_root: Path) -> Path:
+    return repo_root / "orp" / "research"
+
+
+def _research_paths(repo_root: Path, run_id: str) -> dict[str, Path]:
+    root = _research_root(repo_root) / run_id
+    return {
+        "root": root,
+        "request_json": root / "REQUEST.json",
+        "breakdown_json": root / "BREAKDOWN.json",
+        "profile_json": root / "PROFILE.json",
+        "answer_json": root / "ANSWER.json",
+        "summary_md": root / "RUN_SUMMARY.md",
+        "lanes_root": root / "lanes",
+        "raw_root": root / "raw",
+    }
+
+
+def _research_default_profile(profile_id: str = "openai-council") -> dict[str, Any]:
+    profile_id = profile_id or "openai-council"
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "profile_id": profile_id,
+        "label": "OpenAI research loop",
+        "description": (
+            "ORP-owned decomposition and synthesis across three explicit OpenAI API "
+            "call moments: high-reasoning thinking, web synthesis, and Pro/Deep Research."
+        ),
+        "execution_policy": {
+            "live_requires_execute": True,
+            "process_only": True,
+            "secrets_not_persisted": True,
+            "default_timeout_sec": 120,
+        },
+        "call_moments": [
+            {
+                "moment_id": "plan",
+                "label": "Local decomposition plan",
+                "calls_api": False,
+                "description": "Create ORP artifacts, prompts, and lane plan without resolving any API key.",
+            },
+            {
+                "moment_id": "thinking_reasoning_high",
+                "label": "Thinking / reasoning high",
+                "calls_api": True,
+                "secret_alias": "openai-primary",
+                "env_var": "OPENAI_API_KEY",
+                "description": "Call GPT-5.4 with high reasoning for the deliberate thinking pass.",
+            },
+            {
+                "moment_id": "web_synthesis",
+                "label": "Web synthesis",
+                "calls_api": True,
+                "secret_alias": "openai-primary",
+                "env_var": "OPENAI_API_KEY",
+                "description": "Call GPT-5.4 with web search for current public evidence and citations.",
+            },
+            {
+                "moment_id": "pro_deep_research",
+                "label": "Pro / Deep Research",
+                "calls_api": True,
+                "secret_alias": "openai-primary",
+                "env_var": "OPENAI_API_KEY",
+                "description": "Call the OpenAI Deep Research model for a longer agentic research report.",
+            },
+        ],
+        "lanes": [
+            {
+                "lane_id": "openai_reasoning_high",
+                "call_moment": "thinking_reasoning_high",
+                "label": "OpenAI reasoning high",
+                "provider": "openai",
+                "model": "gpt-5.4",
+                "adapter": "openai_responses",
+                "role": "Deliberate high-reasoning pass from the provided context. Think hard, critique assumptions, and produce a decision-oriented answer.",
+                "env_var": "OPENAI_API_KEY",
+                "secret_alias": "openai-primary",
+                "reasoning_effort": "high",
+                "text_verbosity": "medium",
+                "max_output_tokens": 4200,
+            },
+            {
+                "lane_id": "openai_web_synthesis",
+                "call_moment": "web_synthesis",
+                "label": "OpenAI web synthesis",
+                "provider": "openai",
+                "model": "gpt-5.4",
+                "adapter": "openai_responses",
+                "role": "Recency-aware synthesis using OpenAI Responses web search with citations.",
+                "env_var": "OPENAI_API_KEY",
+                "secret_alias": "openai-primary",
+                "reasoning_effort": "high",
+                "text_verbosity": "medium",
+                "web_search": True,
+                "web_search_tool": "web_search",
+                "search_context_size": "high",
+                "external_web_access": True,
+                "max_tool_calls": 8,
+                "max_output_tokens": 3600,
+            },
+            {
+                "lane_id": "openai_deep_research",
+                "call_moment": "pro_deep_research",
+                "label": "OpenAI Pro / Deep Research",
+                "provider": "openai",
+                "model": "o3-deep-research-2025-06-26",
+                "adapter": "openai_responses",
+                "role": "Pro Research style long-form investigation. Produce a structured, citation-rich report grounded in public sources.",
+                "env_var": "OPENAI_API_KEY",
+                "secret_alias": "openai-primary",
+                "reasoning_summary": "auto",
+                "web_search": True,
+                "web_search_tool": "web_search_preview",
+                "background": True,
+                "max_tool_calls": 40,
+                "max_output_tokens": 12000,
+            },
+        ],
+        "synthesis": {
+            "style": "answer_with_lane_evidence",
+            "require_disagreements": True,
+            "require_open_questions": True,
+        },
+    }
+
+
+def _research_normalize_profile(raw: dict[str, Any], *, fallback_profile_id: str) -> dict[str, Any]:
+    base = _research_default_profile(fallback_profile_id)
+    profile = {**base, **raw}
+    profile["schema_version"] = str(profile.get("schema_version", RESEARCH_RUN_SCHEMA_VERSION)).strip() or RESEARCH_RUN_SCHEMA_VERSION
+    profile["profile_id"] = str(profile.get("profile_id", fallback_profile_id)).strip() or fallback_profile_id
+    lanes = profile.get("lanes")
+    if not isinstance(lanes, list) or not lanes:
+        lanes = base["lanes"]
+    normalized_lanes: list[dict[str, Any]] = []
+    for index, lane_raw in enumerate(lanes):
+        if not isinstance(lane_raw, dict):
+            continue
+        lane = dict(lane_raw)
+        lane_id = str(lane.get("lane_id", lane.get("id", ""))).strip() or f"lane_{index + 1}"
+        lane["lane_id"] = _slug_token(lane_id, fallback=f"lane-{index + 1}").replace("-", "_")
+        lane["label"] = str(lane.get("label", lane["lane_id"])).strip() or lane["lane_id"]
+        lane["provider"] = str(lane.get("provider", "")).strip() or "custom"
+        lane["model"] = str(lane.get("model", "")).strip() or lane["provider"]
+        lane["adapter"] = str(lane.get("adapter", "planned")).strip() or "planned"
+        lane["role"] = str(lane.get("role", "")).strip()
+        lane["env_var"] = str(lane.get("env_var", "")).strip()
+        lane["secret_alias"] = str(lane.get("secret_alias", "")).strip()
+        lane["call_moment"] = str(lane.get("call_moment", lane["lane_id"])).strip() or lane["lane_id"]
+        normalized_lanes.append(lane)
+    profile["lanes"] = normalized_lanes
+    return profile
+
+
+def _research_load_profile(args: argparse.Namespace, repo_root: Path) -> dict[str, Any]:
+    profile_id = str(getattr(args, "profile", "") or "openai-council").strip() or "openai-council"
+    profile_file = str(getattr(args, "profile_file", "") or "").strip()
+    if not profile_file:
+        return _research_normalize_profile({}, fallback_profile_id=profile_id)
+    path = _resolve_cli_path(profile_file, repo_root)
+    payload = _read_json_if_exists(path)
+    if not payload:
+        raise RuntimeError(f"missing or invalid research profile: {_path_for_state(path, repo_root)}")
+    return _research_normalize_profile(payload, fallback_profile_id=profile_id)
+
+
+def _research_breakdown(question: str) -> dict[str, Any]:
+    ladder = _agent_mode_breakdown(_agent_mode("granular-breakdown"), topic=question)
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "question": question,
+        "mode": ladder.get("mode", {}),
+        "sequence": ladder.get("sequence", []),
+        "output_contract": ladder.get("output_contract", []),
+        "prompt_enrichment": {
+            "goal": "Answer the question with explicit assumptions, evidence boundaries, disagreements, and next verification.",
+            "public_web_needed": True,
+            "private_context_policy": "Do not assume private data unless it is included in the question or attached artifacts.",
+        },
+        "lanes": [
+            {
+                "lane": "openai_reasoning_high",
+                "task": "Run a high-reasoning synthesis pass over tradeoffs and likely answer shape.",
+            },
+            {
+                "lane": "openai_web_synthesis",
+                "task": "Use web search when current public evidence matters and return citation-backed synthesis.",
+            },
+            {
+                "lane": "openai_deep_research",
+                "task": "Run a Pro/Deep Research investigation for a longer citation-rich report.",
+            },
+        ],
+    }
+
+
+def _research_lane_prompt(question: str, lane: dict[str, Any], breakdown: dict[str, Any]) -> str:
+    sequence_titles = [
+        str(row.get("title", "")).strip()
+        for row in breakdown.get("sequence", [])
+        if isinstance(row, dict) and str(row.get("title", "")).strip()
+    ]
+    role = str(lane.get("role", "")).strip() or "Independent research lane."
+    return "\n".join(
+        [
+            "You are one lane in an ORP OpenAI research loop.",
+            f"Lane: {lane.get('lane_id', '')}",
+            f"Provider/model: {lane.get('provider', '')}/{lane.get('model', '')}",
+            f"Lane role: {role}",
+            "",
+            "Question:",
+            question,
+            "",
+            "Use this decomposition ladder as the working frame:",
+            ", ".join(sequence_titles) or "broad frame, boundary, lanes, subclaims, obligations, synthesis",
+            "",
+            "Return a concise but substantial lane report with:",
+            "- answer or position",
+            "- key evidence or reasoning",
+            "- assumptions and uncertainty",
+            "- disagreements or failure modes",
+            "- sources or citations when the lane has source access",
+            "",
+            "Do not modify files. Do not perform actions outside answering this lane prompt.",
+        ]
+    )
+
+
+def _research_parse_lane_fixtures(raw_fixtures: Sequence[str], repo_root: Path) -> dict[str, Path]:
+    fixtures: dict[str, Path] = {}
+    for raw in raw_fixtures:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if "=" not in text:
+            raise RuntimeError("research lane fixtures must use lane_id=path")
+        lane_id_raw, path_raw = text.split("=", 1)
+        lane_id = _slug_token(lane_id_raw, fallback="lane").replace("-", "_")
+        fixtures[lane_id] = _resolve_cli_path(path_raw.strip(), repo_root)
+    return fixtures
+
+
+def _research_text_from_payload(payload: Any) -> str:
+    if isinstance(payload, str):
+        return payload.strip()
+    if isinstance(payload, dict):
+        for key in ("text", "answer", "summary", "content", "report"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _research_lane_api_call_plan(
+    lane: dict[str, Any],
+    *,
+    execute: bool,
+    called: bool = False,
+    secret_source: str = "",
+    reason: str = "",
+    request_body_keys: Sequence[str] | None = None,
+    tools: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    adapter = str(lane.get("adapter", "")).strip()
+    provider = str(lane.get("provider", "")).strip()
+    env_var = str(lane.get("env_var", "")).strip()
+    secret_alias = str(lane.get("secret_alias", "")).strip()
+    return {
+        "call_moment": str(lane.get("call_moment", lane.get("lane_id", ""))).strip(),
+        "calls_api": adapter in {"openai_responses", "anthropic_messages", "xai_chat_completions", "chimera_cli"},
+        "called": bool(called),
+        "execute_required": True,
+        "execute": bool(execute),
+        "provider": provider,
+        "adapter": adapter,
+        "model": str(lane.get("model", "")).strip(),
+        "env_var": env_var,
+        "secret_alias": secret_alias,
+        "secret_resolution_order": [row for row in (f"env:{env_var}" if env_var else "", f"keychain:{secret_alias}" if secret_alias else "") if row],
+        "secret_source": secret_source,
+        "secret_value_persisted": False,
+        "request_body_keys": sorted(str(row) for row in request_body_keys) if request_body_keys else [],
+        "tools": [str(row) for row in tools] if tools else [],
+        "reason": reason,
+    }
+
+
+def _research_fixture_lane_result(
+    lane: dict[str, Any],
+    fixture_path: Path,
+    *,
+    started_at_utc: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    if not fixture_path.exists():
+        raise RuntimeError(f"missing research lane fixture: {_path_for_state(fixture_path, repo_root)}")
+    text = fixture_path.read_text(encoding="utf-8")
+    raw_payload: Any = text
+    if fixture_path.suffix.lower() == ".json":
+        try:
+            raw_payload = json.loads(text)
+        except Exception:
+            raw_payload = text
+    lane_text = _research_text_from_payload(raw_payload) or text.strip()
+    finished_at_utc = _now_utc()
+    result = {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": lane.get("model", ""),
+        "adapter": "fixture",
+        "call_moment": lane.get("call_moment", lane["lane_id"]),
+        "api_call": _research_lane_api_call_plan(
+            lane,
+            execute=False,
+            called=False,
+            reason="Lane output loaded from fixture; no provider key was resolved.",
+        ),
+        "status": "complete",
+        "source": "fixture",
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": lane_text,
+        "citations": raw_payload.get("citations", []) if isinstance(raw_payload, dict) and isinstance(raw_payload.get("citations"), list) else [],
+        "fixture_path": _path_for_state(fixture_path, repo_root),
+        "notes": ["Lane output loaded from an explicit fixture; no provider call was made."],
+    }
+    if isinstance(raw_payload, dict):
+        for key in ("claims", "confidence", "disagreements", "open_questions"):
+            if key in raw_payload:
+                result[key] = raw_payload[key]
+    return result
+
+
+def _research_secret_value_for_lane(lane: dict[str, Any]) -> tuple[str, str, str]:
+    env_var = str(lane.get("env_var", "")).strip()
+    if env_var:
+        value = os.environ.get(env_var, "").strip()
+        if value:
+            return value, f"env:{env_var}", ""
+
+    secret_alias = str(lane.get("secret_alias", "")).strip()
+    provider = str(lane.get("provider", "")).strip()
+    if not secret_alias and not provider:
+        return "", "", "no env var or secret alias configured"
+
+    try:
+        entry = _select_keychain_entry(
+            secret_ref=secret_alias,
+            provider=provider,
+            world_id="",
+            idea_id="",
+        )
+        if entry is None:
+            ref = secret_alias or provider
+            return "", "", f"no matching local Keychain secret for {ref}"
+        return _read_keychain_secret_value(entry).strip(), "keychain", ""
+    except Exception as exc:
+        return "", "", str(exc)
+
+
+def _research_chimera_result_text(stdout: str) -> tuple[str, dict[str, Any]]:
+    deltas: list[str] = []
+    final_text = ""
+    session_id = ""
+    session_path = ""
+    event_count = 0
+    usage: dict[str, Any] = {}
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(event, dict):
+            continue
+        event_count += 1
+        if "TextDelta" in event and isinstance(event["TextDelta"], dict):
+            deltas.append(str(event["TextDelta"].get("text", "")))
+        if "TurnComplete" in event and isinstance(event["TurnComplete"], dict):
+            final_text = str(event["TurnComplete"].get("text") or final_text).strip()
+            session_id = str(event["TurnComplete"].get("session_id", session_id)).strip()
+        if "SessionReady" in event and isinstance(event["SessionReady"], dict):
+            session_id = str(event["SessionReady"].get("session_id", session_id)).strip()
+        if "SessionSaved" in event and isinstance(event["SessionSaved"], dict):
+            session_id = str(event["SessionSaved"].get("session_id", session_id)).strip()
+            session_path = str(event["SessionSaved"].get("path", "")).strip()
+        if "Usage" in event and isinstance(event["Usage"], dict):
+            usage = dict(event["Usage"])
+
+        event_type = str(event.get("type", "")).strip()
+        if event_type == "text_delta":
+            deltas.append(str(event.get("text", "")))
+        if event_type == "turn_complete":
+            final_text = str(event.get("text") or final_text).strip()
+            session_id = str(event.get("session_id", session_id)).strip()
+    if not final_text:
+        final_text = "".join(deltas).strip()
+    return final_text, {
+        "event_count": event_count,
+        "session_id": session_id,
+        "session_path": session_path,
+        "usage": usage,
+    }
+
+
+def _research_run_chimera_lane(
+    lane: dict[str, Any],
+    prompt: str,
+    *,
+    repo_root: Path,
+    chimera_bin: str,
+    timeout_sec: int,
+    started_at_utc: str,
+) -> dict[str, Any]:
+    bin_path = shutil.which(chimera_bin) if chimera_bin else None
+    if bin_path is None and chimera_bin:
+        candidate = Path(chimera_bin).expanduser()
+        if candidate.exists():
+            bin_path = str(candidate)
+    if not bin_path:
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "chimera_cli",
+            "status": "skipped",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "notes": [f"Chimera binary not found: {chimera_bin}"],
+        }
+
+    env = os.environ.copy()
+    secret_value, secret_source, secret_issue = _research_secret_value_for_lane(lane)
+    env_var = str(lane.get("env_var", "")).strip()
+    if secret_value and env_var and not env.get(env_var):
+        env[env_var] = secret_value
+
+    args = [
+        bin_path,
+        "--model",
+        str(lane.get("model", "local")).strip() or "local",
+        "--prompt",
+        prompt,
+        "--approval-mode",
+        str(lane.get("chimera_approval_mode", "approve")).strip() or "approve",
+        "--json",
+    ]
+    try:
+        proc = subprocess.run(
+            args,
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=max(1, int(timeout_sec)),
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "chimera_cli",
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": f"chimera timed out after {timeout_sec}s",
+            "stdout": (exc.stdout or "")[-4000:],
+            "stderr": (exc.stderr or "")[-4000:],
+        }
+
+    finished_at_utc = _now_utc()
+    lane_text, meta = _research_chimera_result_text(proc.stdout)
+    notes: list[str] = []
+    if secret_source:
+        notes.append(f"Secret supplied from {secret_source}; secret value was not persisted.")
+    elif env_var and secret_issue:
+        notes.append(f"No secret supplied for {env_var}: {secret_issue}")
+    status = "complete" if proc.returncode == 0 and lane_text else "failed"
+    if proc.returncode != 0:
+        notes.append("Chimera exited non-zero.")
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": lane.get("model", ""),
+        "adapter": "chimera_cli",
+        "status": status,
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": lane_text,
+        "chimera": meta,
+        "returncode": proc.returncode,
+        "stderr_tail": proc.stderr[-4000:],
+        "notes": notes,
+    }
+
+
+def _research_extract_openai_text(payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]], int]:
+    texts: list[str] = []
+    citations: list[dict[str, Any]] = []
+    tool_calls = 0
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return "", citations, tool_calls
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+        item_type = str(item.get("type", "")).strip()
+        if item_type.endswith("_call"):
+            tool_calls += 1
+        if item_type != "message":
+            continue
+        content = item.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if str(part.get("type", "")).strip() == "output_text":
+                text = str(part.get("text", "")).strip()
+                if text:
+                    texts.append(text)
+                annotations = part.get("annotations")
+                if isinstance(annotations, list):
+                    for annotation in annotations:
+                        if isinstance(annotation, dict):
+                            citations.append(
+                                {
+                                    "type": str(annotation.get("type", "")).strip(),
+                                    "title": str(annotation.get("title", "")).strip(),
+                                    "url": str(annotation.get("url", "")).strip(),
+                                    "start_index": annotation.get("start_index"),
+                                    "end_index": annotation.get("end_index"),
+                                }
+                            )
+    return "\n\n".join(texts).strip(), citations, tool_calls
+
+
+def _research_openai_output_types(payload: dict[str, Any]) -> list[str]:
+    output = payload.get("output")
+    if not isinstance(output, list):
+        return []
+    return [
+        str(item.get("type", "")).strip()
+        for item in output
+        if isinstance(item, dict) and str(item.get("type", "")).strip()
+    ]
+
+
+def _research_run_openai_lane(
+    lane: dict[str, Any],
+    prompt: str,
+    *,
+    timeout_sec: int,
+    started_at_utc: str,
+) -> dict[str, Any]:
+    api_key, secret_source, secret_issue = _research_secret_value_for_lane(lane)
+    finished_at_utc = _now_utc()
+    if not api_key:
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "openai_responses",
+            "call_moment": lane.get("call_moment", lane["lane_id"]),
+            "api_call": _research_lane_api_call_plan(
+                lane,
+                execute=True,
+                called=False,
+                reason=f"No OpenAI API key available: {secret_issue or 'missing OPENAI_API_KEY'}",
+            ),
+            "status": "skipped",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "notes": [f"No OpenAI API key available: {secret_issue or 'missing OPENAI_API_KEY'}"],
+        }
+
+    body: dict[str, Any] = {
+        "model": str(lane.get("model", "gpt-5.4")).strip() or "gpt-5.4",
+        "input": prompt,
+        "background": bool(lane.get("background", False)),
+    }
+    tools: list[dict[str, Any]] = []
+    raw_tools = lane.get("tools")
+    if isinstance(raw_tools, list):
+        tools.extend([dict(row) for row in raw_tools if isinstance(row, dict)])
+    if bool(lane.get("web_search", False)):
+        web_tool_type = str(lane.get("web_search_tool", "web_search")).strip() or "web_search"
+        web_tool: dict[str, Any] = {
+            "type": web_tool_type,
+            "search_context_size": str(lane.get("search_context_size", "medium")).strip() or "medium",
+        }
+        if web_tool_type == "web_search" and "external_web_access" in lane:
+            web_tool["external_web_access"] = bool(lane.get("external_web_access"))
+        filters = lane.get("filters")
+        if isinstance(filters, dict):
+            web_tool["filters"] = filters
+        tools.append(web_tool)
+    if tools:
+        body["tools"] = tools
+    max_tool_calls = int(lane.get("max_tool_calls", 0) or 0)
+    if max_tool_calls > 0:
+        body["max_tool_calls"] = max_tool_calls
+    max_output_tokens = int(lane.get("max_output_tokens", 0) or 0)
+    if max_output_tokens > 0:
+        body["max_output_tokens"] = max_output_tokens
+    raw_reasoning = lane.get("reasoning")
+    reasoning_effort = str(lane.get("reasoning_effort", "") or "").strip()
+    if not reasoning_effort and isinstance(raw_reasoning, dict):
+        reasoning_effort = str(raw_reasoning.get("effort", "") or "").strip()
+    if reasoning_effort:
+        body["reasoning"] = {"effort": reasoning_effort}
+    reasoning_summary = str(lane.get("reasoning_summary", "") or "").strip()
+    if reasoning_summary:
+        reasoning_body = body.get("reasoning") if isinstance(body.get("reasoning"), dict) else {}
+        reasoning_body = dict(reasoning_body)
+        reasoning_body["summary"] = reasoning_summary
+        body["reasoning"] = reasoning_body
+    raw_text = lane.get("text")
+    text_verbosity = str(lane.get("text_verbosity", "") or "").strip()
+    if not text_verbosity and isinstance(raw_text, dict):
+        text_verbosity = str(raw_text.get("verbosity", "") or "").strip()
+    if text_verbosity:
+        body["text"] = {"verbosity": text_verbosity}
+    instructions = str(lane.get("instructions", "")).strip()
+    if instructions:
+        body["instructions"] = instructions
+
+    tool_types = [
+        str(row.get("type", "")).strip()
+        for row in body.get("tools", [])
+        if isinstance(row, dict) and str(row.get("type", "")).strip()
+    ]
+    api_call = _research_lane_api_call_plan(
+        lane,
+        execute=True,
+        called=True,
+        secret_source=secret_source,
+        request_body_keys=body.keys(),
+        tools=tool_types,
+    )
+
+    request = urlrequest.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=max(1, int(timeout_sec))) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urlerror.HTTPError as exc:
+        error_body = ""
+        try:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            error_body = str(exc)
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "openai_responses",
+            "call_moment": lane.get("call_moment", lane["lane_id"]),
+            "api_call": api_call,
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": error_body[-4000:],
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+    except Exception as exc:
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "openai_responses",
+            "call_moment": lane.get("call_moment", lane["lane_id"]),
+            "api_call": api_call,
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": str(exc),
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+
+    finished_at_utc = _now_utc()
+    text, citations, tool_calls = _research_extract_openai_text(response_payload)
+    response_status = str(response_payload.get("status", "")).strip()
+    status = "complete" if response_status == "completed" and text else response_status or "complete"
+    if status == "in_progress":
+        text = text or "OpenAI deep research started in background mode; poll the response id outside ORP for completion."
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": lane.get("model", ""),
+        "adapter": "openai_responses",
+        "call_moment": lane.get("call_moment", lane["lane_id"]),
+        "api_call": api_call,
+        "status": status,
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": text,
+        "citations": citations,
+        "provider_response_id": str(response_payload.get("id", "")).strip(),
+        "provider_status": response_status,
+        "provider_error": response_payload.get("error") if isinstance(response_payload.get("error"), dict) else None,
+        "incomplete_details": response_payload.get("incomplete_details")
+        if isinstance(response_payload.get("incomplete_details"), dict)
+        else None,
+        "output_types": _research_openai_output_types(response_payload),
+        "tool_call_count": tool_calls,
+        "usage": response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else {},
+        "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+    }
+
+
+def _research_extract_anthropic_text(payload: dict[str, Any]) -> str:
+    content = payload.get("content")
+    if not isinstance(content, list):
+        return ""
+    parts: list[str] = []
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        if str(part.get("type", "")).strip() == "text":
+            text = str(part.get("text", "")).strip()
+            if text:
+                parts.append(text)
+    return "\n\n".join(parts).strip()
+
+
+def _research_run_anthropic_lane(
+    lane: dict[str, Any],
+    prompt: str,
+    *,
+    timeout_sec: int,
+    started_at_utc: str,
+) -> dict[str, Any]:
+    api_key, secret_source, secret_issue = _research_secret_value_for_lane(lane)
+    finished_at_utc = _now_utc()
+    if not api_key:
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "anthropic_messages",
+            "status": "skipped",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "notes": [f"No Anthropic API key available: {secret_issue or 'missing ANTHROPIC_API_KEY'}"],
+        }
+
+    model = str(lane.get("model", "claude-opus-4-7")).strip() or "claude-opus-4-7"
+    body: dict[str, Any] = {
+        "model": model,
+        "max_tokens": int(lane.get("max_tokens", 4096) or 4096),
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    system = str(lane.get("system", "") or "").strip()
+    if system:
+        body["system"] = system
+    if "temperature" in lane:
+        try:
+            body["temperature"] = float(lane.get("temperature"))
+        except Exception:
+            pass
+    anthropic_version = str(lane.get("anthropic_version", "2023-06-01")).strip() or "2023-06-01"
+    request = urlrequest.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": anthropic_version,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=max(1, int(timeout_sec))) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urlerror.HTTPError as exc:
+        error_body = ""
+        try:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            error_body = str(exc)
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": model,
+            "adapter": "anthropic_messages",
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": error_body[-4000:],
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+    except Exception as exc:
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": model,
+            "adapter": "anthropic_messages",
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": str(exc),
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+
+    finished_at_utc = _now_utc()
+    text = _research_extract_anthropic_text(response_payload)
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": str(response_payload.get("model", model)).strip() or model,
+        "adapter": "anthropic_messages",
+        "status": "complete" if text else "failed",
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": text,
+        "provider_response_id": str(response_payload.get("id", "")).strip(),
+        "stop_reason": str(response_payload.get("stop_reason", "")).strip(),
+        "usage": response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else {},
+        "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+    }
+
+
+def _research_extract_chat_completion_text(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list):
+        return ""
+    parts: list[str] = []
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if isinstance(message, dict):
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                parts.append(content.strip())
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        text = str(item.get("text", "")).strip()
+                        if text:
+                            parts.append(text)
+    return "\n\n".join(parts).strip()
+
+
+def _research_run_xai_lane(
+    lane: dict[str, Any],
+    prompt: str,
+    *,
+    timeout_sec: int,
+    started_at_utc: str,
+) -> dict[str, Any]:
+    api_key, secret_source, secret_issue = _research_secret_value_for_lane(lane)
+    finished_at_utc = _now_utc()
+    if not api_key:
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "xai_chat_completions",
+            "status": "skipped",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "notes": [f"No xAI API key available: {secret_issue or 'missing XAI_API_KEY'}"],
+        }
+
+    model = str(lane.get("model", "grok-4.20-reasoning")).strip() or "grok-4.20-reasoning"
+    system = str(lane.get("system", "You are an independent research critique lane.")).strip()
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "stream": False,
+    }
+    max_tokens = int(lane.get("max_tokens", 0) or 0)
+    if max_tokens > 0:
+        body["max_tokens"] = max_tokens
+    if "temperature" in lane:
+        try:
+            body["temperature"] = float(lane.get("temperature"))
+        except Exception:
+            pass
+    base_url = str(lane.get("base_url", "https://api.x.ai/v1")).rstrip("/") or "https://api.x.ai/v1"
+    request = urlrequest.Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=max(1, int(timeout_sec))) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urlerror.HTTPError as exc:
+        error_body = ""
+        try:
+            error_body = exc.read().decode("utf-8")
+        except Exception:
+            error_body = str(exc)
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": model,
+            "adapter": "xai_chat_completions",
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": error_body[-4000:],
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+    except Exception as exc:
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": model,
+            "adapter": "xai_chat_completions",
+            "status": "failed",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "error": str(exc),
+            "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+        }
+
+    finished_at_utc = _now_utc()
+    text = _research_extract_chat_completion_text(response_payload)
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": str(response_payload.get("model", model)).strip() or model,
+        "adapter": "xai_chat_completions",
+        "status": "complete" if text else "failed",
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": text,
+        "provider_response_id": str(response_payload.get("id", "")).strip(),
+        "usage": response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else {},
+        "notes": [f"Secret supplied from {secret_source}; secret value was not persisted."],
+    }
+
+
+def _research_planned_lane(lane: dict[str, Any], *, started_at_utc: str, execute: bool, reason: str) -> dict[str, Any]:
+    finished_at_utc = _now_utc()
+    return {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "lane_id": lane["lane_id"],
+        "label": lane.get("label", lane["lane_id"]),
+        "provider": lane.get("provider", ""),
+        "model": lane.get("model", ""),
+        "adapter": lane.get("adapter", "planned"),
+        "call_moment": lane.get("call_moment", lane["lane_id"]),
+        "api_call": _research_lane_api_call_plan(
+            lane,
+            execute=execute,
+            called=False,
+            reason=reason,
+        ),
+        "status": "planned" if not execute else "skipped",
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "text": "",
+        "notes": [reason],
+    }
+
+
+def _research_run_lane(
+    lane: dict[str, Any],
+    *,
+    question: str,
+    breakdown: dict[str, Any],
+    repo_root: Path,
+    execute: bool,
+    fixtures: dict[str, Path],
+    chimera_bin: str,
+    timeout_sec: int,
+) -> dict[str, Any]:
+    started_at_utc = _now_utc()
+    lane_id = str(lane.get("lane_id", "")).strip()
+    if lane_id in fixtures:
+        return _research_fixture_lane_result(lane, fixtures[lane_id], started_at_utc=started_at_utc, repo_root=repo_root)
+    if not execute:
+        return _research_planned_lane(
+            lane,
+            started_at_utc=started_at_utc,
+            execute=False,
+            reason="Dry run only. Re-run with --execute or provide --lane-fixture lane_id=path.",
+        )
+    prompt = _research_lane_prompt(question, lane, breakdown)
+    adapter = str(lane.get("adapter", "")).strip()
+    if adapter == "chimera_cli":
+        return _research_run_chimera_lane(
+            lane,
+            prompt,
+            repo_root=repo_root,
+            chimera_bin=chimera_bin,
+            timeout_sec=timeout_sec,
+            started_at_utc=started_at_utc,
+        )
+    if adapter == "openai_responses":
+        return _research_run_openai_lane(
+            lane,
+            prompt,
+            timeout_sec=timeout_sec,
+            started_at_utc=started_at_utc,
+        )
+    if adapter == "anthropic_messages":
+        return _research_run_anthropic_lane(
+            lane,
+            prompt,
+            timeout_sec=timeout_sec,
+            started_at_utc=started_at_utc,
+        )
+    if adapter == "xai_chat_completions":
+        return _research_run_xai_lane(
+            lane,
+            prompt,
+            timeout_sec=timeout_sec,
+            started_at_utc=started_at_utc,
+        )
+    return _research_planned_lane(
+        lane,
+        started_at_utc=started_at_utc,
+        execute=True,
+        reason=f"No live adapter implemented for `{adapter}`.",
+    )
+
+
+def _research_status_from_lanes(lanes: list[dict[str, Any]]) -> str:
+    statuses = {str(row.get("status", "")).strip() for row in lanes if isinstance(row, dict)}
+    if not statuses:
+        return "planned"
+    if "failed" in statuses:
+        return "partial"
+    if statuses & {"queued", "in_progress"}:
+        return "in_progress"
+    if "complete" in statuses and statuses <= {"complete"}:
+        return "complete"
+    if "complete" in statuses:
+        return "partial"
+    if statuses <= {"planned"}:
+        return "planned"
+    return "partial"
+
+
+def _research_synthesize(question: str, lanes: list[dict[str, Any]], *, execute: bool) -> dict[str, Any]:
+    complete_lanes = [lane for lane in lanes if lane.get("status") == "complete" and str(lane.get("text", "")).strip()]
+    skipped = [lane for lane in lanes if lane.get("status") in {"planned", "skipped"}]
+    failed = [lane for lane in lanes if lane.get("status") == "failed"]
+    lines: list[str] = []
+    if complete_lanes:
+        lines.append(f"Question: {question}")
+        lines.append("")
+        lines.append("Synthesis from completed lanes:")
+        for lane in complete_lanes:
+            lane_label = str(lane.get("label", lane.get("lane_id", ""))).strip()
+            text = str(lane.get("text", "")).strip()
+            lines.append("")
+            lines.append(f"[{lane_label}]")
+            lines.append(text)
+    else:
+        lines.append(
+            "No live research lane has completed yet. ORP created the durable decomposition, provider plan, and lane prompts; "
+            "run again with --execute or attach lane fixtures to produce an answer."
+        )
+    next_actions: list[str] = []
+    if not execute:
+        next_actions.append("Run `orp research ask <question> --execute --json` when you are ready to spend live provider calls.")
+    if skipped:
+        next_actions.append("Attach completed external reports with `--lane-fixture lane_id=path` to synthesize without re-calling providers.")
+    if failed:
+        next_actions.append("Inspect failed lane JSON files under `orp/research/<run_id>/lanes/` and re-run only after credentials/adapters are fixed.")
+    citations: list[dict[str, Any]] = []
+    for lane in complete_lanes:
+        lane_citations = lane.get("citations")
+        if isinstance(lane_citations, list):
+            citations.extend([row for row in lane_citations if isinstance(row, dict)])
+    return {
+        "answer": "\n".join(lines).strip(),
+        "completed_lane_count": len(complete_lanes),
+        "planned_or_skipped_lane_count": len(skipped),
+        "failed_lane_count": len(failed),
+        "confidence": "multi_lane" if len(complete_lanes) > 1 else ("single_lane" if complete_lanes else "planning_only"),
+        "citations": citations,
+        "next_actions": _unique_strings(next_actions),
+    }
+
+
+def _research_summary_markdown(payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    lines.append(f"# ORP Research Run `{payload.get('run_id', '')}`")
+    lines.append("")
+    lines.append(f"- status: `{payload.get('status', '')}`")
+    lines.append(f"- question: {payload.get('question', '')}")
+    lines.append(f"- execute: `{str(bool(payload.get('execute'))).lower()}`")
+    lines.append(f"- profile: `{payload.get('profile', {}).get('profile_id', '')}`")
+    lines.append("")
+    lines.append("## Lanes")
+    lines.append("")
+    for lane in payload.get("lanes", []):
+        if not isinstance(lane, dict):
+            continue
+        api_call = lane.get("api_call") if isinstance(lane.get("api_call"), dict) else {}
+        lines.append(
+            f"- `{lane.get('lane_id', '')}`: `{lane.get('status', '')}` "
+            f"via `{lane.get('adapter', '')}` on `{lane.get('model', '')}` "
+            f"at `{lane.get('call_moment', '')}` "
+            f"(api_called: `{str(bool(api_call.get('called', False))).lower()}`)"
+        )
+    lines.append("")
+    lines.append("## Synthesis")
+    lines.append("")
+    lines.append(str(payload.get("synthesis", {}).get("answer", "")).strip())
+    next_actions = payload.get("synthesis", {}).get("next_actions", [])
+    if isinstance(next_actions, list) and next_actions:
+        lines.append("")
+        lines.append("## Next Actions")
+        lines.append("")
+        for action in next_actions:
+            lines.append(f"- {action}")
+    lines.append("")
+    lines.append("## Notes")
+    lines.append("")
+    lines.append("- Research runs are ORP process artifacts, not evidence by themselves.")
+    lines.append("- Secret values are used only at execution time and are not written to artifacts.")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _research_load_answer(repo_root: Path, run_id: str) -> tuple[dict[str, Any], dict[str, Path]]:
+    run_ref = str(run_id or "").strip()
+    state = _read_json_if_exists(repo_root / "orp" / "state.json")
+    if not run_ref or run_ref == "latest":
+        run_ref = str(state.get("last_research_run_id", "")).strip()
+    if not run_ref:
+        raise RuntimeError("No research run id provided and no last research run is recorded.")
+    paths = _research_paths(repo_root, run_ref)
+    payload = _read_json_if_exists(paths["answer_json"])
+    if not payload:
+        raise RuntimeError(f"research run not found: {run_ref}")
+    return payload, paths
+
+
+def _research_update_state(repo_root: Path, payload: dict[str, Any]) -> None:
+    state_path = repo_root / "orp" / "state.json"
+    state = {**_default_state_payload(), **_read_json_if_exists(state_path)}
+    run_id = str(payload.get("run_id", "")).strip()
+    research_runs = state.get("research_runs") if isinstance(state.get("research_runs"), dict) else {}
+    if run_id:
+        research_runs[run_id] = {
+            "run_id": run_id,
+            "status": payload.get("status", ""),
+            "question": payload.get("question", ""),
+            "generated_at_utc": payload.get("generated_at_utc", ""),
+            "answer_json": payload.get("artifacts", {}).get("answer_json", ""),
+            "summary_md": payload.get("artifacts", {}).get("summary_md", ""),
+        }
+        state["last_research_run_id"] = run_id
+    state["research_runs"] = research_runs
+    _write_json(state_path, state)
+
+
+def cmd_research_ask(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    _ensure_dirs(repo_root)
+    question = " ".join(str(part) for part in getattr(args, "question", [])).strip()
+    if not question:
+        raise RuntimeError("research question is required.")
+    run_id = str(getattr(args, "run_id", "") or "").strip() or _research_id()
+    execute = bool(getattr(args, "execute", False))
+    timeout_sec = int(getattr(args, "timeout_sec", 120) or 120)
+    profile = _research_load_profile(args, repo_root)
+    breakdown = _research_breakdown(question)
+    fixtures = _research_parse_lane_fixtures(getattr(args, "lane_fixture", []) or [], repo_root)
+    paths = _research_paths(repo_root, run_id)
+    started_at_utc = _now_utc()
+
+    request_payload = {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "kind": "research_request",
+        "run_id": run_id,
+        "question": question,
+        "profile_id": profile.get("profile_id", ""),
+        "execute": execute,
+        "created_at_utc": started_at_utc,
+        "timeout_sec": timeout_sec,
+        "call_moments": profile.get("call_moments", []) if isinstance(profile.get("call_moments"), list) else [],
+        "lane_fixtures": {lane_id: _path_for_state(path, repo_root) for lane_id, path in fixtures.items()},
+    }
+    _write_json(paths["request_json"], request_payload)
+    _write_json(paths["breakdown_json"], breakdown)
+    _write_json(paths["profile_json"], profile)
+
+    lanes: list[dict[str, Any]] = []
+    for lane in profile.get("lanes", []):
+        if not isinstance(lane, dict):
+            continue
+        lane_result = _research_run_lane(
+            lane,
+            question=question,
+            breakdown=breakdown,
+            repo_root=repo_root,
+            execute=execute,
+            fixtures=fixtures,
+            chimera_bin=str(getattr(args, "chimera_bin", "chimera") or "chimera"),
+            timeout_sec=timeout_sec,
+        )
+        lanes.append(lane_result)
+        _write_json(paths["lanes_root"] / f"{lane_result['lane_id']}.json", lane_result)
+
+    finished_at_utc = _now_utc()
+    artifacts = {
+        "request_json": _path_for_state(paths["request_json"], repo_root),
+        "breakdown_json": _path_for_state(paths["breakdown_json"], repo_root),
+        "profile_json": _path_for_state(paths["profile_json"], repo_root),
+        "answer_json": _path_for_state(paths["answer_json"], repo_root),
+        "summary_md": _path_for_state(paths["summary_md"], repo_root),
+        "lanes_root": _path_for_state(paths["lanes_root"], repo_root),
+    }
+    payload = {
+        "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+        "kind": "research_run",
+        "run_id": run_id,
+        "status": _research_status_from_lanes(lanes),
+        "question": question,
+        "execute": execute,
+        "generated_at_utc": finished_at_utc,
+        "started_at_utc": started_at_utc,
+        "finished_at_utc": finished_at_utc,
+        "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+        "profile": {
+            "profile_id": profile.get("profile_id", ""),
+            "label": profile.get("label", ""),
+            "lane_count": len(profile.get("lanes", [])) if isinstance(profile.get("lanes"), list) else 0,
+        },
+        "call_moments": profile.get("call_moments", []) if isinstance(profile.get("call_moments"), list) else [],
+        "breakdown": breakdown,
+        "lanes": lanes,
+        "synthesis": _research_synthesize(question, lanes, execute=execute),
+        "artifacts": artifacts,
+        "notes": [
+            "Research runs are ORP process artifacts, not canonical evidence.",
+            "Live provider calls require --execute; dry runs persist the decomposition and lane plan only.",
+            "Secret values are not written to ORP artifacts.",
+        ],
+    }
+    _write_json(paths["answer_json"], payload)
+    _write_text(paths["summary_md"], _research_summary_markdown(payload))
+    _research_update_state(repo_root, payload)
+
+    result = {
+        "ok": True,
+        "run_id": run_id,
+        "status": payload["status"],
+        "question": question,
+        "execute": execute,
+        "profile_id": profile.get("profile_id", ""),
+        "lane_statuses": [
+            {
+                "lane_id": lane.get("lane_id", ""),
+                "call_moment": lane.get("call_moment", ""),
+                "status": lane.get("status", ""),
+                "adapter": lane.get("adapter", ""),
+                "model": lane.get("model", ""),
+                "api_called": bool(lane.get("api_call", {}).get("called", False)) if isinstance(lane.get("api_call"), dict) else False,
+            }
+            for lane in lanes
+        ],
+        "synthesis": payload["synthesis"],
+        "artifacts": artifacts,
+        "schema_path": "spec/v1/research-run.schema.json",
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+
+    print(f"run_id={run_id}")
+    print(f"status={payload['status']}")
+    print(f"answer_json={artifacts['answer_json']}")
+    print(f"summary_md={artifacts['summary_md']}")
+    for lane in lanes:
+        print(f"lane.{lane.get('lane_id', '')}.status={lane.get('status', '')}")
+    return 0
+
+
+def cmd_research_status(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload, _ = _research_load_answer(repo_root, str(getattr(args, "run_id", "") or "latest"))
+    result = {
+        "ok": True,
+        "run_id": payload.get("run_id", ""),
+        "status": payload.get("status", ""),
+        "question": payload.get("question", ""),
+        "generated_at_utc": payload.get("generated_at_utc", ""),
+        "lane_statuses": [
+            {
+                "lane_id": lane.get("lane_id", ""),
+                "call_moment": lane.get("call_moment", ""),
+                "status": lane.get("status", ""),
+                "adapter": lane.get("adapter", ""),
+                "model": lane.get("model", ""),
+                "api_called": bool(lane.get("api_call", {}).get("called", False)) if isinstance(lane.get("api_call"), dict) else False,
+            }
+            for lane in payload.get("lanes", [])
+            if isinstance(lane, dict)
+        ],
+        "artifacts": payload.get("artifacts", {}),
+    }
+    if args.json_output:
+        _print_json(result)
+        return 0
+    print(f"run_id={result['run_id']}")
+    print(f"status={result['status']}")
+    print(f"question={result['question']}")
+    for lane in result["lane_statuses"]:
+        print(f"lane.{lane.get('lane_id', '')}.status={lane.get('status', '')}")
+    return 0
+
+
+def cmd_research_show(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    payload, _ = _research_load_answer(repo_root, str(getattr(args, "run_id", "") or "latest"))
+    if args.json_output:
+        _print_json(payload)
+        return 0
+    print(str(payload.get("synthesis", {}).get("answer", "")).strip())
     return 0
 
 
@@ -19452,14 +21259,22 @@ def _resolve_secret_scope_from_args(
 
 def _resolve_secret_value_arg(args: argparse.Namespace, *, required: bool) -> tuple[bool, str]:
     value_from_stdin = bool(getattr(args, "value_stdin", False))
+    value_from_env = bool(getattr(args, "from_env", False))
     raw_value = getattr(args, "value", None)
-    if value_from_stdin and raw_value is not None:
-        raise RuntimeError("Use either --value or --value-stdin, not both.")
+    if sum([bool(value_from_stdin), bool(value_from_env), raw_value is not None]) > 1:
+        raise RuntimeError("Use only one of --value, --value-stdin, or --from-env.")
 
-    provided = raw_value is not None or value_from_stdin
+    provided = raw_value is not None or value_from_stdin or value_from_env
     value = str(raw_value).strip() if raw_value is not None else ""
     if value_from_stdin:
         value = _read_value_from_stdin()
+    if value_from_env:
+        env_var_name = str(getattr(args, "env_var_name", "") or "").strip()
+        if not env_var_name:
+            raise RuntimeError("--from-env requires --env-var-name.")
+        value = os.environ.get(env_var_name, "").strip()
+        if required and not value:
+            raise RuntimeError(f"Environment variable {env_var_name} is empty or not set.")
 
     if required and not value:
         value = _prompt_value("Secret value", secret=True)
@@ -19717,11 +21532,11 @@ def _keychain_comment_for_secret(secret: dict[str, Any]) -> str:
 
 def _normalize_secret_binding_summary(binding: dict[str, Any]) -> dict[str, Any]:
     return {
-        "binding_id": str(binding.get("id", "")).strip(),
-        "world_id": str(binding.get("worldId", "")).strip(),
-        "idea_id": str(binding.get("ideaId", "")).strip(),
+        "binding_id": str(binding.get("binding_id", binding.get("id", ""))).strip(),
+        "world_id": str(binding.get("world_id", binding.get("worldId", ""))).strip(),
+        "idea_id": str(binding.get("idea_id", binding.get("ideaId", ""))).strip(),
         "purpose": str(binding.get("purpose", "")).strip(),
-        "primary": bool(binding.get("isPrimary", False)),
+        "primary": bool(binding.get("primary", binding.get("isPrimary", False))),
     }
 
 
@@ -19996,6 +21811,48 @@ def _sync_secret_to_keychain(
     entry = _build_keychain_registry_entry(secret, binding=binding)
     entry.update(keychain_coordinates)
     return _upsert_keychain_secret_registry_entry(entry)
+
+
+def _build_local_keychain_secret_from_args(args: argparse.Namespace, existing_entry: dict[str, Any] | None = None) -> dict[str, Any]:
+    alias = str(getattr(args, "alias", "") or "").strip()
+    provider = str(getattr(args, "provider", "") or "").strip()
+    if not alias:
+        raise RuntimeError("Secret alias is required.")
+    if not provider:
+        raise RuntimeError("Secret provider is required.")
+
+    if existing_entry:
+        existing_provider = str(existing_entry.get("provider", "") or "").strip()
+        if existing_provider and existing_provider != provider:
+            raise RuntimeError(
+                f"Local Keychain secret alias already exists with provider '{existing_provider}', not '{provider}'."
+            )
+
+    label = str(getattr(args, "label", "") or "").strip() or str(existing_entry.get("label", "") if existing_entry else "").strip() or alias
+    kind = str(getattr(args, "kind", "api_key") or "api_key").strip() or "api_key"
+    username = getattr(args, "username", None)
+    env_var_name = getattr(args, "env_var_name", None)
+    now = _now_utc()
+    return {
+        "id": str(existing_entry.get("secret_id", "") if existing_entry else "").strip() or f"local-{uuid.uuid4().hex[:12]}",
+        "alias": alias,
+        "label": label,
+        "provider": provider,
+        "kind": kind,
+        "username": str(username).strip() if username is not None else str(existing_entry.get("username", "") if existing_entry else "").strip(),
+        "envVarName": str(env_var_name).strip() if env_var_name is not None else str(existing_entry.get("env_var_name", "") if existing_entry else "").strip(),
+        "status": "active",
+        "valueVersion": f"local:{now}",
+        "valuePreview": "stored in local Keychain",
+        "bindings": [
+            _binding_payload_from_keychain_summary(row)
+            for row in (existing_entry.get("bindings", []) if isinstance(existing_entry, dict) else [])
+            if isinstance(row, dict)
+        ],
+        "lastUsedAt": "",
+        "rotatedAt": now,
+        "updatedAt": now,
+    }
 
 
 def _try_get_secret_by_ref(args: argparse.Namespace, secret_ref: str) -> dict[str, Any] | None:
@@ -21790,6 +23647,50 @@ def cmd_secrets_resolve(args: argparse.Namespace) -> int:
             value=result["value"] if reveal else None,
             matched_by=result["matched_by"],
             source=str(result.get("source", "")).strip(),
+        )
+    return 0
+
+
+def cmd_secrets_keychain_add(args: argparse.Namespace) -> int:
+    _ensure_keychain_supported()
+    _, value = _resolve_secret_value_arg(args, required=True)
+    alias = str(getattr(args, "alias", "") or "").strip()
+    existing_entry = _select_keychain_entry(
+        secret_ref=alias,
+        provider="",
+        world_id="",
+        idea_id="",
+    )
+    secret = _build_local_keychain_secret_from_args(args, existing_entry)
+    binding = _build_secret_binding_payload_from_args(args)
+    entry = _build_keychain_registry_entry(secret, binding=binding)
+    entry.update(_store_keychain_secret_value(secret, value))
+    entry = _upsert_keychain_secret_registry_entry(entry)
+    result = {
+        "ok": True,
+        "created": existing_entry is None,
+        "secret": _secret_payload_from_keychain_entry(entry),
+        "entry": entry,
+        "registry_path": str(_keychain_secret_registry_path()),
+        "keychain_service": str(entry.get("keychain_service", "")).strip(),
+        "keychain_account": str(entry.get("keychain_account", "")).strip(),
+        "source": "keychain",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(
+            result["secret"],
+            include_bindings=True,
+            source="keychain",
+        )
+        _print_pairs(
+            [
+                ("secret.created", str(result["created"]).lower()),
+                ("keychain.service", result["keychain_service"]),
+                ("keychain.account", result["keychain_account"]),
+                ("registry.path", result["registry_path"]),
+            ]
         )
     return 0
 
@@ -24310,6 +26211,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  3. Later run `orp secrets list` or `orp secrets resolve ...`\n\n"
             "Agent flow:\n"
             "  - Pipe the value with `--value-stdin` instead of typing it interactively.\n\n"
+            "Local flow:\n"
+            "  - Use `orp secrets keychain-add ...` to store a machine-local secret without the hosted API.\n\n"
             "Local macOS Keychain caching and hosted sync are optional layers on top."
         ),
         epilog=(
@@ -24317,6 +26220,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai\n"
             "  orp secrets add --alias huggingface-login --label \"Hugging Face Login\" --provider huggingface --kind password --username cody\n"
             "  printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai --value-stdin\n"
+            "  printf '%s' 'sk-...' | orp secrets keychain-add --alias openai-primary --label \"OpenAI Primary\" --provider openai --env-var-name OPENAI_API_KEY --value-stdin\n"
             "  orp secrets list\n"
             "  orp secrets resolve openai-primary --reveal"
         ),
@@ -24424,6 +26328,46 @@ def build_parser() -> argparse.ArgumentParser:
     add_base_url_flag(s_secrets_ensure)
     add_json_flag(s_secrets_ensure)
     s_secrets_ensure.set_defaults(func=cmd_secrets_ensure, json_output=False)
+
+    s_secrets_keychain_add = secrets_sub.add_parser(
+        "keychain-add",
+        help="Save or update one secret directly in the local macOS Keychain registry",
+    )
+    s_secrets_keychain_add.add_argument("--alias", required=True, help="Stable secret alias")
+    s_secrets_keychain_add.add_argument("--label", default="", help="Human label for the secret")
+    s_secrets_keychain_add.add_argument("--provider", required=True, help="Provider slug, for example openai")
+    s_secrets_keychain_add.add_argument(
+        "--kind",
+        choices=["api_key", "access_token", "password", "other"],
+        default="api_key",
+        help="Secret kind (default: api_key)",
+    )
+    s_secrets_keychain_add.add_argument(
+        "--username",
+        default=None,
+        help="Optional username or login identifier that belongs with this credential",
+    )
+    s_secrets_keychain_add.add_argument("--env-var-name", default=None, help="Optional env var name, for example OPENAI_API_KEY")
+    s_secrets_keychain_add.add_argument("--value", default=None, help="Secret value")
+    s_secrets_keychain_add.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help="Read the secret value from stdin",
+    )
+    s_secrets_keychain_add.add_argument(
+        "--from-env",
+        action="store_true",
+        help="Read the secret value from --env-var-name in the current process environment",
+    )
+    add_secret_scope_flags(s_secrets_keychain_add)
+    s_secrets_keychain_add.add_argument("--purpose", default="", help="Optional project usage note when binding")
+    s_secrets_keychain_add.add_argument(
+        "--primary",
+        action="store_true",
+        help="Mark the local project binding as primary",
+    )
+    add_json_flag(s_secrets_keychain_add)
+    s_secrets_keychain_add.set_defaults(func=cmd_secrets_keychain_add, json_output=False)
 
     s_secrets_keychain_list = secrets_sub.add_parser(
         "keychain-list",
@@ -25094,6 +27038,73 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_exchange_repo_synthesize)
     s_exchange_repo_synthesize.set_defaults(func=cmd_exchange_repo_synthesize, json_output=False)
 
+    s_research = sub.add_parser(
+        "research",
+        help="Durable OpenAI research-loop question decomposition and synthesis runs",
+    )
+    research_sub = s_research.add_subparsers(dest="research_cmd", required=True)
+
+    s_research_ask = research_sub.add_parser(
+        "ask",
+        help="Create a research council run; use --execute for live provider calls",
+    )
+    s_research_ask.add_argument("question", nargs="+", help="Question to decompose and answer")
+    s_research_ask.add_argument(
+        "--profile",
+        default="openai-council",
+        help="Research profile id (default: openai-council)",
+    )
+    s_research_ask.add_argument(
+        "--profile-file",
+        default="",
+        help="Optional JSON profile file overriding the built-in OpenAI model lanes",
+    )
+    s_research_ask.add_argument(
+        "--run-id",
+        default="",
+        help="Optional research run id override",
+    )
+    s_research_ask.add_argument(
+        "--execute",
+        action="store_true",
+        help="Allow live provider adapters to run; without this ORP writes the plan only",
+    )
+    s_research_ask.add_argument(
+        "--lane-fixture",
+        action="append",
+        default=[],
+        help="Load one lane result from lane_id=path instead of calling a provider (repeatable)",
+    )
+    s_research_ask.add_argument(
+        "--chimera-bin",
+        default="chimera",
+        help="Chimera CLI binary or path for custom chimera_cli lanes (default: chimera)",
+    )
+    s_research_ask.add_argument(
+        "--timeout-sec",
+        type=int,
+        default=120,
+        help="Per-lane live adapter timeout in seconds (default: 120)",
+    )
+    add_json_flag(s_research_ask)
+    s_research_ask.set_defaults(func=cmd_research_ask, json_output=False)
+
+    s_research_status = research_sub.add_parser(
+        "status",
+        help="Show status and lane summary for a research run",
+    )
+    s_research_status.add_argument("run_id", nargs="?", default="latest", help="Run id or latest (default: latest)")
+    add_json_flag(s_research_status)
+    s_research_status.set_defaults(func=cmd_research_status, json_output=False)
+
+    s_research_show = research_sub.add_parser(
+        "show",
+        help="Show a research run answer payload or human synthesis",
+    )
+    s_research_show.add_argument("run_id", nargs="?", default="latest", help="Run id or latest (default: latest)")
+    add_json_flag(s_research_show)
+    s_research_show.set_defaults(func=cmd_research_show, json_output=False)
+
     s_collab = sub.add_parser(
         "collaborate",
         help="Built-in repository collaboration setup and workflow operations",
@@ -25209,6 +27220,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print machine-readable JSON",
     )
     s_collab_run.set_defaults(func=cmd_collaborate_run, json_output=False)
+
+    s_project = sub.add_parser(
+        "project",
+        help="Local project context lens and evolution policy operations",
+    )
+    project_sub = s_project.add_subparsers(dest="project_cmd", required=True)
+    s_project_refresh = project_sub.add_parser(
+        "refresh",
+        help="Rescan this directory and refresh orp/project.json",
+    )
+    add_json_flag(s_project_refresh)
+    s_project_refresh.set_defaults(func=cmd_project_refresh, json_output=False)
+
+    s_project_show = project_sub.add_parser(
+        "show",
+        help="Show the current ORP project context lens",
+    )
+    add_json_flag(s_project_show)
+    s_project_show.set_defaults(func=cmd_project_show, json_output=False)
 
     s_init = sub.add_parser("init", help="Make this repo ORP-governed with local-first git safety")
     s_init.add_argument(

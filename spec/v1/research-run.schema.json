@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/research-run.schema.json",
+  "title": "ORP Research Run",
+  "description": "Machine-readable ORP artifact for a durable multi-lane research council run.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "status",
+    "question",
+    "execute",
+    "generated_at_utc",
+    "profile",
+    "breakdown",
+    "lanes",
+    "synthesis",
+    "artifacts",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "research_run"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "in_progress",
+        "partial",
+        "complete"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execute": {
+      "type": "boolean"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "lane_count"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "lane_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "call_moments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "moment_id",
+          "calls_api"
+        ],
+        "properties": {
+          "moment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "calls_api": {
+            "type": "boolean"
+          },
+          "secret_alias": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "breakdown": {
+      "type": "object",
+      "required": [
+        "question",
+        "sequence",
+        "output_contract",
+        "lanes"
+      ]
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "lane_id",
+          "provider",
+          "model",
+          "adapter",
+          "status",
+          "started_at_utc",
+          "finished_at_utc",
+          "text"
+        ],
+        "properties": {
+          "lane_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "adapter": {
+            "type": "string"
+          },
+          "call_moment": {
+            "type": "string"
+          },
+          "api_call": {
+            "type": "object",
+            "properties": {
+              "call_moment": {
+                "type": "string"
+              },
+              "called": {
+                "type": "boolean"
+              },
+              "secret_alias": {
+                "type": "string"
+              },
+              "env_var": {
+                "type": "string"
+              },
+              "secret_source": {
+                "type": "string"
+              },
+              "secret_value_persisted": {
+                "type": "boolean"
+              }
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "citations": {
+            "type": "array"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "required": [
+        "answer",
+        "completed_lane_count",
+        "confidence",
+        "next_actions"
+      ],
+      "properties": {
+        "answer": {
+          "type": "string"
+        },
+        "completed_lane_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "planned_or_skipped_lane_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_lane_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confidence": {
+          "type": "string"
+        },
+        "citations": {
+          "type": "array"
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "request_json",
+        "breakdown_json",
+        "profile_json",
+        "answer_json",
+        "summary_md",
+        "lanes_root"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/project-context.schema.json",
+  "title": "ORP Project Context",
+  "description": "Machine-readable ORP process artifact describing a local directory's authority surfaces, directory signals, research timing policy, and evolution policy.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "kind",
+    "project",
+    "initialized_at_utc",
+    "refreshed_at_utc",
+    "refresh_source",
+    "authority_surfaces",
+    "directory_signals",
+    "research_policy",
+    "evolution_policy",
+    "next_actions",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "orp_project_context"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name",
+        "root"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "initialized_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "refreshed_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "refresh_source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "role",
+          "exists",
+          "size_bytes"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "directory_signals": {
+      "type": "object",
+      "required": [
+        "source_dirs",
+        "languages_or_stacks",
+        "has_tests",
+        "has_docs",
+        "has_orp_config",
+        "authority_surface_count"
+      ],
+      "properties": {
+        "source_dirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "languages_or_stacks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_tests": {
+          "type": "boolean"
+        },
+        "has_docs": {
+          "type": "boolean"
+        },
+        "has_orp_config": {
+          "type": "boolean"
+        },
+        "authority_surface_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "research_policy": {
+      "type": "object",
+      "required": [
+        "default_timing",
+        "provider_calls_are_explicit",
+        "live_calls_require_execute",
+        "call_moments"
+      ],
+      "properties": {
+        "default_timing": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_calls_are_explicit": {
+          "type": "boolean"
+        },
+        "live_calls_require_execute": {
+          "type": "boolean"
+        },
+        "secret_alias": {
+          "type": "string"
+        },
+        "env_var": {
+          "type": "string"
+        },
+        "call_moments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "moment_id",
+              "calls_api",
+              "when"
+            ],
+            "properties": {
+              "moment_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "calls_api": {
+                "type": "boolean"
+              },
+              "lane": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "when": {
+                "type": "string",
+                "minLength": 1
+              },
+              "capability_note": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "skip_research_when": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "escalate_to_deep_research_when": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evolution_policy": {
+      "type": "object",
+      "required": [
+        "refresh_surfaces",
+        "evolution_loop",
+        "boundary"
+      ]
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

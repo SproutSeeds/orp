@@ -739,6 +739,72 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(registry["items"][0]["alias"], "openai-primary")
             self.assertEqual(registry["items"][0]["username"], "cody")
 
+    def test_secrets_keychain_add_stores_local_secret_without_hosted_api(self) -> None:
+        module = load_cli_module()
+        world_id = "11111111-1111-4111-8111-111111111111"
+        stored: dict[str, object] = {}
+
+        def fake_store_keychain_secret_value(secret, value):
+            stored["secret"] = secret
+            stored["value"] = value
+            return {
+                "keychain_service": "orp.secret.openai",
+                "keychain_account": "openai-primary",
+                "keychain_label": "OpenAI Primary",
+            }
+
+        def fail_hosted_request(*args, **kwargs):
+            raise AssertionError("local keychain-add should not call the hosted secret API")
+
+        module._request_secret_payload = fail_hosted_request
+        module._ensure_keychain_supported = lambda: None
+        module._store_keychain_secret_value = fake_store_keychain_secret_value
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            os.environ["XDG_CONFIG_HOME"] = td
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_keychain_add(
+                    argparse.Namespace(
+                        alias="openai-primary",
+                        label="OpenAI Primary",
+                        provider="openai",
+                        kind="api_key",
+                        username=None,
+                        env_var_name="OPENAI_API_KEY",
+                        value="sk-local",
+                        value_stdin=False,
+                        from_env=False,
+                        world_id=world_id,
+                        idea_id="",
+                        current_project=False,
+                        purpose="research",
+                        primary=True,
+                        json_output=True,
+                        repo_root=td,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertTrue(payload["created"])
+            self.assertEqual(payload["source"], "keychain")
+            self.assertEqual(payload["secret"]["alias"], "openai-primary")
+            self.assertEqual(payload["secret"]["provider"], "openai")
+            self.assertEqual(payload["secret"]["envVarName"], "OPENAI_API_KEY")
+            self.assertEqual(payload["keychain_service"], "orp.secret.openai")
+            self.assertEqual(stored["value"], "sk-local")
+            self.assertNotIn("sk-local", json.dumps(payload))
+            registry_path = Path(td) / "orp" / "secrets-keychain.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            entry = registry["items"][0]
+            self.assertEqual(entry["alias"], "openai-primary")
+            self.assertEqual(entry["value_preview"], "stored in local Keychain")
+            self.assertNotIn("sk-local", json.dumps(registry))
+            self.assertEqual(entry["bindings"][0]["world_id"], world_id)
+            self.assertTrue(entry["bindings"][0]["primary"])
+
     def test_secrets_keychain_list_filters_current_project(self) -> None:
         module = load_cli_module()
         world_id = "11111111-1111-4111-8111-111111111111"

@@ -307,7 +307,7 @@ The practical model is:
 
 ## Secrets Quick Start
 
-Today, ORP secrets use the hosted ORP secret inventory as the canonical store, with optional local macOS Keychain caching. That means the real first step for secrets is:
+ORP secrets can live in the hosted ORP secret inventory, with optional local macOS Keychain caching, or directly in the local ORP Keychain registry when you need a machine-local store immediately. For hosted secrets, start with:
 
 ```bash
 orp auth login
@@ -333,6 +333,18 @@ For an agent or script, use stdin:
 
 ```bash
 printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai --value-stdin
+```
+
+For a local-only machine secret, use the ORP Keychain path:
+
+```bash
+printf '%s' 'sk-...' | orp secrets keychain-add --alias openai-primary --label "OpenAI Primary" --provider openai --env-var-name OPENAI_API_KEY --value-stdin
+```
+
+If the key is already in the current process environment:
+
+```bash
+orp secrets keychain-add --alias openai-primary --label "OpenAI Primary" --provider openai --env-var-name OPENAI_API_KEY --from-env
 ```
 
 If a service needs both a username and a secret, store the username with it:
@@ -376,6 +388,7 @@ For secrets, the simplest plain-English rule is:
 - `orp secrets show ...` = inspect one saved key record
 - `orp secrets resolve ...` = get the key value for use right now
 - `orp secrets ensure ...` = use the saved key if it exists, otherwise create it
+- `orp secrets keychain-add ...` = save or update a machine-local ORP secret in macOS Keychain
 - `orp secrets sync-keychain ...` = keep a secure local Mac copy too
 
 You can ignore `--env-var-name` at first. It is optional metadata like `OPENAI_API_KEY`, not the key itself.
@@ -444,6 +457,7 @@ orp workspace remove-tab main --path /absolute/path/to/project
 orp workspace sync main
 orp secrets list --json
 orp secrets ensure --alias openai-primary --provider openai --current-project --json
+orp secrets keychain-add --alias openai-primary --provider openai --env-var-name OPENAI_API_KEY --value-stdin --json
 orp secrets sync-keychain openai-primary --json
 orp schedule add codex --name morning-summary --prompt "Summarize this repo" --json
 ```
@@ -530,6 +544,7 @@ The bridge package lives at `packages/lifeops-orp/`.
 Stable artifact paths:
 
 - `orp/state.json`
+- `orp/project.json`
 - `orp/artifacts/<run_id>/RUN.json`
 - `orp/artifacts/<run_id>/RUN_SUMMARY.md`
 - `orp/packets/<packet_id>.json`
@@ -542,26 +557,28 @@ Stable artifact paths:
 1. Copy this folder into your repo (recommended location: `orp/`).
 2. Link to `orp/PROTOCOL.md` from your repo `README.md`.
 3. Customize **Canonical Paths** inside `orp/PROTOCOL.md` to match your repo layout.
-4. Run `orp init` in the repo root to establish ORP governance.
+4. Run `orp init` in the repo root to establish ORP governance and create `orp/project.json`.
 5. If you keep many repos under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once and let `orp init --projects-root /absolute/path/to/projects` link each child repo back to that parent guidance.
 6. Use `orp agents audit` whenever you want to confirm `AGENTS.md` and `CLAUDE.md` are still aligned without overwriting human notes.
-7. Use `orp status`, `orp branch start`, `orp checkpoint create`, and `orp backup` as the default implementation loop.
-8. Use the templates for all new claims and verifications.
-9. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
+7. Use `orp project refresh --json` after adding or changing roadmap, spec, agent-guidance, docs, manifest, or command-surface files.
+8. Use `orp status`, `orp branch start`, `orp checkpoint create`, and `orp backup` as the default implementation loop.
+9. Use the templates for all new claims and verifications.
+10. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `orp/AGENT_INTEGRATION.md`).
 
 ## Quick start (new project)
 
 1. Copy this folder into a new project directory.
 2. If you keep projects under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once from anywhere.
-3. Run `orp init` immediately so the repo starts ORP-governed and scaffolds or updates `AGENTS.md` and `CLAUDE.md`.
+3. Run `orp init` immediately so the repo starts ORP-governed, scaffolds or updates `AGENTS.md` and `CLAUDE.md`, and creates `orp/project.json`.
 4. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
-5. Run `orp agents audit` to confirm the repo-level agent files are aligned and still preserving human notes.
-6. Start implementation on a work branch with `orp branch start`.
-7. Create regular checkpoint commits with `orp checkpoint create`.
-8. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
-9. Validate promotable task/decision/hypothesis artifacts with `orp kernel validate <path> --json`.
-10. Start by adding one small claim + verification record using the templates.
-11. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
+5. Run `orp project refresh --json` whenever the directory gains new roadmap, spec, docs, manifest, or command-surface files.
+6. Run `orp agents audit` to confirm the repo-level agent files are aligned and still preserving human notes.
+7. Start implementation on a work branch with `orp branch start`.
+8. Create regular checkpoint commits with `orp checkpoint create`.
+9. Use `orp backup` whenever you want ORP to capture current work to a dedicated remote backup ref.
+10. Validate promotable task/decision/hypothesis artifacts with `orp kernel validate <path> --json`.
+11. Start by adding one small claim + verification record using the templates.
+12. Optional (agent users): integrate ORP into your agent’s primary instruction file (see `AGENT_INTEGRATION.md`).
 
 **Activation is procedural/social, not runtime:** nothing “turns on” automatically. ORP works only if contributors follow it.
 

@@ -24,7 +24,7 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         self.assertIn("ORP CLI", proc.stdout)
         self.assertIn(
-            "{home,about,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,collaborate,init,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
+            "{home,about,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,research,collaborate,project,init,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
             proc.stdout,
         )
         self.assertIn("orp compute -h", proc.stdout)

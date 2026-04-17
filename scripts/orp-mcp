@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import subprocess
+import sys
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CLI = ROOT / "cli" / "orp.py"
+
+
+TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "orp_research_ask",
+        "description": "Create an ORP OpenAI research-loop run with high-reasoning, web-synthesis, and deep-research call moments. Dry-run by default; set execute=true for live provider lanes.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["question"],
+            "properties": {
+                "question": {"type": "string", "minLength": 1},
+                "repo_root": {"type": "string", "description": "Repository root. Defaults to current directory."},
+                "run_id": {"type": "string"},
+                "profile": {"type": "string", "default": "openai-council"},
+                "profile_file": {"type": "string"},
+                "execute": {"type": "boolean", "default": False},
+                "lane_fixtures": {
+                    "type": "object",
+                    "description": "Mapping of lane_id to fixture path.",
+                    "additionalProperties": {"type": "string"},
+                },
+                "chimera_bin": {"type": "string", "default": "chimera"},
+                "timeout_sec": {"type": "integer", "minimum": 1, "default": 120},
+            },
+        },
+    },
+    {
+        "name": "orp_research_status",
+        "description": "Show status and lane summary for an ORP research council run.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_root": {"type": "string", "description": "Repository root. Defaults to current directory."},
+                "run_id": {"type": "string", "default": "latest"},
+            },
+        },
+    },
+    {
+        "name": "orp_research_show",
+        "description": "Show an ORP research council answer payload.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_root": {"type": "string", "description": "Repository root. Defaults to current directory."},
+                "run_id": {"type": "string", "default": "latest"},
+            },
+        },
+    },
+]
+
+
+def _json_response(request_id: Any, result: Any | None = None, error: Any | None = None) -> dict[str, Any]:
+    response: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
+    if error is not None:
+        response["error"] = error
+    else:
+        response["result"] = result if result is not None else {}
+    return response
+
+
+def _write(payload: dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
+
+
+def _text_result(text: str, *, is_error: bool = False) -> dict[str, Any]:
+    return {
+        "content": [{"type": "text", "text": text}],
+        "isError": is_error,
+    }
+
+
+def _repo_root(args: dict[str, Any]) -> str:
+    raw = str(args.get("repo_root", "") or "").strip()
+    return raw or "."
+
+
+def _run_orp(args: list[str]) -> tuple[int, str, str]:
+    proc = subprocess.run(
+        [sys.executable, str(CLI), *args],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def _call_research_ask(args: dict[str, Any]) -> dict[str, Any]:
+    question = str(args.get("question", "") or "").strip()
+    if not question:
+        return _text_result("question is required", is_error=True)
+    cmd = ["--repo-root", _repo_root(args), "research", "ask", question]
+    profile = str(args.get("profile", "") or "").strip()
+    if profile:
+        cmd.extend(["--profile", profile])
+    profile_file = str(args.get("profile_file", "") or "").strip()
+    if profile_file:
+        cmd.extend(["--profile-file", profile_file])
+    run_id = str(args.get("run_id", "") or "").strip()
+    if run_id:
+        cmd.extend(["--run-id", run_id])
+    if bool(args.get("execute", False)):
+        cmd.append("--execute")
+    lane_fixtures = args.get("lane_fixtures")
+    if isinstance(lane_fixtures, dict):
+        for lane_id, path in lane_fixtures.items():
+            cmd.extend(["--lane-fixture", f"{lane_id}={path}"])
+    chimera_bin = str(args.get("chimera_bin", "") or "").strip()
+    if chimera_bin:
+        cmd.extend(["--chimera-bin", chimera_bin])
+    timeout_sec = args.get("timeout_sec")
+    if timeout_sec is not None:
+        cmd.extend(["--timeout-sec", str(timeout_sec)])
+    cmd.append("--json")
+    code, stdout, stderr = _run_orp(cmd)
+    if code != 0:
+        return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
+    return _text_result(stdout.strip())
+
+
+def _call_research_status(args: dict[str, Any]) -> dict[str, Any]:
+    run_id = str(args.get("run_id", "") or "latest").strip() or "latest"
+    cmd = ["--repo-root", _repo_root(args), "research", "status", run_id, "--json"]
+    code, stdout, stderr = _run_orp(cmd)
+    if code != 0:
+        return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
+    return _text_result(stdout.strip())
+
+
+def _call_research_show(args: dict[str, Any]) -> dict[str, Any]:
+    run_id = str(args.get("run_id", "") or "latest").strip() or "latest"
+    cmd = ["--repo-root", _repo_root(args), "research", "show", run_id, "--json"]
+    code, stdout, stderr = _run_orp(cmd)
+    if code != 0:
+        return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
+    return _text_result(stdout.strip())
+
+
+def _handle(request: dict[str, Any]) -> dict[str, Any] | None:
+    request_id = request.get("id")
+    method = str(request.get("method", "") or "")
+    if method.startswith("notifications/"):
+        return None
+    if method == "initialize":
+        return _json_response(
+            request_id,
+            {
+                "protocolVersion": str(request.get("params", {}).get("protocolVersion", "2024-11-05")),
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "orp-research", "version": "0.1.0"},
+            },
+        )
+    if method == "tools/list":
+        return _json_response(request_id, {"tools": TOOLS})
+    if method == "tools/call":
+        params = request.get("params")
+        if not isinstance(params, dict):
+            return _json_response(request_id, error={"code": -32602, "message": "params must be an object"})
+        name = str(params.get("name", "") or "")
+        arguments = params.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+        if name == "orp_research_ask":
+            return _json_response(request_id, _call_research_ask(arguments))
+        if name == "orp_research_status":
+            return _json_response(request_id, _call_research_status(arguments))
+        if name == "orp_research_show":
+            return _json_response(request_id, _call_research_show(arguments))
+        return _json_response(request_id, error={"code": -32601, "message": f"unknown tool: {name}"})
+    return _json_response(request_id, error={"code": -32601, "message": f"unknown method: {method}"})
+
+
+def main() -> int:
+    for line in sys.stdin:
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            request = json.loads(text)
+        except Exception as exc:
+            _write(_json_response(None, error={"code": -32700, "message": str(exc)}))
+            continue
+        if not isinstance(request, dict):
+            _write(_json_response(None, error={"code": -32600, "message": "request must be an object"}))
+            continue
+        response = _handle(request)
+        if response is not None:
+            _write(response)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
