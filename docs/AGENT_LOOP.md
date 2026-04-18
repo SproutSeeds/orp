@@ -12,6 +12,11 @@ read:
 
 - Read `llms.txt`.
 - Run `orp about --json`.
+- Run `orp hygiene --json` before long delegation, after material writeback,
+  before API/remote/paid compute, and whenever dirty state grows unexpectedly.
+  If it reports `dirty_unclassified`, stop long-running expansion and classify
+  the paths, refresh generated surfaces, canonicalize useful scratch, or write a
+  blocker before continuing.
 - If the task benefits from fresh concepting, tasteful interface work, or
   exploratory reframing, run:
   - `orp mode nudge sleek-minimal-progressive --json`
@@ -32,6 +37,10 @@ read:
 ## 2. Select Work
 
 - Identify the target profile and canonical artifact paths.
+- Treat worktree hygiene as a default-on self-healing loop. Dirty state is okay
+  when it is owned; invisible or unclassified dirt is not. The command is
+  non-destructive, so never reset, checkout, or delete files merely to make the
+  report look clean.
 - If the task depends on the current highest-leverage action slice, refresh ORP's agenda first:
   - `orp agenda refresh --json`
   - `orp agenda refresh-status --json`

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -24,11 +26,12 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         self.assertIn("ORP CLI", proc.stdout)
         self.assertIn(
-            "{home,about,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,research,collaborate,project,init,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
+            "{home,about,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,research,collaborate,project,init,hygiene,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
             proc.stdout,
         )
         self.assertIn("orp compute -h", proc.stdout)
         self.assertIn("orp workspace tabs -h", proc.stdout)
+        self.assertIn("orp workspace hygiene --json", proc.stdout)
 
     def test_node_wrapper_exposes_agents_help(self) -> None:
         if shutil.which("node") is None:
@@ -64,6 +67,35 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertIn("orp workspace tabs --hosted-workspace-id <workspace-id>", proc.stdout)
         self.assertIn("orp workspace list", proc.stdout)
         self.assertIn("orp workspace sync <name-or-id>", proc.stdout)
+        self.assertIn("orp workspace hygiene [--json]", proc.stdout)
+
+    def test_node_wrapper_routes_workspace_hygiene_alias(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("node not found on PATH")
+        if shutil.which("git") is None:
+            self.skipTest("git not found on PATH")
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            git_proc = subprocess.run(
+                ["git", "init"],
+                capture_output=True,
+                text=True,
+                cwd=str(root),
+            )
+            self.assertEqual(git_proc.returncode, 0, msg=git_proc.stderr + "\n" + git_proc.stdout)
+
+            proc = subprocess.run(
+                ["node", str(BIN), "workspace", "hygiene", "--json"],
+                capture_output=True,
+                text=True,
+                cwd=str(root),
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "clean")
+            self.assertEqual(payload["dirty_count"], 0)
+            self.assertFalse(payload["destructive_cleanup_performed"])
 
 
 if __name__ == "__main__":

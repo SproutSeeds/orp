@@ -1,8 +1,54 @@
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { runWorkspaceAddTab, runWorkspaceCreate, runWorkspaceRemoveTab } from "./ledger.js";
 import { runWorkspaceList } from "./list.js";
 import { runWorkspaceSlot } from "./slot.js";
 import { runWorkspaceSync } from "./sync.js";
 import { runWorkspaceTabs } from "./tabs.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pythonCliPath = path.resolve(__dirname, "..", "..", "..", "cli", "orp.py");
+
+function pythonCandidates() {
+  const candidates = [];
+  if (process.env.ORP_PYTHON && process.env.ORP_PYTHON.trim() !== "") {
+    candidates.push(process.env.ORP_PYTHON.trim());
+  }
+  if (process.platform === "win32") {
+    candidates.push("py");
+  }
+  candidates.push("python3", "python");
+  return candidates;
+}
+
+function runWorkspaceHygiene(args = []) {
+  let lastErr = null;
+  for (const py of pythonCandidates()) {
+    const pyArgs = py === "py" ? ["-3", pythonCliPath, "hygiene", ...args] : [pythonCliPath, "hygiene", ...args];
+    const result = spawnSync(py, pyArgs, { encoding: "utf8" });
+    if (!result.error) {
+      if (result.stdout) {
+        process.stdout.write(result.stdout);
+      }
+      if (result.stderr) {
+        process.stderr.write(result.stderr);
+      }
+      return result.status == null ? 1 : result.status;
+    }
+    if (result.error && result.error.code === "ENOENT") {
+      continue;
+    }
+    lastErr = result.error;
+  }
+  process.stderr.write("ORP workspace hygiene requires Python 3 on PATH.\n");
+  process.stderr.write("Tried: " + pythonCandidates().join(", ") + "\n");
+  if (lastErr) {
+    process.stderr.write(String(lastErr) + "\n");
+  }
+  return 1;
+}
 
 function printWorkspaceHelp() {
   console.log(`ORP workspace
@@ -18,6 +64,7 @@ Usage:
   orp workspace remove-tab <name-or-id> (--index <n> | --path <absolute-path> | --title <title> | --resume-session-id <id> | --resume-command <text>) [--all] [--json]
   orp workspace slot <list|set|clear> ...
   orp workspace sync <name-or-id> [--workspace-file <path> | --notes-file <path>] [--dry-run] [--json]
+  orp workspace hygiene [--json]
   orp workspace ledger <name-or-id> [--json]
   orp workspace ledger add <name-or-id> (--path <absolute-path> | --here) [--title <title>] [--remote-url <git-url>] [--remote-branch <branch>] [--bootstrap-command <text>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id> | --current-codex] [--append] [--json]
   orp workspace ledger remove <name-or-id> (--index <n> | --path <absolute-path> | --title <title> | --resume-session-id <id> | --resume-command <text>) [--all] [--json]
@@ -31,6 +78,7 @@ Commands:
   remove-tab Remove one or more saved tabs from the workspace ledger directly
   slot    Assign and inspect named workspace slots like main and offhand
   sync    Post a CLI-authored workspace manifest back to the hosted ORP idea
+  hygiene Classify dirty worktree paths before long agent expansion
   ledger  Compatibility alias for the same tabs/add/remove ledger flow
 
 Notes:
@@ -41,6 +89,7 @@ Notes:
   - Use \`orp workspace add-tab ... --remote-url ... --bootstrap-command ...\` when you want ORP to remember how to recreate the repo on another machine.
   - Use \`orp workspace add-tab ...\` and \`orp workspace remove-tab ...\` when you want to edit the saved workspace ledger explicitly from Terminal.app or any other shell.
   - If you prefer the older ledger-prefixed wording, \`orp workspace ledger\`, \`orp workspace ledger add\`, and \`orp workspace ledger remove\` stay available as aliases.
+  - \`orp workspace hygiene --json\` is a wrapper alias for \`orp hygiene --json\`; it reports dirty path categories without resetting, checking out, or deleting files.
   - \`main\` and \`offhand\` are reserved slot selectors; use \`orp workspace slot set ...\` to assign them.
   - Syncing or editing a hosted workspace writes a managed local cache on this Mac.
   - \`<name-or-id>\` can be a saved workspace title, workspace id, idea id, or local tracked workspace title/id.
@@ -51,6 +100,7 @@ Examples:
   orp workspace create mac-main --machine-label "Mac Studio" --path /absolute/path/to/orp --remote-url git@github.com:SproutSeeds/orp.git --bootstrap-command "npm install"
   orp workspace list
   orp workspace tabs main-cody-1
+  orp workspace hygiene --json
   orp workspace add-tab main --here --current-codex
   orp workspace add-tab main --path /absolute/path/to/new-project --resume-command "codex resume 019d..."
   orp workspace add-tab main --path /absolute/path/to/new-project --remote-url git@github.com:org/new-project.git --bootstrap-command "npm install"
@@ -124,6 +174,10 @@ export async function runOrpWorkspaceCommand(argv = []) {
 
   if (subcommand === "sync") {
     return runWorkspaceSync(rest);
+  }
+
+  if (subcommand === "hygiene") {
+    return runWorkspaceHygiene(rest);
   }
 
   throw new Error(`unknown workspace subcommand: ${subcommand}`);

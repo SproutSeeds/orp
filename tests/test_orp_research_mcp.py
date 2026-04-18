@@ -52,20 +52,44 @@ class OrpResearchMcpTests(unittest.TestCase):
                 tools = rpc(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
                 tool_names = {row["name"] for row in tools["result"]["tools"]}
                 self.assertIn("orp_research_ask", tool_names)
+                self.assertIn("orp_research_profile_list", tool_names)
+                self.assertIn("orp_research_profile_show", tool_names)
                 self.assertIn("orp_research_status", tool_names)
                 self.assertIn("orp_research_show", tool_names)
 
-                call = rpc(
+                profile_call = rpc(
                     proc,
                     {
                         "jsonrpc": "2.0",
                         "id": 3,
                         "method": "tools/call",
                         "params": {
+                            "name": "orp_research_profile_show",
+                            "arguments": {
+                                "repo_root": str(root),
+                                "profile_id": "deep-think-web-think-deep",
+                            },
+                        },
+                    },
+                )
+                self.assertFalse(profile_call["result"].get("isError", False))
+                profile_payload = json.loads(profile_call["result"]["content"][0]["text"])
+                self.assertEqual(profile_payload["profile"]["profile_id"], "deep-think-web-think-deep")
+                self.assertEqual(len(profile_payload["profile"]["lanes"]), 5)
+
+                call = rpc(
+                    proc,
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 4,
+                        "method": "tools/call",
+                        "params": {
                             "name": "orp_research_ask",
                             "arguments": {
                                 "repo_root": str(root),
                                 "question": "Can ORP expose this as a Codex tool?",
+                                "profile": "deep-think-web-think-deep",
+                                "fields": {"goal": "Expose a reusable staged research template."},
                                 "run_id": "research-mcp",
                             },
                         },
@@ -76,6 +100,8 @@ class OrpResearchMcpTests(unittest.TestCase):
                 result_payload = json.loads(text)
                 self.assertEqual(result_payload["run_id"], "research-mcp")
                 self.assertEqual(result_payload["status"], "planned")
+                self.assertEqual(result_payload["profile_id"], "deep-think-web-think-deep")
+                self.assertEqual(len(result_payload["lane_statuses"]), 5)
                 self.assertTrue((root / result_payload["artifacts"]["answer_json"]).exists())
             finally:
                 proc.terminate()

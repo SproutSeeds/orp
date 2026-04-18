@@ -739,6 +739,7 @@ The guiding rule is simple:
 
 - recover the saved workspace
 - inspect repo safety
+- classify dirty state before expansion
 - resolve the right secret
 - inspect the current frontier
 - do the next honest move
@@ -756,16 +757,20 @@ If you only want the irreducible ORP loop, it is this:
    ```bash
    orp status --json
    ```
-3. resolve the right secret
+3. classify dirty worktree state before expansion
+   ```bash
+   orp hygiene --json
+   ```
+4. resolve the right secret
    ```bash
    orp secrets ensure --alias <alias> --provider <provider> --current-project --json
    ```
-4. inspect the current frontier
+5. inspect the current frontier
    ```bash
    orp frontier state --json
    ```
-5. do the next honest move
-6. checkpoint it
+6. do the next honest move
+7. checkpoint it
    ```bash
    orp checkpoint create -m "describe completed unit" --json
    ```
@@ -774,6 +779,7 @@ That is the shortest version of the protocol:
 
 - recover continuity
 - inspect safety
+- classify dirty state
 - resolve access
 - inspect context
 - do the work
@@ -786,6 +792,7 @@ If you want the agent to stay aligned with ORP, the default check sequence shoul
 ```bash
 orp workspace tabs main
 orp status --json
+orp hygiene --json
 orp secrets ensure --alias <alias> --provider <provider> --current-project --json
 orp frontier state --json
 ```
@@ -800,17 +807,18 @@ That is the practical ORP loop:
 
 1. recover the workspace ledger
 2. inspect repo safety
-3. resolve the right key
-4. inspect the current frontier
-5. do the work
-6. checkpoint it honestly
+3. classify dirty state and stop if anything is unowned
+4. resolve the right key
+5. inspect the current frontier
+6. do the work
+7. checkpoint it honestly
 
 The key point is that ORP should become the lens:
 
 - not "something we remember to use sometimes"
 - but the operating frame the agent checks before and after meaningful work
 
-## If You Only Remember 8 Commands
+## If You Only Remember 9 Commands
 
 ```bash
 orp home
@@ -818,6 +826,7 @@ orp init
 orp workspace create main-cody-1
 orp workspace tabs main
 orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"
+orp hygiene --json
 orp secrets ensure --alias openai-primary --provider openai --current-project --json
 orp status --json
 orp checkpoint create -m "capture loop state" --json

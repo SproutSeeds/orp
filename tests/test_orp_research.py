@@ -33,6 +33,37 @@ def run_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 class OrpResearchTests(unittest.TestCase):
+    def test_research_profile_show_exposes_staged_template(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            proc = run_cli(
+                root,
+                "research",
+                "profile",
+                "show",
+                "deep-think-web-think-deep",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            profile = payload["profile"]
+            self.assertEqual(profile["profile_id"], "deep-think-web-think-deep")
+            self.assertTrue(profile["execution_policy"]["sequential"])
+            self.assertEqual(
+                [row["lane_id"] for row in profile["lanes"]],
+                [
+                    "deep_research_opening",
+                    "think_after_deep",
+                    "think_web_crosscheck",
+                    "think_synthesis",
+                    "deep_research_final",
+                ],
+            )
+            fields = {row["key"]: row for row in profile["prompt_form"]["fields"]}
+            self.assertTrue(fields["goal"]["required"])
+            self.assertIn("deliverable_format", fields)
+
     def test_research_ask_dry_run_persists_plan_and_state(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -91,6 +122,144 @@ class OrpResearchTests(unittest.TestCase):
             status_payload = json.loads(status_proc.stdout)
             self.assertEqual(status_payload["run_id"], "research-dry")
             self.assertEqual(status_payload["status"], "planned")
+
+    def test_staged_profile_dry_run_persists_sequence_fields_and_prompts(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            proc = run_cli(
+                root,
+                "research",
+                "ask",
+                "How should Acme use ORP research for product strategy?",
+                "--profile",
+                "deep-think-web-think-deep",
+                "--field",
+                "goal=Choose whether to make the staged loop the default research template.",
+                "--field",
+                "audience=Platform team",
+                "--field",
+                "deliverable_format=Decision memo",
+                "--run-id",
+                "staged-dry",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "planned")
+            self.assertEqual(payload["profile_id"], "deep-think-web-think-deep")
+            self.assertEqual(
+                [row["lane_id"] for row in payload["lane_statuses"]],
+                [
+                    "deep_research_opening",
+                    "think_after_deep",
+                    "think_web_crosscheck",
+                    "think_synthesis",
+                    "deep_research_final",
+                ],
+            )
+            self.assertEqual(
+                [row["call_moment"] for row in payload["lane_statuses"]],
+                [
+                    "opening_deep_research",
+                    "think_after_deep",
+                    "think_web_crosscheck",
+                    "think_synthesis",
+                    "final_deep_research",
+                ],
+            )
+
+            answer_path = root / payload["artifacts"]["answer_json"]
+            lanes_root = root / payload["artifacts"]["lanes_root"]
+            answer = json.loads(answer_path.read_text(encoding="utf-8"))
+            self.assertEqual(answer["profile"]["lane_count"], 5)
+            self.assertEqual(answer["breakdown"]["template_fields"]["goal"], "Choose whether to make the staged loop the default research template.")
+            self.assertEqual(answer["breakdown"]["template_fields"]["audience"], "Platform team")
+            self.assertEqual(answer["breakdown"]["lanes"][2]["lane"], "think_web_crosscheck")
+
+            request = json.loads((root / payload["artifacts"]["request_json"]).read_text(encoding="utf-8"))
+            self.assertEqual(request["timeout_sec"], 900)
+            self.assertEqual(request["template_fields"]["deliverable_format"], "Decision memo")
+
+            opening = json.loads((lanes_root / "deep_research_opening.json").read_text(encoding="utf-8"))
+            self.assertIn("Choose whether to make the staged loop", opening["prompt"])
+            self.assertEqual(opening["api_call"]["secret_alias"], "openai-primary")
+            self.assertFalse(opening["api_call"]["called"])
+
+            think = json.loads((lanes_root / "think_after_deep.json").read_text(encoding="utf-8"))
+            self.assertIn("Previous Lane Outputs:", think["prompt"])
+            self.assertIn("No completed text captured", think["prompt"])
+            self.assertEqual(think["api_call"]["call_moment"], "think_after_deep")
+
+            final = json.loads((lanes_root / "deep_research_final.json").read_text(encoding="utf-8"))
+            self.assertIn("Previous Lane Outputs:", final["prompt"])
+            self.assertEqual(final["api_call"]["call_moment"], "final_deep_research")
+            self.assertEqual(final["api_call"]["secret_alias"], "openai-primary")
+
+    def test_staged_profile_later_prompt_includes_previous_fixture_text(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            fixture_dir = root / "fixtures"
+            fixture_dir.mkdir()
+            opening_fixture = fixture_dir / "opening.txt"
+            opening_fixture.write_text(
+                "Opening research says the target market is regulated and source quality is uneven.",
+                encoding="utf-8",
+            )
+            proc = run_cli(
+                root,
+                "research",
+                "ask",
+                "Should this company use the staged research pattern?",
+                "--profile",
+                "deep-think-web-think-deep",
+                "--field",
+                "goal=Decide whether staged research is worth adopting.",
+                "--lane-fixture",
+                f"deep_research_opening={opening_fixture}",
+                "--run-id",
+                "staged-fixture",
+                "--json",
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["status"], "partial")
+            lanes_root = root / payload["artifacts"]["lanes_root"]
+            think = json.loads((lanes_root / "think_after_deep.json").read_text(encoding="utf-8"))
+            self.assertIn("Opening research says the target market is regulated", think["prompt"])
+            self.assertEqual(think["status"], "planned")
+
+    def test_staged_live_lane_skips_when_previous_output_is_incomplete(self) -> None:
+        module = load_cli_module()
+        profile = module._research_profile_for_id("deep-think-web-think-deep")
+        lane = profile["lanes"][1]
+        breakdown = module._research_breakdown(
+            "Should the staged research pattern run?",
+            profile,
+            {"goal": "Avoid wasting provider calls after an incomplete prerequisite."},
+        )
+        with tempfile.TemporaryDirectory() as td:
+            result = module._research_run_lane(
+                lane,
+                question="Should the staged research pattern run?",
+                breakdown=breakdown,
+                repo_root=Path(td),
+                execute=True,
+                fixtures={},
+                chimera_bin="chimera",
+                timeout_sec=1,
+                previous_lanes=[
+                    {
+                        "lane_id": "deep_research_opening",
+                        "label": "Opening Deep Research",
+                        "status": "failed",
+                        "text": "",
+                    }
+                ],
+            )
+        self.assertEqual(result["status"], "skipped")
+        self.assertFalse(result["api_call"]["called"])
+        self.assertIn("previous lane output was not complete", result["notes"][0])
+        self.assertIn("Previous Lane Outputs:", result["prompt"])
 
     def test_research_ask_with_lane_fixtures_synthesizes_completed_lanes(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -36,24 +36,14 @@ async function runWorkspace(args) {
   process.exit(code == null ? 0 : code);
 }
 
-async function main() {
-  if (argv[0] === "compute") {
-    await runCompute(argv.slice(1));
-    return;
-  }
-  if (argv[0] === "workspace") {
-    await runWorkspace(argv.slice(1));
-    return;
-  }
-
-  const captureOutput = isTopLevelHelp(argv);
+function runPythonCli(args, { captureOutput }) {
   let lastErr = null;
 
   for (const py of candidates) {
-    const args = py === "py" ? ["-3", cliPath, ...argv] : [cliPath, ...argv];
+    const pyArgs = py === "py" ? ["-3", cliPath, ...args] : [cliPath, ...args];
     const result = spawnSync(
       py,
-      args,
+      pyArgs,
       captureOutput
         ? { encoding: "utf8" }
         : { stdio: "inherit" },
@@ -68,7 +58,7 @@ async function main() {
           process.stderr.write(result.stderr);
         }
         if (result.status === 0) {
-          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n");
+          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n");
         }
       }
       process.exit(result.status == null ? 1 : result.status);
@@ -86,6 +76,23 @@ async function main() {
     console.error(String(lastErr));
   }
   process.exit(1);
+}
+
+async function main() {
+  if (argv[0] === "compute") {
+    await runCompute(argv.slice(1));
+    return;
+  }
+  if (argv[0] === "workspace" && argv[1] === "hygiene") {
+    runPythonCli(["hygiene", ...argv.slice(2)], { captureOutput: false });
+    return;
+  }
+  if (argv[0] === "workspace") {
+    await runWorkspace(argv.slice(1));
+    return;
+  }
+
+  runPythonCli(argv, { captureOutput: isTopLevelHelp(argv) });
 }
 
 main().catch((error) => {

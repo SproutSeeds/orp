@@ -6,6 +6,36 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.27 - 2026-04-18
+
+This release adds a staged OpenAI research profile and default-on worktree
+hygiene for agent loops. ORP-initialized repos now teach agents when to stop,
+classify dirty paths, refresh generated surfaces, canonicalize scratch, or
+write a blocker instead of letting unowned worktree state become invisible.
+
+### Added
+
+- Added the built-in `deep-think-web-think-deep` research profile: Deep
+  Research, high-reasoning think, think plus web synthesis, high-reasoning
+  think, and a final Deep Research pass.
+- Added profile listing/show commands and MCP exposure so Codex-like clients
+  can discover staged research templates and fill project-specific fields.
+- Added `orp hygiene --json` and the `orp workspace hygiene --json` alias for
+  non-destructive worktree classification with dirty counts, categories,
+  unclassified and scratch counts, required action, and recommended next checks.
+- Added `orp/hygiene-policy.json` scaffolding during `orp init` so each project
+  can customize canonical surfaces, artifact roots, scratch paths, and
+  classification rules.
+
+### Changed
+
+- Updated ORP agent docs, generated handoffs, agent policy, project context,
+  home/about metadata, and workspace help to include the hygiene stop rule:
+  no long-running expansion while dirty paths are unclassified.
+- Research runs now persist generated lane prompts and can pass prior lane
+  outputs into later staged prompts while skipping live later-stage calls when
+  prerequisites are incomplete.
+
 ## v0.4.26 - 2026-04-17
 
 This release adds ORP-native project context and OpenAI research-loop support,

@@ -28,6 +28,52 @@ The built-in `openai-council` profile defines three OpenAI API lanes:
 
 This follows OpenAI's current model guidance: `gpt-5.4` is the default for general-purpose, coding, reasoning, and agentic workflows; web search is enabled through the Responses API `tools` array when current information is needed; and Deep Research is available through the Responses endpoint with `o3-deep-research-2025-06-26`.
 
+## Staged Deep Research Template
+
+ORP also includes a built-in `deep-think-web-think-deep` profile for a strict sequence:
+
+```text
+Deep Research -> think -> think/web search -> think -> Deep Research
+```
+
+Inspect the template before using it:
+
+```bash
+orp research profile show deep-think-web-think-deep --json
+```
+
+Run a dry plan with form-like fields filled by a human or an agent:
+
+```bash
+orp research ask "Should this product use a staged research loop?" \
+  --profile deep-think-web-think-deep \
+  --field goal="Decide whether to adopt the staged loop" \
+  --field audience="Platform team" \
+  --field decision_to_support="Choose the default research workflow" \
+  --field project_context="ORP owns durable artifacts and secret resolution" \
+  --field constraints="Use one OpenAI API key first" \
+  --field deliverable_format="Decision memo with risks and next steps" \
+  --json
+```
+
+The prompt form is intentionally general. It gives an agent a reusable customization surface, similar to filling out a product intake form for a company:
+
+- `goal`
+- `audience`
+- `decision_to_support`
+- `project_context`
+- `constraints`
+- `known_inputs`
+- `source_preferences`
+- `recency_requirements`
+- `excluded_assumptions`
+- `success_criteria`
+- `deliverable_format`
+
+Dry runs persist the generated prompt for every lane under `orp/research/<run_id>/lanes/`. Later lanes include earlier lane outputs when those outputs exist, whether they came from live calls or `--lane-fixture` files. This makes the sequence inspectable before spending live provider calls. In live mode, later staged lanes skip their provider call if an earlier required lane did not complete with text.
+
+The staged profile keeps Deep Research foreground by default so the next lane can receive actual output. Deep Research can take a long time; pass a larger `--timeout-sec` for live runs or provide a custom profile file that sets `background=true` if you want asynchronous Deep Research behavior.
+
 ## API Call Moments
 
 ORP records when API keys are intended to be used:
@@ -117,6 +163,8 @@ command = "/path/to/orp/scripts/orp-mcp"
 It exposes:
 
 - `orp_research_ask`
+- `orp_research_profile_list`
+- `orp_research_profile_show`
 - `orp_research_status`
 - `orp_research_show`
 

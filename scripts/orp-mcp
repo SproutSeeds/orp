@@ -25,6 +25,11 @@ TOOLS: list[dict[str, Any]] = [
                 "run_id": {"type": "string"},
                 "profile": {"type": "string", "default": "openai-council"},
                 "profile_file": {"type": "string"},
+                "fields": {
+                    "type": "object",
+                    "description": "Prompt-template fields passed as key/value pairs.",
+                    "additionalProperties": {"type": "string"},
+                },
                 "execute": {"type": "boolean", "default": False},
                 "lane_fixtures": {
                     "type": "object",
@@ -32,7 +37,28 @@ TOOLS: list[dict[str, Any]] = [
                     "additionalProperties": {"type": "string"},
                 },
                 "chimera_bin": {"type": "string", "default": "chimera"},
-                "timeout_sec": {"type": "integer", "minimum": 1, "default": 120},
+                "timeout_sec": {"type": "integer", "minimum": 1, "description": "Override the profile per-lane timeout policy."},
+            },
+        },
+    },
+    {
+        "name": "orp_research_profile_list",
+        "description": "List built-in ORP research profiles and prompt-template surfaces.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_root": {"type": "string", "description": "Repository root. Defaults to current directory."},
+            },
+        },
+    },
+    {
+        "name": "orp_research_profile_show",
+        "description": "Show a built-in ORP research profile, including its lane sequence and prompt form.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo_root": {"type": "string", "description": "Repository root. Defaults to current directory."},
+                "profile_id": {"type": "string", "default": "openai-council"},
             },
         },
     },
@@ -111,6 +137,10 @@ def _call_research_ask(args: dict[str, Any]) -> dict[str, Any]:
     run_id = str(args.get("run_id", "") or "").strip()
     if run_id:
         cmd.extend(["--run-id", run_id])
+    fields = args.get("fields")
+    if isinstance(fields, dict):
+        for key, value in fields.items():
+            cmd.extend(["--field", f"{key}={value}"])
     if bool(args.get("execute", False)):
         cmd.append("--execute")
     lane_fixtures = args.get("lane_fixtures")
@@ -124,6 +154,23 @@ def _call_research_ask(args: dict[str, Any]) -> dict[str, Any]:
     if timeout_sec is not None:
         cmd.extend(["--timeout-sec", str(timeout_sec)])
     cmd.append("--json")
+    code, stdout, stderr = _run_orp(cmd)
+    if code != 0:
+        return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
+    return _text_result(stdout.strip())
+
+
+def _call_research_profile_list(args: dict[str, Any]) -> dict[str, Any]:
+    cmd = ["--repo-root", _repo_root(args), "research", "profile", "list", "--json"]
+    code, stdout, stderr = _run_orp(cmd)
+    if code != 0:
+        return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
+    return _text_result(stdout.strip())
+
+
+def _call_research_profile_show(args: dict[str, Any]) -> dict[str, Any]:
+    profile_id = str(args.get("profile_id", "") or "openai-council").strip() or "openai-council"
+    cmd = ["--repo-root", _repo_root(args), "research", "profile", "show", profile_id, "--json"]
     code, stdout, stderr = _run_orp(cmd)
     if code != 0:
         return _text_result((stderr or stdout or f"orp exited {code}").strip(), is_error=True)
@@ -174,6 +221,10 @@ def _handle(request: dict[str, Any]) -> dict[str, Any] | None:
             arguments = {}
         if name == "orp_research_ask":
             return _json_response(request_id, _call_research_ask(arguments))
+        if name == "orp_research_profile_list":
+            return _json_response(request_id, _call_research_profile_list(arguments))
+        if name == "orp_research_profile_show":
+            return _json_response(request_id, _call_research_profile_show(arguments))
         if name == "orp_research_status":
             return _json_response(request_id, _call_research_status(arguments))
         if name == "orp_research_show":

@@ -38,6 +38,7 @@ test("runOrpWorkspaceCommand shows the ledger-first help surface", async () => {
   assert.match(stdout, /orp workspace ledger add <name-or-id>/);
   assert.match(stdout, /orp workspace ledger remove <name-or-id>/);
   assert.match(stdout, /orp workspace tabs <name-or-id>/);
+  assert.match(stdout, /orp workspace hygiene \[--json\]/);
   assert.match(stdout, /Compatibility alias for the same tabs\/add\/remove ledger flow/);
 });
 

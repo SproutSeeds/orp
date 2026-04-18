@@ -40,20 +40,24 @@ If the agent only remembers one ORP loop, it should be this:
    ```bash
    orp status --json
    ```
-3. resolve the right secret
+3. classify dirty worktree state before expansion
+   ```bash
+   orp hygiene --json
+   ```
+4. resolve the right secret
    ```bash
    orp secrets ensure --alias <alias> --provider <provider> --current-project --json
    ```
-4. inspect the current frontier
+5. inspect the current frontier
    ```bash
    orp frontier state --json
    ```
-5. if the work feels confusing or too large, break it down before moving
+6. if the work feels confusing or too large, break it down before moving
    ```bash
    orp mode breakdown granular-breakdown --json
    ```
-6. do the next honest move
-7. checkpoint it honestly
+7. do the next honest move
+8. checkpoint it honestly
    ```bash
    orp checkpoint create -m "checkpoint note" --json
    ```
@@ -62,6 +66,7 @@ That is the ORP rhythm in one line:
 
 - recover continuity
 - inspect repo safety
+- classify dirty state and stop if anything is unowned
 - resolve access
 - inspect context
 - break down complexity when comprehension would help
@@ -98,6 +103,11 @@ artifact paths (code/data/proofs/logs/papers).
 - Treat **failed paths** as assets: record dead ends as a `Failed Path Record` with the blocking reason/counterexample and a
   next hook.
 - Resolve disputes by **verification or downgrade**, not argument.
+- Run `orp hygiene --json` before long delegation, after material writeback, before API/remote/paid compute, and when dirty
+  state grows unexpectedly.
+- Stop long-running expansion while hygiene reports `dirty_unclassified`; classify, refresh generated surfaces, canonicalize
+  useful scratch, or write a blocker before continuing.
+- Hygiene is non-destructive: never reset, checkout, or delete files merely to hide dirty state.
 
 ### How to work in an ORP repo
 
