@@ -112,6 +112,20 @@ orp init
 
 `orp init` makes the repo ORP-governed. It creates the starter config/runtime scaffolding, seeds the handoff and checkpoint log, and records the repo's governance state.
 
+For the common "new repo with GitHub, workspace tracking, Codex resume, and
+Clawdad delegation" startup, use the explicit bootstrap form:
+
+```bash
+orp init --project-startup --github-repo owner/repo --current-codex
+```
+
+That keeps plain `orp init` simple, but lets startup do the repeated setup in
+one pass. With `--project-startup`, ORP creates the private GitHub remote through
+`gh` when `--github-repo` is present, tracks the full path in `orp workspace`
+`main`, saves the current Codex session when `CODEX_THREAD_ID` is available,
+and registers Clawdad delegation when `clawdad` is installed. Add
+`--startup-dry-run --json` to inspect the external commands first.
+
 More concretely, `orp init` does these jobs:
 
 - creates a git repo if one does not already exist

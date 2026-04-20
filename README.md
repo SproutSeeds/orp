@@ -451,6 +451,7 @@ Local desk and automation:
 orp workspace create mac-main --machine-label "Mac Studio"
 orp workspace list
 orp workspace tabs main
+orp init --project-startup --github-repo owner/repo --current-codex
 orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <id>"
 orp workspace add-tab main --path /absolute/path/to/project --title "second active thread" --resume-tool claude --resume-session-id <id> --append
 orp workspace remove-tab main --path /absolute/path/to/project
@@ -570,6 +571,7 @@ Stable artifact paths:
 1. Copy this folder into a new project directory.
 2. If you keep projects under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once from anywhere.
 3. Run `orp init` immediately so the repo starts ORP-governed, scaffolds or updates `AGENTS.md` and `CLAUDE.md`, and creates `orp/project.json`.
+   For the fuller new-project ritual, run `orp init --project-startup --github-repo owner/repo --current-codex`; ORP will create a private GitHub remote through `gh`, save the path/session in workspace `main`, and register Clawdad delegation when `clawdad` is installed. Use `--startup-dry-run --json` first when you want to inspect the planned external commands.
 4. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
 5. Run `orp project refresh --json` whenever the directory gains new roadmap, spec, docs, manifest, or command-surface files.
 6. Run `orp agents audit` to confirm the repo-level agent files are aligned and still preserving human notes.
@@ -769,3 +771,7 @@ python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --template s
 python3 scripts/orp-pack-render.py --pack packs/erdos-open-problems --template erdos_problems_catalog_sync \
   --var TARGET_REPO_ROOT=/path/to/repo --var ORP_REPO_ROOT=/path/to/orp --out /path/to/repo/orp.erdos-catalog-sync.yml
 ```
+
+## Support
+
+Everything here is released for public use. If ORP saved you time or you want to keep the work moving, you can [support public FRG releases](https://frg.earth/support?utm_source=readme&utm_medium=repo&utm_campaign=public_work_support&package=open-research-protocol).

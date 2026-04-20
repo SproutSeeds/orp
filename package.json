@@ -4,6 +4,10 @@
   "description": "ORP CLI (Open Research Protocol): workspace ledgers, secrets, scheduling, governed execution, and agent-friendly research workflows.",
   "license": "MIT",
   "author": "Fractal Research Group <cody@frg.earth>",
+  "funding": {
+    "type": "individual",
+    "url": "https://frg.earth/support?utm_source=npm&utm_medium=funding&utm_campaign=public_work_support&package=open-research-protocol"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SproutSeeds/orp.git"

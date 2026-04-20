@@ -10046,6 +10046,462 @@ def _effective_remote_context(
     }
 
 
+def _command_preview(args: Sequence[str]) -> str:
+    return " ".join(shlex.quote(str(arg)) for arg in args)
+
+
+def _tool_path(tool_name: str) -> str:
+    return shutil.which(str(tool_name or "").strip()) or ""
+
+
+def _run_checked_process(
+    args: Sequence[str],
+    *,
+    cwd: Path,
+    context: str,
+) -> subprocess.CompletedProcess[str]:
+    command = [str(arg) for arg in args]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{context} requires `{command[0]}` on PATH.") from exc
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or proc.stdout.strip() or f"exit code {proc.returncode}"
+        raise RuntimeError(f"{context} failed: {detail}")
+    return proc
+
+
+def _run_optional_process(
+    args: Sequence[str],
+    *,
+    cwd: Path,
+) -> dict[str, Any]:
+    command = [str(arg) for arg in args]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        return {
+            "ok": False,
+            "command": _command_preview(command),
+            "returncode": 127,
+            "detail": str(exc),
+        }
+    detail = proc.stderr.strip() or proc.stdout.strip()
+    return {
+        "ok": proc.returncode == 0,
+        "command": _command_preview(command),
+        "returncode": int(proc.returncode),
+        "detail": _truncate(detail, limit=600) if detail else "",
+    }
+
+
+def _init_startup_enabled(args: argparse.Namespace) -> bool:
+    bool_flags = [
+        "project_startup",
+        "private_github",
+        "track_workspace_main",
+        "with_clawdad",
+        "current_codex",
+        "workspace_append",
+    ]
+    text_flags = [
+        "codex_session_id",
+        "workspace_title",
+        "workspace_bootstrap_command",
+        "workspace_name",
+        "clawdad_slug",
+        "clawdad_description",
+    ]
+    if any(bool(getattr(args, name, False)) for name in bool_flags):
+        return True
+    return any(str(getattr(args, name, "") or "").strip() for name in text_flags if name != "workspace_name")
+
+
+def _init_startup_context(args: argparse.Namespace) -> dict[str, Any]:
+    enabled = _init_startup_enabled(args)
+    project_startup = bool(getattr(args, "project_startup", False))
+    github_repo = str(getattr(args, "github_repo", "") or "").strip()
+    clawdad_path = _tool_path("clawdad")
+    return {
+        "enabled": enabled,
+        "project_startup": project_startup,
+        "dry_run": bool(getattr(args, "startup_dry_run", False)),
+        "tools": {
+            "gh": _tool_path("gh"),
+            "clawdad": clawdad_path,
+            "orp": _tool_path("orp"),
+        },
+        "github": {
+            "requested": bool(getattr(args, "private_github", False)) or bool(project_startup and github_repo),
+            "repo": "",
+            "remote_url": "",
+            "action": "not_requested",
+        },
+        "workspace": {
+            "requested": bool(
+                getattr(args, "track_workspace_main", False)
+                or project_startup
+                or getattr(args, "current_codex", False)
+                or str(getattr(args, "codex_session_id", "") or "").strip()
+                or str(getattr(args, "workspace_title", "") or "").strip()
+                or str(getattr(args, "workspace_bootstrap_command", "") or "").strip()
+            ),
+            "workspace": str(getattr(args, "workspace_name", "") or "main").strip() or "main",
+            "action": "not_requested",
+        },
+        "clawdad": {
+            "requested": bool(getattr(args, "with_clawdad", False)) or bool(project_startup and clawdad_path),
+            "available": bool(clawdad_path),
+            "action": "not_requested",
+        },
+        "codex": {
+            "requested_current": bool(getattr(args, "current_codex", False)),
+            "session_id": "",
+            "source": "",
+        },
+        "commands": [],
+        "warnings": [],
+        "next_actions": [],
+        "ok": True,
+    }
+
+
+def _startup_codex_context(args: argparse.Namespace, startup: dict[str, Any]) -> dict[str, str]:
+    explicit_session = str(getattr(args, "codex_session_id", "") or "").strip()
+    env_session = str(os.environ.get("CODEX_THREAD_ID", "") or "").strip()
+    requested_current = bool(getattr(args, "current_codex", False))
+    session_id = explicit_session or (env_session if requested_current else "")
+    source = "explicit" if explicit_session else ("CODEX_THREAD_ID" if session_id else "")
+    if explicit_session and requested_current and env_session and explicit_session != env_session:
+        startup["warnings"].append(
+            "both --codex-session-id and --current-codex were provided; using the explicit session id."
+        )
+    if requested_current and not session_id:
+        startup["warnings"].append("CODEX_THREAD_ID is not set; workspace path will be tracked without a Codex resume target.")
+        startup["next_actions"].append("rerun from an active Codex session with --current-codex, or pass --codex-session-id <id>")
+    startup["codex"] = {
+        "requested_current": requested_current,
+        "session_id": session_id,
+        "source": source,
+    }
+    return {"session_id": session_id, "source": source}
+
+
+def _setup_private_github_startup_remote(
+    *,
+    repo_root: Path,
+    github_repo_raw: str,
+    dry_run: bool,
+) -> dict[str, Any]:
+    github_repo = _normalize_github_repo(github_repo_raw)
+    if not github_repo:
+        raise RuntimeError("--private-github requires --github-repo owner/repo.")
+    remote_url = _synthesized_github_remote_url(github_repo)
+    existing_origin = _git_stdout(repo_root, ["remote", "get-url", "origin"])
+    payload: dict[str, Any] = {
+        "requested": True,
+        "repo": github_repo,
+        "remote_url": remote_url,
+        "existing_origin": existing_origin,
+        "action": "",
+        "command": "",
+    }
+    if existing_origin:
+        existing_repo = _github_repo_from_remote_url(existing_origin)
+        if existing_repo and existing_repo != github_repo:
+            raise RuntimeError(
+                f"origin already points to `{existing_origin}`, not GitHub repo `{github_repo}`."
+            )
+        payload["action"] = "kept"
+        payload["remote_url"] = existing_origin
+        return payload
+
+    command = [
+        "gh",
+        "repo",
+        "create",
+        github_repo,
+        "--private",
+        "--source",
+        str(repo_root),
+        "--remote",
+        "origin",
+    ]
+    payload["command"] = _command_preview(command)
+    if dry_run:
+        payload["action"] = "planned"
+        return payload
+
+    gh_path = _tool_path("gh")
+    if not gh_path:
+        raise RuntimeError("creating a private GitHub remote requires the `gh` CLI on PATH.")
+    _run_checked_process(
+        [gh_path, *command[1:]],
+        cwd=repo_root,
+        context="private GitHub remote setup",
+    )
+    detected_origin = _git_stdout(repo_root, ["remote", "get-url", "origin"])
+    payload["action"] = "created"
+    payload["remote_url"] = detected_origin or remote_url
+    payload["detected_origin_after"] = detected_origin
+    return payload
+
+
+def _orp_workspace_cli_prefix() -> list[str]:
+    override = str(os.environ.get("ORP_CLI", "") or "").strip()
+    if override:
+        return shlex.split(override)
+    local_bin = _orp_repo_root() / "bin" / "orp.js"
+    if local_bin.exists() and os.access(local_bin, os.X_OK):
+        return [str(local_bin)]
+    node_path = _tool_path("node")
+    if local_bin.exists() and node_path:
+        return [node_path, str(local_bin)]
+    orp_path = _tool_path("orp")
+    if orp_path:
+        return [orp_path]
+    return ["orp"]
+
+
+def _setup_workspace_startup_tracking(
+    *,
+    repo_root: Path,
+    args: argparse.Namespace,
+    default_branch: str,
+    remote_url: str,
+    codex_session_id: str,
+    dry_run: bool,
+) -> dict[str, Any]:
+    workspace_name = str(getattr(args, "workspace_name", "") or "main").strip() or "main"
+    command = [
+        *_orp_workspace_cli_prefix(),
+        "workspace",
+        "add-tab",
+        workspace_name,
+        "--path",
+        str(repo_root),
+    ]
+    title = str(getattr(args, "workspace_title", "") or "").strip()
+    if title:
+        command.extend(["--title", title])
+    if remote_url:
+        command.extend(["--remote-url", remote_url, "--remote-branch", default_branch])
+    bootstrap_command = str(getattr(args, "workspace_bootstrap_command", "") or "").strip()
+    if bootstrap_command:
+        command.extend(["--bootstrap-command", bootstrap_command])
+    if codex_session_id:
+        command.extend(["--resume-tool", "codex", "--resume-session-id", codex_session_id])
+    elif bool(getattr(args, "current_codex", False)) and os.environ.get("CODEX_THREAD_ID"):
+        command.append("--current-codex")
+    if bool(getattr(args, "workspace_append", False)):
+        command.append("--append")
+    command.append("--json")
+    payload: dict[str, Any] = {
+        "requested": True,
+        "workspace": workspace_name,
+        "path": str(repo_root),
+        "remote_url": remote_url,
+        "remote_branch": default_branch if remote_url else "",
+        "codex_session_id": codex_session_id,
+        "action": "planned" if dry_run else "",
+        "command": _command_preview(command),
+    }
+    if dry_run:
+        return payload
+
+    proc = _run_checked_process(command, cwd=repo_root, context="workspace main tracking")
+    payload["action"] = "updated"
+    try:
+        payload["result"] = json.loads(proc.stdout)
+    except Exception:
+        payload["result"] = {"stdout": _truncate(proc.stdout.strip(), limit=600)}
+    return payload
+
+
+def _clawdad_delegate_brief_template(
+    *,
+    repo_root: Path,
+    remote_url: str,
+    workspace_name: str,
+) -> str:
+    return (
+        "# Clawdad Delegate Brief\n\n"
+        f"- Project: `{repo_root.name}`\n"
+        f"- Root: `{repo_root}`\n"
+        f"- Remote: `{remote_url or '(local only)'}`\n"
+        f"- ORP workspace: `{workspace_name}`\n\n"
+        "## Startup Contract\n\n"
+        "- This project is ORP-governed and registered for Clawdad/Codex delegation.\n"
+        "- Run `orp status --json` and `orp hygiene --json` before long-running expansion.\n"
+        "- Stop when hygiene reports `dirty_unclassified`; classify, refresh, canonicalize, or write a blocker.\n"
+        "- Do not reset, checkout, or delete files merely to hide dirty state.\n"
+        "- Keep canonical project state in repo files and keep process state in ORP/Clawdad ledgers.\n\n"
+        "## First Checks\n\n"
+        f"- `orp workspace tabs {workspace_name}`\n"
+        "- `orp project show --json`\n"
+        "- `orp hygiene --json`\n"
+        "- `clawdad delegate <project>`\n\n"
+        "## Delegate Posture\n\n"
+        "- Prefer bounded, concrete tasks with a clear write scope.\n"
+        "- Refresh project context after meaningful docs, manifest, roadmap, or agent-guidance changes.\n"
+        "- Write a blocker instead of forcing progress when the repo state is ambiguous.\n"
+    )
+
+
+def _setup_clawdad_startup(
+    *,
+    repo_root: Path,
+    args: argparse.Namespace,
+    remote_url: str,
+    codex_session_id: str,
+    dry_run: bool,
+) -> dict[str, Any]:
+    workspace_name = str(getattr(args, "workspace_name", "") or "main").strip() or "main"
+    brief_path = repo_root / "orp" / "clawdad" / "DELEGATE_BRIEF.md"
+    brief_action = _write_text_if_missing(
+        brief_path,
+        _clawdad_delegate_brief_template(
+            repo_root=repo_root,
+            remote_url=remote_url,
+            workspace_name=workspace_name,
+        ),
+    )
+    clawdad_path = _tool_path("clawdad")
+    payload: dict[str, Any] = {
+        "requested": True,
+        "available": bool(clawdad_path),
+        "brief_path": _path_for_state(brief_path, repo_root),
+        "brief_action": brief_action,
+        "action": "planned" if dry_run else "",
+        "commands": [],
+        "results": [],
+        "ok": True,
+    }
+    description = str(getattr(args, "clawdad_description", "") or "").strip()
+    if not description:
+        description = f"ORP-governed project: {repo_root.name}"
+    register_command = [
+        "clawdad",
+        "register",
+        str(repo_root),
+        "--provider",
+        "codex",
+        "--description",
+        description,
+    ]
+    slug = str(getattr(args, "clawdad_slug", "") or "").strip()
+    if slug:
+        register_command.extend(["--slug", slug])
+    commands = [
+        register_command,
+        ["clawdad", "delegate-set", str(repo_root), "--file", str(brief_path)],
+    ]
+    if codex_session_id:
+        commands.append(["clawdad", "track-session", str(repo_root), codex_session_id])
+    payload["commands"] = [_command_preview(command) for command in commands]
+    if not clawdad_path:
+        payload["action"] = "skipped_missing_clawdad"
+        payload["ok"] = False
+        return payload
+    if dry_run:
+        return payload
+
+    results: list[dict[str, Any]] = []
+    for command in commands:
+        result = _run_optional_process([clawdad_path, *command[1:]], cwd=repo_root)
+        result["command"] = _command_preview(command)
+        results.append(result)
+        if not result.get("ok"):
+            payload["ok"] = False
+            break
+    payload["results"] = results
+    payload["action"] = "updated" if payload["ok"] else "blocked"
+    return payload
+
+
+def _finish_init_startup(
+    *,
+    repo_root: Path,
+    args: argparse.Namespace,
+    default_branch: str,
+    remote_context: dict[str, Any],
+    startup: dict[str, Any],
+    files: dict[str, dict[str, str]],
+    notes: list[str],
+    warnings: list[str],
+    next_actions: list[str],
+) -> dict[str, Any]:
+    if not startup.get("enabled"):
+        return startup
+    dry_run = bool(startup.get("dry_run"))
+    codex = _startup_codex_context(args, startup)
+    actual_origin = _git_stdout(repo_root, ["remote", "get-url", "origin"])
+    remote_url = actual_origin or str(remote_context.get("effective_remote_url", "") or "").strip()
+
+    if bool(getattr(args, "project_startup", False)) and not startup.get("github", {}).get("requested"):
+        startup["next_actions"].append("pass --github-repo owner/repo to let project startup create or record a private GitHub remote")
+
+    if startup.get("workspace", {}).get("requested"):
+        startup["workspace"] = _setup_workspace_startup_tracking(
+            repo_root=repo_root,
+            args=args,
+            default_branch=default_branch,
+            remote_url=remote_url,
+            codex_session_id=codex["session_id"],
+            dry_run=dry_run,
+        )
+        startup["commands"].append(startup["workspace"].get("command", ""))
+
+    if startup.get("clawdad", {}).get("requested"):
+        startup["clawdad"] = _setup_clawdad_startup(
+            repo_root=repo_root,
+            args=args,
+            remote_url=remote_url,
+            codex_session_id=codex["session_id"],
+            dry_run=dry_run,
+        )
+        files["clawdad_delegate_brief"] = {
+            "path": str(startup["clawdad"].get("brief_path", "")),
+            "action": str(startup["clawdad"].get("brief_action", "")),
+        }
+        startup["commands"].extend(startup["clawdad"].get("commands", []))
+        if startup["clawdad"].get("action") == "skipped_missing_clawdad":
+            startup["warnings"].append("Clawdad is not installed on PATH; ORP wrote the delegate brief but did not register the project.")
+            startup["next_actions"].append("install/run `clawdad init`, then rerun `orp init --with-clawdad`")
+        elif startup["clawdad"].get("ok") is False:
+            startup["warnings"].append("Clawdad registration did not complete; inspect startup.clawdad.results for the command output.")
+
+    if bool(getattr(args, "project_startup", False)) and not _tool_path("clawdad"):
+        startup["notes"] = [
+            "project startup did not enable Clawdad delegation because `clawdad` was not found on PATH."
+        ]
+    else:
+        startup["notes"] = []
+
+    startup["warnings"] = _unique_strings([str(item) for item in startup.get("warnings", []) if str(item).strip()])
+    startup["next_actions"] = _unique_strings(
+        [str(item) for item in startup.get("next_actions", []) if str(item).strip()]
+    )
+    warnings.extend(startup["warnings"])
+    next_actions.extend(startup["next_actions"])
+    notes.extend(startup.get("notes", []))
+
+    startup["ok"] = bool(startup.get("ok", True)) and bool(startup.get("workspace", {}).get("action") != "blocked")
+    if startup.get("clawdad", {}).get("requested") and startup.get("clawdad", {}).get("ok") is False:
+        startup["ok"] = False if bool(getattr(args, "with_clawdad", False)) else bool(startup["ok"])
+    return startup
+
+
 def _project_context_path(repo_root: Path) -> Path:
     return repo_root / "orp" / "project.json"
 
@@ -12543,6 +12999,10 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp hygiene --json",
         },
         {
+            "label": "Bootstrap a new project with private GitHub, workspace main, and Clawdad when installed",
+            "command": "orp init --project-startup --github-repo owner/repo --current-codex",
+        },
+        {
             "label": "Inspect the saved service and data connections for this user",
             "command": "orp connections list",
         },
@@ -13561,6 +14021,22 @@ def cmd_init(args: argparse.Namespace) -> int:
     if not git_was_present:
         git_init_result = _git_init_repo(repo_root, default_branch)
 
+    startup = _init_startup_context(args)
+    if startup.get("enabled") and startup.get("github", {}).get("requested"):
+        _effective_remote_context(
+            detected_remote_url="",
+            detected_github_repo="",
+            remote_url_arg=str(getattr(args, "remote_url", "") or ""),
+            github_repo_arg=str(getattr(args, "github_repo", "") or ""),
+        )
+        startup["github"] = _setup_private_github_startup_remote(
+            repo_root=repo_root,
+            github_repo_raw=str(getattr(args, "github_repo", "") or getattr(args, "remote_url", "") or ""),
+            dry_run=bool(startup.get("dry_run")),
+        )
+        if startup["github"].get("command"):
+            startup["commands"].append(str(startup["github"]["command"]))
+
     _ensure_dirs(repo_root)
     config_path = repo_root / args.config
     config_action = "kept"
@@ -13746,8 +14222,34 @@ def cmd_init(args: argparse.Namespace) -> int:
         "action": project_context_action,
     }
 
+    if startup.get("enabled"):
+        startup = _finish_init_startup(
+            repo_root=repo_root,
+            args=args,
+            default_branch=default_branch,
+            remote_context=remote_context,
+            startup=startup,
+            files=files,
+            notes=notes,
+            warnings=warnings,
+            next_actions=next_actions,
+        )
+        state = _read_json(state_path) if state_path.exists() else _default_state_payload()
+        if not isinstance(state, dict):
+            state = _default_state_payload()
+        state["startup"] = {
+            "updated_at_utc": _now_utc(),
+            "enabled": bool(startup.get("enabled")),
+            "project_startup": bool(startup.get("project_startup")),
+            "github": startup.get("github", {}),
+            "workspace": startup.get("workspace", {}),
+            "clawdad": startup.get("clawdad", {}),
+            "codex": startup.get("codex", {}),
+        }
+        _write_json(state_path, state)
+
     result = {
-        "ok": True,
+        "ok": bool(startup.get("ok", True)),
         "config_action": config_action,
         "config_path": str(config_path),
         "runtime_root": str(repo_root / "orp"),
@@ -13779,6 +14281,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         "notes": notes,
         "next_actions": next_actions,
     }
+    if startup.get("enabled"):
+        result["startup"] = startup
     if args.json_output:
         _print_json(result)
     else:
@@ -13792,6 +14296,11 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("synced AGENTS.md and CLAUDE.md with ORP-managed blocks")
         print(f"project_context={_path_for_state(_project_context_path(repo_root), repo_root)}")
         print(f"hygiene_policy={_path_for_state(hygiene_policy_path, repo_root)}")
+        if startup.get("enabled"):
+            print(f"startup.ok={'true' if startup.get('ok') else 'false'}")
+            print(f"startup.github={startup.get('github', {}).get('action', 'not_requested')}")
+            print(f"startup.workspace={startup.get('workspace', {}).get('action', 'not_requested')}")
+            print(f"startup.clawdad={startup.get('clawdad', {}).get('action', 'not_requested')}")
         print(
             "git_state="
             + ",".join(
@@ -28470,6 +28979,78 @@ def build_parser() -> argparse.ArgumentParser:
         "--projects-root",
         default="",
         help="Optional shared umbrella projects root used to link this repo's AGENTS.md and CLAUDE.md back to a parent guide",
+    )
+    s_init.add_argument(
+        "--project-startup",
+        action="store_true",
+        help="Run the common new-project bootstrap: private GitHub remote when --github-repo is set, workspace main tracking, and Clawdad registration when installed",
+    )
+    s_init.add_argument(
+        "--private-github",
+        "--github-private",
+        "--create-private-github-remote",
+        dest="private_github",
+        action="store_true",
+        help="Create a private GitHub repository/remote with gh repo create when origin is absent",
+    )
+    s_init.add_argument(
+        "--track-workspace-main",
+        "--workspace-main",
+        dest="track_workspace_main",
+        action="store_true",
+        help="Track this path in the ORP workspace ledger (default workspace: main)",
+    )
+    s_init.add_argument(
+        "--workspace-name",
+        default="main",
+        help="Workspace ledger name for startup tracking (default: main)",
+    )
+    s_init.add_argument(
+        "--workspace-title",
+        default="",
+        help="Optional title for the workspace tab recorded during startup",
+    )
+    s_init.add_argument(
+        "--workspace-bootstrap-command",
+        default="",
+        help="Optional bootstrap command saved in the workspace tab, for example npm install",
+    )
+    s_init.add_argument(
+        "--workspace-append",
+        action="store_true",
+        help="Append a new workspace session entry instead of replacing/upserting the path entry",
+    )
+    s_init.add_argument(
+        "--with-clawdad",
+        "--clawdad-delegation",
+        dest="with_clawdad",
+        action="store_true",
+        help="Scaffold a Clawdad delegate brief and register the project when clawdad is installed",
+    )
+    s_init.add_argument(
+        "--clawdad-slug",
+        default="",
+        help="Optional Clawdad project slug used with --with-clawdad",
+    )
+    s_init.add_argument(
+        "--clawdad-description",
+        default="",
+        help="Optional Clawdad project description used with --with-clawdad",
+    )
+    s_init.add_argument(
+        "--current-codex",
+        action="store_true",
+        help="Save the current CODEX_THREAD_ID as the Codex resume target when tracking workspace/Clawdad startup state",
+    )
+    s_init.add_argument(
+        "--codex-session-id",
+        default="",
+        help="Explicit Codex session id to save in workspace/Clawdad startup state",
+    )
+    s_init.add_argument(
+        "--startup-dry-run",
+        action="store_true",
+        help="Plan external startup actions without running gh, orp workspace, or clawdad commands",
     )
     s_init.add_argument(
         "--json",

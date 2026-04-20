@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -12,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 
 
-def _run_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(root: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -24,6 +25,7 @@ def _run_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
+        env=env,
     )
 
 
@@ -158,6 +160,98 @@ class OrpInitTests(unittest.TestCase):
             branch = _run_git(root, "symbolic-ref", "--short", "HEAD")
             self.assertEqual(branch.returncode, 0, msg=branch.stderr + "\n" + branch.stdout)
             self.assertEqual(branch.stdout.strip(), "main")
+
+    def test_init_project_startup_dry_run_plans_github_workspace_and_clawdad(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            fake_bin = root / "fake-bin"
+            _write_file(fake_bin / "clawdad", "#!/bin/sh\nexit 0\n")
+            os.chmod(fake_bin / "clawdad", 0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
+            env["CODEX_THREAD_ID"] = "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9"
+            env["ORP_CLI"] = "orp"
+
+            proc = _run_cli(
+                root,
+                "init",
+                "--project-startup",
+                "--github-repo",
+                "owner/demo",
+                "--current-codex",
+                "--workspace-bootstrap-command",
+                "npm install",
+                "--startup-dry-run",
+                "--json",
+                env=env,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["startup"]["enabled"])
+            self.assertTrue(payload["startup"]["dry_run"])
+            self.assertEqual(payload["startup"]["github"]["action"], "planned")
+            self.assertIn("gh repo create owner/demo --private", payload["startup"]["github"]["command"])
+            self.assertEqual(payload["startup"]["github"]["remote_url"], "https://github.com/owner/demo.git")
+
+            workspace = payload["startup"]["workspace"]
+            self.assertEqual(workspace["action"], "planned")
+            self.assertEqual(workspace["workspace"], "main")
+            self.assertEqual(workspace["remote_url"], "https://github.com/owner/demo.git")
+            self.assertEqual(workspace["codex_session_id"], "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9")
+            self.assertIn("workspace add-tab main", workspace["command"])
+            self.assertIn("--path", workspace["command"])
+            self.assertIn(str(root), workspace["command"])
+            self.assertIn("--remote-url https://github.com/owner/demo.git", workspace["command"])
+            self.assertIn("--bootstrap-command 'npm install'", workspace["command"])
+            self.assertIn("--resume-tool codex", workspace["command"])
+            self.assertIn("--resume-session-id 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9", workspace["command"])
+
+            clawdad = payload["startup"]["clawdad"]
+            self.assertTrue(clawdad["available"])
+            self.assertEqual(clawdad["action"], "planned")
+            self.assertEqual(clawdad["brief_path"], "orp/clawdad/DELEGATE_BRIEF.md")
+            self.assertEqual(payload["files"]["clawdad_delegate_brief"]["action"], "created")
+            self.assertTrue(any("clawdad register" in command for command in clawdad["commands"]))
+            self.assertTrue(any("clawdad delegate-set" in command for command in clawdad["commands"]))
+            self.assertTrue(any("clawdad track-session" in command for command in clawdad["commands"]))
+
+            brief_text = (root / "orp" / "clawdad" / "DELEGATE_BRIEF.md").read_text(encoding="utf-8")
+            self.assertIn("Clawdad Delegate Brief", brief_text)
+            self.assertIn("Run `orp status --json` and `orp hygiene --json`", brief_text)
+            self.assertIn(str(root), brief_text)
+
+            state = json.loads((root / "orp" / "state.json").read_text(encoding="utf-8"))
+            self.assertTrue(state["startup"]["enabled"])
+            self.assertEqual(state["startup"]["github"]["repo"], "owner/demo")
+            self.assertEqual(state["startup"]["workspace"]["workspace"], "main")
+            self.assertEqual(state["startup"]["codex"]["source"], "CODEX_THREAD_ID")
+
+    def test_init_private_github_keeps_existing_matching_origin(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _git_init_main(root)
+            proc = _run_git(root, "remote", "add", "origin", "https://github.com/owner/demo.git")
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+            init_proc = _run_cli(
+                root,
+                "init",
+                "--private-github",
+                "--github-repo",
+                "owner/demo",
+                "--startup-dry-run",
+                "--json",
+            )
+            self.assertEqual(init_proc.returncode, 0, msg=init_proc.stderr + "\n" + init_proc.stdout)
+
+            payload = json.loads(init_proc.stdout)
+            self.assertTrue(payload["startup"]["enabled"])
+            self.assertEqual(payload["startup"]["github"]["action"], "kept")
+            self.assertEqual(payload["startup"]["github"]["existing_origin"], "https://github.com/owner/demo.git")
+            self.assertEqual(payload["git"]["effective_remote_mode"], "github")
+            self.assertEqual(payload["git"]["effective_github_repo"], "owner/demo")
 
     def test_project_refresh_evolves_with_directory_surfaces(self) -> None:
         with tempfile.TemporaryDirectory() as td:
