@@ -777,6 +777,10 @@ class HostedCliShapeTests(unittest.TestCase):
                         value="sk-local",
                         value_stdin=False,
                         from_env=False,
+                        daily_spend_cap_usd=5.0,
+                        dashboard_spend_cap_status="confirmed",
+                        dashboard_project_id="proj_openai_test",
+                        dashboard_url="https://platform.openai.com/settings/organization/limits",
                         world_id=world_id,
                         idea_id="",
                         current_project=False,
@@ -793,6 +797,9 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(payload["secret"]["alias"], "openai-primary")
             self.assertEqual(payload["secret"]["provider"], "openai")
             self.assertEqual(payload["secret"]["envVarName"], "OPENAI_API_KEY")
+            self.assertEqual(payload["secret"]["spendPolicy"]["dailyCapUsd"], 5.0)
+            self.assertEqual(payload["secret"]["spendPolicy"]["dashboardLimit"]["status"], "confirmed")
+            self.assertEqual(payload["secret"]["spendPolicy"]["dashboardLimit"]["projectId"], "proj_openai_test")
             self.assertEqual(payload["keychain_service"], "orp.secret.openai")
             self.assertEqual(stored["value"], "sk-local")
             self.assertNotIn("sk-local", json.dumps(payload))
@@ -801,9 +808,68 @@ class HostedCliShapeTests(unittest.TestCase):
             entry = registry["items"][0]
             self.assertEqual(entry["alias"], "openai-primary")
             self.assertEqual(entry["value_preview"], "stored in local Keychain")
+            self.assertEqual(entry["spend_policy"]["daily_cap_usd"], 5.0)
+            self.assertEqual(entry["spend_policy"]["dashboard_limit"]["status"], "confirmed")
             self.assertNotIn("sk-local", json.dumps(registry))
             self.assertEqual(entry["bindings"][0]["world_id"], world_id)
             self.assertTrue(entry["bindings"][0]["primary"])
+
+    def test_secrets_keychain_spend_policy_updates_metadata_without_secret_value(self) -> None:
+        module = load_cli_module()
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            os.environ["XDG_CONFIG_HOME"] = td
+            module._save_keychain_secret_registry(
+                {
+                    "schema_version": "1.0.0",
+                    "items": [
+                        {
+                            "secret_id": "local-openai",
+                            "alias": "openai-primary",
+                            "label": "OpenAI Primary",
+                            "provider": "openai",
+                            "kind": "api_key",
+                            "username": "",
+                            "env_var_name": "OPENAI_API_KEY",
+                            "status": "active",
+                            "value_version": "local:2026-04-17T00:00:00Z",
+                            "value_preview": "stored in local Keychain",
+                            "keychain_service": "orp.secret.openai",
+                            "keychain_account": "openai-primary",
+                            "keychain_label": "OpenAI Primary",
+                            "bindings": [],
+                            "last_synced_at_utc": "2026-04-17T00:00:00Z",
+                        }
+                    ],
+                }
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_secrets_keychain_spend_policy(
+                    argparse.Namespace(
+                        secret_ref="openai-primary",
+                        daily_spend_cap_usd=5.0,
+                        dashboard_spend_cap_status="unconfirmed",
+                        dashboard_project_id="",
+                        dashboard_url="https://platform.openai.com/settings/organization/limits",
+                        json_output=True,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertEqual(payload["secret"]["spendPolicy"]["dailyCapUsd"], 5.0)
+            self.assertEqual(payload["secret"]["spendPolicy"]["dashboardLimit"]["status"], "unconfirmed")
+            self.assertEqual(
+                payload["secret"]["spendPolicy"]["dashboardLimit"]["dashboardUrl"],
+                "https://platform.openai.com/settings/organization/limits",
+            )
+            self.assertNotIn("value", payload)
+            registry = json.loads((Path(td) / "orp" / "secrets-keychain.json").read_text(encoding="utf-8"))
+            entry = registry["items"][0]
+            self.assertEqual(entry["spend_policy"]["daily_cap_usd"], 5.0)
+            self.assertEqual(entry["keychain_account"], "openai-primary")
 
     def test_secrets_keychain_list_filters_current_project(self) -> None:
         module = load_cli_module()

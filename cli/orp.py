@@ -141,6 +141,8 @@ FRONTIER_TERMINAL_STATUSES = {"complete", "completed", "done", "skipped", "termi
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
 RESEARCH_RUN_SCHEMA_VERSION = "1.0.0"
+SECRET_SPEND_POLICY_SCHEMA_VERSION = "1.0.0"
+RESEARCH_SPEND_LEDGER_SCHEMA_VERSION = "1.0.0"
 PROJECT_CONTEXT_SCHEMA_VERSION = "1.0.0"
 HYGIENE_POLICY_SCHEMA_VERSION = "1.0.0"
 MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
@@ -920,6 +922,45 @@ def _orp_user_dir() -> Path:
 
 def _keychain_secret_registry_path() -> Path:
     return _orp_user_dir() / "secrets-keychain.json"
+
+
+def _research_spend_ledger_path() -> Path:
+    return _orp_user_dir() / "research-spend-ledger.json"
+
+
+def _research_spend_ledger_template() -> dict[str, Any]:
+    return {
+        "schema_version": RESEARCH_SPEND_LEDGER_SCHEMA_VERSION,
+        "records": [],
+    }
+
+
+def _load_research_spend_ledger() -> dict[str, Any]:
+    path = _research_spend_ledger_path()
+    if not path.exists():
+        return _research_spend_ledger_template()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return _research_spend_ledger_template()
+    if not isinstance(payload, dict):
+        return _research_spend_ledger_template()
+    records = payload.get("records")
+    return {
+        "schema_version": str(payload.get("schema_version", RESEARCH_SPEND_LEDGER_SCHEMA_VERSION)).strip()
+        or RESEARCH_SPEND_LEDGER_SCHEMA_VERSION,
+        "records": [row for row in records if isinstance(row, dict)] if isinstance(records, list) else [],
+    }
+
+
+def _save_research_spend_ledger(ledger: dict[str, Any]) -> None:
+    records = ledger.get("records")
+    payload = {
+        "schema_version": str(ledger.get("schema_version", RESEARCH_SPEND_LEDGER_SCHEMA_VERSION)).strip()
+        or RESEARCH_SPEND_LEDGER_SCHEMA_VERSION,
+        "records": [row for row in records if isinstance(row, dict)] if isinstance(records, list) else [],
+    }
+    _write_json(_research_spend_ledger_path(), payload)
 
 
 def _keychain_supported() -> bool:
@@ -17675,6 +17716,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "web_search": True,
                 "web_search_tool": "web_search_preview",
                 "background": False,
+                "spend_reserve_usd": 1.5,
                 "max_tool_calls": 40,
                 "max_output_tokens": 12000,
             },
@@ -17708,6 +17750,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "secret_alias": "openai-primary",
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
+                "spend_reserve_usd": 0.5,
                 "max_output_tokens": 4200,
             },
             {
@@ -17744,6 +17787,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "web_search_tool": "web_search",
                 "search_context_size": "high",
                 "external_web_access": True,
+                "spend_reserve_usd": 1.0,
                 "max_tool_calls": 8,
                 "max_output_tokens": 4200,
             },
@@ -17776,6 +17820,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "secret_alias": "openai-primary",
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
+                "spend_reserve_usd": 0.5,
                 "max_output_tokens": 5000,
             },
             {
@@ -17810,6 +17855,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "web_search": True,
                 "web_search_tool": "web_search_preview",
                 "background": False,
+                "spend_reserve_usd": 1.5,
                 "max_tool_calls": 40,
                 "max_output_tokens": 12000,
             },
@@ -17887,6 +17933,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "secret_alias": "openai-primary",
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
+                "spend_reserve_usd": 0.5,
                 "max_output_tokens": 4200,
             },
             {
@@ -17905,6 +17952,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "web_search_tool": "web_search",
                 "search_context_size": "high",
                 "external_web_access": True,
+                "spend_reserve_usd": 1.0,
                 "max_tool_calls": 8,
                 "max_output_tokens": 3600,
             },
@@ -17922,6 +17970,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "web_search": True,
                 "web_search_tool": "web_search_preview",
                 "background": True,
+                "spend_reserve_usd": 3.5,
                 "max_tool_calls": 40,
                 "max_output_tokens": 12000,
             },
@@ -18209,6 +18258,312 @@ def _research_text_from_payload(payload: Any) -> str:
     return ""
 
 
+def _as_positive_float(value: Any, *, field_name: str) -> float:
+    try:
+        parsed = float(value)
+    except Exception as exc:
+        raise RuntimeError(f"{field_name} must be a positive number.") from exc
+    if parsed <= 0:
+        raise RuntimeError(f"{field_name} must be greater than 0.")
+    return parsed
+
+
+def _normalize_secret_spend_policy(raw_policy: Any) -> dict[str, Any]:
+    if not isinstance(raw_policy, dict):
+        return {}
+    raw_daily_cap = raw_policy.get("daily_cap_usd", raw_policy.get("dailyCapUsd"))
+    if raw_daily_cap in (None, ""):
+        return {}
+    try:
+        daily_cap_usd = float(raw_daily_cap)
+    except Exception:
+        return {}
+    if daily_cap_usd <= 0:
+        return {}
+
+    raw_dashboard = raw_policy.get("dashboard_limit", raw_policy.get("dashboardLimit"))
+    dashboard_limit = dict(raw_dashboard) if isinstance(raw_dashboard, dict) else {}
+    status = str(
+        dashboard_limit.get(
+            "status",
+            raw_policy.get("dashboard_status", raw_policy.get("dashboardStatus", "")),
+        )
+        or ""
+    ).strip()
+    project_id = str(
+        dashboard_limit.get(
+            "project_id",
+            dashboard_limit.get("projectId", raw_policy.get("dashboard_project_id", raw_policy.get("dashboardProjectId", ""))),
+        )
+        or ""
+    ).strip()
+    dashboard_url = str(
+        dashboard_limit.get(
+            "dashboard_url",
+            dashboard_limit.get("dashboardUrl", raw_policy.get("dashboard_url", raw_policy.get("dashboardUrl", ""))),
+        )
+        or ""
+    ).strip()
+    normalized_dashboard: dict[str, Any] = {
+        "provider": str(dashboard_limit.get("provider", raw_policy.get("provider", "openai")) or "openai").strip()
+        or "openai",
+        "status": status or "unconfirmed",
+    }
+    if project_id:
+        normalized_dashboard["project_id"] = project_id
+    if dashboard_url:
+        normalized_dashboard["dashboard_url"] = dashboard_url
+
+    return {
+        "schema_version": str(raw_policy.get("schema_version", raw_policy.get("schemaVersion", SECRET_SPEND_POLICY_SCHEMA_VERSION))).strip()
+        or SECRET_SPEND_POLICY_SCHEMA_VERSION,
+        "daily_cap_usd": round(daily_cap_usd, 6),
+        "currency": str(raw_policy.get("currency", "USD") or "USD").strip().upper() or "USD",
+        "scope": str(raw_policy.get("scope", "provider_project_key") or "provider_project_key").strip()
+        or "provider_project_key",
+        "enforcement": str(raw_policy.get("enforcement", "local_preflight_reservation") or "local_preflight_reservation").strip()
+        or "local_preflight_reservation",
+        "dashboard_limit": normalized_dashboard,
+        "ledger_path": str(raw_policy.get("ledger_path", raw_policy.get("ledgerPath", str(_research_spend_ledger_path()))) or str(_research_spend_ledger_path())),
+    }
+
+
+def _secret_spend_policy_payload(policy: dict[str, Any]) -> dict[str, Any]:
+    normalized = _normalize_secret_spend_policy(policy)
+    if not normalized:
+        return {}
+    dashboard_limit = normalized.get("dashboard_limit") if isinstance(normalized.get("dashboard_limit"), dict) else {}
+    payload: dict[str, Any] = {
+        "schemaVersion": str(normalized.get("schema_version", SECRET_SPEND_POLICY_SCHEMA_VERSION)).strip()
+        or SECRET_SPEND_POLICY_SCHEMA_VERSION,
+        "dailyCapUsd": normalized["daily_cap_usd"],
+        "currency": str(normalized.get("currency", "USD")).strip() or "USD",
+        "scope": str(normalized.get("scope", "provider_project_key")).strip() or "provider_project_key",
+        "enforcement": str(normalized.get("enforcement", "local_preflight_reservation")).strip()
+        or "local_preflight_reservation",
+        "dashboardLimit": {
+            "provider": str(dashboard_limit.get("provider", "openai")).strip() or "openai",
+            "status": str(dashboard_limit.get("status", "unconfirmed")).strip() or "unconfirmed",
+        },
+        "ledgerPath": str(normalized.get("ledger_path", str(_research_spend_ledger_path()))).strip()
+        or str(_research_spend_ledger_path()),
+    }
+    project_id = str(dashboard_limit.get("project_id", "")).strip()
+    dashboard_url = str(dashboard_limit.get("dashboard_url", "")).strip()
+    if project_id:
+        payload["dashboardLimit"]["projectId"] = project_id
+    if dashboard_url:
+        payload["dashboardLimit"]["dashboardUrl"] = dashboard_url
+    return payload
+
+
+def _secret_spend_policy_from_args(
+    args: argparse.Namespace,
+    existing_entry: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    existing_policy = _normalize_secret_spend_policy(
+        existing_entry.get("spend_policy", {}) if isinstance(existing_entry, dict) else {}
+    )
+    daily_cap_arg = getattr(args, "daily_spend_cap_usd", None)
+    dashboard_status = str(getattr(args, "dashboard_spend_cap_status", "") or "").strip()
+    dashboard_project_id = str(getattr(args, "dashboard_project_id", "") or "").strip()
+    dashboard_url = str(getattr(args, "dashboard_url", "") or "").strip()
+    if daily_cap_arg in (None, "") and not dashboard_status and not dashboard_project_id and not dashboard_url:
+        return existing_policy
+
+    if daily_cap_arg in (None, ""):
+        if not existing_policy:
+            raise RuntimeError("--daily-spend-cap-usd is required when creating a spend policy.")
+        daily_cap_usd = float(existing_policy["daily_cap_usd"])
+    else:
+        daily_cap_usd = _as_positive_float(daily_cap_arg, field_name="--daily-spend-cap-usd")
+
+    existing_dashboard = (
+        existing_policy.get("dashboard_limit")
+        if isinstance(existing_policy.get("dashboard_limit"), dict)
+        else {}
+    )
+    dashboard_limit = dict(existing_dashboard)
+    if dashboard_status:
+        dashboard_limit["status"] = dashboard_status
+    elif "status" not in dashboard_limit:
+        dashboard_limit["status"] = "unconfirmed"
+    if dashboard_project_id:
+        dashboard_limit["project_id"] = dashboard_project_id
+    if dashboard_url:
+        dashboard_limit["dashboard_url"] = dashboard_url
+    dashboard_limit["provider"] = str(dashboard_limit.get("provider", getattr(args, "provider", "openai")) or "openai").strip() or "openai"
+
+    return _normalize_secret_spend_policy(
+        {
+            **existing_policy,
+            "schema_version": SECRET_SPEND_POLICY_SCHEMA_VERSION,
+            "daily_cap_usd": daily_cap_usd,
+            "currency": "USD",
+            "scope": "provider_project_key",
+            "enforcement": "local_preflight_reservation",
+            "dashboard_limit": dashboard_limit,
+            "ledger_path": str(_research_spend_ledger_path()),
+        }
+    )
+
+
+def _research_lane_spend_reserve_usd(lane: dict[str, Any]) -> float:
+    if "spend_reserve_usd" in lane:
+        try:
+            reserve = float(lane.get("spend_reserve_usd", 0) or 0)
+        except Exception:
+            reserve = 0.0
+        return max(0.0, round(reserve, 6))
+    model = str(lane.get("model", "") or "").strip().lower()
+    if "deep-research" in model:
+        return 3.5
+    if bool(lane.get("web_search", False)) or lane.get("tools"):
+        return 1.0
+    effort = str(lane.get("reasoning_effort", "") or "").strip().lower()
+    if effort in {"high", "xhigh"}:
+        return 0.5
+    return 0.25
+
+
+def _research_spend_policy_entry_for_lane(lane: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    secret_alias = str(lane.get("secret_alias", "") or "").strip()
+    provider = str(lane.get("provider", "") or "").strip()
+    if not secret_alias and not provider:
+        return None, "no secret alias or provider configured"
+    try:
+        return (
+            _select_keychain_entry(
+                secret_ref=secret_alias,
+                provider=provider,
+                world_id="",
+                idea_id="",
+            ),
+            "",
+        )
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _research_spend_ledger_today_total(
+    *,
+    date_utc: str,
+    provider: str,
+    secret_alias: str,
+) -> float:
+    ledger = _load_research_spend_ledger()
+    total = 0.0
+    for row in ledger.get("records", []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("date_utc", "")).strip() != date_utc:
+            continue
+        if provider and str(row.get("provider", "")).strip() != provider:
+            continue
+        if secret_alias and str(row.get("secret_alias", "")).strip() != secret_alias:
+            continue
+        event = str(row.get("event", "")).strip()
+        if event != "reserved":
+            continue
+        try:
+            total += float(row.get("amount_usd", row.get("reserve_usd", 0)) or 0)
+        except Exception:
+            continue
+    return round(total, 6)
+
+
+def _research_openai_spend_preflight(
+    lane: dict[str, Any],
+    *,
+    secret_source: str,
+) -> dict[str, Any]:
+    provider = str(lane.get("provider", "") or "").strip()
+    secret_alias = str(lane.get("secret_alias", "") or "").strip()
+    reserve_usd = _research_lane_spend_reserve_usd(lane)
+    entry, entry_issue = _research_spend_policy_entry_for_lane(lane)
+    policy = _normalize_secret_spend_policy(entry.get("spend_policy", {}) if isinstance(entry, dict) else {})
+    date_utc = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    base = {
+        "schema_version": RESEARCH_SPEND_LEDGER_SCHEMA_VERSION,
+        "provider": provider,
+        "secret_alias": secret_alias,
+        "secret_source": secret_source,
+        "date_utc": date_utc,
+        "reserve_usd": reserve_usd,
+        "ledger_path": str(_research_spend_ledger_path()),
+    }
+    if not policy:
+        return {
+            **base,
+            "allowed": True,
+            "policy_source": "",
+            "reason": entry_issue or "no spend policy configured for this local keychain entry",
+        }
+
+    reserved_today = _research_spend_ledger_today_total(
+        date_utc=date_utc,
+        provider=provider,
+        secret_alias=secret_alias,
+    )
+    daily_cap_usd = float(policy["daily_cap_usd"])
+    remaining_before = round(max(0.0, daily_cap_usd - reserved_today), 6)
+    remaining_after = round(daily_cap_usd - reserved_today - reserve_usd, 6)
+    allowed = remaining_after >= -0.000001
+    dashboard_limit = policy.get("dashboard_limit") if isinstance(policy.get("dashboard_limit"), dict) else {}
+    return {
+        **base,
+        "allowed": allowed,
+        "policy_source": "keychain",
+        "daily_cap_usd": round(daily_cap_usd, 6),
+        "currency": str(policy.get("currency", "USD")).strip() or "USD",
+        "reserved_today_usd": reserved_today,
+        "remaining_before_reserve_usd": remaining_before,
+        "remaining_after_reserve_usd": remaining_after,
+        "dashboard_limit": dict(dashboard_limit),
+        "reason": "within daily spend cap" if allowed else "daily spend cap would be exceeded",
+    }
+
+
+def _research_append_spend_ledger_record(
+    lane: dict[str, Any],
+    spend_preflight: dict[str, Any],
+    *,
+    event: str,
+    status: str = "",
+    provider_response_id: str = "",
+    usage: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if spend_preflight.get("policy_source") != "keychain":
+        return {}
+    amount_usd = round(float(spend_preflight.get("reserve_usd", 0) or 0), 6) if event == "reserved" else 0.0
+    record = {
+        "id": f"spend-{uuid.uuid4().hex[:12]}",
+        "schema_version": RESEARCH_SPEND_LEDGER_SCHEMA_VERSION,
+        "recorded_at_utc": _now_utc(),
+        "date_utc": str(spend_preflight.get("date_utc", "")).strip(),
+        "event": event,
+        "provider": str(spend_preflight.get("provider", lane.get("provider", ""))).strip(),
+        "secret_alias": str(spend_preflight.get("secret_alias", lane.get("secret_alias", ""))).strip(),
+        "lane_id": str(lane.get("lane_id", "")).strip(),
+        "call_moment": str(lane.get("call_moment", lane.get("lane_id", ""))).strip(),
+        "model": str(lane.get("model", "")).strip(),
+        "amount_usd": amount_usd,
+        "reserve_usd": round(float(spend_preflight.get("reserve_usd", 0) or 0), 6),
+        "currency": str(spend_preflight.get("currency", "USD")).strip() or "USD",
+        "daily_cap_usd": spend_preflight.get("daily_cap_usd"),
+        "status": status,
+        "provider_response_id": provider_response_id,
+    }
+    if isinstance(usage, dict) and usage:
+        record["usage"] = usage
+    ledger = _load_research_spend_ledger()
+    records = ledger.get("records") if isinstance(ledger.get("records"), list) else []
+    records.append(record)
+    ledger["records"] = records
+    _save_research_spend_ledger(ledger)
+    return record
+
+
 def _research_lane_api_call_plan(
     lane: dict[str, Any],
     *,
@@ -18218,12 +18573,13 @@ def _research_lane_api_call_plan(
     reason: str = "",
     request_body_keys: Sequence[str] | None = None,
     tools: Sequence[str] | None = None,
+    spend_preflight: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     adapter = str(lane.get("adapter", "")).strip()
     provider = str(lane.get("provider", "")).strip()
     env_var = str(lane.get("env_var", "")).strip()
     secret_alias = str(lane.get("secret_alias", "")).strip()
-    return {
+    plan = {
         "call_moment": str(lane.get("call_moment", lane.get("lane_id", ""))).strip(),
         "calls_api": adapter in {"openai_responses", "anthropic_messages", "xai_chat_completions", "chimera_cli"},
         "called": bool(called),
@@ -18241,6 +18597,9 @@ def _research_lane_api_call_plan(
         "tools": [str(row) for row in tools] if tools else [],
         "reason": reason,
     }
+    if spend_preflight is not None:
+        plan["spend_preflight"] = spend_preflight
+    return plan
 
 
 def _research_fixture_lane_result(
@@ -18610,6 +18969,49 @@ def _research_run_openai_lane(
         for row in body.get("tools", [])
         if isinstance(row, dict) and str(row.get("type", "")).strip()
     ]
+    spend_preflight = _research_openai_spend_preflight(lane, secret_source=secret_source)
+    if not bool(spend_preflight.get("allowed", True)):
+        finished_at_utc = _now_utc()
+        return {
+            "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
+            "lane_id": lane["lane_id"],
+            "label": lane.get("label", lane["lane_id"]),
+            "provider": lane.get("provider", ""),
+            "model": lane.get("model", ""),
+            "adapter": "openai_responses",
+            "call_moment": lane.get("call_moment", lane["lane_id"]),
+            "api_call": _research_lane_api_call_plan(
+                lane,
+                execute=True,
+                called=False,
+                secret_source=secret_source,
+                reason=str(spend_preflight.get("reason", "spend preflight blocked provider call")),
+                request_body_keys=body.keys(),
+                tools=tool_types,
+                spend_preflight=spend_preflight,
+            ),
+            "status": "skipped",
+            "started_at_utc": started_at_utc,
+            "finished_at_utc": finished_at_utc,
+            "duration_ms": _duration_ms(started_at_utc, finished_at_utc),
+            "text": "",
+            "spend_preflight": spend_preflight,
+            "notes": [
+                str(spend_preflight.get("reason", "Spend preflight blocked provider call.")),
+                f"Secret supplied from {secret_source}; secret value was not persisted.",
+            ],
+        }
+    reservation = _research_append_spend_ledger_record(
+        lane,
+        spend_preflight,
+        event="reserved",
+        status="pending",
+    )
+    if reservation:
+        spend_preflight = {
+            **spend_preflight,
+            "reservation_id": str(reservation.get("id", "")).strip(),
+        }
     api_call = _research_lane_api_call_plan(
         lane,
         execute=True,
@@ -18617,6 +19019,7 @@ def _research_run_openai_lane(
         secret_source=secret_source,
         request_body_keys=body.keys(),
         tools=tool_types,
+        spend_preflight=spend_preflight,
     )
 
     request = urlrequest.Request(
@@ -18681,6 +19084,14 @@ def _research_run_openai_lane(
     status = "complete" if response_status == "completed" and text else response_status or "complete"
     if status == "in_progress":
         text = text or "OpenAI deep research started in background mode; poll the response id outside ORP for completion."
+    _research_append_spend_ledger_record(
+        lane,
+        spend_preflight,
+        event="usage",
+        status=status,
+        provider_response_id=str(response_payload.get("id", "")).strip(),
+        usage=response_payload.get("usage") if isinstance(response_payload.get("usage"), dict) else None,
+    )
     return {
         "schema_version": RESEARCH_RUN_SCHEMA_VERSION,
         "lane_id": lane["lane_id"],
@@ -18690,6 +19101,7 @@ def _research_run_openai_lane(
         "adapter": "openai_responses",
         "call_moment": lane.get("call_moment", lane["lane_id"]),
         "api_call": api_call,
+        "spend_preflight": spend_preflight,
         "status": status,
         "started_at_utc": started_at_utc,
         "finished_at_utc": finished_at_utc,
@@ -23141,6 +23553,12 @@ def _print_secret_human(
     source: str = "",
 ) -> None:
     bindings = _secret_bindings(secret)
+    spend_policy = _normalize_secret_spend_policy(secret.get("spendPolicy", secret.get("spend_policy", {})))
+    dashboard_limit = (
+        spend_policy.get("dashboard_limit")
+        if isinstance(spend_policy.get("dashboard_limit"), dict)
+        else {}
+    )
     _print_pairs(
         [
             ("secret.id", str(secret.get("id", "")).strip()),
@@ -23153,6 +23571,9 @@ def _print_secret_human(
             ("secret.preview", str(secret.get("valuePreview", "")).strip()),
             ("secret.version", str(secret.get("valueVersion", "")).strip()),
             ("secret.status", str(secret.get("status", "")).strip()),
+            ("secret.spend_policy.daily_cap_usd", str(spend_policy.get("daily_cap_usd", ""))),
+            ("secret.spend_policy.enforcement", str(spend_policy.get("enforcement", ""))),
+            ("secret.spend_policy.dashboard_status", str(dashboard_limit.get("status", ""))),
             ("secret.binding_count", len(bindings)),
             ("secret.last_used_at", str(secret.get("lastUsedAt", "")).strip()),
             ("secret.rotated_at", str(secret.get("rotatedAt", "")).strip()),
@@ -23263,7 +23684,7 @@ def _build_keychain_registry_entry(
     bindings = [_normalize_secret_binding_summary(row) for row in _secret_bindings(secret)]
     if binding:
         bindings = _merge_secret_binding_summaries(bindings, [binding])
-    return {
+    entry = {
         "secret_id": str(secret.get("id", "")).strip(),
         "alias": str(secret.get("alias", "")).strip(),
         "label": str(secret.get("label", "")).strip(),
@@ -23280,11 +23701,15 @@ def _build_keychain_registry_entry(
         "bindings": bindings,
         "last_synced_at_utc": _now_utc(),
     }
+    spend_policy = _normalize_secret_spend_policy(secret.get("spendPolicy", secret.get("spend_policy", {})))
+    if spend_policy:
+        entry["spend_policy"] = spend_policy
+    return entry
 
 
 def _secret_payload_from_keychain_entry(entry: dict[str, Any]) -> dict[str, Any]:
     bindings = entry.get("bindings") if isinstance(entry.get("bindings"), list) else []
-    return {
+    payload = {
         "id": str(entry.get("secret_id", "")).strip(),
         "alias": str(entry.get("alias", "")).strip(),
         "label": str(entry.get("label", "")).strip(),
@@ -23301,6 +23726,12 @@ def _secret_payload_from_keychain_entry(entry: dict[str, Any]) -> dict[str, Any]
             if isinstance(row, dict)
         ],
     }
+    spend_policy = _secret_spend_policy_payload(
+        entry.get("spend_policy", {}) if isinstance(entry.get("spend_policy"), dict) else {}
+    )
+    if spend_policy:
+        payload["spendPolicy"] = spend_policy
+    return payload
 
 
 def _upsert_keychain_secret_registry_entry(entry: dict[str, Any]) -> dict[str, Any]:
@@ -23514,8 +23945,9 @@ def _build_local_keychain_secret_from_args(args: argparse.Namespace, existing_en
     kind = str(getattr(args, "kind", "api_key") or "api_key").strip() or "api_key"
     username = getattr(args, "username", None)
     env_var_name = getattr(args, "env_var_name", None)
+    spend_policy = _secret_spend_policy_from_args(args, existing_entry)
     now = _now_utc()
-    return {
+    secret = {
         "id": str(existing_entry.get("secret_id", "") if existing_entry else "").strip() or f"local-{uuid.uuid4().hex[:12]}",
         "alias": alias,
         "label": label,
@@ -23535,6 +23967,9 @@ def _build_local_keychain_secret_from_args(args: argparse.Namespace, existing_en
         "rotatedAt": now,
         "updatedAt": now,
     }
+    if spend_policy:
+        secret["spendPolicy"] = spend_policy
+    return secret
 
 
 def _try_get_secret_by_ref(args: argparse.Namespace, secret_ref: str) -> dict[str, Any] | None:
@@ -25377,6 +25812,47 @@ def cmd_secrets_keychain_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_secrets_keychain_spend_policy(args: argparse.Namespace) -> int:
+    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
+    if not secret_ref:
+        raise RuntimeError("Secret reference is required.")
+    items = _list_keychain_registry_entries(secret_ref=secret_ref)
+    if not items:
+        raise RuntimeError("No matching local Keychain secret was found.")
+    entry = dict(items[0])
+    spend_policy = _secret_spend_policy_from_args(args, entry)
+    if not spend_policy:
+        raise RuntimeError("--daily-spend-cap-usd is required when setting a spend policy.")
+    entry["spend_policy"] = spend_policy
+    entry["last_synced_at_utc"] = _now_utc()
+    entry = _upsert_keychain_secret_registry_entry(entry)
+    result = {
+        "ok": True,
+        "secret": _secret_payload_from_keychain_entry(entry),
+        "entry": entry,
+        "registry_path": str(_keychain_secret_registry_path()),
+        "keychain_service": str(entry.get("keychain_service", "")).strip(),
+        "keychain_account": str(entry.get("keychain_account", "")).strip(),
+        "source": "keychain",
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_secret_human(
+            result["secret"],
+            include_bindings=True,
+            source="keychain",
+        )
+        _print_pairs(
+            [
+                ("keychain.service", result["keychain_service"]),
+                ("keychain.account", result["keychain_account"]),
+                ("registry.path", result["registry_path"]),
+            ]
+        )
+    return 0
+
+
 def cmd_secrets_keychain_list(args: argparse.Namespace) -> int:
     provider = str(getattr(args, "provider", "") or "").strip()
     world_id, idea_id = _resolve_secret_scope_from_args(
@@ -25411,6 +25887,14 @@ def cmd_secrets_keychain_list(args: argparse.Namespace) -> int:
         )
         for row in items:
             print("---")
+            spend_policy = _normalize_secret_spend_policy(
+                row.get("spend_policy", {}) if isinstance(row.get("spend_policy"), dict) else {}
+            )
+            dashboard_limit = (
+                spend_policy.get("dashboard_limit")
+                if isinstance(spend_policy.get("dashboard_limit"), dict)
+                else {}
+            )
             _print_pairs(
                 [
                     ("secret.id", str(row.get("secret_id", "")).strip()),
@@ -25420,6 +25904,8 @@ def cmd_secrets_keychain_list(args: argparse.Namespace) -> int:
                     ("secret.kind", str(row.get("kind", "")).strip()),
                     ("secret.env_var_name", str(row.get("env_var_name", "")).strip()),
                     ("secret.status", str(row.get("status", "")).strip()),
+                    ("secret.spend_policy.daily_cap_usd", str(spend_policy.get("daily_cap_usd", ""))),
+                    ("secret.spend_policy.dashboard_status", str(dashboard_limit.get("status", ""))),
                     ("secret.binding_count", len(row.get("bindings", [])) if isinstance(row.get("bindings"), list) else 0),
                     ("keychain.service", str(row.get("keychain_service", "")).strip()),
                     ("keychain.account", str(row.get("keychain_account", "")).strip()),
@@ -28041,6 +28527,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Read the secret value from --env-var-name in the current process environment",
     )
+    s_secrets_keychain_add.add_argument(
+        "--daily-spend-cap-usd",
+        type=float,
+        default=None,
+        help="Optional local daily USD spend cap for provider calls that use this key",
+    )
+    s_secrets_keychain_add.add_argument(
+        "--dashboard-spend-cap-status",
+        choices=["unconfirmed", "confirmed", "not_applicable"],
+        default="",
+        help="Record whether the matching provider dashboard spend limit has been confirmed",
+    )
+    s_secrets_keychain_add.add_argument(
+        "--dashboard-project-id",
+        default="",
+        help="Optional provider dashboard project id associated with this key/cap",
+    )
+    s_secrets_keychain_add.add_argument(
+        "--dashboard-url",
+        default="",
+        help="Optional provider dashboard URL where the spend cap is managed",
+    )
     add_secret_scope_flags(s_secrets_keychain_add)
     s_secrets_keychain_add.add_argument("--purpose", default="", help="Optional project usage note when binding")
     s_secrets_keychain_add.add_argument(
@@ -28050,6 +28558,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_secrets_keychain_add)
     s_secrets_keychain_add.set_defaults(func=cmd_secrets_keychain_add, json_output=False)
+
+    s_secrets_keychain_spend_policy = secrets_sub.add_parser(
+        "keychain-spend-policy",
+        help="Attach or update local spend policy metadata for an existing Keychain secret",
+    )
+    s_secrets_keychain_spend_policy.add_argument("secret_ref", help="Secret alias or id")
+    s_secrets_keychain_spend_policy.add_argument(
+        "--daily-spend-cap-usd",
+        type=float,
+        required=True,
+        help="Local daily USD spend cap for provider calls that use this key",
+    )
+    s_secrets_keychain_spend_policy.add_argument(
+        "--dashboard-spend-cap-status",
+        choices=["unconfirmed", "confirmed", "not_applicable"],
+        default="",
+        help="Record whether the matching provider dashboard spend limit has been confirmed",
+    )
+    s_secrets_keychain_spend_policy.add_argument(
+        "--dashboard-project-id",
+        default="",
+        help="Optional provider dashboard project id associated with this key/cap",
+    )
+    s_secrets_keychain_spend_policy.add_argument(
+        "--dashboard-url",
+        default="",
+        help="Optional provider dashboard URL where the spend cap is managed",
+    )
+    add_json_flag(s_secrets_keychain_spend_policy)
+    s_secrets_keychain_spend_policy.set_defaults(func=cmd_secrets_keychain_spend_policy, json_output=False)
 
     s_secrets_keychain_list = secrets_sub.add_parser(
         "keychain-list",

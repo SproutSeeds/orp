@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest import mock
 import subprocess
@@ -33,6 +34,19 @@ def run_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 class OrpResearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        self._xdg_config_home = tempfile.TemporaryDirectory()
+        os.environ["XDG_CONFIG_HOME"] = self._xdg_config_home.name
+        self.addCleanup(self._restore_xdg_config_home)
+
+    def _restore_xdg_config_home(self) -> None:
+        self._xdg_config_home.cleanup()
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
+
     def test_research_profile_show_exposes_staged_template(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -456,6 +470,119 @@ class OrpResearchTests(unittest.TestCase):
             world_id="",
             idea_id="",
         )
+
+    def test_openai_adapter_reserves_keychain_daily_spend_before_call(self) -> None:
+        module = load_cli_module()
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "id": "resp_spend_test",
+                        "status": "completed",
+                        "model": "gpt-5.4",
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [{"type": "output_text", "text": "Spend-governed answer."}],
+                            }
+                        ],
+                        "usage": {"input_tokens": 10, "output_tokens": 5},
+                    }
+                ).encode("utf-8")
+
+        lane = {
+            "lane_id": "openai_reasoning_high",
+            "call_moment": "thinking_reasoning_high",
+            "label": "OpenAI reasoning high",
+            "provider": "openai",
+            "model": "gpt-5.4",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "secret_alias": "openai-primary",
+            "spend_reserve_usd": 1.25,
+        }
+        entry = {
+            "alias": "openai-primary",
+            "provider": "openai",
+            "spend_policy": {
+                "daily_cap_usd": 5.0,
+                "dashboard_limit": {"status": "confirmed", "provider": "openai"},
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            ledger_path = Path(td) / "spend-ledger.json"
+            with mock.patch.object(module, "_research_spend_ledger_path", return_value=ledger_path):
+                with mock.patch.object(module, "_research_secret_value_for_lane", return_value=("sk-openai-test", "keychain", "")):
+                    with mock.patch.object(module, "_select_keychain_entry", return_value=entry):
+                        with mock.patch.object(module.urlrequest, "urlopen", return_value=FakeResponse()):
+                            result = module._research_run_openai_lane(
+                                lane,
+                                "Prompt body",
+                                timeout_sec=13,
+                                started_at_utc="2026-04-17T00:00:00Z",
+                            )
+
+            self.assertEqual(result["status"], "complete")
+            self.assertTrue(result["api_call"]["called"])
+            spend = result["api_call"]["spend_preflight"]
+            self.assertTrue(spend["allowed"])
+            self.assertEqual(spend["daily_cap_usd"], 5.0)
+            self.assertEqual(spend["reserve_usd"], 1.25)
+            self.assertEqual(spend["dashboard_limit"]["status"], "confirmed")
+            self.assertTrue(spend["reservation_id"].startswith("spend-"))
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            self.assertEqual([row["event"] for row in ledger["records"]], ["reserved", "usage"])
+            self.assertEqual(ledger["records"][0]["amount_usd"], 1.25)
+            self.assertEqual(ledger["records"][1]["amount_usd"], 0.0)
+            self.assertEqual(ledger["records"][1]["usage"]["output_tokens"], 5)
+
+    def test_openai_adapter_skips_when_daily_spend_cap_would_be_exceeded(self) -> None:
+        module = load_cli_module()
+        lane = {
+            "lane_id": "openai_deep_research",
+            "call_moment": "pro_deep_research",
+            "label": "OpenAI deep research",
+            "provider": "openai",
+            "model": "o3-deep-research-2025-06-26",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "secret_alias": "openai-primary",
+            "spend_reserve_usd": 1.25,
+        }
+        entry = {
+            "alias": "openai-primary",
+            "provider": "openai",
+            "spend_policy": {
+                "daily_cap_usd": 1.0,
+                "dashboard_limit": {"status": "confirmed", "provider": "openai"},
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            ledger_path = Path(td) / "spend-ledger.json"
+            with mock.patch.object(module, "_research_spend_ledger_path", return_value=ledger_path):
+                with mock.patch.object(module, "_research_secret_value_for_lane", return_value=("sk-openai-test", "keychain", "")):
+                    with mock.patch.object(module, "_select_keychain_entry", return_value=entry):
+                        with mock.patch.object(module.urlrequest, "urlopen") as urlopen:
+                            result = module._research_run_openai_lane(
+                                lane,
+                                "Prompt body",
+                                timeout_sec=13,
+                                started_at_utc="2026-04-17T00:00:00Z",
+                            )
+
+            self.assertEqual(result["status"], "skipped")
+            self.assertFalse(result["api_call"]["called"])
+            self.assertFalse(result["api_call"]["spend_preflight"]["allowed"])
+            self.assertEqual(result["api_call"]["spend_preflight"]["reason"], "daily spend cap would be exceeded")
+            self.assertFalse(ledger_path.exists())
+            urlopen.assert_not_called()
 
     def test_openai_adapter_records_incomplete_details(self) -> None:
         module = load_cli_module()
