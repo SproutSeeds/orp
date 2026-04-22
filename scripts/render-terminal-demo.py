@@ -14,30 +14,33 @@ GIF_PATH = ASSETS / "terminal-demo.gif"
 POSTER_PATH = ASSETS / "terminal-demo-poster.png"
 STORYBOARD_PATH = ASSETS / "terminal-demo-storyboard.png"
 
-WIDTH = 1360
-HEIGHT = 840
-SIDE_MARGIN = 72
-SHELL_TOP = 132
-BOTTOM_MARGIN = 72
+WIDTH = 1400
+HEIGHT = 900
+SIDE_MARGIN = 64
+SHELL_TOP = 188
+BOTTOM_MARGIN = 128
 WINDOW_PADDING = 28
 
-OUTER_BG = "#07131F"
-WINDOW_BG = "#0A1728"
-WINDOW_EDGE = "#16314D"
-TITLEBAR_BG = "#10243A"
-TERMINAL_BG = "#0C1B2E"
-INK = "#E7F4F1"
-MUTED = "#8FA7BF"
-DIM = "#6C819A"
-ACCENT = "#6EE7D8"
-SKY = "#8DBEFF"
-SOFT = "#F1D6B8"
-CORAL = "#FF9A86"
-LIME = "#BDEB9B"
-GOLD = "#F6D98D"
+OUTER_BG = "#050C13"
+WINDOW_BG = "#081929"
+WINDOW_EDGE = "#173B5A"
+TITLEBAR_BG = "#10283D"
+TERMINAL_BG = "#071525"
+INK = "#EAF7F3"
+MUTED = "#9AB2C8"
+DIM = "#63798F"
+ACCENT = "#70F0DF"
+SKY = "#8AB8FF"
+SOFT = "#F3D9B7"
+CORAL = "#FF9B88"
+LIME = "#BDF59E"
+GOLD = "#F6D06F"
+MASCOT_DARK = "#14324A"
+MASCOT_BODY = "#DDFCF4"
+MASCOT_WING = "#62DDCC"
 
 FONT_MONO = "/System/Library/Fonts/Menlo.ttc"
-FONT_SANS_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+FONT_SANS_BOLD = "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf"
 
 
 def load_font(path: str, size: int) -> ImageFont.ImageFont:
@@ -50,160 +53,156 @@ def load_font(path: str, size: int) -> ImageFont.ImageFont:
 MONO_18 = load_font(FONT_MONO, 18)
 MONO_20 = load_font(FONT_MONO, 20)
 MONO_24 = load_font(FONT_MONO, 24)
-MONO_28 = load_font(FONT_MONO, 28)
 MONO_32 = load_font(FONT_MONO, 32)
 SANS_22 = load_font(FONT_SANS_BOLD, 22)
 SANS_26 = load_font(FONT_SANS_BOLD, 26)
 SANS_34 = load_font(FONT_SANS_BOLD, 34)
 SANS_52 = load_font(FONT_SANS_BOLD, 52)
+SANS_66 = load_font(FONT_SANS_BOLD, 66)
 
 CONTENT_X = SIDE_MARGIN + WINDOW_PADDING + 46
-CONTENT_Y = SHELL_TOP + 138
-CONTENT_WIDTH = (WIDTH - SIDE_MARGIN - WINDOW_PADDING) - CONTENT_X - 20
+CONTENT_Y = SHELL_TOP + 132
+CONTENT_WIDTH = 760
 LINE_HEIGHT = 34
-TYPING_MS = 75
+TYPING_MS = 48
 COMMAND_SETTLE_MS = 320
-OUTPUT_STEP_MS = 240
-SCENE_HOLD_MS = 23000
+OUTPUT_STEP_MS = 180
+SCENE_HOLD_MS = 8500
 
 SCENES = [
     {
         "id": "home",
-        "label": "home",
-        "headline": "discover the surface",
+        "label": "field guide",
+        "headline": "context before claims",
+        "sermon": [
+            "Read the room first.",
+            "Then route the agent.",
+            "Receipts beat vibes.",
+        ],
         "command": "orp home",
         "output_font": "small",
         "line_height": 30,
         "output": [
-            ("ORP 0.4.16", ACCENT),
-            ("Agent-first CLI for workspace ledgers, secrets, scheduling, and research workflows.", INK),
-            ("Repo", SKY),
-            ("  root: ~/code/open-research-protocol", INK),
-            ("  config: orp.yml (missing)", ACCENT),
-            ("  git: yes, branch=main, commit=1a2b3c4", SOFT),
+            ("ORP 0.4.28", ACCENT),
+            ("Agent-first CLI for workspace ledgers, agendas, secrets, and research workflows.", INK),
             ("Daily Loop", SKY),
             ("  orp workspace tabs main", ACCENT),
-            ('  orp secrets add --alias <alias> --label "<label>" --provider <provider>', INK),
-            ('  orp checkpoint create -m "capture loop state"', SOFT),
-        ],
-    },
-    {
-        "id": "hosted",
-        "label": "hosted",
-        "headline": "see the control plane",
-        "command": "orp workspaces list",
-        "output": [
-            ("workspaces.count=2", ACCENT),
-            ("cursor=", INK),
-            ("has_more=false", SKY),
-            ("source=idea_bridge", ACCENT),
-            ("---", DIM),
-            ("workspace.id=main-cody-1", INK),
-            ("workspace.title=main-cody-1", SKY),
-            ("workspace.tab_count=18", SOFT),
-        ],
-    },
-    {
-        "id": "secrets",
-        "label": "secrets",
-        "headline": "save the key once, reuse it later",
-        "command": 'orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai',
-        "output": [
-            ("Secret value:", ACCENT),
-            ("  sk-...", INK),
-            ("secret.alias=openai-primary", SKY),
-            ("secret.provider=openai", ACCENT),
-            ("secret.kind=api_key", INK),
-            ("secret.status=active", SKY),
-            ("next: orp secrets resolve openai-primary --reveal", SOFT),
+            ("  orp project refresh --json", INK),
+            ("  orp agenda focus", SOFT),
+            ("  orp mode breakdown granular-breakdown", SKY),
         ],
     },
     {
         "id": "workspace",
         "label": "workspace",
-        "headline": "keep the workspace ledger",
+        "headline": "save every live thread",
+        "sermon": [
+            "A tab is a thread.",
+            "A thread needs a path.",
+            "A crash should not win.",
+        ],
         "command": "orp workspace tabs main",
         "output": [
-            ("saved tabs: 11", ACCENT),
-            ("ledger: hosted canonical + local cache", INK),
-            ("recovery: copy the exact cd && resume command you need", SKY),
-            ("tools: codex resume and claude --resume are both tracked", ACCENT),
-            ("tail tabs: orp · orp-web-app · RigidityCore · frg-site", SOFT),
+            ("saved tabs: 24", ACCENT),
+            ("projects: grouped by repo", SKY),
+            ("orp", INK),
+            ("  path: ~/code/orp", INK),
+            ("  resume: cd '~/code/orp' && codex resume 019d32d3-d8b2-7fa2-aaec-c74b5134afd6", SOFT),
+            ("claude and codex recovery commands stay side-by-side", ACCENT),
         ],
     },
     {
-        "id": "schedule",
-        "label": "schedule",
-        "headline": "automate the next loop",
-        "command": 'orp schedule add codex --name morning-summary --prompt "Summarize this repo"',
+        "id": "secrets",
+        "label": "secrets",
+        "headline": "save keys without spilling them",
+        "sermon": [
+            "Name the credential.",
+            "Hide the value.",
+            "Reuse it safely.",
+        ],
+        "command": "orp secrets add --alias openai-primary --provider openai",
         "output": [
-            ("ORP Scheduled Job Created", ACCENT),
-            ("Name: morning-summary", INK),
-            ("Kind: codex", SKY),
-            ("Schedule: daily at 09:00", ACCENT),
-            ("Prompt source: inline", INK),
-            ("Codex session id: none", SKY),
-            ("Next steps:", ACCENT),
-            ("  orp schedule run morning-summary", SOFT),
+            ("Secret value:", ACCENT),
+            ("  sk-...", INK),
+            ("secret.alias=openai-primary", SKY),
+            ("secret.provider=openai", ACCENT),
+            ("username: optional", INK),
+            ("value: stored locally, not printed", SKY),
+            ("next: orp secrets keychain-spend-policy openai-primary --daily-spend-cap-usd 5", SOFT),
+        ],
+    },
+    {
+        "id": "research",
+        "label": "research",
+        "headline": "ask in lanes, spend with consent",
+        "sermon": [
+            "Dry-run the plan.",
+            "Use OpenAI when it helps.",
+            "Spend only on purpose.",
+        ],
+        "command": 'orp research ask "Should we expand this project?" --json',
+        "output": [
+            ("status: planned", ACCENT),
+            ("lanes: plan -> reason -> web -> deep research", SKY),
+            ("openai: ready when --execute is explicit", INK),
+            ("spend_preflight: checked before provider calls", SOFT),
+            ("answer path: orp/research/<run_id>/ANSWER.json", ACCENT),
         ],
     },
     {
         "id": "governance",
         "label": "governance",
-        "headline": "checkpoint the repo safely",
+        "headline": "checkpoint the work, not the vibes",
+        "sermon": [
+            "Progress gets named.",
+            "Repos stay recoverable.",
+            "Evidence stays separate.",
+        ],
         "command": 'orp checkpoint create -m "capture loop state"',
         "output": [
-            ("commit=7f3c2a1", ACCENT),
-            ("branch=work/release-hardening", INK),
-            ("message=checkpoint: capture loop state", SKY),
-            ("checkpoint_log=orp/checkpoints/CHECKPOINT_LOG.md", ACCENT),
-            ("git_runtime=orp/git/runtime.json", SOFT),
+            ("checkpoint: capture loop state", ACCENT),
+            ("branch: work/release-hardening", INK),
+            ("backup: ready", SKY),
+            ("doctor: clean enough to keep moving", ACCENT),
+            ("boundary: ORP is process; proof lives in canonical artifacts", SOFT),
         ],
     },
     {
-        "id": "planning",
-        "label": "planning",
-        "headline": "track the live point",
-        "command": "orp frontier state",
+        "id": "breakdown",
+        "label": "breakdown",
+        "headline": "make hard work legible",
+        "sermon": [
+            "Broad first.",
+            "Then lanes.",
+            "Then atoms.",
+        ],
+        "command": "orp mode breakdown granular-breakdown",
         "output": [
-            ("program_id=sunflower-coda", ACCENT),
-            ("active_version=v10", INK),
-            ("active_milestone=v10.3", SKY),
-            ("active_phase=395", ACCENT),
-            ("band=verification", INK),
-            ("next_action=Execute Phase 395", SKY),
-            ("blocked_by=(none)", SOFT),
+            ("sequence:", ACCENT),
+            ("  L0 whole frame", INK),
+            ("  L1 boundary", SKY),
+            ("  L2 major lanes", INK),
+            ("  L4 atomic obligations", SOFT),
+            ("  L7 durable checklist", ACCENT),
+            ("use when the project feels bigger than your hands", SKY),
         ],
     },
     {
-        "id": "synthesis",
-        "label": "synthesis",
-        "headline": "scan, synthesize, collaborate",
-        "command": "orp exchange repo synthesize /path/to/source",
-        "output": [
-            ("exchange_id=exc_20260331_001", ACCENT),
-            ("source.mode=local_path", INK),
-            ("source.local_path=/path/to/source", SKY),
-            ("source.git_present=true", ACCENT),
-            ("artifacts.exchange_json=orp/exchange/exc_20260331_001/EXCHANGE.json", INK),
-            ("artifacts.summary_md=orp/exchange/exc_20260331_001/SUMMARY.md", SKY),
-            ("artifacts.transfer_map_md=orp/exchange/exc_20260331_001/TRANSFER_MAP.md", SOFT),
+        "id": "share",
+        "label": "publish",
+        "headline": "share the protocol forward",
+        "sermon": [
+            "Open research is a relay.",
+            "Make the next handoff kinder.",
+            "Leave a map.",
         ],
-    },
-    {
-        "id": "mode",
-        "label": "mode",
-        "headline": "change the lens",
-        "command": "orp mode nudge sleek-minimal-progressive",
+        "command": "orp report summary --json",
         "output": [
-            ("mode.id=sleek-minimal-progressive", ACCENT),
-            ("mode.label=Sleek Minimal Progressive", INK),
-            ("nudge.title=Subtractive Spark", SKY),
-            ("nudge.prompt=remove one thing before adding one surprising move", ACCENT),
-            ("nudge.twist=keep the architecture cleaner than the idea feels", INK),
-            ("nudge.release=drop the first obvious framing", SOFT),
-            ("nudge.micro_loop:", ACCENT),
-            ("- zoom out, rotate, re-enter deliberately", SKY),
+            ("packet: ready", ACCENT),
+            ("report: current state summarized", INK),
+            ("handoff: agent-readable", SKY),
+            ("install: npm install -g open-research-protocol", SOFT),
+            ("message: keep research open, recoverable, and kind", ACCENT),
         ],
     },
 ]
@@ -247,27 +246,29 @@ def wrap_command(command: str, font: ImageFont.ImageFont, max_width: int) -> lis
 
 def draw_background(draw: ImageDraw.ImageDraw) -> None:
     draw.rectangle((0, 0, WIDTH, HEIGHT), fill=OUTER_BG)
+    for y in range(0, HEIGHT, 6):
+        blend = y / max(1, HEIGHT)
+        red = int(5 + blend * 4)
+        green = int(12 + blend * 10)
+        blue = int(19 + blend * 20)
+        draw.rectangle((0, y, WIDTH, y + 6), fill=(red, green, blue))
     orbit_colors = [ACCENT, SKY, SOFT, ACCENT, SKY]
     orbit_points = [
-        (84, 70),
-        (WIDTH - 88, 66),
-        (106, HEIGHT - 118),
-        (232, HEIGHT - 176),
-        (WIDTH - 210, HEIGHT - 162),
-        (WIDTH - 116, HEIGHT - 110),
+        (84, 76),
+        (WIDTH - 92, 78),
+        (118, HEIGHT - 120),
+        (268, HEIGHT - 188),
     ]
     for idx, (x, y) in enumerate(orbit_points):
         r = 8 if idx % 2 == 0 else 6
         color = orbit_colors[idx % len(orbit_colors)]
         draw.ellipse((x - r, y - r, x + r, y + r), fill=color)
-    draw.line((106, HEIGHT - 118, 232, HEIGHT - 176), fill="#17324D", width=2)
-    draw.line((WIDTH - 210, HEIGHT - 162, WIDTH - 116, HEIGHT - 110), fill="#17324D", width=2)
 
 
 def draw_terminal_shell(draw: ImageDraw.ImageDraw) -> tuple[int, int, int, int]:
     left = SIDE_MARGIN
     top = SHELL_TOP
-    right = WIDTH - SIDE_MARGIN
+    right = 966
     bottom = HEIGHT - BOTTOM_MARGIN
     draw.rounded_rectangle((left, top, right, bottom), radius=36, fill=WINDOW_BG, outline=WINDOW_EDGE, width=2)
     draw.rounded_rectangle(
@@ -300,11 +301,133 @@ def draw_scene_header(draw: ImageDraw.ImageDraw, scene: dict) -> None:
     label = scene["label"].upper()
     label_box = draw.textbbox((0, 0), label, font=MONO_20)
     label_x = (WIDTH - (label_box[2] - label_box[0])) // 2
-    draw.text((label_x, 18), label, font=MONO_20, fill=DIM)
+    draw.text((label_x, 24), label, font=MONO_20, fill=DIM)
     headline = scene["headline"]
-    headline_box = draw.textbbox((0, 0), headline, font=SANS_52)
+    headline_box = draw.textbbox((0, 0), headline, font=SANS_66)
     headline_x = (WIDTH - (headline_box[2] - headline_box[0])) // 2
-    draw.text((headline_x, 42), headline, font=SANS_52, fill=ACCENT)
+    draw.text((headline_x, 58), headline, font=SANS_66, fill=ACCENT)
+
+
+def draw_speech_bubble(draw: ImageDraw.ImageDraw, scene: dict) -> None:
+    left, top, right, bottom = 996, 202, 1332, 398
+    draw.rounded_rectangle((left, top, right, bottom), radius=28, fill="#0E2335", outline="#1E4969", width=2)
+    draw.polygon([(1060, bottom - 2), (1096, bottom - 2), (1076, bottom + 34)], fill="#0E2335", outline="#1E4969")
+    draw.text((left + 28, top + 22), "protocol note", font=MONO_20, fill=SKY)
+    y = top + 62
+    for line in scene.get("sermon", []):
+        for wrapped in wrap_line(str(line), SANS_26, right - left - 54):
+            draw.text((left + 28, y), wrapped, font=SANS_26, fill=INK)
+            y += 32
+
+
+def draw_mascot_mouth(
+    draw: ImageDraw.ImageDraw,
+    cx: int,
+    cy: int,
+    scene: dict,
+    pulse: int,
+    scale: float = 1.0,
+) -> None:
+    expression = {
+        "home": "smile",
+        "workspace": "focused",
+        "secrets": "wink",
+        "research": "curious",
+        "governance": "proud",
+        "breakdown": "ooh",
+        "share": "beam",
+        "hero": "beam",
+    }.get(str(scene.get("id", "")), "smile")
+    def p(dx: float, dy: float) -> tuple[int, int]:
+        return (round(cx + dx * scale), round(cy + dy * scale))
+
+    def box(x1: float, y1: float, x2: float, y2: float) -> tuple[int, int, int, int]:
+        return (*p(x1, y1), *p(x2, y2))
+
+    width_3 = max(2, round(3 * scale))
+    width_4 = max(2, round(4 * scale))
+    width_5 = max(2, round(5 * scale))
+    wobble = int(math.sin(pulse / 2.0) * 2 * scale)
+    if expression == "focused":
+        draw.arc(box(-20, 14, 20, 42), start=205, end=335, fill=MASCOT_DARK, width=width_4)
+        draw.line((*p(-12, 32 + wobble), *p(12, 32 - wobble)), fill=MASCOT_DARK, width=width_3)
+    elif expression == "wink":
+        draw.arc(box(-22, 8, 22, 38), start=18, end=162, fill=CORAL, width=width_5)
+        draw.ellipse(box(18, 18, 26, 26), fill=GOLD)
+    elif expression == "curious":
+        draw.ellipse(box(-12, 16, 12, 40), fill=MASCOT_DARK)
+        draw.ellipse(box(-5, 22, 5, 34), fill=CORAL)
+    elif expression == "proud":
+        draw.arc(box(-26, 4, 26, 42), start=22, end=158, fill=MASCOT_DARK, width=width_5)
+        draw.ellipse(box(-16, 30, -8, 38), fill=ACCENT)
+        draw.ellipse(box(8, 30, 16, 38), fill=ACCENT)
+    elif expression == "ooh":
+        draw.ellipse(box(-15, 14, 15, 46), fill=MASCOT_DARK)
+        draw.ellipse(box(-6, 23, 6, 37), fill="#FBE7C8")
+    elif expression == "beam":
+        draw.rounded_rectangle(box(-26, 16, 26, 42), radius=round(12 * scale), fill=MASCOT_DARK)
+        for tooth_x in (-13, 0, 13):
+            draw.line((*p(tooth_x, 17), *p(tooth_x, 40)), fill="#DDFCF4", width=max(1, round(2 * scale)))
+        draw.arc(box(-28, 6, 28, 48), start=20, end=160, fill=CORAL, width=width_3)
+    else:
+        draw.arc(box(-24, 10, 24, 42), start=20, end=160, fill=MASCOT_DARK, width=width_5)
+        draw.ellipse(box(-9, 30, 9, 38), fill=CORAL)
+
+
+def draw_mascot(
+    draw: ImageDraw.ImageDraw,
+    scene: dict,
+    pulse: int = 0,
+    *,
+    center: tuple[int, int] = (1136, 610),
+    scale: float = 1.0,
+) -> None:
+    base_cx, base_cy = center
+    cx = base_cx
+    cy = base_cy + int(math.sin(pulse / 3.0) * 4 * scale)
+
+    def p(dx: float, dy: float) -> tuple[int, int]:
+        return (round(cx + dx * scale), round(cy + dy * scale))
+
+    def box(x1: float, y1: float, x2: float, y2: float) -> tuple[int, int, int, int]:
+        return (*p(x1, y1), *p(x2, y2))
+
+    outline_width = max(2, round(3 * scale))
+    eye_width = max(2, round(3 * scale))
+    draw.ellipse(box(-82, 84, 82, 110), fill="#03101A")
+    draw.polygon(
+        [
+            p(-78, -52),
+            p(-50, -122),
+            p(-16, -54),
+            p(16, -54),
+            p(50, -122),
+            p(78, -52),
+            p(66, 58),
+            p(34, 88),
+            p(-34, 88),
+            p(-66, 58),
+        ],
+        fill=MASCOT_BODY,
+        outline="#122B42",
+    )
+    draw.polygon([p(-48, -84), p(-28, -52), p(-62, -52)], fill="#CFFFF8")
+    draw.polygon([p(48, -84), p(28, -52), p(62, -52)], fill="#CFFFF8")
+    draw.pieslice(box(-86, -30, -38, 56), start=92, end=270, fill=MASCOT_WING, outline="#122B42", width=outline_width)
+    draw.pieslice(box(38, -30, 86, 56), start=270, end=88, fill=MASCOT_WING, outline="#122B42", width=outline_width)
+    draw.ellipse(box(-52, -40, -10, 4), fill=TERMINAL_BG, outline="#122B42", width=eye_width)
+    draw.ellipse(box(10, -40, 52, 4), fill=TERMINAL_BG, outline="#122B42", width=eye_width)
+    blink = pulse % 17 == 0
+    if blink:
+        draw.line((*p(-43, -18), *p(-19, -18)), fill=ACCENT, width=max(2, round(4 * scale)))
+        draw.line((*p(19, -18), *p(43, -18)), fill=ACCENT, width=max(2, round(4 * scale)))
+    else:
+        draw.ellipse(box(-39, -30, -23, -14), fill=ACCENT)
+        draw.ellipse(box(23, -30, 39, -14), fill=ACCENT)
+    draw.polygon([p(-10, -2), p(10, -2), p(0, 15)], fill=GOLD)
+    draw_mascot_mouth(draw, cx, cy, scene, pulse, scale=scale)
+    draw.ellipse(box(-18, 66, -6, 78), fill=ACCENT)
+    draw.ellipse(box(6, 66, 18, 78), fill=SKY)
 
 
 def render_scene(scene: dict, typed_chars: Optional[int] = None, shown_lines: int = 0, cursor: bool = False) -> Image.Image:
@@ -313,6 +436,9 @@ def render_scene(scene: dict, typed_chars: Optional[int] = None, shown_lines: in
     draw_background(draw)
     draw_scene_header(draw, scene)
     draw_terminal_shell(draw)
+    pulse = int((typed_chars or 0) + shown_lines * 3)
+    draw_speech_bubble(draw, scene)
+    draw_mascot(draw, scene, pulse=pulse)
 
     command = scene["command"] if typed_chars is None else scene["command"][:typed_chars]
     command_lines = wrap_command(command, MONO_32, CONTENT_WIDTH)
@@ -340,7 +466,7 @@ def render_scene(scene: dict, typed_chars: Optional[int] = None, shown_lines: in
     footer_box = draw.textbbox((0, 0), footer, font=MONO_24)
     footer_width = (footer_box[2] - footer_box[0]) + 46
     footer_x = (WIDTH - footer_width) // 2
-    footer_y = HEIGHT - 118
+    footer_y = HEIGHT - 84
     draw.rounded_rectangle((footer_x, footer_y, footer_x + footer_width, footer_y + 54), radius=15, fill=ACCENT)
     draw.text((footer_x + 23, footer_y + 14), footer, font=MONO_24, fill=WINDOW_BG)
     return image
@@ -356,7 +482,7 @@ def build_storyboard(final_frames: list[Image.Image]) -> Image.Image:
     board_height = thumb_height * rows + gutter * (rows + 1) + 72
     storyboard = Image.new("RGBA", (board_width, board_height), OUTER_BG)
     draw = ImageDraw.Draw(storyboard)
-    draw.text((gutter, 20), "ORP terminal walkthrough storyboard", font=SANS_34, fill=INK)
+    draw.text((gutter, 20), "ORP mascot walkthrough storyboard", font=SANS_34, fill=INK)
     for idx, frame in enumerate(final_frames):
         thumb = frame.copy()
         thumb.thumbnail((thumb_width, thumb_height))
@@ -370,6 +496,8 @@ def build_storyboard(final_frames: list[Image.Image]) -> Image.Image:
 
 def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
+    for old_scene in ASSETS.glob("terminal-scene-*.png"):
+        old_scene.unlink()
     frames: list[Image.Image] = []
     durations: list[int] = []
     final_scene_frames: list[Image.Image] = []

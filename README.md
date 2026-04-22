@@ -9,6 +9,12 @@ Maintained by SproutSeeds. Research stewardship: Fractal Research Group ([frg.ea
 [![license](https://img.shields.io/npm/l/open-research-protocol?color=111111&label=license)](./LICENSE)
 [![node](https://img.shields.io/node/v/open-research-protocol?color=111111&label=node)](https://www.npmjs.com/package/open-research-protocol)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/SproutSeeds/orp/main/assets/terminal-demo.gif" alt="open-research-protocol mascot terminal demo">
+</p>
+
+<p align="center"><strong>Hello, researcher.</strong> Keep the loop open, recoverable, and kind.</p>
+
 > Agent-first CLI for workspace ledgers, operating agendas, local governance, secrets, scheduling, packets, reports, and research workflows.
 
 **Links:** [GitHub](https://github.com/SproutSeeds/orp) · [npm](https://www.npmjs.com/package/open-research-protocol) · [frg.earth](https://frg.earth)
@@ -38,24 +44,21 @@ checkpoint layer. See
 
 ## Watch It Run
 
-A short ORP command-family walkthrough:
+The current animation introduces a small protocol mascot for the ORP message:
+context before claims, saved threads before crashes, hidden keys before exposed
+secrets, dry-run research before spend, checkpoints before handoffs, and
+breakdowns before overwhelm. The terminal still uses real ORP command surfaces
+rather than a fabricated UI.
 
-![open-research-protocol terminal demo](https://raw.githubusercontent.com/SproutSeeds/orp/main/assets/terminal-demo.gif)
-
-The current animation intentionally uses the same human-facing command surfaces ORP prints in the terminal. It is not a fabricated UI layer. It currently shows ORP from multiple angles:
+It currently shows ORP from seven angles:
 
 - `home` for discovery and next actions
-- `hosted` for ideas, workspaces, runners, and the control plane
-- `secrets` for create-or-reuse plus local Keychain sync
-- `workspace` for the hosted + local saved workspace ledger and recovery commands
-- `agenda` for Codex-ranked actions and suggestions across current work
-- `connections` for service accounts, data sources, deploy targets, and research destinations
-- `opportunities` for contests, programs, grants, and other tracked openings
-- `schedule` for recurring Codex jobs
+- `workspace` for grouped project/session ledgers and recovery commands
+- `secrets` for local reusable credentials and spend policy metadata
+- `research` for dry-run-first research lanes with an OpenAI-ready provider path
 - `governance` for local checkpoints and repo safety
-- `planning` for frontier, compute, packet, and report surfaces
-- `synthesis` for discover, exchange, collaborate, and YouTube ingestion
-- `mode` for optional perspective-shift nudges
+- `breakdown` for broad-to-atomic comprehension loops
+- `publish` for agent-readable reports, handoffs, and open research messaging
 
 Maintainer asset generation:
 

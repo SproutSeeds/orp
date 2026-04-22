@@ -6,6 +6,32 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.28 - 2026-04-22
+
+This release tightens the ORP project-startup and research-spend loops, then
+refreshes the public README presentation with a mascot-led terminal animation.
+
+### Added
+
+- Added `orp init --project-startup` support for a fuller new-project ritual:
+  private GitHub remote setup, `main` workspace ledger tracking, Codex session
+  capture, bootstrap command storage, and optional Clawdad delegation setup.
+- Added local research spend guardrails for provider-backed research lanes:
+  per-secret daily spend cap metadata, dashboard limit notes, local spend
+  ledger records, and OpenAI preflight blocking when a lane would exceed the
+  configured cap.
+- Added a mascot-led ORP terminal animation that explains workspace ledgers,
+  secrets, research lanes, governance checkpoints, breakdown mode, and
+  agent-readable handoffs in simple language.
+
+### Changed
+
+- Promoted the refreshed terminal animation to the top of the README with a
+  short greeting and updated the walkthrough copy to match the current ORP
+  command surface.
+- Simplified generated animation scenes from a crowded command survey into a
+  cleaner seven-scene story with an expressive mascot and real CLI commands.
+
 ## v0.4.27 - 2026-04-18
 
 This release adds a staged OpenAI research profile and default-on worktree
