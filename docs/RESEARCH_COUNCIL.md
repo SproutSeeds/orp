@@ -22,11 +22,11 @@ orp research ask "Where should this system live?" --execute --json
 
 The built-in `openai-council` profile defines three OpenAI API lanes:
 
-- `openai_reasoning_high`: `gpt-5.4` with `reasoning.effort=high` for the deliberate thinking pass.
-- `openai_web_synthesis`: `gpt-5.4` with high reasoning plus Responses API web search for current public evidence and citations.
-- `openai_deep_research`: `o3-deep-research-2025-06-26` with background execution and web search preview for Pro/Deep Research style investigation.
+- `openai_reasoning_high`: `gpt-5.5` with `reasoning.effort=high` for the deliberate thinking pass.
+- `openai_web_synthesis`: `gpt-5.5` with high reasoning plus Responses API web search for current public evidence and citations.
+- `openai_deep_research`: `gpt-5.5` with `reasoning.effort=xhigh`, background execution, and Responses API web search for Pro/Deep Research style investigation.
 
-This follows OpenAI's current model guidance: `gpt-5.4` is the default for general-purpose, coding, reasoning, and agentic workflows; web search is enabled through the Responses API `tools` array when current information is needed; and Deep Research is available through the Responses endpoint with `o3-deep-research-2025-06-26`.
+This follows OpenAI's current model guidance: `gpt-5.5` works best through the Responses API for reasoning and tool workflows; web search is enabled through the Responses API `tools` array when current information is needed; and deeper research-style work should use higher reasoning effort plus background mode.
 
 ## Staged Deep Research Template
 
@@ -119,7 +119,7 @@ Fixtures are useful when an OpenAI run happened outside ORP, when you are compar
 
 ORP uses the Responses API for these lanes. Useful knobs in profile JSON:
 
-- `model`: for example `gpt-5.4` or `o3-deep-research-2025-06-26`.
+- `model`: for example `gpt-5.5`.
 - `call_moment`: the named research-loop moment when this lane may resolve a key.
 - `reasoning_effort`: `none`, `low`, `medium`, `high`, or `xhigh` for supported models.
 - `reasoning_summary`: `auto` or `detailed` for Deep Research reasoning summaries.

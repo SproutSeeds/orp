@@ -111,16 +111,16 @@ test("buildWorkspaceTabsReport keeps duplicate titles unique and exposes generic
     "cd '/Volumes/Code_2TB/code/collaboration' && codex resume abc-123",
   );
   assert.equal(report.tabs[0]?.codexSessionId, "abc-123");
-  assert.equal(report.tabs[1]?.title, "anthropic-lab");
-  assert.equal(report.tabs[1]?.resumeCommand, "claude resume claude-456");
-  assert.equal(report.tabs[1]?.remoteBranch, "main");
+  assert.equal(report.tabs[1]?.title, "collaboration (2)");
+  assert.equal(report.tabs[1]?.codexSessionId, null);
+  assert.equal(report.tabs[2]?.title, "anthropic-lab");
+  assert.equal(report.tabs[2]?.resumeCommand, "claude resume claude-456");
+  assert.equal(report.tabs[2]?.remoteBranch, "main");
   assert.equal(
-    report.tabs[1]?.restartCommand,
+    report.tabs[2]?.restartCommand,
     "cd '/Volumes/Code_2TB/code/anthropic-lab' && claude resume claude-456",
   );
-  assert.equal(report.tabs[1]?.claudeSessionId, "claude-456");
-  assert.equal(report.tabs[2]?.title, "collaboration (2)");
-  assert.equal(report.tabs[2]?.codexSessionId, null);
+  assert.equal(report.tabs[2]?.claudeSessionId, "claude-456");
 });
 
 test("buildWorkspaceTabsReport ranks Codex tabs by recent local session activity", async () => {
@@ -181,6 +181,143 @@ test("buildWorkspaceTabsReport ranks Codex tabs by recent local session activity
   assert.equal(report.projects[0]?.path, "/Volumes/Code_2TB/code/newer-project");
   assert.equal(report.projects[1]?.path, "/Volumes/Code_2TB/code/older-project");
   assert.equal(report.projects[2]?.path, "/Volumes/Code_2TB/code/no-session-project");
+});
+
+test("buildWorkspaceTabsReport ranks tracked Codex sessions by update time, not rollout creation time", async () => {
+  const tempDir = await makeTempDir();
+  const codexHome = path.join(tempDir, "codex-home");
+  const sessionsDir = path.join(codexHome, "sessions", "2026", "04", "15");
+  await fs.mkdir(sessionsDir, { recursive: true });
+
+  const oldRolloutUpdatedSessionId = "019d0000-0000-7000-8000-000000000021";
+  const newRolloutStaleSessionId = "019d0000-0000-7000-8000-000000000022";
+  const untrackedFreshSessionId = "019d0000-0000-7000-8000-000000000023";
+  const oldRolloutUpdatedPath = path.join(
+    sessionsDir,
+    `rollout-2026-04-15T01-00-00-${oldRolloutUpdatedSessionId}.jsonl`,
+  );
+  const newRolloutStalePath = path.join(
+    sessionsDir,
+    `rollout-2026-04-15T09-00-00-${newRolloutStaleSessionId}.jsonl`,
+  );
+  const untrackedFreshPath = path.join(sessionsDir, `rollout-2026-04-15T10-00-00-${untrackedFreshSessionId}.jsonl`);
+
+  await fs.writeFile(oldRolloutUpdatedPath, "{}\n", "utf8");
+  await fs.writeFile(newRolloutStalePath, "{}\n", "utf8");
+  await fs.writeFile(untrackedFreshPath, "{}\n", "utf8");
+  await fs.utimes(oldRolloutUpdatedPath, new Date("2026-04-15T11:00:00Z"), new Date("2026-04-15T11:00:00Z"));
+  await fs.utimes(newRolloutStalePath, new Date("2026-04-15T09:00:00Z"), new Date("2026-04-15T09:00:00Z"));
+  await fs.utimes(untrackedFreshPath, new Date("2026-04-15T12:00:00Z"), new Date("2026-04-15T12:00:00Z"));
+
+  const parsed = parseWorkspaceSource({
+    sourceType: "workspace-file",
+    sourceLabel: "/tmp/workspace.json",
+    title: "workspace",
+    workspaceManifest: {
+      version: "1",
+      workspaceId: "orp-main",
+      tabs: [
+        {
+          title: "new-rollout-stale",
+          path: "/Volumes/Code_2TB/code/new-rollout-stale",
+          resumeCommand: `codex resume ${newRolloutStaleSessionId}`,
+        },
+        {
+          title: "old-rollout-updated",
+          path: "/Volumes/Code_2TB/code/old-rollout-updated",
+          resumeCommand: `codex resume ${oldRolloutUpdatedSessionId}`,
+        },
+      ],
+    },
+    notes: "",
+  });
+
+  const report = buildWorkspaceTabsReport(
+    {
+      sourceType: "workspace-file",
+      sourceLabel: "/tmp/workspace.json",
+      title: "workspace",
+    },
+    parsed,
+    { codexHome },
+  );
+
+  assert.deepEqual(
+    report.tabs.map((tab) => tab.title),
+    ["old-rollout-updated", "new-rollout-stale"],
+  );
+});
+
+test("buildWorkspaceTabsReport bubbles a project when one attached Codex session is freshest", async () => {
+  const tempDir = await makeTempDir();
+  const codexHome = path.join(tempDir, "codex-home");
+  const sessionsDir = path.join(codexHome, "sessions", "2026", "04", "16");
+  await fs.mkdir(sessionsDir, { recursive: true });
+
+  const projectAOlderSessionId = "019d0000-0000-7000-8000-000000000011";
+  const projectANewerSessionId = "019d0000-0000-7000-8000-000000000012";
+  const projectBSessionId = "019d0000-0000-7000-8000-000000000013";
+
+  const projectAOlderPath = path.join(sessionsDir, `rollout-2026-04-16T01-00-00-${projectAOlderSessionId}.jsonl`);
+  const projectANewerPath = path.join(sessionsDir, `rollout-2026-04-16T03-00-00-${projectANewerSessionId}.jsonl`);
+  const projectBPath = path.join(sessionsDir, `rollout-2026-04-16T02-00-00-${projectBSessionId}.jsonl`);
+
+  await fs.writeFile(projectAOlderPath, "{}\n", "utf8");
+  await fs.writeFile(projectANewerPath, "{}\n", "utf8");
+  await fs.writeFile(projectBPath, "{}\n", "utf8");
+  await fs.utimes(projectAOlderPath, new Date("2026-04-16T01:00:00Z"), new Date("2026-04-16T01:00:00Z"));
+  await fs.utimes(projectANewerPath, new Date("2026-04-16T03:00:00Z"), new Date("2026-04-16T03:00:00Z"));
+  await fs.utimes(projectBPath, new Date("2026-04-16T02:00:00Z"), new Date("2026-04-16T02:00:00Z"));
+
+  const parsed = parseWorkspaceSource({
+    sourceType: "workspace-file",
+    sourceLabel: "/tmp/workspace.json",
+    title: "workspace",
+    workspaceManifest: {
+      version: "1",
+      workspaceId: "orp-main",
+      tabs: [
+        {
+          title: "project-b",
+          path: "/Volumes/Code_2TB/code/project-b",
+          resumeCommand: `codex resume ${projectBSessionId}`,
+        },
+        {
+          title: "project-a-old",
+          path: "/Volumes/Code_2TB/code/project-a",
+          resumeCommand: `codex resume ${projectAOlderSessionId}`,
+        },
+        {
+          title: "project-a-new",
+          path: "/Volumes/Code_2TB/code/project-a",
+          resumeCommand: `codex resume ${projectANewerSessionId}`,
+        },
+      ],
+    },
+    notes: "",
+  });
+
+  const report = buildWorkspaceTabsReport(
+    {
+      sourceType: "workspace-file",
+      sourceLabel: "/tmp/workspace.json",
+      title: "workspace",
+    },
+    parsed,
+    { codexHome },
+  );
+
+  assert.deepEqual(
+    report.tabs.map((tab) => tab.title),
+    ["project-a-new", "project-a-old", "project-b"],
+  );
+  assert.equal(report.projects[0]?.path, "/Volumes/Code_2TB/code/project-a");
+  assert.equal(report.projects[0]?.sessionCount, 2);
+  assert.deepEqual(
+    report.projects[0]?.sessions.map((session) => session.title),
+    ["project-a-new", "project-a-old"],
+  );
+  assert.equal(report.projects[1]?.path, "/Volumes/Code_2TB/code/project-b");
 });
 
 test("runWorkspaceTabs prints JSON without launch commands", async () => {

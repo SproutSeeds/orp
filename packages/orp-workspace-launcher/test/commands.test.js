@@ -74,12 +74,12 @@ test("buildWorkspaceCommandsReport exposes direct restart commands and exact sav
   assert.equal(report.commandCount, 3);
   assert.equal(report.tabs[0]?.resumeCommand, "codex resume abc-123");
   assert.equal(report.tabs[0]?.restartCommand, "cd '/Volumes/Code_2TB/code/collaboration' && codex resume abc-123");
-  assert.equal(report.tabs[1]?.resumeCommand, "claude resume claude-456");
+  assert.equal(report.tabs[1]?.restartCommand, "cd '/Volumes/Code_2TB/code/collaboration'");
+  assert.equal(report.tabs[2]?.resumeCommand, "claude resume claude-456");
   assert.equal(
-    report.tabs[1]?.restartCommand,
+    report.tabs[2]?.restartCommand,
     "cd '/Volumes/Code_2TB/code/anthropic-lab' && claude resume claude-456",
   );
-  assert.equal(report.tabs[2]?.restartCommand, "cd '/Volumes/Code_2TB/code/collaboration'");
 });
 
 test("runWorkspaceCommands prints JSON with copyable commands", async () => {

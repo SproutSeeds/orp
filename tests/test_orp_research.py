@@ -352,7 +352,7 @@ class OrpResearchTests(unittest.TestCase):
                     {
                         "id": "resp_test",
                         "status": "completed",
-                        "model": "gpt-5.4",
+                        "model": "gpt-5.5",
                         "output": [
                             {"type": "web_search_call", "status": "completed"},
                             {
@@ -390,7 +390,7 @@ class OrpResearchTests(unittest.TestCase):
             "call_moment": "web_synthesis",
             "label": "OpenAI web synthesis",
             "provider": "openai",
-            "model": "gpt-5.4",
+            "model": "gpt-5.5",
             "adapter": "openai_responses",
             "env_var": "OPENAI_API_KEY",
             "reasoning_effort": "medium",
@@ -425,7 +425,7 @@ class OrpResearchTests(unittest.TestCase):
         self.assertEqual(result["citations"][0]["url"], "https://example.com")
         self.assertEqual(captured["url"], "https://api.openai.com/v1/responses")
         body = captured["body"]
-        self.assertEqual(body["model"], "gpt-5.4")
+        self.assertEqual(body["model"], "gpt-5.5")
         self.assertEqual(body["input"], "Prompt body")
         self.assertEqual(body["reasoning"], {"effort": "medium"})
         self.assertEqual(body["text"], {"verbosity": "high"})
@@ -486,7 +486,7 @@ class OrpResearchTests(unittest.TestCase):
                     {
                         "id": "resp_spend_test",
                         "status": "completed",
-                        "model": "gpt-5.4",
+                        "model": "gpt-5.5",
                         "output": [
                             {
                                 "type": "message",
@@ -502,7 +502,7 @@ class OrpResearchTests(unittest.TestCase):
             "call_moment": "thinking_reasoning_high",
             "label": "OpenAI reasoning high",
             "provider": "openai",
-            "model": "gpt-5.4",
+            "model": "gpt-5.5",
             "adapter": "openai_responses",
             "env_var": "OPENAI_API_KEY",
             "secret_alias": "openai-primary",
@@ -550,7 +550,7 @@ class OrpResearchTests(unittest.TestCase):
             "call_moment": "pro_deep_research",
             "label": "OpenAI deep research",
             "provider": "openai",
-            "model": "o3-deep-research-2025-06-26",
+            "model": "gpt-5.5",
             "adapter": "openai_responses",
             "env_var": "OPENAI_API_KEY",
             "secret_alias": "openai-primary",
@@ -599,7 +599,7 @@ class OrpResearchTests(unittest.TestCase):
                     {
                         "id": "resp_incomplete_test",
                         "status": "incomplete",
-                        "model": "gpt-5.4",
+                        "model": "gpt-5.5",
                         "incomplete_details": {"reason": "max_output_tokens"},
                         "output": [{"type": "reasoning", "summary": []}],
                         "usage": {
@@ -618,7 +618,7 @@ class OrpResearchTests(unittest.TestCase):
             "call_moment": "thinking_reasoning_high",
             "label": "OpenAI reasoning high",
             "provider": "openai",
-            "model": "gpt-5.4",
+            "model": "gpt-5.5",
             "adapter": "openai_responses",
             "env_var": "OPENAI_API_KEY",
             "reasoning_effort": "high",
@@ -656,7 +656,7 @@ class OrpResearchTests(unittest.TestCase):
                     {
                         "id": "resp_deep_test",
                         "status": "in_progress",
-                        "model": "o3-deep-research-2025-06-26",
+                        "model": "gpt-5.5",
                         "output": [],
                     }
                 ).encode("utf-8")
@@ -670,12 +670,13 @@ class OrpResearchTests(unittest.TestCase):
             "call_moment": "pro_deep_research",
             "label": "OpenAI Pro / Deep Research",
             "provider": "openai",
-            "model": "o3-deep-research-2025-06-26",
+            "model": "gpt-5.5",
             "adapter": "openai_responses",
             "env_var": "OPENAI_API_KEY",
+            "reasoning_effort": "xhigh",
             "reasoning_summary": "auto",
             "web_search": True,
-            "web_search_tool": "web_search_preview",
+            "web_search_tool": "web_search",
             "background": True,
             "max_tool_calls": 40,
         }
@@ -689,16 +690,16 @@ class OrpResearchTests(unittest.TestCase):
                 )
 
         body = captured["body"]
-        self.assertEqual(body["model"], "o3-deep-research-2025-06-26")
+        self.assertEqual(body["model"], "gpt-5.5")
         self.assertTrue(body["background"])
-        self.assertEqual(body["reasoning"], {"summary": "auto"})
-        self.assertEqual(body["tools"], [{"type": "web_search_preview", "search_context_size": "medium"}])
+        self.assertEqual(body["reasoning"], {"effort": "xhigh", "summary": "auto"})
+        self.assertEqual(body["tools"], [{"type": "web_search", "search_context_size": "medium"}])
         self.assertEqual(body["max_tool_calls"], 40)
         self.assertEqual(result["status"], "in_progress")
         self.assertEqual(result["provider_response_id"], "resp_deep_test")
         self.assertEqual(result["call_moment"], "pro_deep_research")
         self.assertTrue(result["api_call"]["called"])
-        self.assertEqual(result["api_call"]["tools"], ["web_search_preview"])
+        self.assertEqual(result["api_call"]["tools"], ["web_search"])
         self.assertEqual(result["output_types"], [])
 
     def test_direct_anthropic_adapter_uses_messages_api(self) -> None:

@@ -141,6 +141,8 @@ FRONTIER_TERMINAL_STATUSES = {"complete", "completed", "done", "skipped", "termi
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
 RESEARCH_RUN_SCHEMA_VERSION = "1.0.0"
+OPENAI_RESEARCH_MODEL = "gpt-5.5"
+OPENAI_DEEP_RESEARCH_MODEL = OPENAI_RESEARCH_MODEL
 SECRET_SPEND_POLICY_SCHEMA_VERSION = "1.0.0"
 RESEARCH_SPEND_LEDGER_SCHEMA_VERSION = "1.0.0"
 PROJECT_CONTEXT_SCHEMA_VERSION = "1.0.0"
@@ -10661,23 +10663,23 @@ def _project_research_trigger_policy() -> dict[str, Any]:
                 "moment_id": "thinking_reasoning_high",
                 "calls_api": True,
                 "lane": "openai_reasoning_high",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "when": "Use when the directory has a decision gate, route choice, proof strategy, architecture tradeoff, or ambiguous next action.",
             },
             {
                 "moment_id": "web_synthesis",
                 "calls_api": True,
                 "lane": "openai_web_synthesis",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "when": "Use when the answer depends on current public facts, external docs, papers, project status, or citations.",
             },
             {
                 "moment_id": "pro_deep_research",
                 "calls_api": True,
                 "lane": "openai_deep_research",
-                "model": "o3-deep-research-2025-06-26",
+                "model": OPENAI_DEEP_RESEARCH_MODEL,
                 "when": "Use only after reasoning/web lanes expose a research-heavy gap, disagreement, source-quality issue, or literature-scale synthesis need.",
-                "capability_note": "Requires an OpenAI organization verified for Deep Research model access.",
+                "capability_note": "Runs GPT-5.5 with background mode, web search, and xhigh reasoning for a pro-research-style pass.",
             },
         ],
         "skip_research_when": [
@@ -17656,7 +17658,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "calls_api": True,
                 "secret_alias": "openai-primary",
                 "env_var": "OPENAI_API_KEY",
-                "description": "Call GPT-5.4 with high reasoning to critique and compress the opening research.",
+                "description": f"Call {OPENAI_RESEARCH_MODEL} with high reasoning to critique and compress the opening research.",
             },
             {
                 "moment_id": "think_web_crosscheck",
@@ -17664,7 +17666,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "calls_api": True,
                 "secret_alias": "openai-primary",
                 "env_var": "OPENAI_API_KEY",
-                "description": "Call GPT-5.4 with high reasoning and web search to verify recency-sensitive claims.",
+                "description": f"Call {OPENAI_RESEARCH_MODEL} with high reasoning and web search to verify recency-sensitive claims.",
             },
             {
                 "moment_id": "think_synthesis",
@@ -17672,7 +17674,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "calls_api": True,
                 "secret_alias": "openai-primary",
                 "env_var": "OPENAI_API_KEY",
-                "description": "Call GPT-5.4 with high reasoning to resolve disagreements before final research.",
+                "description": f"Call {OPENAI_RESEARCH_MODEL} with high reasoning to resolve disagreements before final research.",
             },
             {
                 "moment_id": "final_deep_research",
@@ -17691,7 +17693,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "call_moment": "opening_deep_research",
                 "label": "Opening Deep Research",
                 "provider": "openai",
-                "model": "o3-deep-research-2025-06-26",
+                "model": OPENAI_DEEP_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": (
                     "Initial Deep Research scan. Map the landscape, source families, hard unknowns, "
@@ -17712,9 +17714,10 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
-                "web_search_tool": "web_search_preview",
+                "web_search_tool": "web_search",
                 "background": False,
                 "spend_reserve_usd": 1.5,
                 "max_tool_calls": 40,
@@ -17728,7 +17731,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "call_moment": "think_after_deep",
                 "label": "Think after Deep Research",
                 "provider": "openai",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": (
                     "High-reasoning critique of the opening Deep Research output. Compress it into a sharper "
@@ -17761,7 +17764,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "call_moment": "think_web_crosscheck",
                 "label": "Think with web cross-check",
                 "provider": "openai",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": (
                     "High-reasoning web-search pass. Verify current facts, citations, public claims, "
@@ -17799,7 +17802,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "call_moment": "think_synthesis",
                 "label": "Synthesis thinking pass",
                 "provider": "openai",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": (
                     "High-reasoning synthesis pass. Reconcile the deep-research map, critique, and web cross-check "
@@ -17831,7 +17834,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 "call_moment": "final_deep_research",
                 "label": "Final Deep Research",
                 "provider": "openai",
-                "model": "o3-deep-research-2025-06-26",
+                "model": OPENAI_DEEP_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": (
                     "Final Deep Research pass. Use all prior lane outputs to produce the decisive, source-grounded "
@@ -17851,9 +17854,10 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
-                "web_search_tool": "web_search_preview",
+                "web_search_tool": "web_search",
                 "background": False,
                 "spend_reserve_usd": 1.5,
                 "max_tool_calls": 40,
@@ -17901,7 +17905,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "calls_api": True,
                 "secret_alias": "openai-primary",
                 "env_var": "OPENAI_API_KEY",
-                "description": "Call GPT-5.4 with high reasoning for the deliberate thinking pass.",
+                "description": f"Call {OPENAI_RESEARCH_MODEL} with high reasoning for the deliberate thinking pass.",
             },
             {
                 "moment_id": "web_synthesis",
@@ -17909,7 +17913,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "calls_api": True,
                 "secret_alias": "openai-primary",
                 "env_var": "OPENAI_API_KEY",
-                "description": "Call GPT-5.4 with web search for current public evidence and citations.",
+                "description": f"Call {OPENAI_RESEARCH_MODEL} with web search for current public evidence and citations.",
             },
             {
                 "moment_id": "pro_deep_research",
@@ -17926,7 +17930,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "call_moment": "thinking_reasoning_high",
                 "label": "OpenAI reasoning high",
                 "provider": "openai",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": "Deliberate high-reasoning pass from the provided context. Think hard, critique assumptions, and produce a decision-oriented answer.",
                 "env_var": "OPENAI_API_KEY",
@@ -17941,7 +17945,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "call_moment": "web_synthesis",
                 "label": "OpenAI web synthesis",
                 "provider": "openai",
-                "model": "gpt-5.4",
+                "model": OPENAI_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": "Recency-aware synthesis using OpenAI Responses web search with citations.",
                 "env_var": "OPENAI_API_KEY",
@@ -17961,14 +17965,15 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "call_moment": "pro_deep_research",
                 "label": "OpenAI Pro / Deep Research",
                 "provider": "openai",
-                "model": "o3-deep-research-2025-06-26",
+                "model": OPENAI_DEEP_RESEARCH_MODEL,
                 "adapter": "openai_responses",
                 "role": "Pro Research style long-form investigation. Produce a structured, citation-rich report grounded in public sources.",
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
-                "web_search_tool": "web_search_preview",
+                "web_search_tool": "web_search",
                 "background": True,
                 "spend_reserve_usd": 3.5,
                 "max_tool_calls": 40,
@@ -18914,7 +18919,7 @@ def _research_run_openai_lane(
         }
 
     body: dict[str, Any] = {
-        "model": str(lane.get("model", "gpt-5.4")).strip() or "gpt-5.4",
+        "model": str(lane.get("model", OPENAI_RESEARCH_MODEL)).strip() or OPENAI_RESEARCH_MODEL,
         "input": prompt,
         "background": bool(lane.get("background", False)),
     }

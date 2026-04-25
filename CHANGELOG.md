@@ -6,6 +6,19 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.31 - 2026-04-25
+
+This release refreshes ORP's OpenAI-backed research lanes and tightens
+workspace tab recency ranking for grouped project sessions.
+
+### Changed
+
+- Updated built-in OpenAI research profiles to use `gpt-5.5` for high-reasoning,
+  web synthesis, and pro-research-style lanes, with Responses API `web_search`
+  and `xhigh` reasoning on deep research passes.
+- Workspace tab reports now rank grouped Codex project tabs by the freshest
+  tracked session update time while keeping same-project sessions together.
+
 ## v0.4.30 - 2026-04-25
 
 This release tightens ORP-managed Codex session tracking so short-lived

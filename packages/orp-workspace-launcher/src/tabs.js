@@ -122,9 +122,9 @@ function buildCodexActivityIndex(tabs = [], options = {}) {
   return activityBySessionId;
 }
 
-function orderTabsByRecentActivity(tabs = [], options = {}) {
+function buildRankedTabs(tabs = [], options = {}) {
   const activityBySessionId = buildCodexActivityIndex(tabs, options);
-  const rankedTabs = tabs.map((tab, originalIndex) => {
+  return tabs.map((tab, originalIndex) => {
     const sessionActivity =
       tab.resumeTool === "codex" && tab.sessionId ? activityBySessionId.get(String(tab.sessionId).toLowerCase()) : null;
     return {
@@ -133,24 +133,40 @@ function orderTabsByRecentActivity(tabs = [], options = {}) {
       activityMs: sessionActivity?.mtimeMs || 0,
     };
   });
+}
 
-  const projectActivity = new Map();
+function orderTabsByRecentActivity(tabs = [], options = {}) {
+  const rankedTabs = buildRankedTabs(tabs, options);
+  const projects = new Map();
+
   for (const ranked of rankedTabs) {
-    const current = projectActivity.get(ranked.tab.path) || 0;
-    projectActivity.set(ranked.tab.path, Math.max(current, ranked.activityMs));
+    const projectPath = ranked.tab.path;
+    if (!projects.has(projectPath)) {
+      projects.set(projectPath, {
+        projectPath,
+        firstIndex: ranked.originalIndex,
+        activityMs: ranked.activityMs,
+        tabs: [],
+      });
+    }
+
+    const project = projects.get(projectPath);
+    project.firstIndex = Math.min(project.firstIndex, ranked.originalIndex);
+    project.activityMs = Math.max(project.activityMs, ranked.activityMs);
+    project.tabs.push(ranked);
   }
 
-  return rankedTabs
-    .sort((left, right) => {
-      const leftProjectActivity = projectActivity.get(left.tab.path) || 0;
-      const rightProjectActivity = projectActivity.get(right.tab.path) || 0;
-      return (
-        rightProjectActivity - leftProjectActivity ||
+  return [...projects.values()]
+    .sort(
+      (left, right) =>
         right.activityMs - left.activityMs ||
-        left.originalIndex - right.originalIndex
-      );
-    })
-    .map((ranked) => ranked.tab);
+        left.firstIndex - right.firstIndex,
+    )
+    .flatMap((project) =>
+      project.tabs
+        .sort((left, right) => right.activityMs - left.activityMs || left.originalIndex - right.originalIndex)
+        .map((ranked) => ranked.tab),
+    );
 }
 
 export function parseWorkspaceTabsArgs(argv = []) {
