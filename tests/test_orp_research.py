@@ -584,6 +584,49 @@ class OrpResearchTests(unittest.TestCase):
             self.assertFalse(ledger_path.exists())
             urlopen.assert_not_called()
 
+    def test_openai_adapter_skips_required_lane_when_spend_policy_missing(self) -> None:
+        module = load_cli_module()
+        lane = {
+            "lane_id": "openai_deep_research",
+            "call_moment": "pro_deep_research",
+            "label": "OpenAI deep research",
+            "provider": "openai",
+            "model": "gpt-5.5",
+            "adapter": "openai_responses",
+            "env_var": "OPENAI_API_KEY",
+            "secret_alias": "openai-primary",
+            "spend_policy_required": True,
+            "spend_reserve_usd": 1.25,
+        }
+        entry = {
+            "alias": "openai-primary",
+            "provider": "openai",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            ledger_path = Path(td) / "spend-ledger.json"
+            with mock.patch.object(module, "_research_spend_ledger_path", return_value=ledger_path):
+                with mock.patch.object(module, "_research_secret_value_for_lane", return_value=("sk-openai-test", "keychain", "")):
+                    with mock.patch.object(module, "_select_keychain_entry", return_value=entry):
+                        with mock.patch.object(module.urlrequest, "urlopen") as urlopen:
+                            result = module._research_run_openai_lane(
+                                lane,
+                                "Prompt body",
+                                timeout_sec=13,
+                                started_at_utc="2026-04-17T00:00:00Z",
+                            )
+
+            self.assertEqual(result["status"], "skipped")
+            self.assertFalse(result["api_call"]["called"])
+            spend = result["api_call"]["spend_preflight"]
+            self.assertFalse(spend["allowed"])
+            self.assertTrue(spend["spend_policy_required"])
+            self.assertEqual(
+                spend["reason"],
+                "required spend policy missing: no spend policy configured for this local keychain entry",
+            )
+            self.assertFalse(ledger_path.exists())
+            urlopen.assert_not_called()
+
     def test_openai_adapter_records_incomplete_details(self) -> None:
         module = load_cli_module()
 

@@ -146,6 +146,11 @@ OPENAI_DEEP_RESEARCH_MODEL = OPENAI_RESEARCH_MODEL
 SECRET_SPEND_POLICY_SCHEMA_VERSION = "1.0.0"
 RESEARCH_SPEND_LEDGER_SCHEMA_VERSION = "1.0.0"
 PROJECT_CONTEXT_SCHEMA_VERSION = "1.0.0"
+HYGIENE_REMOTE_SPEND_MOMENT = "before remote side effects or unbudgeted paid compute"
+BUDGETED_RESEARCH_SPEND_RULE = (
+    "Do not hard-stop solely because an OpenAI research lane is paid; budgeted ORP research may run when "
+    "`orp research` spend preflight is within the configured daily cap."
+)
 HYGIENE_POLICY_SCHEMA_VERSION = "1.0.0"
 MAINTENANCE_STATE_SCHEMA_VERSION = "1.0.0"
 SCHEDULE_REGISTRY_SCHEMA_VERSION = "1.0.0"
@@ -6921,7 +6926,7 @@ def _default_hygiene_policy() -> dict[str, Any]:
     run_moments = [
         "before long delegation",
         "after material writeback",
-        "before API/remote/paid compute",
+        HYGIENE_REMOTE_SPEND_MOMENT,
         "when dirty state grows unexpectedly",
     ]
     self_healing_policy = [
@@ -10692,6 +10697,11 @@ def _project_research_trigger_policy() -> dict[str, Any]:
             "the project must compare multiple papers, standards, providers, or public claims",
             "the output needs a citation-rich report rather than a short decision memo",
         ],
+        "spend_policy": {
+            "budgeted_provider_calls": "OpenAI research lanes are paid but allowed when executed through ORP with a configured local spend policy and a passing spend preflight.",
+            "hard_stop_boundary": "Stop for missing required spend policy, missing secret, cap-exceeded preflight, unbudgeted provider spend, purchases, or non-ORP paid compute.",
+            "local_enforcement": "keychain spend policy with local_preflight_reservation",
+        },
     }
 
 
@@ -10711,7 +10721,7 @@ def _project_evolution_policy() -> dict[str, Any]:
             "run_moments": [
                 "before long delegation",
                 "after material writeback",
-                "before API/remote/paid compute",
+                HYGIENE_REMOTE_SPEND_MOMENT,
                 "when dirty state grows unexpectedly",
             ],
             "stop_rule": (
@@ -10720,10 +10730,11 @@ def _project_evolution_policy() -> dict[str, Any]:
                 "or write a blocker first."
             ),
             "self_healing_rule": "Non-destructive by default: never reset, checkout, or delete files merely to hide dirty state.",
+            "budgeted_research_spend_rule": BUDGETED_RESEARCH_SPEND_RULE,
         },
         "evolution_loop": [
             "scan authority surfaces",
-            "run worktree hygiene before expansion or remote spend",
+            "run worktree hygiene before expansion, remote side effects, or unbudgeted spend",
             "classify dirty state as canonical, runtime, source/test, docs, scratch, or blocker",
             "classify what is local, public, executable, or human-gated",
             "choose whether reasoning, web synthesis, or deep research is justified",
@@ -10764,9 +10775,10 @@ def _project_context_payload(repo_root: Path, *, source: str) -> dict[str, Any]:
             "run_moments": [
                 "before long delegation",
                 "after material writeback",
-                "before API/remote/paid compute",
+                HYGIENE_REMOTE_SPEND_MOMENT,
                 "when dirty state grows unexpectedly",
             ],
+            "budgeted_research_spend_rule": BUDGETED_RESEARCH_SPEND_RULE,
         },
         "evolution_policy": _project_evolution_policy(),
         "next_actions": [
@@ -10780,6 +10792,7 @@ def _project_context_payload(repo_root: Path, *, source: str) -> dict[str, Any]:
             "This file is ORP process context for the local directory.",
             "It is refreshed as the project evolves and should not be cited as proof or canonical evidence.",
             "Provider research calls remain opt-in through `orp research ask --execute`.",
+            BUDGETED_RESEARCH_SPEND_RULE,
         ],
     }
 
@@ -10912,7 +10925,8 @@ def _init_handoff_template(repo_root: Path, *, default_branch: str, initialized_
         "## Agent Rules\n\n"
         f"- Do not do meaningful implementation work directly on `{default_branch}` unless explicitly allowed.\n"
         "- Create a work branch before substantial edits.\n"
-        "- Run `orp hygiene --json` before long delegation, after material writeback, before API/remote/paid compute, and when dirty state grows unexpectedly.\n"
+        f"- Run `orp hygiene --json` before long delegation, after material writeback, {HYGIENE_REMOTE_SPEND_MOMENT}, and when dirty state grows unexpectedly.\n"
+        f"- {BUDGETED_RESEARCH_SPEND_RULE}\n"
         "- Stop long-running expansion while hygiene reports `dirty_unclassified`; classify, refresh generated surfaces, canonicalize useful scratch, or write a blocker.\n"
         "- Hygiene is non-destructive: never reset, checkout, or delete files merely to hide dirty state.\n"
         "- Create a checkpoint commit after each meaningful completed unit of work.\n"
@@ -11098,7 +11112,8 @@ def _render_agent_guide_block(
             [
                 "- Preserve human notes outside ORP-managed blocks.",
                 "- Use this local file for the project-specific current state, local constraints, and concrete next moves.",
-                "- Run `orp hygiene --json` before long delegation, after material writeback, before API/remote/paid compute, and when dirty state grows unexpectedly.",
+                f"- Run `orp hygiene --json` before long delegation, after material writeback, {HYGIENE_REMOTE_SPEND_MOMENT}, and when dirty state grows unexpectedly.",
+                f"- {BUDGETED_RESEARCH_SPEND_RULE}",
                 "- Stop long-running expansion while hygiene reports `dirty_unclassified`; classify, refresh generated surfaces, canonicalize useful scratch, or write a blocker.",
                 "- Hygiene is non-destructive: never reset, checkout, or delete files merely to hide dirty state.",
             ]
@@ -11516,9 +11531,10 @@ def _agent_policy_payload(
             "run_moments": [
                 "before long delegation",
                 "after material writeback",
-                "before API/remote/paid compute",
+                HYGIENE_REMOTE_SPEND_MOMENT,
                 "when dirty state grows unexpectedly",
             ],
+            "budgeted_research_spend_rule": BUDGETED_RESEARCH_SPEND_RULE,
             "required_self_healing": [
                 "classify dirty paths",
                 "refresh generated surfaces",
@@ -17714,6 +17730,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
@@ -17751,6 +17768,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
                 "spend_reserve_usd": 0.5,
@@ -17784,6 +17802,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
                 "web_search": True,
@@ -17821,6 +17840,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
                 "spend_reserve_usd": 0.5,
@@ -17854,6 +17874,7 @@ def _research_staged_deep_think_profile(profile_id: str = "deep-think-web-think-
                 ],
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
@@ -17935,6 +17956,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "role": "Deliberate high-reasoning pass from the provided context. Think hard, critique assumptions, and produce a decision-oriented answer.",
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
                 "spend_reserve_usd": 0.5,
@@ -17950,6 +17972,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "role": "Recency-aware synthesis using OpenAI Responses web search with citations.",
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "high",
                 "text_verbosity": "medium",
                 "web_search": True,
@@ -17970,6 +17993,7 @@ def _research_default_profile(profile_id: str = "openai-council") -> dict[str, A
                 "role": "Pro Research style long-form investigation. Produce a structured, citation-rich report grounded in public sources.",
                 "env_var": "OPENAI_API_KEY",
                 "secret_alias": "openai-primary",
+                "spend_policy_required": True,
                 "reasoning_effort": "xhigh",
                 "reasoning_summary": "auto",
                 "web_search": True,
@@ -18485,6 +18509,7 @@ def _research_openai_spend_preflight(
     provider = str(lane.get("provider", "") or "").strip()
     secret_alias = str(lane.get("secret_alias", "") or "").strip()
     reserve_usd = _research_lane_spend_reserve_usd(lane)
+    spend_policy_required = bool(lane.get("spend_policy_required", False))
     entry, entry_issue = _research_spend_policy_entry_for_lane(lane)
     policy = _normalize_secret_spend_policy(entry.get("spend_policy", {}) if isinstance(entry, dict) else {})
     date_utc = dt.datetime.now(dt.timezone.utc).date().isoformat()
@@ -18498,11 +18523,15 @@ def _research_openai_spend_preflight(
         "ledger_path": str(_research_spend_ledger_path()),
     }
     if not policy:
+        reason = entry_issue or "no spend policy configured for this local keychain entry"
+        if spend_policy_required:
+            reason = f"required spend policy missing: {reason}"
         return {
             **base,
-            "allowed": True,
+            "allowed": not spend_policy_required,
             "policy_source": "",
-            "reason": entry_issue or "no spend policy configured for this local keychain entry",
+            "spend_policy_required": spend_policy_required,
+            "reason": reason,
         }
 
     reserved_today = _research_spend_ledger_today_total(
@@ -18519,6 +18548,7 @@ def _research_openai_spend_preflight(
         **base,
         "allowed": allowed,
         "policy_source": "keychain",
+        "spend_policy_required": spend_policy_required,
         "daily_cap_usd": round(daily_cap_usd, 6),
         "currency": str(policy.get("currency", "USD")).strip() or "USD",
         "reserved_today_usd": reserved_today,

@@ -13,10 +13,15 @@ read:
 - Read `llms.txt`.
 - Run `orp about --json`.
 - Run `orp hygiene --json` before long delegation, after material writeback,
-  before API/remote/paid compute, and whenever dirty state grows unexpectedly.
+  before remote side effects or unbudgeted paid compute, and whenever dirty
+  state grows unexpectedly.
   If it reports `dirty_unclassified`, stop long-running expansion and classify
   the paths, refresh generated surfaces, canonicalize useful scratch, or write a
   blocker before continuing.
+- Do not hard-stop solely because an OpenAI research lane is paid. Budgeted ORP
+  research may run when `orp research` spend preflight is within the configured
+  daily cap; stop for missing required spend policy, missing secret, cap
+  exhaustion, purchases, or non-ORP paid compute.
 - If the task benefits from fresh concepting, tasteful interface work, or
   exploratory reframing, run:
   - `orp mode nudge sleek-minimal-progressive --json`

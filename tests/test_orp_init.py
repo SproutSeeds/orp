@@ -137,6 +137,12 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(project_context["hygiene_policy"]["command"], "orp hygiene --json")
             self.assertTrue(project_context["hygiene_policy"]["non_destructive"])
             self.assertTrue(project_context["hygiene_policy"]["stop_on_unclassified"])
+            self.assertIn("before remote side effects or unbudgeted paid compute", project_context["hygiene_policy"]["run_moments"])
+            self.assertIn("Do not hard-stop solely", project_context["hygiene_policy"]["budgeted_research_spend_rule"])
+            self.assertEqual(
+                project_context["research_policy"]["spend_policy"]["local_enforcement"],
+                "keychain spend policy with local_preflight_reservation",
+            )
             call_moments = {row["moment_id"] for row in project_context["research_policy"]["call_moments"]}
             self.assertIn("thinking_reasoning_high", call_moments)
             self.assertIn("web_synthesis", call_moments)

@@ -61,13 +61,15 @@ class OrpHygieneTests(unittest.TestCase):
 
             project = json.loads((root / "orp" / "project.json").read_text(encoding="utf-8"))
             self.assertEqual(project["hygiene_policy"]["command"], "orp hygiene --json")
-            self.assertIn("before API/remote/paid compute", project["hygiene_policy"]["run_moments"])
+            self.assertIn("before remote side effects or unbudgeted paid compute", project["hygiene_policy"]["run_moments"])
+            self.assertIn("Do not hard-stop solely", project["hygiene_policy"]["budgeted_research_spend_rule"])
             self.assertIn("orp hygiene --json", project["next_actions"])
 
             agents_text = (root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("orp hygiene --json", agents_text)
             self.assertIn("dirty_unclassified", agents_text)
-            self.assertIn("before API/remote/paid compute", agents_text)
+            self.assertIn("before remote side effects or unbudgeted paid compute", agents_text)
+            self.assertIn("Do not hard-stop solely because an OpenAI research lane is paid", agents_text)
             self.assertIn("never reset, checkout, or delete files", agents_text)
 
             handoff_text = (root / "orp" / "HANDOFF.md").read_text(encoding="utf-8")

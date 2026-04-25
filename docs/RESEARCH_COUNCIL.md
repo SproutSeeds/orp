@@ -102,6 +102,26 @@ printf '%s' '<openai-key>' | orp secrets keychain-add \
   --json
 ```
 
+## Spend Policy
+
+The OpenAI research lanes are paid, but paid does not automatically mean human
+hard stop. ORP treats them as budgeted provider calls when `openai-primary` has
+a local spend policy and the lane passes spend preflight.
+
+Set or update the local daily cap metadata like this:
+
+```bash
+orp secrets keychain-spend-policy openai-primary \
+  --daily-spend-cap-usd 5 \
+  --dashboard-spend-cap-status unconfirmed \
+  --dashboard-url https://platform.openai.com/settings/organization/limits \
+  --json
+```
+
+Live research should stop when the required spend policy is missing, the secret
+is missing, the daily cap would be exceeded, or the work is unbudgeted provider
+spend outside ORP research lanes.
+
 ## Fixtures
 
 Provider outputs can be attached without spending live calls:

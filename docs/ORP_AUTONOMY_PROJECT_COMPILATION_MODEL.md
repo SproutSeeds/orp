@@ -91,7 +91,7 @@ A true gate is not "the agent feels uncertain."
 
 A true gate is a boundary like:
 
-- spend or purchase
+- unbudgeted spend or purchase
 - outreach or counterparty contact
 - provider/vendor selection with real consequences
 - legal/oversight/compliance judgment
@@ -196,7 +196,7 @@ Bad candidates for automatic compilation:
 
 - vague strategic narratives with no runnable command
 - tasks that imply counterparty contact
-- tasks that imply money
+- tasks that imply unbudgeted money
 - steps that promote support-only outputs into authority
 
 ## What ORP Should Emit
@@ -230,6 +230,7 @@ The controller benchmark experiment surfaced the exact shape:
 2. compile the remaining pre-outreach tasks
 3. keep drafts unsent
 4. stop only when the next step would actually contact a counterparty or spend
+   outside a configured budget/preflight policy
 5. emit a gate dossier
 6. resume only after the human opens that gate
 

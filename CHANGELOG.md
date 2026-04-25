@@ -6,6 +6,19 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.32 - 2026-04-25
+
+This release clarifies ORP's paid-work boundary so budgeted OpenAI research is
+not treated as a hard stop solely because it uses paid API calls.
+
+### Changed
+
+- Built-in OpenAI research lanes now require a local spend policy, then use
+  spend preflight as the approval boundary for budgeted provider calls.
+- Generated project context, AGENTS guidance, handoffs, and research docs now
+  distinguish budgeted ORP research from unbudgeted paid compute, purchases,
+  and cap-exceeded provider calls.
+
 ## v0.4.31 - 2026-04-25
 
 This release refreshes ORP's OpenAI-backed research lanes and tightens

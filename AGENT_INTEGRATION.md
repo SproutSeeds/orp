@@ -103,8 +103,10 @@ artifact paths (code/data/proofs/logs/papers).
 - Treat **failed paths** as assets: record dead ends as a `Failed Path Record` with the blocking reason/counterexample and a
   next hook.
 - Resolve disputes by **verification or downgrade**, not argument.
-- Run `orp hygiene --json` before long delegation, after material writeback, before API/remote/paid compute, and when dirty
-  state grows unexpectedly.
+- Run `orp hygiene --json` before long delegation, after material writeback, before remote side effects or unbudgeted paid
+  compute, and when dirty state grows unexpectedly.
+- Do not hard-stop solely because an OpenAI research lane is paid; budgeted ORP research may run when `orp research` spend
+  preflight is within the configured daily cap.
 - Stop long-running expansion while hygiene reports `dirty_unclassified`; classify, refresh generated surfaces, canonicalize
   useful scratch, or write a blocker before continuing.
 - Hygiene is non-destructive: never reset, checkout, or delete files merely to hide dirty state.
