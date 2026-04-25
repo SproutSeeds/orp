@@ -459,11 +459,27 @@ orp workspace add-tab main --path /absolute/path/to/project --remote-url git@git
 orp workspace add-tab main --path /absolute/path/to/project --title "second active thread" --resume-tool claude --resume-session-id <id> --append
 orp workspace remove-tab main --path /absolute/path/to/project
 orp workspace sync main
+orp codex status
+orp codex reconcile --dry-run
+orp codex --search
 orp secrets list --json
 orp secrets ensure --alias openai-primary --provider openai --current-project --json
 orp secrets keychain-add --alias openai-primary --provider openai --env-var-name OPENAI_API_KEY --value-stdin --json
 orp secrets sync-keychain openai-primary --json
 orp schedule add codex --name morning-summary --prompt "Summarize this repo" --json
+```
+
+`orp codex` is a local compatibility layer for keeping workspace `main`
+aligned with Codex sessions. `status` compares the current repo against the
+latest local Codex session metadata, `reconcile` refreshes stale saved sessions,
+and bare `orp codex` launches Codex from the repo root while watching for the new
+session id. Delegated/subagent sessions are ignored by default, and
+artifact-output repos should be left untracked when a separate lab repo is the
+source of truth. Use `--` before Codex args that conflict with ORP wrapper
+options. The manual fallback from inside Codex is still:
+
+```bash
+orp workspace add-tab main --here --current-codex
 ```
 
 For secrets, the simplest plain-English rule is:

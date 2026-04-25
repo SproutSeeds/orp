@@ -945,7 +945,7 @@ function summarizeWorkspaceLedgerMutation(result) {
   return lines.join("\n");
 }
 
-async function runWorkspaceLedgerMutation(options, mutate, action) {
+async function applyWorkspaceLedgerMutation(options, mutate, action) {
   const source = await loadWorkspaceSource(options);
   const parsed = parseWorkspaceSource(source);
   const manifest = normalizeEditableManifest(source, parsed);
@@ -974,6 +974,12 @@ async function runWorkspaceLedgerMutation(options, mutate, action) {
     manifest: finalManifest,
   };
 
+  return result;
+}
+
+async function runWorkspaceLedgerMutation(options, mutate, action) {
+  const result = await applyWorkspaceLedgerMutation(options, mutate, action);
+
   if (options.json) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
@@ -981,6 +987,10 @@ async function runWorkspaceLedgerMutation(options, mutate, action) {
 
   process.stdout.write(`${summarizeWorkspaceLedgerMutation(result)}\n`);
   return 0;
+}
+
+export async function applyWorkspaceAddTabOptions(options = {}) {
+  return applyWorkspaceLedgerMutation(options, addTabToManifest, "add-tab");
 }
 
 export async function runWorkspaceAddTab(argv = process.argv.slice(2)) {

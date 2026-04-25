@@ -6,6 +6,28 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.29 - 2026-04-25
+
+This release adds ORP-managed Codex session tracking so starting a Codex thread
+from a repo can automatically refresh the saved workspace session for that
+directory.
+
+### Added
+
+- Added `orp codex` as the default tracked Codex launcher: it resolves the repo
+  root, starts Codex there, watches local session metadata, and saves the new
+  Codex resume id into workspace `main`.
+- Added `orp codex status` and `orp codex reconcile` for checking stale saved
+  Codex sessions and refreshing tracked workspace tabs from recent local Codex
+  session metadata.
+- Added safeguards that ignore delegated/subagent sessions by default and refuse
+  broad roots or artifact-output repos unless explicitly overridden.
+
+### Changed
+
+- Documented the ORP/Codex compatibility workflow and exposed the new wrapper
+  command in the npm CLI help surface.
+
 ## v0.4.28 - 2026-04-22
 
 This release tightens the ORP project-startup and research-spend loops, then

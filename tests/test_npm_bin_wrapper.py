@@ -69,6 +69,21 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertIn("orp workspace sync <name-or-id>", proc.stdout)
         self.assertIn("orp workspace hygiene [--json]", proc.stdout)
 
+    def test_node_wrapper_exposes_codex_help(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("node not found on PATH")
+
+        proc = subprocess.run(
+            ["node", str(BIN), "codex", "-h"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+        self.assertIn("ORP Codex session tracking", proc.stdout)
+        self.assertIn("orp codex status", proc.stdout)
+        self.assertIn("orp codex reconcile", proc.stdout)
+
     def test_node_wrapper_routes_workspace_hygiene_alias(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("node not found on PATH")

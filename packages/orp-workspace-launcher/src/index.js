@@ -1,4 +1,14 @@
 export {
+  applyCodexReconcilePlan,
+  buildCodexReconcilePlan,
+  buildCodexStatusReport,
+  parseCodexSessionMetaLine,
+  runOrpCodexCommand,
+  scanCodexSessions,
+  summarizeCodexReconcile,
+  summarizeCodexStatus,
+} from "./codex.js";
+export {
   buildCloneCommand,
   buildDirectCommand,
   buildLaunchPlan,

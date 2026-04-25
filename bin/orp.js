@@ -9,6 +9,9 @@ const computeCliUrl = pathToFileURL(path.resolve(__dirname, "orp-compute.mjs")).
 const workspaceCliUrl = pathToFileURL(
   path.resolve(__dirname, "..", "packages", "orp-workspace-launcher", "src", "orp-command.js"),
 ).href;
+const codexCliUrl = pathToFileURL(
+  path.resolve(__dirname, "..", "packages", "orp-workspace-launcher", "src", "codex.js"),
+).href;
 const argv = process.argv.slice(2);
 
 const candidates = [];
@@ -36,6 +39,12 @@ async function runWorkspace(args) {
   process.exit(code == null ? 0 : code);
 }
 
+async function runCodex(args) {
+  const mod = await import(codexCliUrl);
+  const code = await mod.runOrpCodexCommand(args);
+  process.exit(code == null ? 0 : code);
+}
+
 function runPythonCli(args, { captureOutput }) {
   let lastErr = null;
 
@@ -58,7 +67,7 @@ function runPythonCli(args, { captureOutput }) {
           process.stderr.write(result.stderr);
         }
         if (result.status === 0) {
-          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n");
+          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n  orp codex status -h\n");
         }
       }
       process.exit(result.status == null ? 1 : result.status);
@@ -89,6 +98,10 @@ async function main() {
   }
   if (argv[0] === "workspace") {
     await runWorkspace(argv.slice(1));
+    return;
+  }
+  if (argv[0] === "codex") {
+    await runCodex(argv.slice(1));
     return;
   }
 
