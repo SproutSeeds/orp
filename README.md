@@ -473,10 +473,11 @@ orp schedule add codex --name morning-summary --prompt "Summarize this repo" --j
 aligned with Codex sessions. `status` compares the current repo against the
 latest local Codex session metadata, `reconcile` refreshes stale saved sessions,
 and bare `orp codex` launches Codex from the repo root while watching for the new
-session id. Delegated/subagent sessions are ignored by default, and
-artifact-output repos should be left untracked when a separate lab repo is the
-source of truth. Use `--` before Codex args that conflict with ORP wrapper
-options. The manual fallback from inside Codex is still:
+session id. Codex exec and delegated/subagent sessions are ignored by default,
+and artifact-output repos should be left untracked when a separate lab repo is
+the source of truth. Use `--include-exec` only when diagnosing short-lived exec
+sessions, and use `--` before Codex args that conflict with ORP wrapper options.
+The manual fallback from inside Codex is still:
 
 ```bash
 orp workspace add-tab main --here --current-codex

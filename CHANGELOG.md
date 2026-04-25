@@ -6,6 +6,19 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.30 - 2026-04-25
+
+This release tightens ORP-managed Codex session tracking so short-lived
+`codex exec` runs, including Clawdad summary and planning work, do not replace
+the saved interactive workspace thread.
+
+### Changed
+
+- `orp codex status` and `orp codex reconcile` now ignore local Codex exec
+  sessions by default, alongside the existing delegated/subagent filtering.
+- Added `--include-exec` to the ORP/Codex status and reconcile flows for
+  explicit diagnostics when exec sessions need to be inspected.
+
 ## v0.4.29 - 2026-04-25
 
 This release adds ORP-managed Codex session tracking so starting a Codex thread

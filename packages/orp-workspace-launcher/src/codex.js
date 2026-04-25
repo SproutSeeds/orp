@@ -77,6 +77,22 @@ export function isDelegatedCodexSession(session) {
   return sourceText.includes("subagent") || sourceText.includes("delegate");
 }
 
+export function isCodexExecSession(session) {
+  const originator = normalizeOptionalString(session?.originator)?.toLowerCase();
+  if (originator === "codex_exec" || originator === "codex-exec") {
+    return true;
+  }
+  const source = session?.source;
+  if (typeof source === "string") {
+    return source.trim().toLowerCase() === "exec";
+  }
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return false;
+  }
+  const sourceKind = normalizeOptionalString(source.kind ?? source.type ?? source.source)?.toLowerCase();
+  return sourceKind === "exec";
+}
+
 export function parseCodexSessionMetaLine(line, filePath, stat = {}) {
   let row;
   try {
@@ -97,6 +113,12 @@ export function parseCodexSessionMetaLine(line, filePath, stat = {}) {
 
   const timestamp = normalizeOptionalString(payload.timestamp) || normalizeOptionalString(row.timestamp);
   const timestampMs = timestamp ? Date.parse(timestamp) : 0;
+  const source =
+    typeof payload.source === "string"
+      ? normalizeOptionalString(payload.source)
+      : payload.source && typeof payload.source === "object" && !Array.isArray(payload.source)
+        ? payload.source
+        : null;
   return {
     sessionId,
     cwd: path.resolve(cwd),
@@ -106,7 +128,7 @@ export function parseCodexSessionMetaLine(line, filePath, stat = {}) {
     filePath,
     originator: normalizeOptionalString(payload.originator),
     cliVersion: normalizeOptionalString(payload.cli_version ?? payload.cliVersion),
-    source: payload.source && typeof payload.source === "object" && !Array.isArray(payload.source) ? payload.source : null,
+    source,
   };
 }
 
@@ -171,6 +193,7 @@ export async function scanCodexSessions(options = {}) {
   const sessionsDir = path.join(codexHome, "sessions");
   const sinceMs = typeof options.sinceMs === "number" ? options.sinceMs : 0;
   const includeDelegated = Boolean(options.includeDelegated || options.includeSubagents);
+  const includeExec = Boolean(options.includeExec || options.includeCodexExec);
   const files = await walkSessionFiles(sessionsDir, options);
   const sessions = [];
 
@@ -190,6 +213,9 @@ export async function scanCodexSessions(options = {}) {
     }
     const session = parseCodexSessionMetaLine(metaLine, filePath, stat);
     if (!session) {
+      continue;
+    }
+    if (!includeExec && isCodexExecSession(session)) {
       continue;
     }
     if (!includeDelegated && isDelegatedCodexSession(session)) {
@@ -287,6 +313,7 @@ function sessionSummary(session) {
     updatedAt: session.updatedMs ? new Date(session.updatedMs).toISOString() : null,
     originator: session.originator || null,
     cliVersion: session.cliVersion || null,
+    source: session.source || null,
     filePath: session.filePath || null,
   };
 }
@@ -563,6 +590,10 @@ function parseCommonOptions(argv = [], defaults = {}, parseOptions = {}) {
       options.includeDelegated = true;
       continue;
     }
+    if (arg === "--include-exec") {
+      options.includeExec = true;
+      continue;
+    }
     if (arg === "--include-artifacts") {
       options.includeArtifactRepos = true;
       continue;
@@ -658,6 +689,7 @@ Commands:
   start      Launch Codex in the repo root and save the new session when metadata appears
 
 Notes:
+  - Codex exec sessions are ignored by default.
   - Delegated/subagent sessions are ignored by default.
   - Broad roots and artifact-output repos are refused unless explicitly overridden.
   - Use -- before Codex args that conflict with ORP wrapper options.
@@ -669,7 +701,7 @@ function printStatusHelp() {
   console.log(`ORP Codex status
 
 Usage:
-  orp codex status [--workspace main] [--path <repo-or-subdir>] [--codex-home <path>] [--json]
+  orp codex status [--workspace main] [--path <repo-or-subdir>] [--codex-home <path>] [--include-exec] [--json]
 `);
 }
 
@@ -677,7 +709,7 @@ function printReconcileHelp() {
   console.log(`ORP Codex reconcile
 
 Usage:
-  orp codex reconcile [--workspace main] [--dry-run] [--add-missing] [--since-days <n>] [--json]
+  orp codex reconcile [--workspace main] [--dry-run] [--add-missing] [--since-days <n>] [--include-exec] [--json]
 `);
 }
 

@@ -129,6 +129,38 @@ test("scanCodexSessions ignores delegated sessions by default", async () => {
   );
 });
 
+test("scanCodexSessions ignores exec sessions by default", async () => {
+  const tempDir = await makeTempDir();
+  const codexHome = path.join(tempDir, "codex-home");
+  const repoRoot = path.join(tempDir, "repo");
+  await writeSession(
+    codexHome,
+    "019dc2cb-d435-7072-bbfd-4ae4280474d1",
+    repoRoot,
+    "2026-04-25T12:00:00Z",
+  );
+  await writeSession(
+    codexHome,
+    "019dc2cb-d435-7072-bbfd-4ae4280474d2",
+    repoRoot,
+    "2026-04-25T12:01:00Z",
+    { originator: "codex_exec", source: "exec" },
+  );
+
+  const defaultSessions = await scanCodexSessions({ codexHome, sinceMs: 0 });
+  assert.deepEqual(
+    defaultSessions.map((session) => session.sessionId),
+    ["019dc2cb-d435-7072-bbfd-4ae4280474d1"],
+  );
+
+  const withExecSessions = await scanCodexSessions({ codexHome, sinceMs: 0, includeExec: true });
+  assert.deepEqual(
+    withExecSessions.map((session) => session.sessionId),
+    ["019dc2cb-d435-7072-bbfd-4ae4280474d2", "019dc2cb-d435-7072-bbfd-4ae4280474d1"],
+  );
+  assert.equal(withExecSessions[0].source, "exec");
+});
+
 test("scanCodexSessions finds session metadata near the start of a rollout file", async () => {
   const tempDir = await makeTempDir();
   const codexHome = path.join(tempDir, "codex-home");
