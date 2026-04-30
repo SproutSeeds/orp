@@ -218,6 +218,22 @@ export function findHostedWorkspaceLinkedToIdea(workspaces = [], ideaId) {
   );
 }
 
+export function findHostedWorkspaceByWorkspaceId(workspaces = [], workspaceId) {
+  const targetWorkspaceId = normalizeOptionalString(workspaceId);
+  if (!targetWorkspaceId || !Array.isArray(workspaces)) {
+    return null;
+  }
+
+  return (
+    workspaces.find((workspace) => {
+      if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) {
+        return false;
+      }
+      return normalizeOptionalString(workspace.workspace_id ?? workspace.id) === targetWorkspaceId;
+    }) || null
+  );
+}
+
 export async function findHostedWorkspaceByLinkedIdea(ideaId, options = {}) {
   const payload = await fetchHostedWorkspacesPayload(options);
   return findHostedWorkspaceLinkedToIdea(payload.workspaces, ideaId);
@@ -742,6 +758,13 @@ export function buildWorkspaceManifestFromHostedWorkspacePayload(payload) {
           resumeSessionId: getTextValue(tab, "resume_session_id", "resumeSessionId"),
           codexSessionId: getTextValue(tab, "codex_session_id", "codexSessionId"),
           tmuxSessionName: getTextValue(tab, "tmux_session_name", "tmuxSessionName"),
+          linkedIdeaId: getTextValue(tab, "linked_idea_id", "linkedIdeaId"),
+          linkedFeatureId: getTextValue(tab, "linked_feature_id", "linkedFeatureId"),
+          plan: getObjectValue(tab, "plan") || undefined,
+          tasks: getArrayValue(tab, "tasks").length > 0 ? getArrayValue(tab, "tasks") : undefined,
+          lastActivityAt: getTextValue(tab, "last_activity_at_utc", "lastActivityAtUtc"),
+          lastSyncedAt: getTextValue(tab, "last_synced_at_utc", "lastSyncedAtUtc"),
+          syncSource: getTextValue(tab, "sync_source", "syncSource"),
         }).filter(([, value]) => value !== undefined && value !== null),
       ),
     ),

@@ -53,12 +53,14 @@ function buildResumeSessionRows(tabs) {
         Object.entries({
           title: normalizeOptionalString(tab.title) ?? undefined,
           path: normalizeOptionalString(tab.path) ?? undefined,
-          resumeCommand: resumeCommand ?? undefined,
-          resumeTool: resumeTool ?? undefined,
-          resumeSessionId: resumeSessionId ?? undefined,
-          codexSessionId: resumeTool === "codex" ? resumeSessionId ?? undefined : undefined,
-        }).filter(([, value]) => value !== undefined),
-      );
+            resumeCommand: resumeCommand ?? undefined,
+            resumeTool: resumeTool ?? undefined,
+            resumeSessionId: resumeSessionId ?? undefined,
+            codexSessionId: resumeTool === "codex" ? resumeSessionId ?? undefined : undefined,
+            lastActivityAt: normalizeOptionalString(tab.lastActivityAt ?? tab.last_activity_at_utc) ?? undefined,
+            lastSyncedAt: normalizeOptionalString(tab.lastSyncedAt ?? tab.last_synced_at_utc) ?? undefined,
+          }).filter(([, value]) => value !== undefined),
+        );
     })
     .filter(Boolean);
 }
@@ -112,11 +114,13 @@ function normalizeRegistryEntry(rawEntry) {
                   title: normalizeOptionalString(session.title) ?? undefined,
                   path: normalizeOptionalString(session.path) ?? undefined,
                   resumeCommand: resumeCommand ?? undefined,
-                  resumeTool: normalizeOptionalString(session.resumeTool) ?? undefined,
-                  resumeSessionId: resumeSessionId ?? undefined,
-                  codexSessionId: normalizeOptionalString(session.codexSessionId) ?? undefined,
-                }).filter(([, value]) => value !== undefined),
-              );
+            resumeTool: normalizeOptionalString(session.resumeTool) ?? undefined,
+            resumeSessionId: resumeSessionId ?? undefined,
+            codexSessionId: normalizeOptionalString(session.codexSessionId) ?? undefined,
+            lastActivityAt: normalizeOptionalString(session.lastActivityAt ?? session.last_activity_at_utc) ?? undefined,
+            lastSyncedAt: normalizeOptionalString(session.lastSyncedAt ?? session.last_synced_at_utc) ?? undefined,
+          }).filter(([, value]) => value !== undefined),
+        );
             })
             .filter(Boolean)
         : Array.isArray(rawEntry.codexSessions)
@@ -137,6 +141,8 @@ function normalizeRegistryEntry(rawEntry) {
                   resumeTool: codexSessionId ? "codex" : undefined,
                   resumeSessionId: codexSessionId,
                   codexSessionId,
+                  lastActivityAt: normalizeOptionalString(session.lastActivityAt ?? session.last_activity_at_utc) ?? undefined,
+                  lastSyncedAt: normalizeOptionalString(session.lastSyncedAt ?? session.last_synced_at_utc) ?? undefined,
                 }).filter(([, value]) => value !== undefined),
               );
             })
@@ -351,6 +357,13 @@ function serializeManagedWorkspaceManifest(manifest) {
             resumeSessionId: resumeSessionId ?? undefined,
             codexSessionId: resumeTool === "codex" ? resumeSessionId ?? undefined : undefined,
             claudeSessionId: resumeTool === "claude" ? resumeSessionId ?? undefined : undefined,
+            linkedIdeaId: normalizeOptionalString(tab.linkedIdeaId ?? tab.linked_idea_id) ?? undefined,
+            linkedFeatureId: normalizeOptionalString(tab.linkedFeatureId ?? tab.linked_feature_id) ?? undefined,
+            plan: tab.plan && typeof tab.plan === "object" && !Array.isArray(tab.plan) ? tab.plan : undefined,
+            tasks: Array.isArray(tab.tasks) && tab.tasks.length > 0 ? tab.tasks : undefined,
+            lastActivityAt: normalizeOptionalString(tab.lastActivityAt ?? tab.last_activity_at_utc) ?? undefined,
+            lastSyncedAt: normalizeOptionalString(tab.lastSyncedAt ?? tab.last_synced_at_utc) ?? undefined,
+            syncSource: normalizeOptionalString(tab.syncSource ?? tab.sync_source) ?? undefined,
           }).filter(([, value]) => value !== undefined),
         );
       })

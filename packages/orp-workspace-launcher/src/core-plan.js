@@ -267,6 +267,12 @@ function normalizeStructuredTab(rawTab, index) {
   const tmuxSessionName = normalizeOptionalString(rawTab.tmuxSessionName);
   const plan = rawTab.plan && typeof rawTab.plan === "object" && !Array.isArray(rawTab.plan) ? rawTab.plan : null;
   const tasks = Array.isArray(rawTab.tasks) ? rawTab.tasks : [];
+  const lastActivityAt = normalizeOptionalString(
+    rawTab.lastActivityAt ?? rawTab.last_activity_at_utc ?? rawTab.lastActivityAtUtc,
+  );
+  const lastSyncedAt = normalizeOptionalString(
+    rawTab.lastSyncedAt ?? rawTab.last_synced_at_utc ?? rawTab.lastSyncedAtUtc,
+  );
 
   return {
     lineNumber: index + 1,
@@ -285,6 +291,9 @@ function normalizeStructuredTab(rawTab, index) {
     linkedFeatureId: normalizeOptionalString(rawTab.linkedFeatureId ?? rawTab.linked_feature_id),
     plan,
     tasks,
+    lastActivityAt,
+    lastSyncedAt,
+    syncSource: normalizeOptionalString(rawTab.syncSource ?? rawTab.sync_source),
   };
 }
 
@@ -321,6 +330,21 @@ function normalizeStructuredProject(rawProject, projectIndex) {
           rawProject.linked_feature_id,
         plan: rawSession.plan ?? rawProject.plan,
         tasks: rawSession.tasks ?? rawProject.tasks,
+        lastActivityAt:
+          rawSession.lastActivityAt ??
+          rawSession.last_activity_at_utc ??
+          rawSession.lastActivityAtUtc ??
+          rawProject.lastActivityAt ??
+          rawProject.last_activity_at_utc ??
+          rawProject.lastActivityAtUtc,
+        lastSyncedAt:
+          rawSession.lastSyncedAt ??
+          rawSession.last_synced_at_utc ??
+          rawSession.lastSyncedAtUtc ??
+          rawProject.lastSyncedAt ??
+          rawProject.last_synced_at_utc ??
+          rawProject.lastSyncedAtUtc,
+        syncSource: rawSession.syncSource ?? rawSession.sync_source ?? rawProject.syncSource ?? rawProject.sync_source,
       },
       sessionIndex,
     );
@@ -399,6 +423,8 @@ export function buildWorkspaceProjectGroups(entries = []) {
         linkedFeatureId: normalizeOptionalString(entry.linkedFeatureId),
         plan: entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : null,
         tasks: Array.isArray(entry.tasks) && entry.tasks.length > 0 ? entry.tasks : [],
+        lastActivityAt: normalizeOptionalString(entry.lastActivityAt ?? entry.last_activity_at_utc),
+        lastSyncedAt: normalizeOptionalString(entry.lastSyncedAt ?? entry.last_synced_at_utc),
         sessions: [],
       });
     }
@@ -412,6 +438,8 @@ export function buildWorkspaceProjectGroups(entries = []) {
     project.plan =
       project.plan ||
       (entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : null);
+    project.lastActivityAt = project.lastActivityAt || normalizeOptionalString(entry.lastActivityAt ?? entry.last_activity_at_utc);
+    project.lastSyncedAt = project.lastSyncedAt || normalizeOptionalString(entry.lastSyncedAt ?? entry.last_synced_at_utc);
     if ((!Array.isArray(project.tasks) || project.tasks.length === 0) && Array.isArray(entry.tasks) && entry.tasks.length > 0) {
       project.tasks = entry.tasks;
     }
@@ -426,6 +454,8 @@ export function buildWorkspaceProjectGroups(entries = []) {
           resumeSessionId: resume.resumeSessionId || undefined,
           codexSessionId: resume.resumeTool === "codex" ? resume.resumeSessionId || undefined : undefined,
           claudeSessionId: resume.resumeTool === "claude" ? resume.resumeSessionId || undefined : undefined,
+          lastActivityAt: normalizeOptionalString(entry.lastActivityAt ?? entry.last_activity_at_utc) || undefined,
+          lastSyncedAt: normalizeOptionalString(entry.lastSyncedAt ?? entry.last_synced_at_utc) || undefined,
         }).filter(([, value]) => value !== undefined),
       ),
     );
@@ -443,6 +473,8 @@ export function buildWorkspaceProjectGroups(entries = []) {
         linkedFeatureId: project.linkedFeatureId || undefined,
         plan: project.plan || undefined,
         tasks: Array.isArray(project.tasks) && project.tasks.length > 0 ? project.tasks : undefined,
+        lastActivityAt: project.lastActivityAt || undefined,
+        lastSyncedAt: project.lastSyncedAt || undefined,
         sessionCount: project.sessions.length,
         sessions: project.sessions,
       }).filter(([, value]) => value !== undefined),

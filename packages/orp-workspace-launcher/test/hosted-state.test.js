@@ -132,3 +132,56 @@ test("buildHostedWorkspaceState compiles local ORP frontier plan and tasks", asy
   assert.equal(state.projects[0].linked_idea_id, "idea-123");
   assert.equal(state.projects[0].linked_feature_id, "feature-regime-metadata-quality");
 });
+
+test("buildHostedWorkspaceState preserves manifest plan tasks and activity timestamps", () => {
+  const state = buildHostedWorkspaceState(
+    {
+      version: "1",
+      workspaceId: "main-cody-1",
+      title: "main-cody-1",
+      tabs: [
+        {
+          title: "tailnet-app",
+          path: "/Volumes/Code_2TB/code/tailnet-app",
+          resumeTool: "codex",
+          resumeSessionId: "019dcd50-111d-7451-bd01-dbc21336c679",
+          linkedIdeaId: "idea-tailnet",
+          linkedFeatureId: "feature-tailnet",
+          plan: {
+            summary: "Ship Tailnet App workspace sync",
+            body: "Keep the hosted workspace aligned with local project inventory.",
+          },
+          tasks: [
+            {
+              id: "sync-contract",
+              title: "Define sync contract",
+              status: "in_progress",
+            },
+          ],
+          lastActivityAt: "2026-04-30T02:59:15.000Z",
+          lastSyncedAt: "2026-04-30T12:00:00.000Z",
+          syncSource: "orp-project-startup",
+        },
+      ],
+    },
+    {
+      updatedAt: "2026-04-30T12:30:00.000Z",
+      localInventory: {
+        contract: {
+          source_of_truth: "orp-workspace-ledger",
+        },
+      },
+    },
+  );
+
+  assert.equal(state.tabs[0].plan.summary, "Ship Tailnet App workspace sync");
+  assert.equal(state.tabs[0].tasks[0].id, "sync-contract");
+  assert.equal(state.tabs[0].linked_idea_id, "idea-tailnet");
+  assert.equal(state.tabs[0].linked_feature_id, "feature-tailnet");
+  assert.equal(state.tabs[0].last_activity_at_utc, "2026-04-30T02:59:15.000Z");
+  assert.equal(state.tabs[0].last_synced_at_utc, "2026-04-30T12:00:00.000Z");
+  assert.equal(state.tabs[0].sync_source, "orp-project-startup");
+  assert.equal(state.projects[0].last_activity_at_utc, "2026-04-30T02:59:15.000Z");
+  assert.equal(state.projects[0].sessions[0].last_synced_at_utc, "2026-04-30T12:00:00.000Z");
+  assert.equal(state.source_contract.source_of_truth, "orp-workspace-ledger");
+});

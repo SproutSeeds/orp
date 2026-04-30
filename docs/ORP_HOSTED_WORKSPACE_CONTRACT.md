@@ -27,6 +27,45 @@ The canonical hosted source of truth should be one hosted workspace record:
 
 Idea notes are a compatibility bridge only after this contract lands.
 
+## CLI Sync Contract
+
+`orp workspace sync <selector>` is the canonical local-to-hosted sync path.
+The web app should render the hosted workspace state produced by this command,
+not reconstruct a competing workspace model.
+
+The local canonical input is a reconciled workspace snapshot:
+
+1. Start with the selected ORP workspace ledger, usually
+   `orp workspace tabs main`.
+2. If that selector resolves to a local workspace file, match a hosted
+   workspace by the same `workspaceId` before writing hosted state.
+3. Reconcile known local projects from ORP project startup state
+   (`orp/state.json`, including historical startup result manifests).
+4. Use Clawdad state only to refresh projects already known from the ledger or
+   ORP startup manifests, unless a caller explicitly opts into Clawdad-only
+   projects.
+5. Use recent Codex session metadata to refresh known project paths with the
+   newest local `codex resume ...` session. Codex-only paths are not added by
+   default.
+
+The pushed hosted state must include, for every project/tab where available:
+
+- `title`
+- `project_root` / local `path`
+- resume command plus structured `resume_tool` and `resume_session_id`
+- `last_activity_at_utc`
+- `last_synced_at_utc`
+- `linked_idea_id`
+- `linked_feature_id`
+- `plan`
+- `tasks`
+
+Idea notes are only a compatibility mirror. When sync can write the matched
+hosted workspace state directly, the hosted workspace `state` is authoritative
+and the idea-note mirror may be skipped to avoid truncating or conflicting with
+the full payload. If no hosted workspace target exists, sync may still write a
+compact ` ```orp-workspace ` block to the linked idea.
+
 ## Resource Model
 
 ### Hosted Workspace

@@ -63,6 +63,7 @@ export {
   fetchIdeaPayload,
   fetchIdeasPayload,
   fetchHostedWorkspacesPayload,
+  findHostedWorkspaceByWorkspaceId,
   findHostedWorkspaceByLinkedIdea,
   findHostedWorkspaceLinkedToIdea,
   loadWorkspaceSource,
@@ -72,6 +73,11 @@ export {
   resolveWorkspaceSelectorFromCollections,
   updateIdeaPayload,
 } from "./orp.js";
+export {
+  buildLocalProjectInventory,
+  inferLocalProjectRoots,
+  mergeLocalProjectInventoryIntoManifest,
+} from "./local-inventory.js";
 export {
   cacheManagedWorkspaceManifest,
   clearWorkspaceSlot,

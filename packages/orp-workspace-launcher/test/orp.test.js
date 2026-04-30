@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   chooseImplicitMainCandidate,
+  findHostedWorkspaceByWorkspaceId,
   loadWorkspaceSource,
   resolveWorkspaceSelectorFromCollections,
   resolveWorkspaceWatchTargets,
@@ -42,6 +43,24 @@ test("resolveWorkspaceSelectorFromCollections matches hosted ideas by saved work
 
   const byTitleSlug = resolveWorkspaceSelectorFromCollections("main-cody-1", { ideas });
   assert.equal(byTitleSlug?.title, "Main Cody 1");
+});
+
+test("findHostedWorkspaceByWorkspaceId matches hosted workspace records by durable id", () => {
+  const workspace = findHostedWorkspaceByWorkspaceId(
+    [
+      {
+        workspace_id: "focused-items",
+        title: "focused-items",
+      },
+      {
+        workspace_id: "captured-iterm-window-20260401t032225z",
+        title: "main-workspace",
+      },
+    ],
+    "captured-iterm-window-20260401t032225z",
+  );
+
+  assert.equal(workspace?.title, "main-workspace");
 });
 
 test("resolveWorkspaceSelectorFromCollections can match local tracked workspaces by title", () => {

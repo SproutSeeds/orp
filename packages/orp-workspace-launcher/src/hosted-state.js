@@ -72,6 +72,7 @@ function normalizePreviousHostedTabs(workspace) {
       focusSummary: normalizeOptionalString(tab.focus_summary ?? tab.focusSummary),
       trajectorySummary: normalizeOptionalString(tab.trajectory_summary ?? tab.trajectorySummary),
       lastActivityAt: normalizeOptionalString(tab.last_activity_at_utc ?? tab.lastActivityAtUtc),
+      lastSyncedAt: normalizeOptionalString(tab.last_synced_at_utc ?? tab.lastSyncedAtUtc),
       linkedIdeaId: normalizeOptionalString(tab.linked_idea_id ?? tab.linkedIdeaId),
       linkedFeatureId: normalizeOptionalString(tab.linked_feature_id ?? tab.linkedFeatureId),
       plan: tab.plan && typeof tab.plan === "object" && !Array.isArray(tab.plan) ? tab.plan : null,
@@ -116,6 +117,8 @@ function buildHostedProjectGroups(tabs) {
         bootstrap_command: normalizeOptionalString(tab.bootstrap_command),
         linked_idea_id: normalizeOptionalString(tab.linked_idea_id),
         linked_feature_id: normalizeOptionalString(tab.linked_feature_id),
+        last_activity_at_utc: normalizeOptionalString(tab.last_activity_at_utc),
+        last_synced_at_utc: normalizeOptionalString(tab.last_synced_at_utc),
         plan: tab.plan && typeof tab.plan === "object" && !Array.isArray(tab.plan) ? tab.plan : undefined,
         tasks: Array.isArray(tab.tasks) ? tab.tasks : undefined,
         sessions: [],
@@ -127,6 +130,8 @@ function buildHostedProjectGroups(tabs) {
     project.bootstrap_command = project.bootstrap_command || normalizeOptionalString(tab.bootstrap_command);
     project.linked_idea_id = project.linked_idea_id || normalizeOptionalString(tab.linked_idea_id);
     project.linked_feature_id = project.linked_feature_id || normalizeOptionalString(tab.linked_feature_id);
+    project.last_activity_at_utc = project.last_activity_at_utc || normalizeOptionalString(tab.last_activity_at_utc);
+    project.last_synced_at_utc = project.last_synced_at_utc || normalizeOptionalString(tab.last_synced_at_utc);
     project.plan = project.plan || (tab.plan && typeof tab.plan === "object" && !Array.isArray(tab.plan) ? tab.plan : undefined);
     if ((!Array.isArray(project.tasks) || project.tasks.length === 0) && Array.isArray(tab.tasks) && tab.tasks.length > 0) {
       project.tasks = tab.tasks;
@@ -143,6 +148,8 @@ function buildHostedProjectGroups(tabs) {
           claude_session_id: normalizeOptionalString(tab.claude_session_id),
           status: normalizeOptionalString(tab.status),
           current_task: normalizeOptionalString(tab.current_task),
+          last_activity_at_utc: normalizeOptionalString(tab.last_activity_at_utc),
+          last_synced_at_utc: normalizeOptionalString(tab.last_synced_at_utc),
         }).filter(([, value]) => value !== undefined && value !== null),
       ),
     );
@@ -158,6 +165,8 @@ function buildHostedProjectGroups(tabs) {
         bootstrap_command: project.bootstrap_command || undefined,
         linked_idea_id: project.linked_idea_id || undefined,
         linked_feature_id: project.linked_feature_id || undefined,
+        last_activity_at_utc: project.last_activity_at_utc || undefined,
+        last_synced_at_utc: project.last_synced_at_utc || undefined,
         plan: project.plan || undefined,
         tasks: Array.isArray(project.tasks) && project.tasks.length > 0 ? project.tasks : undefined,
         session_count: project.sessions.length,
@@ -448,7 +457,7 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
     const title = normalizeOptionalString(tab.title) || previous?.title || null;
     const projectRoot = normalizeOptionalString(tab.path);
     const projectContext = readProjectFrontierContext(projectRoot, projectContextCache);
-    const repoLabel = previous?.repoLabel || path.basename(String(projectRoot).replace(/\/+$/, "")) || projectRoot;
+    const repoLabel = title || previous?.repoLabel || path.basename(String(projectRoot).replace(/\/+$/, "")) || projectRoot;
     const terminalTitle = previous?.terminalTitle || title || repoLabel;
     const resume = resolveResumeMetadata({
       resumeCommand: tab.resumeCommand,
@@ -475,6 +484,27 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       title,
       orderIndex: index,
     });
+    const plan =
+      tab.plan && typeof tab.plan === "object" && !Array.isArray(tab.plan)
+        ? tab.plan
+        : projectContext?.plan || previous?.plan || undefined;
+    const tasks =
+      Array.isArray(tab.tasks) && tab.tasks.length > 0
+        ? tab.tasks
+        : Array.isArray(projectContext?.tasks) && projectContext.tasks.length > 0
+          ? projectContext.tasks
+          : Array.isArray(previous?.tasks) && previous.tasks.length > 0
+            ? previous.tasks
+            : undefined;
+    const lastActivityAt =
+      normalizeOptionalString(tab.lastActivityAt ?? tab.last_activity_at_utc ?? tab.lastActivityAtUtc) ||
+      previous?.lastActivityAt ||
+      undefined;
+    const lastSyncedAt =
+      normalizeOptionalString(tab.lastSyncedAt ?? tab.last_synced_at_utc ?? tab.lastSyncedAtUtc) ||
+      previous?.lastSyncedAt ||
+      updatedAt ||
+      undefined;
 
     return Object.fromEntries(
       Object.entries({
@@ -496,7 +526,9 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
         current_task: previous?.currentTask || undefined,
         focus_summary: previous?.focusSummary || undefined,
         trajectory_summary: previous?.trajectorySummary || undefined,
-        last_activity_at_utc: previous?.lastActivityAt || undefined,
+        last_activity_at_utc: lastActivityAt,
+        last_synced_at_utc: lastSyncedAt,
+        sync_source: normalizeOptionalString(tab.syncSource ?? tab.sync_source) || undefined,
         linked_feature_id:
           normalizeOptionalString(tab.linkedFeatureId ?? tab.linked_feature_id) ||
           projectContext?.link?.activeFeatureId ||
@@ -507,13 +539,8 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
           projectContext?.link?.ideaId ||
           previous?.linkedIdeaId ||
           undefined,
-        plan: projectContext?.plan || previous?.plan || undefined,
-        tasks:
-          Array.isArray(projectContext?.tasks) && projectContext.tasks.length > 0
-            ? projectContext.tasks
-            : Array.isArray(previous?.tasks) && previous.tasks.length > 0
-              ? previous.tasks
-              : undefined,
+        plan,
+        tasks,
       }).filter(([, value]) => value !== undefined && value !== null),
     );
   });
@@ -531,6 +558,10 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       durable_backend: options.durableBackend || "manual-ledger",
     }).filter(([, value]) => value !== undefined && value !== null),
   );
+  const sourceContract =
+    options.localInventory?.contract && typeof options.localInventory.contract === "object" && !Array.isArray(options.localInventory.contract)
+      ? options.localInventory.contract
+      : undefined;
 
   const stateVersion = Math.max(1, (getHostedIntegerValue(previousState, "state_version", "stateVersion") || 0) + 1);
   const snapshotSeed = JSON.stringify({
@@ -558,6 +589,7 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       tab_count: tabs.length,
       project_count: projects.length,
       capture_context: Object.keys(captureContext).length > 0 ? captureContext : undefined,
+      source_contract: sourceContract,
       projects,
       tabs,
     }).filter(([, value]) => value !== undefined && value !== null),

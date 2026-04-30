@@ -10,12 +10,22 @@ import {
   resolveResumeMetadata,
   WORKSPACE_SCHEMA_VERSION,
 } from "./core-plan.js";
-import { enrichWorkspaceManifestWithProjectContext } from "./hosted-state.js";
-import { fetchIdeaPayload, loadWorkspaceSource, updateIdeaPayload } from "./orp.js";
+import { buildHostedWorkspaceState, enrichWorkspaceManifestWithProjectContext } from "./hosted-state.js";
+import { mergeLocalProjectInventoryIntoManifest } from "./local-inventory.js";
+import {
+  buildWorkspaceManifestFromHostedWorkspacePayload,
+  fetchHostedWorkspacesPayload,
+  fetchIdeaPayload,
+  findHostedWorkspaceByWorkspaceId,
+  loadWorkspaceSource,
+  pushHostedWorkspaceState,
+  updateIdeaPayload,
+} from "./orp.js";
 import { cacheManagedWorkspaceManifest } from "./registry.js";
 
 const STRUCTURED_WORKSPACE_BLOCK_PATTERN = /```orp-workspace\s*[\s\S]*?```/i;
 const WORKSPACE_TITLE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_HOSTED_IDEA_NOTES_LENGTH = 9500;
 
 function printSyncHelp() {
   console.log(`ORP workspace sync
@@ -129,11 +139,38 @@ async function resolveWorkspaceSyncTargetSource(source, options) {
   if (!options.workspaceFile && !options.notesFile && (source.sourceType === "hosted-idea" || source.sourceType === "hosted-workspace")) {
     return source;
   }
-  return loadWorkspaceSource({
+  const targetSource = await loadWorkspaceSource({
     ideaId: options.ideaId,
     baseUrl: options.baseUrl,
     orpCommand: options.orpCommand,
   });
+  if (targetSource.sourceType !== "workspace-file") {
+    return targetSource;
+  }
+
+  const workspaceId =
+    normalizeOptionalString(source.workspaceManifest?.workspaceId) ||
+    normalizeOptionalString(targetSource.workspaceManifest?.workspaceId);
+  if (!workspaceId) {
+    return targetSource;
+  }
+
+  const payload = await fetchHostedWorkspacesPayload(options).catch(() => null);
+  const hostedWorkspace = findHostedWorkspaceByWorkspaceId(payload?.workspaces || [], workspaceId);
+  if (!hostedWorkspace) {
+    return targetSource;
+  }
+
+  return {
+    sourceType: "hosted-workspace",
+    sourceLabel: hostedWorkspace.title || workspaceId,
+    title: hostedWorkspace.title || workspaceId,
+    workspaceManifest: buildWorkspaceManifestFromHostedWorkspacePayload(hostedWorkspace),
+    notes: "",
+    hostedWorkspace,
+    payload: { ok: true, workspace: hostedWorkspace },
+    bridgedFromLocalWorkspaceFile: targetSource.sourcePath || targetSource.sourceLabel || true,
+  };
 }
 
 export function validateWorkspaceTitle(value, label = "--title") {
@@ -203,6 +240,11 @@ function serializeWorkspaceManifest(manifest) {
         linkedFeatureId: normalizeOptionalString(entry.linkedFeatureId ?? entry.linked_feature_id) ?? undefined,
         plan: entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : undefined,
         tasks: Array.isArray(entry.tasks) && entry.tasks.length > 0 ? entry.tasks : undefined,
+        lastActivityAt:
+          normalizeOptionalString(entry.lastActivityAt ?? entry.last_activity_at_utc ?? entry.lastActivityAtUtc) ?? undefined,
+        lastSyncedAt:
+          normalizeOptionalString(entry.lastSyncedAt ?? entry.last_synced_at_utc ?? entry.lastSyncedAtUtc) ?? undefined,
+        syncSource: normalizeOptionalString(entry.syncSource ?? entry.sync_source) ?? undefined,
         codexSessionId:
           normalizeOptionalString(entry.resumeTool) === "codex"
             ? normalizeOptionalString(entry.codexSessionId ?? entry.resumeSessionId ?? entry.sessionId) ?? undefined
@@ -237,6 +279,110 @@ function composeWorkspaceNotes({ narrativeNotes, manifest }) {
   ]);
 }
 
+function serializeCompactWorkspaceManifest(manifest, options = {}) {
+  const tabs = manifest.tabs.map((entry) =>
+    Object.fromEntries(
+      Object.entries({
+        title: normalizeOptionalString(entry.title) ?? undefined,
+        path: String(entry.path).trim(),
+        remoteUrl: normalizeOptionalString(entry.remoteUrl) ?? undefined,
+        remoteBranch: normalizeOptionalString(entry.remoteBranch) ?? undefined,
+        bootstrapCommand: normalizeOptionalString(entry.bootstrapCommand) ?? undefined,
+        resumeCommand: normalizeOptionalString(entry.resumeCommand) ?? undefined,
+        resumeTool: normalizeOptionalString(entry.resumeTool) ?? undefined,
+        resumeSessionId: normalizeOptionalString(entry.resumeSessionId ?? entry.sessionId) ?? undefined,
+        linkedIdeaId: normalizeOptionalString(entry.linkedIdeaId ?? entry.linked_idea_id) ?? undefined,
+        linkedFeatureId: normalizeOptionalString(entry.linkedFeatureId ?? entry.linked_feature_id) ?? undefined,
+        lastActivityAt:
+          normalizeOptionalString(entry.lastActivityAt ?? entry.last_activity_at_utc ?? entry.lastActivityAtUtc) ?? undefined,
+        lastSyncedAt:
+          normalizeOptionalString(entry.lastSyncedAt ?? entry.last_synced_at_utc ?? entry.lastSyncedAtUtc) ?? undefined,
+      }).filter(([, value]) => value !== undefined),
+    ),
+  );
+
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries({
+        version: WORKSPACE_SCHEMA_VERSION,
+        workspaceId: normalizeOptionalString(manifest.workspaceId) ?? undefined,
+        title: normalizeOptionalString(manifest.title) ?? undefined,
+        source: "hosted-workspace",
+        hostedWorkspaceId: normalizeOptionalString(options.hostedWorkspaceId) ?? undefined,
+        tabCount: tabs.length,
+        projectCount: new Set(tabs.map((tab) => tab.path).filter(Boolean)).size,
+        tabs,
+      }).filter(([, value]) => value !== undefined),
+    ),
+    null,
+    2,
+  );
+}
+
+function buildStoredIdeaNotes({ narrativeNotes, manifest, hostedWorkspaceId }) {
+  const fullNotes = composeWorkspaceNotes({ narrativeNotes, manifest });
+  if (fullNotes.length <= MAX_HOSTED_IDEA_NOTES_LENGTH) {
+    return {
+      notes: fullNotes,
+      compacted: false,
+      omittedPlanTaskDetails: false,
+    };
+  }
+
+  const compactManifest = serializeCompactWorkspaceManifest(manifest, { hostedWorkspaceId });
+  const compactNotes = combineNoteSections([
+    narrativeNotes,
+    hostedWorkspaceId
+      ? `Full workspace state, including plans and tasks, is stored on hosted ORP workspace ${hostedWorkspaceId}.`
+      : "Full workspace plan and task state is omitted from this idea-note compatibility mirror.",
+    `\`\`\`orp-workspace\n${compactManifest}\n\`\`\``,
+  ]);
+  if (compactNotes.length <= MAX_HOSTED_IDEA_NOTES_LENGTH) {
+    return {
+      notes: compactNotes,
+      compacted: true,
+      omittedPlanTaskDetails: true,
+    };
+  }
+
+  const buildPointerManifest = (includeTabs) => ({
+      version: WORKSPACE_SCHEMA_VERSION,
+      workspaceId: normalizeOptionalString(manifest.workspaceId),
+      title: normalizeOptionalString(manifest.title),
+      source: "hosted-workspace",
+      hostedWorkspaceId: normalizeOptionalString(hostedWorkspaceId),
+      tabCount: Array.isArray(manifest.tabs) ? manifest.tabs.length : 0,
+      projectCount: new Set((manifest.tabs || []).map((tab) => tab.path).filter(Boolean)).size,
+      tabs: includeTabs
+        ? (manifest.tabs || []).map((tab) =>
+            Object.fromEntries(
+              Object.entries({
+                title: normalizeOptionalString(tab.title) ?? undefined,
+                path: normalizeOptionalString(tab.path) ?? undefined,
+              }).filter(([, value]) => value !== undefined),
+            ),
+          )
+        : undefined,
+  });
+  const pointerText = (includeTabs) => JSON.stringify(buildPointerManifest(includeTabs), null, 2);
+  const pointerNotes = (includeTabs) =>
+    combineNoteSections([
+      narrativeNotes,
+      hostedWorkspaceId
+        ? `Full workspace state is stored on hosted ORP workspace ${hostedWorkspaceId}.`
+        : "Full workspace state is stored in the ORP workspace sync payload.",
+      `\`\`\`orp-workspace\n${pointerText(includeTabs)}\n\`\`\``,
+    ]);
+  return {
+    notes:
+      pointerNotes(true).length <= MAX_HOSTED_IDEA_NOTES_LENGTH
+        ? pointerNotes(true)
+        : pointerNotes(false),
+    compacted: true,
+    omittedPlanTaskDetails: true,
+  };
+}
+
 export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspaceTitle = null }) {
   const manifest = parsed.manifest
     ? {
@@ -259,6 +405,9 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
           linkedFeatureId: entry.linkedFeatureId || null,
           plan: entry.plan || null,
           tasks: Array.isArray(entry.tasks) ? entry.tasks : [],
+          lastActivityAt: entry.lastActivityAt || null,
+          lastSyncedAt: entry.lastSyncedAt || null,
+          syncSource: entry.syncSource || null,
         })),
       }
     : {
@@ -279,9 +428,20 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
             resolveResumeMetadata(entry).resumeTool === "codex" ? resolveResumeMetadata(entry).resumeSessionId : null,
           claudeSessionId:
             resolveResumeMetadata(entry).resumeTool === "claude" ? resolveResumeMetadata(entry).resumeSessionId : null,
+          lastActivityAt: entry.lastActivityAt || null,
+          lastSyncedAt: entry.lastSyncedAt || null,
+          syncSource: entry.syncSource || null,
         })),
       };
-  const enrichedManifest = enrichWorkspaceManifestWithProjectContext(manifest);
+  const syncTimestamp = new Date().toISOString();
+  const timestampedManifest = {
+    ...manifest,
+    tabs: manifest.tabs.map((tab) => ({
+      ...tab,
+      lastSyncedAt: tab.lastSyncedAt || syncTimestamp,
+    })),
+  };
+  const enrichedManifest = enrichWorkspaceManifestWithProjectContext(timestampedManifest);
 
   const narrativeSourceNotes =
     source.sourceType === "workspace-file" ? targetIdea.notes || "" : source.notes || targetIdea.notes || "";
@@ -318,9 +478,18 @@ function summarizeSyncPreview(preview) {
     `  tabs: ${preview.tabs.length}`,
     `  stored notes: ${preview.nextNotesLength} chars`,
   ];
+  if (preview.compactedIdeaNotes) {
+    lines.push(`  idea notes: compact compatibility mirror; hosted workspace state carries full details`);
+  }
+  if (preview.hostedWorkspaceId) {
+    lines.push(`  hosted push target: ${preview.hostedWorkspaceId}`);
+  }
 
   if (preview.skipped.length > 0) {
     lines.push(`  skipped non-path lines: ${preview.skipped.length}`);
+  }
+  if (preview.inventory) {
+    lines.push(`  local inventory: ${preview.inventory.rowCount} rows / ${preview.inventory.projectCount} projects`);
   }
   return lines.join("\n");
 }
@@ -340,10 +509,12 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
   if (parsed.entries.length === 0) {
     throw new Error("No launchable workspace lines were found in the provided source.");
   }
+  const targetSource = await resolveWorkspaceSyncTargetSource(source, options);
   const resolvedWorkspaceTitle = options.title
     ? validateWorkspaceTitle(options.title)
-    : normalizeOptionalString(parsed.manifest?.title) || (await promptForWorkspaceTitle());
-  const targetSource = await resolveWorkspaceSyncTargetSource(source, options);
+    : normalizeOptionalString(targetSource.hostedWorkspace?.title) ||
+      normalizeOptionalString(parsed.manifest?.title) ||
+      (await promptForWorkspaceTitle());
   const targetIdeaId = resolveWorkspaceSyncTargetIdeaId(targetSource);
   if (!targetIdeaId) {
     throw new Error(
@@ -366,23 +537,69 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
     targetIdea: targetPayload.idea,
     workspaceTitle: resolvedWorkspaceTitle,
   });
+  const reconciled = await mergeLocalProjectInventoryIntoManifest(preview.manifest, {
+    ...options,
+    workspaceSelector: options.ideaId,
+  });
+  const hostedWorkspaceId = normalizeOptionalString(targetSource.hostedWorkspace?.workspace_id ?? targetSource.hostedWorkspace?.id);
+  const narrativeNotes = extractWorkspaceNarrativeNotes(preview.nextNotes, {
+    stripLegacyWorkspaceLines: true,
+  });
+  const storedIdeaNotes = buildStoredIdeaNotes({
+    narrativeNotes,
+    manifest: reconciled.manifest,
+    hostedWorkspaceId,
+  });
+  const finalPreview = {
+    ...preview,
+    manifest: reconciled.manifest,
+    tabs: reconciled.manifest.tabs,
+    nextNotes: storedIdeaNotes.notes,
+    inventory: reconciled.inventory,
+    hostedWorkspaceId,
+    compactedIdeaNotes: storedIdeaNotes.compacted,
+    omittedPlanTaskDetailsFromIdeaNotes: storedIdeaNotes.omittedPlanTaskDetails,
+  };
+  finalPreview.nextNotesLength = finalPreview.nextNotes.length;
 
   if (options.json) {
-    process.stdout.write(`${JSON.stringify(preview, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(finalPreview, null, 2)}\n`);
     return 0;
   }
 
   if (options.dryRun) {
-    process.stdout.write(`${summarizeSyncPreview(preview)}\n`);
+    process.stdout.write(`${summarizeSyncPreview(finalPreview)}\n`);
     return 0;
   }
 
-  const updated = await updateIdeaPayload(targetIdeaId, { notes: preview.nextNotes }, options);
-  const managedCache = await cacheManagedWorkspaceManifest(preview.manifest);
+  let pushedWorkspace = null;
+  if (hostedWorkspaceId) {
+    const state = buildHostedWorkspaceState(finalPreview.manifest, {
+      previousWorkspace: targetSource.hostedWorkspace,
+      updatedAt: new Date().toISOString(),
+      localInventory: finalPreview.inventory,
+    });
+    const pushed = await pushHostedWorkspaceState(hostedWorkspaceId, state, options);
+    pushedWorkspace = pushed?.workspace || null;
+  }
+  const updated = hostedWorkspaceId
+    ? { title: finalPreview.targetIdeaTitle }
+    : await updateIdeaPayload(targetIdeaId, { notes: finalPreview.nextNotes }, options);
+  const managedCache = await cacheManagedWorkspaceManifest(finalPreview.manifest);
   process.stdout.write(
-    `Synced workspace '${preview.workspaceId}' to idea '${updated.title || preview.targetIdeaTitle}'.\n`,
+    `Synced workspace '${finalPreview.workspaceId}' to idea '${updated.title || finalPreview.targetIdeaTitle}'.\n`,
   );
-  process.stdout.write(`Tabs: ${preview.tabs.length}. Stored notes: ${preview.nextNotesLength} chars.\n`);
+  if (pushedWorkspace) {
+    process.stdout.write(`Pushed hosted workspace state to '${hostedWorkspaceId}'.\n`);
+    process.stdout.write("Skipped idea-note mirror update because hosted workspace state is authoritative.\n");
+  }
+  if (hostedWorkspaceId) {
+    process.stdout.write(
+      `Tabs: ${finalPreview.tabs.length}. Compatibility notes would be ${finalPreview.nextNotesLength} chars.\n`,
+    );
+  } else {
+    process.stdout.write(`Tabs: ${finalPreview.tabs.length}. Stored notes: ${finalPreview.nextNotesLength} chars.\n`);
+  }
   process.stdout.write(`Updated local workspace cache at ${managedCache.manifestPath}.\n`);
   return 0;
 }

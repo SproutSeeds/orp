@@ -6,6 +6,32 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.35 - 2026-04-30
+
+This release makes the hosted workspace sync contract canonical from the ORP
+CLI side, so hosted ORP can render the same projects, resume sessions, plans,
+and tasks that local workspace tooling sees.
+
+### Added
+
+- Added local workspace inventory reconciliation for `orp workspace sync`,
+  starting from the selected workspace ledger and refreshing known projects
+  from ORP startup state, Clawdad state, and recent Codex session metadata.
+- Added hosted workspace state push support that carries per-project sync
+  metadata, linked ORP idea/feature ids, plan summaries, and task lists.
+- Added a hosted workspace sync contract document covering the canonical
+  source order and required hosted payload fields.
+
+### Changed
+
+- `orp workspace sync main` now bridges a local managed workspace file to the
+  matching hosted workspace by durable `workspaceId` before pushing state.
+- Hosted workspace sync skips the idea-note compatibility mirror when the
+  hosted workspace state can be written directly, avoiding stale or truncated
+  plan/task payloads.
+- Workspace manifests now round-trip activity timestamps, sync timestamps,
+  sync source labels, plan data, tasks, and linked ORP project references.
+
 ## v0.4.34 - 2026-04-30
 
 This release connects ORP frontier plans to hosted ORP ideas/features and lets
