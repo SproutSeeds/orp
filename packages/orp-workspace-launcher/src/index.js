@@ -41,7 +41,11 @@ export {
   runWorkspaceAddTab,
   runWorkspaceRemoveTab,
 } from "./ledger.js";
-export { buildHostedWorkspaceState } from "./hosted-state.js";
+export {
+  buildHostedWorkspaceState,
+  enrichWorkspaceManifestWithProjectContext,
+  enrichWorkspaceTabsWithProjectContext,
+} from "./hosted-state.js";
 export {
   applyWorkspaceSlotsToInventory,
   buildWorkspaceInventory,

@@ -265,6 +265,8 @@ function normalizeStructuredTab(rawTab, index) {
   const title = normalizeOptionalString(rawTab.title);
   const resume = resolveResumeMetadata(rawTab);
   const tmuxSessionName = normalizeOptionalString(rawTab.tmuxSessionName);
+  const plan = rawTab.plan && typeof rawTab.plan === "object" && !Array.isArray(rawTab.plan) ? rawTab.plan : null;
+  const tasks = Array.isArray(rawTab.tasks) ? rawTab.tasks : [];
 
   return {
     lineNumber: index + 1,
@@ -279,6 +281,10 @@ function normalizeStructuredTab(rawTab, index) {
     remoteUrl: normalizeOptionalUrl(rawTab.remoteUrl, `workspace tab ${index + 1} remoteUrl`),
     remoteBranch: normalizeOptionalString(rawTab.remoteBranch),
     bootstrapCommand: normalizeOptionalCommand(rawTab.bootstrapCommand),
+    linkedIdeaId: normalizeOptionalString(rawTab.linkedIdeaId ?? rawTab.linked_idea_id),
+    linkedFeatureId: normalizeOptionalString(rawTab.linkedFeatureId ?? rawTab.linked_feature_id),
+    plan,
+    tasks,
   };
 }
 
@@ -307,6 +313,14 @@ function normalizeStructuredProject(rawProject, projectIndex) {
         codexSessionId: rawSession.codexSessionId,
         claudeSessionId: rawSession.claudeSessionId,
         tmuxSessionName: rawSession.tmuxSessionName,
+        linkedIdeaId: rawSession.linkedIdeaId ?? rawSession.linked_idea_id ?? rawProject.linkedIdeaId ?? rawProject.linked_idea_id,
+        linkedFeatureId:
+          rawSession.linkedFeatureId ??
+          rawSession.linked_feature_id ??
+          rawProject.linkedFeatureId ??
+          rawProject.linked_feature_id,
+        plan: rawSession.plan ?? rawProject.plan,
+        tasks: rawSession.tasks ?? rawProject.tasks,
       },
       sessionIndex,
     );
@@ -381,6 +395,10 @@ export function buildWorkspaceProjectGroups(entries = []) {
         remoteUrl: normalizeOptionalUrl(entry.remoteUrl, "workspace project remoteUrl"),
         remoteBranch: normalizeOptionalString(entry.remoteBranch),
         bootstrapCommand: normalizeOptionalCommand(entry.bootstrapCommand),
+        linkedIdeaId: normalizeOptionalString(entry.linkedIdeaId),
+        linkedFeatureId: normalizeOptionalString(entry.linkedFeatureId),
+        plan: entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : null,
+        tasks: Array.isArray(entry.tasks) && entry.tasks.length > 0 ? entry.tasks : [],
         sessions: [],
       });
     }
@@ -389,6 +407,14 @@ export function buildWorkspaceProjectGroups(entries = []) {
     project.remoteUrl = project.remoteUrl || normalizeOptionalUrl(entry.remoteUrl, "workspace project remoteUrl");
     project.remoteBranch = project.remoteBranch || normalizeOptionalString(entry.remoteBranch);
     project.bootstrapCommand = project.bootstrapCommand || normalizeOptionalCommand(entry.bootstrapCommand);
+    project.linkedIdeaId = project.linkedIdeaId || normalizeOptionalString(entry.linkedIdeaId);
+    project.linkedFeatureId = project.linkedFeatureId || normalizeOptionalString(entry.linkedFeatureId);
+    project.plan =
+      project.plan ||
+      (entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : null);
+    if ((!Array.isArray(project.tasks) || project.tasks.length === 0) && Array.isArray(entry.tasks) && entry.tasks.length > 0) {
+      project.tasks = entry.tasks;
+    }
 
     const resume = resolveResumeMetadata(entry);
     project.sessions.push(
@@ -413,6 +439,10 @@ export function buildWorkspaceProjectGroups(entries = []) {
         remoteUrl: project.remoteUrl || undefined,
         remoteBranch: project.remoteBranch || undefined,
         bootstrapCommand: project.bootstrapCommand || undefined,
+        linkedIdeaId: project.linkedIdeaId || undefined,
+        linkedFeatureId: project.linkedFeatureId || undefined,
+        plan: project.plan || undefined,
+        tasks: Array.isArray(project.tasks) && project.tasks.length > 0 ? project.tasks : undefined,
         sessionCount: project.sessions.length,
         sessions: project.sessions,
       }).filter(([, value]) => value !== undefined),

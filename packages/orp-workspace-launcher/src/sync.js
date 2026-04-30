@@ -10,6 +10,7 @@ import {
   resolveResumeMetadata,
   WORKSPACE_SCHEMA_VERSION,
 } from "./core-plan.js";
+import { enrichWorkspaceManifestWithProjectContext } from "./hosted-state.js";
 import { fetchIdeaPayload, loadWorkspaceSource, updateIdeaPayload } from "./orp.js";
 import { cacheManagedWorkspaceManifest } from "./registry.js";
 
@@ -198,6 +199,10 @@ function serializeWorkspaceManifest(manifest) {
         resumeCommand: normalizeOptionalString(entry.resumeCommand) ?? undefined,
         resumeTool: normalizeOptionalString(entry.resumeTool) ?? undefined,
         resumeSessionId: normalizeOptionalString(entry.resumeSessionId ?? entry.sessionId) ?? undefined,
+        linkedIdeaId: normalizeOptionalString(entry.linkedIdeaId ?? entry.linked_idea_id) ?? undefined,
+        linkedFeatureId: normalizeOptionalString(entry.linkedFeatureId ?? entry.linked_feature_id) ?? undefined,
+        plan: entry.plan && typeof entry.plan === "object" && !Array.isArray(entry.plan) ? entry.plan : undefined,
+        tasks: Array.isArray(entry.tasks) && entry.tasks.length > 0 ? entry.tasks : undefined,
         codexSessionId:
           normalizeOptionalString(entry.resumeTool) === "codex"
             ? normalizeOptionalString(entry.codexSessionId ?? entry.resumeSessionId ?? entry.sessionId) ?? undefined
@@ -250,6 +255,10 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
           resumeSessionId: entry.sessionId || null,
           codexSessionId: entry.resumeTool === "codex" ? entry.sessionId || null : null,
           claudeSessionId: entry.resumeTool === "claude" ? entry.sessionId || null : null,
+          linkedIdeaId: entry.linkedIdeaId || null,
+          linkedFeatureId: entry.linkedFeatureId || null,
+          plan: entry.plan || null,
+          tasks: Array.isArray(entry.tasks) ? entry.tasks : [],
         })),
       }
     : {
@@ -272,6 +281,7 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
             resolveResumeMetadata(entry).resumeTool === "claude" ? resolveResumeMetadata(entry).resumeSessionId : null,
         })),
       };
+  const enrichedManifest = enrichWorkspaceManifestWithProjectContext(manifest);
 
   const narrativeSourceNotes =
     source.sourceType === "workspace-file" ? targetIdea.notes || "" : source.notes || targetIdea.notes || "";
@@ -280,7 +290,7 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
   });
   const nextNotes = composeWorkspaceNotes({
     narrativeNotes,
-    manifest,
+    manifest: enrichedManifest,
   });
 
   return {
@@ -289,11 +299,11 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
     sourceType: source.sourceType,
     sourceLabel: source.sourceLabel,
     parseMode: parsed.parseMode,
-    workspaceId: manifest.workspaceId,
-    manifest,
+    workspaceId: enrichedManifest.workspaceId,
+    manifest: enrichedManifest,
     nextNotes,
     nextNotesLength: nextNotes.length,
-    tabs: manifest.tabs,
+    tabs: enrichedManifest.tabs,
     skipped: parsed.skipped,
   };
 }

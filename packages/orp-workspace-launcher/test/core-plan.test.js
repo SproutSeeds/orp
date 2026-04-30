@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import {
   buildLaunchPlan,
@@ -241,6 +244,51 @@ Workspace summary.
   assert.match(preview.nextNotes, /```orp-workspace/);
   assert.doesNotMatch(preview.nextNotes, /stale-session/);
   assert.doesNotMatch(preview.nextNotes, /\/Volumes\/Code_2TB\/code\/orp: codex resume/);
+});
+
+test("buildWorkspaceSyncPreview enriches workspace-file tabs with linked ORP project context", async () => {
+  const projectRoot = await fs.mkdtemp(path.join(os.tmpdir(), "orp-workspace-sync-frontier-"));
+  await fs.mkdir(path.join(projectRoot, ".git", "orp", "link"), { recursive: true });
+  await fs.writeFile(
+    path.join(projectRoot, ".git", "orp", "link", "project.json"),
+    JSON.stringify(
+      {
+        idea_id: "idea-linked",
+        active_feature_id: "feature-active",
+        project_root: projectRoot,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  const source = {
+    sourceType: "workspace-file",
+    sourceLabel: "/tmp/workspace.json",
+    sourcePath: "/tmp/workspace.json",
+    title: "Workspace idea",
+    notes: "",
+    workspaceManifest: {
+      version: "1",
+      workspaceId: "workspace-file-demo",
+      tabs: [{ title: "Linked project", path: projectRoot }],
+    },
+  };
+  const parsed = parseWorkspaceSource(source);
+  const preview = buildWorkspaceSyncPreview({
+    source,
+    parsed,
+    targetIdea: {
+      id: "idea-123",
+      title: "Workspace idea",
+      notes: "",
+    },
+  });
+
+  assert.equal(preview.tabs[0]?.linkedIdeaId, "idea-linked");
+  assert.equal(preview.tabs[0]?.linkedFeatureId, "feature-active");
+  assert.match(preview.nextNotes, /"linkedIdeaId": "idea-linked"/);
+  assert.match(preview.nextNotes, /"linkedFeatureId": "feature-active"/);
 });
 
 test("resolveWorkspaceSyncTargetIdeaId supports hosted idea and hosted workspace sources", () => {

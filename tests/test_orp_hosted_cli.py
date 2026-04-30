@@ -188,22 +188,26 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(payload["features"][0]["id"], "feat_1")
             self.assertEqual(payload["idea"]["features"][0]["id"], "feat_1")
 
-    def test_feature_list_uses_wrapped_idea_payload(self) -> None:
+    def test_feature_list_uses_features_route(self) -> None:
         module = load_cli_module()
+        calls: list[str] = []
 
         def fake_request_hosted_json(*, base_url, path, token):
             self.assertEqual(base_url, "https://orp.earth")
-            self.assertEqual(path, "/api/cli/ideas/idea_123")
             self.assertEqual(token, "tok_live_123")
-            return {
-                "ok": True,
-                "idea": {
-                    "id": "idea_123",
-                    "title": "Release smoke",
-                    "visibility": "private",
-                },
-                "features": [{"id": "feat_1", "title": "One"}],
-            }
+            calls.append(path)
+            if path == "/api/cli/ideas/idea_123":
+                return {
+                    "ok": True,
+                    "idea": {
+                        "id": "idea_123",
+                        "title": "Release smoke",
+                        "visibility": "private",
+                    },
+                    "features": [],
+                }
+            self.assertEqual(path, "/api/cli/ideas/idea_123/features")
+            return {"ok": True, "features": [{"id": "feat_1", "title": "One"}]}
 
         module._request_hosted_json = fake_request_hosted_json
 
@@ -225,6 +229,209 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(payload["idea_id"], "idea_123")
             self.assertEqual(payload["idea_title"], "Release smoke")
             self.assertEqual(payload["features"][0]["id"], "feat_1")
+            self.assertEqual(calls, ["/api/cli/ideas/idea_123", "/api/cli/ideas/idea_123/features"])
+
+    def test_feature_update_can_mark_completed(self) -> None:
+        module = load_cli_module()
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            if method == "GET":
+                self.assertEqual(path, "/api/cli/ideas/idea_123/features")
+                return {
+                    "ok": True,
+                    "features": [
+                        {
+                            "id": "feat_1",
+                            "ideaId": "idea_123",
+                            "title": "One",
+                            "updatedAt": "2026-04-30T12:00:00Z",
+                        }
+                    ],
+                }
+            self.assertEqual(method, "PATCH")
+            self.assertEqual(path, "/api/cli/features/feat_1")
+            self.assertEqual(body["ideaId"], "idea_123")
+            self.assertEqual(body["completed"], True)
+            self.assertNotIn("updatedAt", body)
+            return {
+                "ok": True,
+                "feature": {
+                    "id": "feat_1",
+                    "ideaId": "idea_123",
+                    "title": "One",
+                    "completed": True,
+                },
+            }
+
+        module._request_hosted_json = fake_request_hosted_json
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td:
+            self._prepare_session(module, td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_feature_update(
+                    argparse.Namespace(
+                        feature_id="feat_1",
+                        idea_id="idea_123",
+                        title=None,
+                        notes=None,
+                        detail=None,
+                        detail_label=None,
+                        details_file="",
+                        details_json="",
+                        clear_details=False,
+                        starred=False,
+                        super_starred=False,
+                        visibility=None,
+                        completed=True,
+                        incomplete=False,
+                        base_url="",
+                        json_output=True,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["feature"]["id"], "feat_1")
+            self.assertEqual(len(calls), 2)
+
+    def test_frontier_sync_idea_creates_feature_tasks_and_project_link(self) -> None:
+        module = load_cli_module()
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+        def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
+            self.assertEqual(base_url, "https://orp.earth")
+            self.assertEqual(token, "tok_live_123")
+            calls.append((method, path, body))
+            if method == "GET" and path == "/api/cli/ideas/idea_123":
+                return {
+                    "ok": True,
+                    "idea": {
+                        "id": "idea_123",
+                        "title": "Old title",
+                        "notes": "old",
+                        "updatedAt": "2026-04-30T12:00:00Z",
+                    },
+                    "features": [],
+                }
+            if method == "PATCH" and path == "/api/cli/ideas/idea_123":
+                self.assertEqual(body["title"], "ORP TAS: Demo Frontier")
+                self.assertIn("Current next action: Do active phase.", body["notes"])
+                return {
+                    "ok": True,
+                    "idea": {
+                        "id": "idea_123",
+                        "title": body["title"],
+                        "notes": body["notes"],
+                        "updatedAt": "2026-04-30T12:01:00Z",
+                    },
+                    "features": [],
+                }
+            if method == "GET" and path == "/api/cli/ideas/idea_123/features":
+                return {"ok": True, "features": []}
+            if method == "POST" and path == "/api/cli/ideas/idea_123/features":
+                phase_id = "p1" if "Phase one" in body["title"] else "p2"
+                self.assertIn(f"<!-- ORP:FRONTIER_PHASE:{phase_id} -->", body["notes"])
+                return {
+                    "ok": True,
+                    "feature": {
+                        "id": f"feat_{phase_id}",
+                        "ideaId": "idea_123",
+                        "title": body["title"],
+                        "notes": body["notes"],
+                        "completed": bool(body["completed"]),
+                    },
+                }
+            if method == "PATCH" and path == "/api/cli/features/feat_p1":
+                self.assertEqual(body, {"completed": True})
+                return {
+                    "ok": True,
+                    "feature": {
+                        "id": "feat_p1",
+                        "ideaId": "idea_123",
+                        "title": "Phase one",
+                        "completed": True,
+                    },
+                }
+            raise AssertionError(f"unexpected request: {method} {path}")
+
+        module._request_hosted_json = fake_request_hosted_json
+
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as td, TemporaryDirectory() as config_td:
+            root = Path(td)
+            subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True, text=True)
+            frontier = root / "orp" / "frontier"
+            frontier.mkdir(parents=True)
+            (frontier / "TAS.md").write_text("# ORP TAS: Demo Frontier\n\nTask alignment.", encoding="utf-8")
+            (frontier / "state.json").write_text(
+                json.dumps(
+                    {
+                        "active_version": "v1",
+                        "active_milestone": "m1",
+                        "active_phase": "p2",
+                        "next_action": "Do active phase.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (frontier / "version-stack.json").write_text(
+                json.dumps(
+                    {
+                        "program_id": "demo",
+                        "label": "Demo Frontier",
+                        "versions": [
+                            {
+                                "id": "v1",
+                                "label": "Version",
+                                "milestones": [
+                                    {
+                                        "id": "m1",
+                                        "label": "Milestone",
+                                        "phases": [
+                                            {"id": "p1", "label": "Phase one", "status": "completed"},
+                                            {"id": "p2", "label": "Phase two", "status": "active"},
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._prepare_session(module, config_td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                result = module.cmd_frontier_sync_idea(
+                    argparse.Namespace(
+                        repo_root=str(root),
+                        config="orp.yml",
+                        idea_id="idea_123",
+                        create_idea=False,
+                        no_link_project=False,
+                        dry_run=False,
+                        base_url="",
+                        json_output=True,
+                    )
+                )
+            self.assertEqual(result, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertTrue(payload["ok"])
+            self.assertEqual(payload["active_feature_id"], "feat_p2")
+            link = json.loads((root / ".git" / "orp" / "link" / "project.json").read_text(encoding="utf-8"))
+            self.assertEqual(link["idea_id"], "idea_123")
+            self.assertEqual(link["active_feature_id"], "feat_p2")
+            self.assertEqual(link["frontier_feature_ids"], {"p1": "feat_p1", "p2": "feat_p2"})
+            self.assertEqual([call[0] for call in calls].count("POST"), 2)
+            self.assertEqual([call[0] for call in calls].count("PATCH"), 2)
 
     def test_idea_update_uses_wrapped_updated_at(self) -> None:
         module = load_cli_module()

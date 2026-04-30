@@ -6,6 +6,30 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.34 - 2026-04-30
+
+This release connects ORP frontier plans to hosted ORP ideas/features and lets
+workspace snapshots carry canonical project references instead of stale copied
+task text.
+
+### Added
+
+- Added `orp frontier sync-idea` to create or update a hosted ORP idea from a
+  repo's frontier TAS/current phase, then sync milestone phases as hosted
+  feature tasks with completion state.
+- Added project-link metadata for active frontier feature ids so
+  `.git/orp/link/project.json` can map local frontier phases back to hosted
+  ORP feature records.
+- Added workspace enrichment for linked ORP projects, including compact
+  `linkedIdeaId` / `linkedFeatureId` references and local frontier plan/task
+  summaries for workspace sync previews.
+
+### Changed
+
+- Workspace sync now preserves linked idea/feature references in structured
+  workspace manifests so the hosted web app can prefer canonical ORP
+  idea/features for plan and task rendering.
+
 ## v0.4.33 - 2026-04-30
 
 This release teaches ORP to manage Codex's global instruction and startup hook

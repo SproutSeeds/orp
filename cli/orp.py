@@ -4941,7 +4941,29 @@ def _build_remote_feature_body(
         body["superStarred"] = True
     if getattr(args, "visibility", None) is not None:
         body["visibility"] = str(getattr(args, "visibility", "")).strip()
+    completed = bool(getattr(args, "completed", False))
+    incomplete = bool(getattr(args, "incomplete", False))
+    if completed and incomplete:
+        raise RuntimeError("Use only one of --completed or --incomplete.")
+    if completed or incomplete:
+        body["completed"] = completed
     return body
+
+
+def _feature_body_has_metadata_update(body: dict[str, Any]) -> bool:
+    return any(
+        key in body
+        for key in (
+            "title",
+            "notes",
+            "detail",
+            "detailLabel",
+            "details",
+            "starred",
+            "superStarred",
+            "visibility",
+        )
+    )
 
 
 def _resolve_codex_bin(args: argparse.Namespace) -> str:
@@ -7753,6 +7775,7 @@ def _normalize_link_project_payload(
         "world_name": ["world_name", "worldName", "name"],
         "github_url": ["github_url", "githubUrl"],
         "linked_email": ["linked_email", "linkedEmail"],
+        "active_feature_id": ["active_feature_id", "activeFeatureId", "linked_feature_id", "linkedFeatureId"],
         "notes": ["notes"],
     }.items():
         value = ""
@@ -7762,6 +7785,15 @@ def _normalize_link_project_payload(
                 break
         if value:
             payload[key] = value
+    frontier_feature_ids = raw.get("frontier_feature_ids", raw.get("frontierFeatureIds"))
+    if isinstance(frontier_feature_ids, dict):
+        normalized_feature_ids = {
+            str(key).strip(): str(value).strip()
+            for key, value in frontier_feature_ids.items()
+            if str(key).strip() and str(value).strip()
+        }
+        if normalized_feature_ids:
+            payload["frontier_feature_ids"] = normalized_feature_ids
     payload["source"] = source
     return payload
 
@@ -13276,6 +13308,7 @@ def _about_payload() -> dict[str, Any]:
                     ["frontier", "add-phase"],
                     ["frontier", "set-live"],
                     ["frontier", "render"],
+                    ["frontier", "sync-idea"],
                     ["frontier", "doctor"],
                 ],
             },
@@ -13460,6 +13493,7 @@ def _about_payload() -> dict[str, Any]:
             {"name": "frontier_add_phase", "path": ["frontier", "add-phase"], "json_output": True},
             {"name": "frontier_set_live", "path": ["frontier", "set-live"], "json_output": True},
             {"name": "frontier_render", "path": ["frontier", "render"], "json_output": True},
+            {"name": "frontier_sync_idea", "path": ["frontier", "sync-idea"], "json_output": True},
             {"name": "frontier_doctor", "path": ["frontier", "doctor"], "json_output": True},
             {"name": "branch_start", "path": ["branch", "start"], "json_output": True},
             {"name": "checkpoint_create", "path": ["checkpoint", "create"], "json_output": True},
@@ -16934,6 +16968,305 @@ def cmd_frontier_render(args: argparse.Namespace) -> int:
     else:
         for key, value in written.items():
             print(f"{key}={value}")
+    return 0
+
+
+FRONTIER_FEATURE_MARKER_PATTERN = re.compile(r"<!--\s*ORP:FRONTIER_PHASE:([^>\s]+)\s*-->")
+
+
+def _frontier_tas_text(repo_root: Path) -> str:
+    path = _frontier_paths(repo_root)["root"] / "TAS.md"
+    if not path.exists():
+        return ""
+    return _read_text(path).strip()
+
+
+def _frontier_tas_title(text: str) -> str:
+    for line in str(text or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return ""
+
+
+def _frontier_plan_notes(repo_root: Path, stack: dict[str, Any], state: dict[str, Any]) -> tuple[str, str]:
+    tas_text = _frontier_tas_text(repo_root)
+    title = (
+        _frontier_tas_title(tas_text)
+        or str(stack.get("label", "")).strip()
+        or str(stack.get("program_id", "")).strip()
+        or repo_root.name
+    )
+    active_parts = [
+        str(state.get("active_version", "")).strip(),
+        str(state.get("active_milestone", "")).strip(),
+        str(state.get("active_phase", "")).strip(),
+    ]
+    body_parts = [
+        f"Current next action: {str(state.get('next_action', '')).strip()}" if str(state.get("next_action", "")).strip() else "",
+        f"Active frontier: {' / '.join([part for part in active_parts if part])}" if any(active_parts) else "",
+        tas_text,
+    ]
+    return title, "\n\n".join(part for part in body_parts if part).strip()
+
+
+def _frontier_phase_completed(status: str) -> bool:
+    return _frontier_status(status, default="planned") in {"complete", "completed", "done", "terminal"}
+
+
+def _frontier_phase_tasks(stack: dict[str, Any], state: dict[str, Any]) -> list[dict[str, Any]]:
+    active_milestone_id = str(state.get("active_milestone", "") or stack.get("current_frontier", {}).get("active_milestone", "")).strip()
+    active_phase_id = str(state.get("active_phase", "") or stack.get("current_frontier", {}).get("active_phase", "")).strip()
+    _, milestone = _frontier_find_milestone(stack, active_milestone_id) if active_milestone_id else (None, None)
+    phases = milestone.get("phases") if isinstance(milestone, dict) else []
+    rows: list[dict[str, Any]] = []
+    for index, phase in enumerate(phases if isinstance(phases, list) else []):
+        if not isinstance(phase, dict):
+            continue
+        phase_id = str(phase.get("id", "")).strip() or f"frontier-phase-{index + 1}"
+        status = _frontier_status(phase.get("status"), default="planned")
+        rows.append(
+            {
+                "phase_id": phase_id,
+                "title": str(phase.get("label", "")).strip() or str(phase.get("goal", "")).strip() or phase_id,
+                "status": "active" if phase_id == active_phase_id else status,
+                "completed": _frontier_phase_completed(status),
+                "active": phase_id == active_phase_id,
+                "phase": phase,
+            }
+        )
+    return rows
+
+
+def _frontier_feature_notes(task: dict[str, Any]) -> str:
+    phase = task.get("phase") if isinstance(task.get("phase"), dict) else {}
+    phase_id = str(task.get("phase_id", "")).strip()
+    lines = [
+        f"<!-- ORP:FRONTIER_PHASE:{phase_id} -->",
+        f"ORP frontier phase id: {phase_id}",
+        f"Status: {str(task.get('status', '')).strip() or 'planned'}",
+    ]
+    goal = str(phase.get("goal", "")).strip()
+    if goal:
+        lines.extend(["", "Goal:", goal])
+    for label, key in [
+        ("Requirements", "requirements"),
+        ("Success criteria", "success_criteria"),
+        ("Plan", "plans"),
+    ]:
+        values = _coerce_string_list(phase.get(key))
+        if values:
+            lines.extend(["", f"{label}:"])
+            lines.extend([f"- {value}" for value in values])
+    return "\n".join(lines).strip()
+
+
+def _feature_text_for_matching(feature: dict[str, Any]) -> str:
+    parts = [
+        str(feature.get("title", "") or ""),
+        str(feature.get("notes", "") or ""),
+        str(feature.get("detail", "") or ""),
+    ]
+    sections = feature.get("detailSections", feature.get("details"))
+    if isinstance(sections, list):
+        for section in sections:
+            if isinstance(section, dict):
+                parts.append(str(section.get("body", "") or ""))
+                parts.append(str(section.get("detail", "") or ""))
+    return "\n".join(parts)
+
+
+def _frontier_phase_id_from_feature(feature: dict[str, Any]) -> str:
+    match = FRONTIER_FEATURE_MARKER_PATTERN.search(_feature_text_for_matching(feature))
+    return match.group(1).strip() if match else ""
+
+
+def _frontier_match_features_by_phase(features: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    matches: dict[str, dict[str, Any]] = {}
+    for feature in features:
+        phase_id = _frontier_phase_id_from_feature(feature)
+        if phase_id and phase_id not in matches:
+            matches[phase_id] = feature
+    return matches
+
+
+def _frontier_sync_update_idea(args: argparse.Namespace, idea_id: str, title: str, notes: str, *, dry_run: bool) -> dict[str, Any]:
+    current = _get_remote_idea(args, idea_id)
+    if dry_run:
+        return current
+    session = _require_hosted_session(args)
+    body = {
+        "title": title,
+        "notes": notes,
+    }
+    updated_at = str(current.get("updatedAt", "")).strip()
+    if updated_at:
+        body["updatedAt"] = updated_at
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/ideas/{urlparse.quote(idea_id)}",
+        method="PATCH",
+        token=str(session.get("token", "")).strip(),
+        body=body,
+    )
+    return _normalize_remote_idea_payload(payload)["idea"]
+
+
+def _frontier_sync_create_idea(args: argparse.Namespace, title: str, notes: str, *, dry_run: bool) -> dict[str, Any]:
+    if dry_run:
+        return {"id": "", "title": title, "notes": notes}
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path="/api/cli/ideas",
+        method="POST",
+        token=str(session.get("token", "")).strip(),
+        body={"title": title, "notes": notes},
+    )
+    return _normalize_remote_idea_payload(payload)["idea"]
+
+
+def _frontier_sync_feature(
+    args: argparse.Namespace,
+    *,
+    idea_id: str,
+    task: dict[str, Any],
+    existing: dict[str, Any] | None,
+    dry_run: bool,
+) -> dict[str, Any]:
+    phase_id = str(task.get("phase_id", "")).strip()
+    body = {
+        "ideaId": idea_id,
+        "title": str(task.get("title", "")).strip(),
+        "notes": _frontier_feature_notes(task),
+        "completed": bool(task.get("completed")),
+    }
+    action = "update" if existing else "create"
+    if dry_run:
+        return {
+            "phase_id": phase_id,
+            "action": action,
+            "feature": existing or {"id": "", "ideaId": idea_id, "title": body["title"], "completed": body["completed"]},
+        }
+    session = _require_hosted_session(args)
+    if existing:
+        updated_at = str(existing.get("updatedAt", "")).strip()
+        if updated_at:
+            body["updatedAt"] = updated_at
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/features/{urlparse.quote(str(existing.get('id', '')).strip())}",
+            method="PATCH",
+            token=str(session.get("token", "")).strip(),
+            body=body,
+        )
+    else:
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/ideas/{urlparse.quote(idea_id)}/features",
+            method="POST",
+            token=str(session.get("token", "")).strip(),
+            body=body,
+        )
+        created = _normalize_remote_feature_payload(payload)
+        if bool(task.get("completed")) and str(created.get("id", "")).strip():
+            created = _patch_remote_feature_completion(
+                args,
+                feature_id=str(created.get("id", "")).strip(),
+                completed=True,
+            )
+            payload = {"ok": True, "feature": created}
+    return {
+        "phase_id": phase_id,
+        "action": action,
+        "feature": _normalize_remote_feature_payload(payload),
+    }
+
+
+def cmd_frontier_sync_idea(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    project_link = _read_link_project(repo_root)
+    requested_idea_id = str(getattr(args, "idea_id", "") or "").strip()
+    idea_id = requested_idea_id or str(project_link.get("idea_id", "")).strip()
+    title, notes = _frontier_plan_notes(repo_root, stack, state)
+    dry_run = bool(getattr(args, "dry_run", False))
+    create_idea = bool(getattr(args, "create_idea", False))
+
+    if not idea_id and not create_idea:
+        raise RuntimeError(
+            "No hosted idea is linked. Run `orp frontier sync-idea --create-idea --json`, or pass --idea-id."
+        )
+
+    idea_created = False
+    if idea_id:
+        idea = _frontier_sync_update_idea(args, idea_id, title, notes, dry_run=dry_run)
+    else:
+        idea = _frontier_sync_create_idea(args, title, notes, dry_run=dry_run)
+        idea_id = str(idea.get("id", "")).strip()
+        idea_created = True
+
+    tasks = _frontier_phase_tasks(stack, state)
+    existing_features = _list_remote_features(args, idea_id) if idea_id else []
+    features_by_phase = _frontier_match_features_by_phase(existing_features)
+    synced_features: list[dict[str, Any]] = []
+    frontier_feature_ids: dict[str, str] = {
+        str(key): str(value)
+        for key, value in (project_link.get("frontier_feature_ids") if isinstance(project_link.get("frontier_feature_ids"), dict) else {}).items()
+        if str(key).strip() and str(value).strip()
+    }
+    active_feature_id = ""
+
+    for task in tasks:
+        phase_id = str(task.get("phase_id", "")).strip()
+        existing = features_by_phase.get(phase_id)
+        synced = _frontier_sync_feature(args, idea_id=idea_id, task=task, existing=existing, dry_run=dry_run)
+        synced_features.append(synced)
+        feature_id = str(synced.get("feature", {}).get("id", "")).strip()
+        if feature_id:
+            frontier_feature_ids[phase_id] = feature_id
+        if bool(task.get("active")):
+            active_feature_id = feature_id
+
+    project_link_path = ""
+    should_link_project = not bool(getattr(args, "no_link_project", False))
+    if should_link_project and not dry_run and idea_id:
+        next_link = {
+            **project_link,
+            "idea_id": idea_id,
+            "idea_title": str(idea.get("title", "")).strip() or title,
+            "project_root": str(repo_root),
+            "active_feature_id": active_feature_id,
+            "frontier_feature_ids": frontier_feature_ids,
+            "linked_at_utc": str(project_link.get("linked_at_utc", "")).strip() or _now_utc(),
+            "source": str(project_link.get("source", "")).strip() or "cli",
+        }
+        project_link_path = _path_for_state(_write_link_project(repo_root, next_link), repo_root)
+    elif should_link_project and project_link:
+        path = _link_project_path(repo_root)
+        project_link_path = _path_for_state(path, repo_root) if path is not None else ""
+
+    result = {
+        "ok": True,
+        "dry_run": dry_run,
+        "idea_created": idea_created and not dry_run,
+        "idea": idea,
+        "tasks": tasks,
+        "features": synced_features,
+        "active_feature_id": active_feature_id,
+        "frontier_feature_ids": frontier_feature_ids,
+        "project_link_path": project_link_path,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"idea.id={idea_id}")
+        print(f"idea.title={str(idea.get('title', '')).strip() or title}")
+        print(f"features.synced={len(synced_features)}")
+        print(f"active_feature_id={active_feature_id}")
+        if project_link_path:
+            print(f"project.link_path={project_link_path}")
     return 0
 
 
@@ -25873,6 +26206,59 @@ def _normalize_remote_idea_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalize_remote_feature_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    feature = payload.get("feature") if isinstance(payload.get("feature"), dict) else payload
+    if not isinstance(feature, dict):
+        raise RuntimeError("Hosted ORP returned an invalid feature payload.")
+    return feature
+
+
+def _normalize_remote_features_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    features = payload.get("features")
+    if not isinstance(features, list):
+        features = payload.get("items")
+    if not isinstance(features, list):
+        idea = payload.get("idea") if isinstance(payload.get("idea"), dict) else {}
+        features = idea.get("features") if isinstance(idea.get("features"), list) else []
+    return [row for row in features if isinstance(row, dict)]
+
+
+def _patch_remote_feature_completion(
+    args: argparse.Namespace,
+    *,
+    feature_id: str,
+    completed: bool,
+) -> dict[str, Any]:
+    session = _require_hosted_session(args)
+    payload = _request_hosted_json(
+        base_url=_resolve_hosted_base_url(args, session),
+        path=f"/api/cli/features/{urlparse.quote(feature_id)}",
+        method="PATCH",
+        token=str(session.get("token", "")).strip(),
+        body={"completed": completed},
+    )
+    return _normalize_remote_feature_payload(payload)
+
+
+def _list_remote_features(args: argparse.Namespace, idea_id: str, *, fallback_to_idea: bool = True) -> list[dict[str, Any]]:
+    session = _require_hosted_session(args)
+    try:
+        payload = _request_hosted_json(
+            base_url=_resolve_hosted_base_url(args, session),
+            path=f"/api/cli/ideas/{urlparse.quote(idea_id)}/features",
+            token=str(session.get("token", "")).strip(),
+        )
+        if not isinstance(payload, dict):
+            raise RuntimeError("Hosted ORP returned an invalid features payload.")
+        return _normalize_remote_features_payload(payload)
+    except HostedApiError:
+        if not fallback_to_idea:
+            raise
+        idea = _get_remote_idea(args, idea_id)
+        features = idea.get("features") if isinstance(idea.get("features"), list) else []
+        return [row for row in features if isinstance(row, dict)]
+
+
 def _get_remote_idea(args: argparse.Namespace, idea_id: str) -> dict[str, Any]:
     session = _require_hosted_session(args)
     payload = _request_hosted_json(
@@ -26077,7 +26463,7 @@ def cmd_idea_restore(args: argparse.Namespace) -> int:
 
 def cmd_feature_list(args: argparse.Namespace) -> int:
     idea = _get_remote_idea(args, args.idea_id)
-    features = idea.get("features") if isinstance(idea.get("features"), list) else []
+    features = _list_remote_features(args, args.idea_id)
     result = {
         "idea_id": str(idea.get("id", "")).strip(),
         "idea_title": str(idea.get("title", "")).strip(),
@@ -26119,7 +26505,8 @@ def _find_feature_by_id(idea_payload: dict[str, Any], feature_id: str) -> dict[s
 
 def cmd_feature_show(args: argparse.Namespace) -> int:
     idea = _get_remote_idea(args, args.idea_id)
-    feature = _find_feature_by_id(idea, args.feature_id)
+    features = _list_remote_features(args, args.idea_id)
+    feature = _find_feature_by_id({"features": features}, args.feature_id)
     result = {
         "idea_id": str(idea.get("id", "")).strip(),
         "feature": feature,
@@ -26147,14 +26534,22 @@ def cmd_feature_add(args: argparse.Namespace) -> int:
         token=str(session.get("token", "")).strip(),
         body=body,
     )
+    feature = _normalize_remote_feature_payload(payload)
+    if "completed" in body and str(feature.get("id", "")).strip():
+        feature = _patch_remote_feature_completion(
+            args,
+            feature_id=str(feature.get("id", "")).strip(),
+            completed=bool(body["completed"]),
+        )
+        payload = {"ok": True, "feature": feature}
     if args.json_output:
         _print_json(payload)
     else:
         _print_pairs(
             [
-                ("feature.id", str(payload.get("id", "")).strip()),
-                ("feature.title", str(payload.get("title", "")).strip()),
-                ("idea.id", str(payload.get("ideaId", args.idea_id)).strip()),
+                ("feature.id", str(feature.get("id", "")).strip()),
+                ("feature.title", str(feature.get("title", "")).strip()),
+                ("idea.id", str(feature.get("ideaId", args.idea_id)).strip()),
             ]
         )
     return 0
@@ -26162,11 +26557,11 @@ def cmd_feature_add(args: argparse.Namespace) -> int:
 
 def cmd_feature_update(args: argparse.Namespace) -> int:
     session = _require_hosted_session(args)
-    idea = _get_remote_idea(args, args.idea_id)
-    current = _find_feature_by_id(idea, args.feature_id)
+    features = _list_remote_features(args, args.idea_id)
+    current = _find_feature_by_id({"features": features}, args.feature_id)
     body = _build_remote_feature_body(args, args.idea_id, current)
     updated_at = str(current.get("updatedAt", "")).strip()
-    if updated_at:
+    if updated_at and _feature_body_has_metadata_update(body):
         body["updatedAt"] = updated_at
     payload = _request_hosted_json(
         base_url=_resolve_hosted_base_url(args, session),
@@ -26175,14 +26570,15 @@ def cmd_feature_update(args: argparse.Namespace) -> int:
         token=str(session.get("token", "")).strip(),
         body=body,
     )
+    feature = _normalize_remote_feature_payload(payload)
     if args.json_output:
         _print_json(payload)
     else:
         _print_pairs(
             [
-                ("feature.id", str(payload.get("id", "")).strip()),
-                ("feature.title", str(payload.get("title", "")).strip()),
-                ("feature.updated_at", str(payload.get("updatedAt", "")).strip()),
+                ("feature.id", str(feature.get("id", "")).strip()),
+                ("feature.title", str(feature.get("title", "")).strip()),
+                ("feature.updated_at", str(feature.get("updatedAt", "")).strip()),
             ]
         )
     return 0
@@ -28398,6 +28794,9 @@ def build_parser() -> argparse.ArgumentParser:
             default=None,
             help="Feature visibility override when supported by the hosted workspace",
         )
+        completion_group = parser.add_mutually_exclusive_group()
+        completion_group.add_argument("--completed", action="store_true", help="Mark feature as completed")
+        completion_group.add_argument("--incomplete", action="store_true", help="Mark feature as not completed")
 
     s_home = sub.add_parser(
         "home",
@@ -30979,6 +31378,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_frontier_render)
     s_frontier_render.set_defaults(func=cmd_frontier_render, json_output=False)
+
+    s_frontier_sync_idea = frontier_sub.add_parser(
+        "sync-idea",
+        help="Sync local frontier plan and phase tasks to a hosted ORP idea/features",
+    )
+    s_frontier_sync_idea.add_argument("--idea-id", default="", help="Hosted idea id; defaults to the local project link")
+    s_frontier_sync_idea.add_argument(
+        "--create-idea",
+        action="store_true",
+        help="Create a hosted idea when the project is not already linked",
+    )
+    s_frontier_sync_idea.add_argument(
+        "--no-link-project",
+        action="store_true",
+        help="Do not update the local project link with the synced idea/feature ids",
+    )
+    s_frontier_sync_idea.add_argument("--dry-run", action="store_true", help="Preview hosted changes without writing")
+    add_base_url_flag(s_frontier_sync_idea)
+    add_json_flag(s_frontier_sync_idea)
+    s_frontier_sync_idea.set_defaults(func=cmd_frontier_sync_idea, json_output=False)
 
     s_frontier_doctor = frontier_sub.add_parser(
         "doctor",
