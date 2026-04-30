@@ -6,6 +6,14 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.36 - 2026-04-30
+
+### Changed
+
+- Clarified `orp workspace sync --dry-run` output for hosted workspace pushes
+  so compatibility notes are not described as stored idea notes when the hosted
+  workspace state is the authoritative payload.
+
 ## v0.4.35 - 2026-04-30
 
 This release makes the hosted workspace sync contract canonical from the ORP

@@ -476,9 +476,13 @@ function summarizeSyncPreview(preview) {
     `  parse mode: ${preview.parseMode}`,
     `  workspace id: ${preview.workspaceId}`,
     `  tabs: ${preview.tabs.length}`,
-    `  stored notes: ${preview.nextNotesLength} chars`,
   ];
-  if (preview.compactedIdeaNotes) {
+  if (preview.hostedWorkspaceId) {
+    lines.push(`  compatibility notes: ${preview.nextNotesLength} chars (not written when hosted push succeeds)`);
+  } else {
+    lines.push(`  stored notes: ${preview.nextNotesLength} chars`);
+  }
+  if (preview.compactedIdeaNotes && !preview.hostedWorkspaceId) {
     lines.push(`  idea notes: compact compatibility mirror; hosted workspace state carries full details`);
   }
   if (preview.hostedWorkspaceId) {
