@@ -138,6 +138,40 @@ FRONTIER_BANDS = ("exact", "structured", "horizon")
 FRONTIER_ACTIVE_STATUSES = {"active", "in_progress", "running"}
 FRONTIER_PENDING_STATUSES = {"", "pending", "planned", "ready"}
 FRONTIER_TERMINAL_STATUSES = {"complete", "completed", "done", "skipped", "terminal"}
+FRONTIER_MODELED_CHECKOFF_PHASE_ID = "modeled-checkoff-v0"
+FRONTIER_MODELED_CHECKOFF_LIST_ID = "modeled-checkoff"
+FRONTIER_MODELED_CHECKOFF_ITEM_ID = "modeled-professional-lens-taxonomy-v0"
+FRONTIER_MODELED_CHECKOFF_HINTS = (
+    "approval",
+    "check-off",
+    "checkoff",
+    "clinical",
+    "domain expert",
+    "expert",
+    "gate",
+    "governance",
+    "human",
+    "legal",
+    "packet check",
+    "packet-check",
+    "privacy",
+    "publication",
+    "regulatory",
+    "review",
+    "safety",
+    "sign-off",
+    "signoff",
+    "validator",
+)
+FRONTIER_MODELED_CHECKOFF_ACTIVE_HINTS = (
+    "continuous-phase-delegation",
+    "frontier-continuation-governor",
+    "modeled-checkoff",
+    "modeled-expert",
+    "modeled-professional-lens",
+    "packet-checker",
+    "phase-delegation-governor",
+)
 YOUTUBE_SOURCE_SCHEMA_VERSION = "1.0.0"
 EXCHANGE_REPORT_SCHEMA_VERSION = "1.0.0"
 RESEARCH_RUN_SCHEMA_VERSION = "1.0.0"
@@ -170,6 +204,9 @@ AGENDA_DEFAULT_REFRESH_TIMES = {
 }
 AGENT_GUIDE_BEGIN = "<!-- ORP:AGENT_GUIDE:BEGIN -->"
 AGENT_GUIDE_END = "<!-- ORP:AGENT_GUIDE:END -->"
+CODEX_GLOBAL_GUIDE_BEGIN = "<!-- ORP:CODEX_GLOBAL:BEGIN -->"
+CODEX_GLOBAL_GUIDE_END = "<!-- ORP:CODEX_GLOBAL:END -->"
+CODEX_SESSION_START_HOOK = "orp_codex_session_start.py"
 ORP_SNIPPET_BEGIN = "<!-- ORP:BEGIN -->"
 ORP_SNIPPET_END = "<!-- ORP:END -->"
 AGENT_GUIDE_FILENAMES = ("AGENTS.md", "CLAUDE.md")
@@ -6269,6 +6306,78 @@ def _frontier_terminal_declared(state: dict[str, Any] | None, stack: dict[str, A
     return completion_status in {"complete", "completed", "done", "terminal"}
 
 
+def _frontier_normalized_signal_text(values: Sequence[Any]) -> str:
+    text = " ".join(str(value or "") for value in values).lower()
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+
+
+def _frontier_modeled_checkoff_needed(blockers: list[str], next_action: str) -> bool:
+    raw_values = [*blockers, next_action]
+    normalized = _frontier_normalized_signal_text(raw_values)
+    tokens = {token for token in normalized.split("-") if token}
+    for hint in FRONTIER_MODELED_CHECKOFF_HINTS:
+        normalized_hint = _frontier_normalized_signal_text([hint])
+        if not normalized_hint:
+            continue
+        if "-" in normalized_hint and normalized_hint in normalized:
+            return True
+        if "-" not in normalized_hint and normalized_hint in tokens:
+            return True
+    return False
+
+
+def _frontier_modeled_checkoff_active(
+    *,
+    active_primary_id: str,
+    active_list_id: str,
+    active_item_id: str,
+    next_action: str,
+) -> bool:
+    normalized = _frontier_normalized_signal_text([active_primary_id, active_list_id, active_item_id, next_action])
+    return any(hint in normalized for hint in FRONTIER_MODELED_CHECKOFF_ACTIVE_HINTS)
+
+
+def _frontier_modeled_checkoff_payload(
+    *,
+    blockers: list[str],
+    next_action: str,
+    active_primary_kind: str,
+    active_primary_id: str,
+    active_list_id: str,
+    active_item_id: str,
+) -> dict[str, Any]:
+    eligible = _frontier_modeled_checkoff_needed(blockers, next_action)
+    active = _frontier_modeled_checkoff_active(
+        active_primary_id=active_primary_id,
+        active_list_id=active_list_id,
+        active_item_id=active_item_id,
+        next_action=next_action,
+    )
+    return {
+        "eligible": eligible,
+        "active": active,
+        "phase_id": FRONTIER_MODELED_CHECKOFF_PHASE_ID,
+        "list_id": FRONTIER_MODELED_CHECKOFF_LIST_ID,
+        "item_id": FRONTIER_MODELED_CHECKOFF_ITEM_ID,
+        "label": "Modeled Checkoff v0",
+        "active_primary_kind": active_primary_kind,
+        "active_primary_id": active_primary_id,
+        "active_list_id": active_list_id,
+        "active_item_id": active_item_id,
+        "detected_blockers": blockers,
+        "boundary": (
+            "Modeled/proxy pre-review only; this does not clear human, clinical, legal, "
+            "regulatory, privacy, publication, or real-world expert gates."
+        ),
+        "professional_lens_requirements": [
+            "Name the modeled professional role and decision language.",
+            "State evidence expectations, uncertainty, stop conditions, and provenance requirements.",
+            "Separate packet-improvement decisions from external gate clearance.",
+        ],
+        "suggested_next_command": "orp frontier modeled-checkoff activate --json" if eligible and not active else "",
+    }
+
+
 def _frontier_build_continuation_payload(
     repo_root: Path,
     stack: dict[str, Any] | None,
@@ -6404,6 +6513,33 @@ def _frontier_build_continuation_payload(
             if not next_action:
                 next_action = _frontier_additional_item_summary(active_list, active_item)
 
+    modeled_checkoff = _frontier_modeled_checkoff_payload(
+        blockers=blockers,
+        next_action=next_action,
+        active_primary_kind=active_primary_kind,
+        active_primary_id=active_primary_id,
+        active_list_id=active_list_id,
+        active_item_id=active_item_id,
+    )
+    has_active_additional_work = int(additional_summary["active_items"]) > 0
+    if modeled_checkoff["eligible"] and not modeled_checkoff["active"] and not has_active_additional_work:
+        issues.append(
+            {
+                "severity": "warning",
+                "code": "modeled_checkoff_continuation_available",
+                "message": (
+                    "frontier appears to be at a review/checkoff gate; activate a modeled-checkoff "
+                    "continuation so delegation can improve the packet without clearing the external gate."
+                ),
+            }
+        )
+        suggested_next_command = modeled_checkoff["suggested_next_command"]
+        if not next_action:
+            next_action = (
+                f"Activate modeled checkoff continuation {modeled_checkoff['list_id']}/"
+                f"{modeled_checkoff['item_id']}."
+            )
+
     if not active_item_id and int(additional_summary["pending_items"]) > 0:
         issues.append(
             {
@@ -6412,7 +6548,8 @@ def _frontier_build_continuation_payload(
                 "message": "frontier additional queue has pending work but no active item; run `orp frontier additional activate-next` before delegating queue work.",
             }
         )
-        suggested_next_command = "orp frontier additional activate-next --json"
+        if not suggested_next_command:
+            suggested_next_command = "orp frontier additional activate-next --json"
         next_pending = additional_summary.get("next_pending")
         if isinstance(next_pending, dict) and not next_action:
             next_action = (
@@ -6452,6 +6589,7 @@ def _frontier_build_continuation_payload(
         "strict": strict,
         "issues": issues,
         "summary": summary,
+        "modeled_checkoff": modeled_checkoff,
         "next_action": next_action,
         "suggested_next_command": suggested_next_command,
         "paths": {key: _path_for_state(value, repo_root) for key, value in paths.items()},
@@ -6838,6 +6976,7 @@ def _frontier_doctor_payload(repo_root: Path) -> dict[str, Any]:
         "continuation": {
             "ok": continuation["ok"],
             "summary": continuation["summary"],
+            "modeled_checkoff": continuation.get("modeled_checkoff", {}),
             "next_action": continuation["next_action"],
             "suggested_next_command": continuation["suggested_next_command"],
         },
@@ -11267,6 +11406,494 @@ def _audit_agents_root(
     }
 
 
+def _resolve_codex_home_path(raw: str = "") -> Path:
+    explicit = str(raw or "").strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env_home = str(os.environ.get("CODEX_HOME", "")).strip()
+    if env_home:
+        return Path(env_home).expanduser().resolve()
+    return (Path.home() / ".codex").resolve()
+
+
+def _codex_session_hook_path(codex_home: Path) -> Path:
+    return codex_home / "hooks" / CODEX_SESSION_START_HOOK
+
+
+def _codex_global_guide_block() -> str:
+    return (
+        f"{CODEX_GLOBAL_GUIDE_BEGIN}\n"
+        "## ORP Codex Global Layer\n\n"
+        "- Scope: This block is managed by ORP for Codex's global `~/.codex/AGENTS.md` layer.\n"
+        "- Instruction hierarchy: Codex global guidance comes first, then repo/project `AGENTS.md` files, then narrower directory guidance.\n"
+        "- Keep universal preferences here; keep repo build/test commands and project-specific facts in the nearest project `AGENTS.md`.\n"
+        "- Treat ORP as process-only governance. Evidence and project truth still live in canonical artifacts such as code, data, logs, papers, proofs, and repo docs.\n"
+        "- Prefer non-mutating startup checks. Ask before creating or rewriting project `AGENTS.md`, ORP files, Clawdad registration, remotes, or service config.\n"
+        "- Use `orp hygiene --json` before long delegation, after material writeback, before remote side effects or unbudgeted paid compute, and when dirty state grows unexpectedly.\n"
+        "- Local stack surfaces to detect and mention when relevant: `orp`, `clawdad`, `dumpy-files`, `cmail`, and repo-local `AGENTS.md` / `PROTOCOL.md` / `.clawdad` files.\n"
+        "- Startup automation belongs in Codex hooks. Keep this file as policy and preference, not a place for live shell checks.\n\n"
+        "### ORP-Owned Startup Rhythm\n\n"
+        "1. Let the Codex `SessionStart` hook inspect the current directory and inject a short status note.\n"
+        "2. Read the nearest project instructions before editing.\n"
+        "3. If ORP or Clawdad are missing from a substantive project, suggest `orp init --projects-root <root> --with-clawdad` or `orp agents sync`; do not run it silently.\n"
+        "4. Keep user-written preferences outside this managed block so ORP can refresh the block without overwriting them.\n"
+        f"{CODEX_GLOBAL_GUIDE_END}\n"
+    )
+
+
+def _default_codex_global_agents_text() -> str:
+    return (
+        "# Codex Global Instructions\n\n"
+        "This file is loaded by Codex before project-level `AGENTS.md` files. Keep durable user preferences here, and let ORP refresh only the marked block below.\n\n"
+        f"{_codex_global_guide_block()}"
+    )
+
+
+def _codex_session_start_hook_script() -> str:
+    return r'''#!/usr/bin/env python3
+"""ORP-managed Codex SessionStart hook.
+
+This hook is intentionally non-mutating. It inspects the current working
+directory and injects a compact startup note into Codex context.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+
+def _read_hook_input() -> dict:
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _run_git_root(cwd: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def _is_within(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _tool_status(name: str) -> str:
+    return shutil.which(name) or "missing"
+
+
+def _bool_text(value: bool) -> str:
+    return "present" if value else "missing"
+
+
+def main() -> int:
+    payload = _read_hook_input()
+    cwd = Path(str(payload.get("cwd") or os.getcwd())).expanduser()
+    source = str(payload.get("source") or "").strip() or "startup"
+    git_root_text = _run_git_root(cwd)
+    root = Path(git_root_text).expanduser() if git_root_text else cwd
+    codex_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
+
+    global_agents = codex_home / "AGENTS.md"
+    project_agents = root / "AGENTS.md"
+    protocol = root / "PROTOCOL.md"
+    orp_config = root / "orp.yml"
+    clawdad_dir = root / ".clawdad"
+    code_root = Path("/Volumes/Code_2TB/code")
+    parent_agents = code_root / "AGENTS.md" if _is_within(root, code_root) and root != code_root else None
+
+    tools = {
+        "orp": _tool_status("orp"),
+        "clawdad": _tool_status("clawdad"),
+        "dumpy-files": _tool_status("dumpy-files"),
+        "cmail": _tool_status("cmail"),
+    }
+    missing_tools = [name for name, value in tools.items() if value == "missing"]
+
+    lines = [
+        "ORP/Codex startup context:",
+        f"- source: {source}",
+        f"- cwd: {cwd}",
+        f"- project root: {root}",
+        f"- global Codex AGENTS.md: {_bool_text(global_agents.exists())}",
+        f"- project AGENTS.md: {_bool_text(project_agents.exists())}",
+        f"- ORP signals: PROTOCOL.md={_bool_text(protocol.exists())}, orp.yml={_bool_text(orp_config.exists())}",
+        f"- Clawdad project state: {_bool_text(clawdad_dir.exists())}",
+    ]
+    if parent_agents is not None:
+        lines.append(f"- Code_2TB umbrella AGENTS.md: {_bool_text(parent_agents.exists())} at {parent_agents}")
+    if missing_tools:
+        lines.append(f"- missing optional stack tools: {', '.join(missing_tools)}")
+    if not project_agents.exists():
+        lines.append("- note: ask before creating project AGENTS.md; suggested commands include `orp agents sync` or `orp init --projects-root <root>`.")
+    if not protocol.exists() and not orp_config.exists():
+        lines.append("- note: no ORP project signals detected; ask before initializing ORP for this directory.")
+
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": "\n".join(lines),
+                }
+            }
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+def _codex_config_hooks_enabled(text: str) -> bool:
+    in_features = False
+    for raw_line in str(text or "").splitlines():
+        stripped = raw_line.strip()
+        section_match = re.match(r"^\[([^\]]+)\]\s*$", stripped)
+        if section_match:
+            in_features = section_match.group(1).strip() == "features"
+            continue
+        if not in_features or stripped.startswith("#"):
+            continue
+        if re.match(r"^codex_hooks\s*=\s*true(?:\s*(?:#.*)?)?$", stripped, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+def _codex_config_enable_hooks_text(text: str) -> tuple[str, str]:
+    original = str(text or "")
+    if _codex_config_hooks_enabled(original):
+        return (original if original.endswith("\n") or not original else original + "\n"), "kept"
+
+    lines = original.splitlines()
+    feature_start = -1
+    feature_end = len(lines)
+    for index, line in enumerate(lines):
+        section_match = re.match(r"^\s*\[([^\]]+)\]\s*$", line)
+        if not section_match:
+            continue
+        if section_match.group(1).strip() == "features":
+            feature_start = index
+            feature_end = len(lines)
+            for next_index in range(index + 1, len(lines)):
+                if re.match(r"^\s*\[[^\]]+\]\s*$", lines[next_index]):
+                    feature_end = next_index
+                    break
+            break
+
+    if feature_start >= 0:
+        for index in range(feature_start + 1, feature_end):
+            if re.match(r"^\s*codex_hooks\s*=", lines[index]):
+                lines[index] = "codex_hooks = true"
+                return "\n".join(lines).rstrip() + "\n", "updated"
+        lines.insert(feature_end, "codex_hooks = true")
+        return "\n".join(lines).rstrip() + "\n", "updated"
+
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(["[features]", "codex_hooks = true"])
+    return "\n".join(lines).rstrip() + "\n", "updated"
+
+
+def _codex_desired_session_hook(codex_home: Path) -> dict[str, Any]:
+    script = _codex_session_hook_path(codex_home)
+    return {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+            {
+                "type": "command",
+                "command": f"/usr/bin/python3 {shlex.quote(str(script))}",
+                "timeout": 10,
+                "statusMessage": "Checking ORP/Codex startup context",
+            }
+        ],
+    }
+
+
+def _codex_hooks_payload_has_session_hook(payload: dict[str, Any], codex_home: Path) -> bool:
+    desired_command = str(_codex_desired_session_hook(codex_home)["hooks"][0]["command"])
+    hooks = payload.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    groups = hooks.get("SessionStart")
+    if not isinstance(groups, list):
+        return False
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        handlers = group.get("hooks")
+        if not isinstance(handlers, list):
+            continue
+        for handler in handlers:
+            if isinstance(handler, dict) and str(handler.get("command", "")).strip() == desired_command:
+                return True
+    return False
+
+
+def _codex_load_hooks_for_edit(path: Path) -> tuple[dict[str, Any], str]:
+    if not path.exists():
+        return {"hooks": {}}, "missing"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}, "invalid_json"
+    if not isinstance(payload, dict):
+        return {}, "invalid_json"
+    return payload, "loaded"
+
+
+def _codex_merge_hooks_payload(payload: dict[str, Any], codex_home: Path) -> tuple[dict[str, Any], str]:
+    if _codex_hooks_payload_has_session_hook(payload, codex_home):
+        return payload, "kept"
+    updated = copy.deepcopy(payload)
+    hooks = updated.get("hooks")
+    if not isinstance(hooks, dict):
+        hooks = {}
+        updated["hooks"] = hooks
+    groups = hooks.get("SessionStart")
+    if not isinstance(groups, list):
+        groups = []
+        hooks["SessionStart"] = groups
+    groups.append(_codex_desired_session_hook(codex_home))
+    return updated, "updated"
+
+
+def _codex_audit_payload(codex_home: Path) -> dict[str, Any]:
+    codex_home = codex_home.expanduser().resolve()
+    agents_path = codex_home / "AGENTS.md"
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    hook_script_path = _codex_session_hook_path(codex_home)
+
+    agents_text = agents_path.read_text(encoding="utf-8") if agents_path.exists() else ""
+    guide_block = _extract_marked_block(agents_text, CODEX_GLOBAL_GUIDE_BEGIN, CODEX_GLOBAL_GUIDE_END)
+    expected_guide = _codex_global_guide_block()
+    config_text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    hooks_payload = _read_json_if_exists(hooks_path)
+    script_text = hook_script_path.read_text(encoding="utf-8") if hook_script_path.exists() else ""
+
+    checks = {
+        "codex_home": {
+            "path": str(codex_home),
+            "exists": codex_home.exists(),
+            "status": "ok" if codex_home.exists() else "missing",
+        },
+        "global_agents": {
+            "path": str(agents_path),
+            "exists": agents_path.exists(),
+            "managed_block_present": bool(guide_block),
+            "managed_block_synced": guide_block == expected_guide,
+            "status": "ok" if agents_path.exists() and guide_block == expected_guide else "needs_sync",
+        },
+        "config": {
+            "path": str(config_path),
+            "exists": config_path.exists(),
+            "codex_hooks_enabled": _codex_config_hooks_enabled(config_text),
+            "status": "ok" if config_path.exists() and _codex_config_hooks_enabled(config_text) else "needs_sync",
+        },
+        "hooks_json": {
+            "path": str(hooks_path),
+            "exists": hooks_path.exists(),
+            "session_start_hook_present": _codex_hooks_payload_has_session_hook(hooks_payload, codex_home),
+            "status": "ok" if hooks_path.exists() and _codex_hooks_payload_has_session_hook(hooks_payload, codex_home) else "needs_sync",
+        },
+        "session_start_script": {
+            "path": str(hook_script_path),
+            "exists": hook_script_path.exists(),
+            "synced": script_text == _codex_session_start_hook_script(),
+            "status": "ok" if hook_script_path.exists() and script_text == _codex_session_start_hook_script() else "needs_sync",
+        },
+    }
+    stack_tools = {
+        name: {
+            "path": _tool_path(name),
+            "available": bool(_tool_path(name)),
+            "required": name == "orp",
+        }
+        for name in ("orp", "clawdad", "dumpy-files", "cmail")
+    }
+    ok = all(row.get("status") == "ok" for row in checks.values())
+    next_actions = [] if ok else [f"orp agents codex sync --codex-home {shlex.quote(str(codex_home))} --json"]
+    return {
+        "ok": ok,
+        "schema_version": "1.0.0",
+        "kind": "orp_codex_global_audit",
+        "codex_home": str(codex_home),
+        "checks": checks,
+        "stack_tools": stack_tools,
+        "next_actions": next_actions,
+    }
+
+
+def _codex_sync_payload(codex_home: Path, *, dry_run: bool = False) -> dict[str, Any]:
+    codex_home = codex_home.expanduser().resolve()
+    agents_path = codex_home / "AGENTS.md"
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    hook_script_path = _codex_session_hook_path(codex_home)
+    actions: list[dict[str, Any]] = []
+
+    if not dry_run:
+        codex_home.mkdir(parents=True, exist_ok=True)
+
+    expected_guide = _codex_global_guide_block()
+    if agents_path.exists():
+        agents_text = agents_path.read_text(encoding="utf-8")
+        updated_agents, guide_action = _upsert_marked_block(
+            agents_text,
+            begin_marker=CODEX_GLOBAL_GUIDE_BEGIN,
+            end_marker=CODEX_GLOBAL_GUIDE_END,
+            block_text=expected_guide,
+        )
+        if updated_agents != agents_text and not dry_run:
+            _write_text(agents_path, updated_agents if updated_agents.endswith("\n") else updated_agents + "\n")
+        action = "kept" if updated_agents == agents_text else ("would_update" if dry_run else "updated")
+    else:
+        updated_agents = _default_codex_global_agents_text()
+        guide_action = "created"
+        if not dry_run:
+            _write_text(agents_path, updated_agents)
+        action = "would_create" if dry_run else "created"
+    actions.append({"path": str(agents_path), "action": action, "guide_action": guide_action})
+
+    config_existed = config_path.exists()
+    config_text = config_path.read_text(encoding="utf-8") if config_existed else ""
+    updated_config, config_action = _codex_config_enable_hooks_text(config_text)
+    if updated_config != config_text and not dry_run:
+        _write_text(config_path, updated_config)
+    actions.append(
+        {
+            "path": str(config_path),
+            "action": (
+                "kept"
+                if updated_config == config_text
+                else ("would_create" if dry_run and not config_existed else "would_update" if dry_run else "created" if not config_existed else "updated")
+            ),
+            "codex_hooks_action": config_action,
+        }
+    )
+
+    hooks_existed = hooks_path.exists()
+    hooks_payload, hooks_load_status = _codex_load_hooks_for_edit(hooks_path)
+    if hooks_load_status == "invalid_json":
+        actions.append({"path": str(hooks_path), "action": "blocked_invalid_json"})
+        audit = _codex_audit_payload(codex_home) if not dry_run else {}
+        return {
+            "ok": False,
+            "schema_version": "1.0.0",
+            "kind": "orp_codex_global_sync",
+            "codex_home": str(codex_home),
+            "dry_run": dry_run,
+            "actions": actions,
+            "audit": audit,
+            "warnings": ["hooks.json exists but is not a JSON object; ORP did not overwrite it."],
+        }
+    updated_hooks, hooks_action = _codex_merge_hooks_payload(hooks_payload, codex_home)
+    if updated_hooks != hooks_payload and not dry_run:
+        _write_json(hooks_path, updated_hooks)
+    actions.append(
+        {
+            "path": str(hooks_path),
+            "action": (
+                "kept"
+                if updated_hooks == hooks_payload
+                else ("would_create" if dry_run and not hooks_existed else "would_update" if dry_run else "created" if not hooks_existed else "updated")
+            ),
+            "session_start_hook_action": hooks_action,
+        }
+    )
+
+    script_text = _codex_session_start_hook_script()
+    script_existed = hook_script_path.exists()
+    existing_script = hook_script_path.read_text(encoding="utf-8") if script_existed else ""
+    if existing_script != script_text and not dry_run:
+        _write_text(hook_script_path, script_text)
+        try:
+            hook_script_path.chmod(0o755)
+        except Exception:
+            pass
+    actions.append(
+        {
+            "path": str(hook_script_path),
+            "action": (
+                "kept"
+                if existing_script == script_text
+                else ("would_create" if dry_run and not script_existed else "would_update" if dry_run else "created" if not script_existed else "updated")
+            ),
+        }
+    )
+
+    audit = _codex_audit_payload(codex_home) if not dry_run else {}
+    return {
+        "ok": True if dry_run else bool(audit.get("ok")),
+        "schema_version": "1.0.0",
+        "kind": "orp_codex_global_sync",
+        "codex_home": str(codex_home),
+        "dry_run": dry_run,
+        "actions": actions,
+        "audit": audit,
+        "warnings": [],
+    }
+
+
+def _render_codex_audit_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Codex Global Audit",
+        f"ok={'true' if payload.get('ok') else 'false'}",
+        f"codex_home={payload.get('codex_home', '')}",
+    ]
+    checks = payload.get("checks")
+    if isinstance(checks, dict):
+        for name, row in checks.items():
+            if isinstance(row, dict):
+                lines.append(f"{name}={row.get('status', '')}:{row.get('path', '')}")
+    stack_tools = payload.get("stack_tools")
+    if isinstance(stack_tools, dict):
+        for name, row in stack_tools.items():
+            if isinstance(row, dict):
+                lines.append(f"tool.{name}={row.get('path', '') or 'missing'}")
+    for next_action in payload.get("next_actions", []):
+        lines.append(f"next={next_action}")
+    return "\n".join(lines)
+
+
+def _render_codex_sync_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "ORP Codex Global Sync",
+        f"ok={'true' if payload.get('ok') else 'false'}",
+        f"codex_home={payload.get('codex_home', '')}",
+        f"dry_run={'true' if payload.get('dry_run') else 'false'}",
+    ]
+    for action in payload.get("actions", []):
+        if isinstance(action, dict):
+            lines.append(f"action={action.get('action', '')}:{action.get('path', '')}")
+    for warning in payload.get("warnings", []):
+        lines.append(f"warning={warning}")
+    return "\n".join(lines)
+
+
 def _resolve_projects_root_path(raw: str) -> Path:
     text = str(raw or "").strip()
     if not text:
@@ -14469,6 +15096,26 @@ def cmd_agents_audit(args: argparse.Namespace) -> int:
     return 0 if payload.get("ok") else 1
 
 
+def cmd_agents_codex_audit(args: argparse.Namespace) -> int:
+    codex_home = _resolve_codex_home_path(str(getattr(args, "codex_home", "") or ""))
+    payload = _codex_audit_payload(codex_home)
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    print(_render_codex_audit_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
+def cmd_agents_codex_sync(args: argparse.Namespace) -> int:
+    codex_home = _resolve_codex_home_path(str(getattr(args, "codex_home", "") or ""))
+    payload = _codex_sync_payload(codex_home, dry_run=bool(getattr(args, "dry_run", False)))
+    if args.json_output:
+        _print_json(payload)
+        return 0 if payload.get("ok") else 1
+    print(_render_codex_sync_report(payload))
+    return 0 if payload.get("ok") else 1
+
+
 def _render_governance_status_text(payload: dict[str, Any]) -> str:
     git = payload.get("git", {}) if isinstance(payload.get("git"), dict) else {}
     runtime = payload.get("runtime", {}) if isinstance(payload.get("runtime"), dict) else {}
@@ -15808,6 +16455,225 @@ def cmd_frontier_additional_complete_active(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_frontier_modeled_checkoff_activate(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    stack = _frontier_load_stack(repo_root)
+    state = _frontier_load_state(repo_root)
+    additional = _frontier_load_additional(repo_root, stack)
+
+    phase_id = str(args.phase_id or FRONTIER_MODELED_CHECKOFF_PHASE_ID).strip() or FRONTIER_MODELED_CHECKOFF_PHASE_ID
+    list_id = str(args.list_id or FRONTIER_MODELED_CHECKOFF_LIST_ID).strip() or FRONTIER_MODELED_CHECKOFF_LIST_ID
+    item_id = str(args.item_id or FRONTIER_MODELED_CHECKOFF_ITEM_ID).strip() or FRONTIER_MODELED_CHECKOFF_ITEM_ID
+
+    version_id = str(args.version or state.get("active_version", "") or "modeled-checkoff").strip()
+    milestone_id = str(args.milestone or state.get("active_milestone", "") or phase_id).strip()
+    band = str(args.band or state.get("band", "") or "structured").strip()
+    if band not in FRONTIER_BANDS:
+        raise RuntimeError(f"frontier band must be one of: {', '.join(FRONTIER_BANDS)}")
+
+    version = _frontier_find_version(stack, version_id)
+    if version is None:
+        version = {
+            "id": version_id,
+            "label": "Modeled Checkoff",
+            "intent": "Keep review/checkoff gates moving through modeled packet improvement without clearing external gates.",
+            "status": "active",
+            "milestones": [],
+        }
+        versions = stack.get("versions")
+        if not isinstance(versions, list):
+            versions = []
+            stack["versions"] = versions
+        versions.append(version)
+
+    parent_version, milestone = _frontier_find_milestone(stack, milestone_id)
+    if milestone is None:
+        milestone = {
+            "id": milestone_id,
+            "parent_version": version_id,
+            "label": "Modeled Checkoff Continuation",
+            "band": band,
+            "status": "active",
+            "depends_on": [],
+            "success_criteria": [
+                "delegation has an active modeled-checkoff packet path",
+                "external review gates remain explicitly uncleared",
+            ],
+            "phases": [],
+        }
+        milestones = version.get("milestones")
+        if not isinstance(milestones, list):
+            milestones = []
+            version["milestones"] = milestones
+        milestones.append(milestone)
+    elif isinstance(parent_version, dict):
+        version_id = str(parent_version.get("id", "")).strip() or version_id
+        version = parent_version
+
+    phase = _frontier_find_phase(milestone, phase_id)
+    phase_requirements = [
+        "state that this is modeled/proxy pre-review, not real expert approval",
+        "name the professional lens, decision language, evidence expectations, uncertainty, and stop conditions",
+        "preserve provenance, scope, and uncertainty on scientific or medical claims",
+        "separate packet-improvement decisions from clinical, legal, regulatory, privacy, publication, or human gate clearance",
+    ]
+    phase_success = [
+        "a delegate can continue by writing modeled checkoff packets",
+        "the packet records which external gates remain open",
+        "the output is safe for public artifacts and does not include patient-specific advice",
+    ]
+    phase_plans = [
+        "classify the blocker or review gate",
+        "select the modeled professional lens and decision rubric",
+        "run packet checks that improve evidence, scope, uncertainty, and stop-condition language",
+    ]
+    if phase is None:
+        phase = {
+            "id": phase_id,
+            "label": "Modeled Checkoff v0",
+            "status": "active",
+            "goal": "Convert review/checkoff blockers into modeled packet-improvement work without clearing the external gate.",
+            "depends_on": [],
+            "requirements": phase_requirements,
+            "success_criteria": phase_success,
+            "plans": phase_plans,
+            "compute_hooks": [],
+        }
+        phases = milestone.get("phases")
+        if not isinstance(phases, list):
+            phases = []
+            milestone["phases"] = phases
+        phases.append(phase)
+    else:
+        phase["status"] = "active"
+        phase.setdefault("requirements", phase_requirements)
+        phase.setdefault("success_criteria", phase_success)
+        phase.setdefault("plans", phase_plans)
+
+    versions = stack.get("versions")
+    if isinstance(versions, list):
+        for version_row in versions:
+            if not isinstance(version_row, dict):
+                continue
+            version_row["status"] = "active" if str(version_row.get("id", "")).strip() == version_id else (
+                "planned" if str(version_row.get("status", "")).strip() == "active" else str(version_row.get("status", "")).strip() or "planned"
+            )
+            milestones = version_row.get("milestones")
+            if not isinstance(milestones, list):
+                continue
+            for milestone_row in milestones:
+                if not isinstance(milestone_row, dict):
+                    continue
+                milestone_row["status"] = "active" if str(milestone_row.get("id", "")).strip() == milestone_id else (
+                    "planned" if str(milestone_row.get("status", "")).strip() == "active" else str(milestone_row.get("status", "")).strip() or "planned"
+                )
+                phases = milestone_row.get("phases")
+                if not isinstance(phases, list):
+                    continue
+                for phase_row in phases:
+                    if not isinstance(phase_row, dict):
+                        continue
+                    if str(milestone_row.get("id", "")).strip() == milestone_id and str(phase_row.get("id", "")).strip() == phase_id:
+                        phase_row["status"] = "active"
+                    elif str(phase_row.get("status", "")).strip() == "active":
+                        phase_row["status"] = "planned"
+
+    item_list = _frontier_find_additional_list(additional, list_id)
+    if item_list is None:
+        item_list = {
+            "id": list_id,
+            "label": "Modeled checkoff continuations",
+            "status": "active",
+            "items": [],
+        }
+        lists = additional.get("lists")
+        if not isinstance(lists, list):
+            lists = []
+            additional["lists"] = lists
+        lists.append(item_list)
+    item_list["status"] = "active"
+    items = item_list.get("items")
+    if not isinstance(items, list):
+        items = []
+        item_list["items"] = items
+    item = _frontier_find_additional_item(item_list, item_id)
+    item_goal = (
+        "Build the modeled professional lens taxonomy and packet-check rubric for the blocked frontier; "
+        "do not claim real expert sign-off or clear external gates."
+    )
+    item_requirements = [
+        "declare modeled/proxy status in the packet",
+        "identify professional persona, language, decision criteria, evidence standard, uncertainty, and stop conditions",
+        "carry provenance and scope for scientific, medical, legal, privacy, or publication-sensitive claims",
+    ]
+    item_success = [
+        "delegation can proceed with explicit modeled checkoff records",
+        "remaining human or external gates are named as still open",
+    ]
+    if item is None:
+        item = {
+            "id": item_id,
+            "label": "Modeled professional lens taxonomy",
+            "status": "active",
+            "goal": item_goal,
+            "depends_on": [],
+            "requirements": item_requirements,
+            "success_criteria": item_success,
+            "plans": phase_plans,
+        }
+        items.append(item)
+    else:
+        item["status"] = "active"
+        item.setdefault("goal", item_goal)
+        item.setdefault("requirements", item_requirements)
+        item.setdefault("success_criteria", item_success)
+        item.setdefault("plans", phase_plans)
+
+    additional["active_list_id"] = list_id
+    additional["active_item_id"] = item_id
+    if not str(additional.get("program_id", "")).strip():
+        additional["program_id"] = str(stack.get("program_id", "")).strip()
+    if not str(additional.get("label", "")).strip():
+        additional["label"] = str(stack.get("label", "")).strip()
+
+    state["active_version"] = version_id
+    state["active_milestone"] = milestone_id
+    state["active_phase"] = phase_id
+    state["band"] = band
+    state["blocked_by"] = _coerce_string_list(state.get("blocked_by"))
+    state["next_action"] = str(args.next_action or "").strip() or (
+        f"Run modeled checkoff packet {list_id}/{item_id}: model the professional lens, "
+        "improve the packet, and keep external gates explicitly open."
+    )
+
+    written = _frontier_write_materialized_views(repo_root, stack, state)
+    written.update(_frontier_write_additional_views(repo_root, additional))
+    modeled_checkoff = _frontier_modeled_checkoff_payload(
+        blockers=_coerce_string_list(state.get("blocked_by")),
+        next_action=str(state.get("next_action", "")).strip(),
+        active_primary_kind="phase",
+        active_primary_id=phase_id,
+        active_list_id=list_id,
+        active_item_id=item_id,
+    )
+    result = {
+        "ok": True,
+        "modeled_checkoff": modeled_checkoff,
+        "state": state,
+        "phase": phase,
+        "list": item_list,
+        "item": item,
+        "paths": written,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"phase_id={phase_id}")
+        print(f"active_additional={list_id}/{item_id}")
+        print(f"next_action={state['next_action']}")
+    return 0
+
+
 def _print_frontier_diagnostic_payload(payload: dict[str, Any]) -> None:
     print(f"ok={'true' if payload.get('ok') else 'false'}")
     print(f"next_action={payload.get('next_action', '') or '(none)'}")
@@ -15821,6 +16687,15 @@ def _print_frontier_diagnostic_payload(payload: dict[str, Any]) -> None:
         if isinstance(additional, dict):
             print(f"pending_additional_items={additional.get('pending_items', 0)}")
             print(f"active_additional={additional.get('active_list_id', '') or '(none)'}/{additional.get('active_item_id', '') or '(none)'}")
+    modeled_checkoff = payload.get("modeled_checkoff")
+    if not isinstance(modeled_checkoff, dict):
+        continuation = payload.get("continuation")
+        modeled_checkoff = continuation.get("modeled_checkoff", {}) if isinstance(continuation, dict) else {}
+    if isinstance(modeled_checkoff, dict) and modeled_checkoff.get("eligible"):
+        print(f"modeled_checkoff_active={'true' if modeled_checkoff.get('active') else 'false'}")
+        command = str(modeled_checkoff.get("suggested_next_command", "")).strip()
+        if command:
+            print(f"modeled_checkoff_suggested_next_command={command}")
     for issue in payload.get("issues", []):
         if isinstance(issue, dict):
             print(f"issue={issue.get('severity','')}:{issue.get('code','')}:{issue.get('message','')}")
@@ -15846,6 +16721,7 @@ def cmd_frontier_preflight_delegate(args: argparse.Namespace) -> int:
     payload["next_action"] = continuation.get("next_action", "")
     payload["suggested_next_command"] = continuation.get("suggested_next_command", "")
     payload["summary"] = continuation.get("summary", {})
+    payload["modeled_checkoff"] = continuation.get("modeled_checkoff", {})
     payload["preflight"] = {
         "ready": bool(payload["ok"]),
         "purpose": "Block delegation when the frontier cannot prove a single safe continuation or terminal state.",
@@ -27818,6 +28694,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  orp agents root show\n"
             "  orp agents root set /absolute/path/to/projects\n"
+            "  orp agents codex audit\n"
+            "  orp agents codex sync\n"
             "  orp agents sync\n"
             "  orp agents sync --role umbrella --root /absolute/path/to/projects\n"
             "  orp agents sync --projects-root /absolute/path/to/projects\n"
@@ -27880,6 +28758,41 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_agents_audit)
     s_agents_audit.set_defaults(func=cmd_agents_audit, json_output=False)
+
+    s_agents_codex = agents_sub.add_parser(
+        "codex",
+        help="Audit or sync Codex global AGENTS.md and SessionStart hook scaffolding",
+    )
+    agents_codex_sub = s_agents_codex.add_subparsers(dest="agents_codex_cmd", required=True)
+
+    s_agents_codex_audit = agents_codex_sub.add_parser(
+        "audit",
+        help="Audit Codex global AGENTS.md, hooks.json, hook script, and codex_hooks feature flag",
+    )
+    s_agents_codex_audit.add_argument(
+        "--codex-home",
+        default="",
+        help="Codex home directory (default: CODEX_HOME or ~/.codex)",
+    )
+    add_json_flag(s_agents_codex_audit)
+    s_agents_codex_audit.set_defaults(func=cmd_agents_codex_audit, json_output=False)
+
+    s_agents_codex_sync = agents_codex_sub.add_parser(
+        "sync",
+        help="Create or refresh Codex global AGENTS.md and non-mutating SessionStart hook scaffolding",
+    )
+    s_agents_codex_sync.add_argument(
+        "--codex-home",
+        default="",
+        help="Codex home directory (default: CODEX_HOME or ~/.codex)",
+    )
+    s_agents_codex_sync.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan the Codex global sync without writing files",
+    )
+    add_json_flag(s_agents_codex_sync)
+    s_agents_codex_sync.set_defaults(func=cmd_agents_codex_sync, json_output=False)
 
     s_opportunities = sub.add_parser(
         "opportunities",
@@ -30022,6 +30935,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_json_flag(s_frontier_set_live)
     s_frontier_set_live.set_defaults(func=cmd_frontier_set_live, json_output=False)
+
+    s_frontier_modeled_checkoff = frontier_sub.add_parser(
+        "modeled-checkoff",
+        help="Activate a modeled packet-check continuation for review/checkoff gates",
+    )
+    frontier_modeled_checkoff_sub = s_frontier_modeled_checkoff.add_subparsers(dest="frontier_modeled_checkoff_cmd", required=True)
+
+    s_frontier_modeled_checkoff_activate = frontier_modeled_checkoff_sub.add_parser(
+        "activate",
+        help="Create and activate the modeled-checkoff phase and additional item",
+    )
+    s_frontier_modeled_checkoff_activate.add_argument("--version", default="", help="Version id to use (default: current active version)")
+    s_frontier_modeled_checkoff_activate.add_argument("--milestone", default="", help="Milestone id to use (default: current active milestone)")
+    s_frontier_modeled_checkoff_activate.add_argument(
+        "--phase-id",
+        default=FRONTIER_MODELED_CHECKOFF_PHASE_ID,
+        help="Modeled-checkoff phase id",
+    )
+    s_frontier_modeled_checkoff_activate.add_argument(
+        "--list-id",
+        default=FRONTIER_MODELED_CHECKOFF_LIST_ID,
+        help="Additional item list id",
+    )
+    s_frontier_modeled_checkoff_activate.add_argument(
+        "--item-id",
+        default=FRONTIER_MODELED_CHECKOFF_ITEM_ID,
+        help="Additional item id",
+    )
+    s_frontier_modeled_checkoff_activate.add_argument(
+        "--band",
+        default="",
+        choices=["", *FRONTIER_BANDS],
+        help="Optional explicit planning band",
+    )
+    s_frontier_modeled_checkoff_activate.add_argument("--next-action", default="", help="Optional live next action override")
+    add_json_flag(s_frontier_modeled_checkoff_activate)
+    s_frontier_modeled_checkoff_activate.set_defaults(func=cmd_frontier_modeled_checkoff_activate, json_output=False)
 
     s_frontier_render = frontier_sub.add_parser(
         "render",

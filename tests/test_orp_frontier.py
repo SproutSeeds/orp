@@ -296,6 +296,288 @@ class OrpFrontierTests(unittest.TestCase):
             self.assertEqual(ready.returncode, 0, msg=ready.stderr + "\n" + ready.stdout)
             self.assertTrue(json.loads(ready.stdout)["ok"])
 
+    def test_frontier_modeled_checkoff_activation_generalizes_review_gate(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-frontier-modeled-checkoff.") as td:
+            root = Path(td)
+            self.assertEqual(self._run(root, "frontier", "init", "--program-id", "blood-cancer").returncode, 0)
+            self.assertEqual(self._run(root, "frontier", "add-version", "--id", "v1", "--label", "Version 1").returncode, 0)
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-milestone",
+                    "--version",
+                    "v1",
+                    "--id",
+                    "m1",
+                    "--label",
+                    "Milestone 1",
+                    "--band",
+                    "exact",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-phase",
+                    "--milestone",
+                    "m1",
+                    "--id",
+                    "reviewed-packet",
+                    "--label",
+                    "Reviewed Packet",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "set-live",
+                    "--version",
+                    "v1",
+                    "--milestone",
+                    "m1",
+                    "--phase",
+                    "reviewed-packet",
+                    "--next-action",
+                    "hold for human clinical review",
+                    "--blocked-by",
+                    "human-clinical-review-needed",
+                ).returncode,
+                0,
+            )
+
+            preflight = self._run(root, "frontier", "preflight-delegate", "--json")
+            self.assertEqual(preflight.returncode, 1, msg=preflight.stderr + "\n" + preflight.stdout)
+            payload = json.loads(preflight.stdout)
+            self.assertIn("modeled_checkoff_continuation_available", {issue["code"] for issue in payload["issues"]})
+            self.assertEqual(payload["suggested_next_command"], "orp frontier modeled-checkoff activate --json")
+
+            activate = self._run(root, "frontier", "modeled-checkoff", "activate", "--json")
+            self.assertEqual(activate.returncode, 0, msg=activate.stderr + "\n" + activate.stdout)
+            activated_payload = json.loads(activate.stdout)
+            self.assertTrue(activated_payload["modeled_checkoff"]["active"])
+            self.assertEqual(activated_payload["state"]["active_phase"], "modeled-checkoff-v0")
+            self.assertEqual(activated_payload["state"]["blocked_by"], ["human-clinical-review-needed"])
+
+            ready = self._run(root, "frontier", "preflight-delegate", "--json")
+            self.assertEqual(ready.returncode, 0, msg=ready.stderr + "\n" + ready.stdout)
+            ready_payload = json.loads(ready.stdout)
+            self.assertTrue(ready_payload["ok"])
+            self.assertEqual(ready_payload["summary"]["additional"]["active_item_id"], "modeled-professional-lens-taxonomy-v0")
+
+    def test_frontier_modeled_checkoff_detector_does_not_match_delegate_as_gate(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-frontier-modeled-checkoff-negative.") as td:
+            root = Path(td)
+            self.assertEqual(self._run(root, "frontier", "init", "--program-id", "blood-cancer").returncode, 0)
+            self.assertEqual(self._run(root, "frontier", "add-version", "--id", "v1", "--label", "Version 1").returncode, 0)
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-milestone",
+                    "--version",
+                    "v1",
+                    "--id",
+                    "m1",
+                    "--label",
+                    "Milestone 1",
+                    "--band",
+                    "exact",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-phase",
+                    "--milestone",
+                    "m1",
+                    "--id",
+                    "implementation",
+                    "--label",
+                    "Implementation",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "set-live",
+                    "--version",
+                    "v1",
+                    "--milestone",
+                    "m1",
+                    "--phase",
+                    "implementation",
+                    "--next-action",
+                    "delegate implementation work",
+                ).returncode,
+                0,
+            )
+
+            preflight = self._run(root, "frontier", "preflight-delegate", "--json")
+            self.assertEqual(preflight.returncode, 0, msg=preflight.stderr + "\n" + preflight.stdout)
+            payload = json.loads(preflight.stdout)
+            self.assertFalse(payload["modeled_checkoff"]["eligible"])
+            self.assertNotIn("modeled_checkoff_continuation_available", {issue["code"] for issue in payload["issues"]})
+
+    def test_frontier_phase_governor_counts_as_review_gate_continuation(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-frontier-phase-governor.") as td:
+            root = Path(td)
+            self.assertEqual(self._run(root, "frontier", "init", "--program-id", "blood-cancer").returncode, 0)
+            self.assertEqual(self._run(root, "frontier", "add-version", "--id", "v1", "--label", "Version 1").returncode, 0)
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-milestone",
+                    "--version",
+                    "v1",
+                    "--id",
+                    "m1",
+                    "--label",
+                    "Milestone 1",
+                    "--band",
+                    "exact",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-phase",
+                    "--milestone",
+                    "m1",
+                    "--id",
+                    "continuous-phase-delegation-governor-v0",
+                    "--label",
+                    "Continuous Phase Delegation Governor",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "set-live",
+                    "--version",
+                    "v1",
+                    "--milestone",
+                    "m1",
+                    "--phase",
+                    "continuous-phase-delegation-governor-v0",
+                    "--next-action",
+                    "continue project-owned public-safe phase delegation while preserving human review blockers",
+                    "--blocked-by",
+                    "human-review-needed",
+                ).returncode,
+                0,
+            )
+
+            preflight = self._run(root, "frontier", "preflight-delegate", "--json")
+            self.assertEqual(preflight.returncode, 0, msg=preflight.stderr + "\n" + preflight.stdout)
+            payload = json.loads(preflight.stdout)
+            self.assertTrue(payload["modeled_checkoff"]["eligible"])
+            self.assertTrue(payload["modeled_checkoff"]["active"])
+            self.assertNotIn("modeled_checkoff_continuation_available", {issue["code"] for issue in payload["issues"]})
+
+    def test_frontier_active_additional_item_can_preserve_review_blockers_without_modeled_checkoff(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="orp-frontier-active-work-with-blockers.") as td:
+            root = Path(td)
+            self.assertEqual(self._run(root, "frontier", "init", "--program-id", "blood-cancer").returncode, 0)
+            self.assertEqual(self._run(root, "frontier", "add-version", "--id", "v1", "--label", "Version 1").returncode, 0)
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-milestone",
+                    "--version",
+                    "v1",
+                    "--id",
+                    "m1",
+                    "--label",
+                    "Milestone 1",
+                    "--band",
+                    "exact",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "add-phase",
+                    "--milestone",
+                    "m1",
+                    "--id",
+                    "source-map-v0",
+                    "--label",
+                    "Source Map",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "additional",
+                    "add-list",
+                    "--id",
+                    "public-safe-work",
+                    "--label",
+                    "Public safe work",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "additional",
+                    "add-item",
+                    "--list",
+                    "public-safe-work",
+                    "--id",
+                    "source-map-v0",
+                    "--label",
+                    "Source map",
+                ).returncode,
+                0,
+            )
+            self.assertEqual(self._run(root, "frontier", "additional", "activate-next").returncode, 0)
+            self.assertEqual(
+                self._run(
+                    root,
+                    "frontier",
+                    "set-live",
+                    "--version",
+                    "v1",
+                    "--milestone",
+                    "m1",
+                    "--phase",
+                    "source-map-v0",
+                    "--next-action",
+                    "build public-safe source map while preserving human review blockers",
+                    "--blocked-by",
+                    "human-review-needed",
+                ).returncode,
+                0,
+            )
+
+            preflight = self._run(root, "frontier", "preflight-delegate", "--json")
+            self.assertEqual(preflight.returncode, 0, msg=preflight.stderr + "\n" + preflight.stdout)
+            payload = json.loads(preflight.stdout)
+            self.assertTrue(payload["modeled_checkoff"]["eligible"])
+            self.assertFalse(payload["modeled_checkoff"]["active"])
+            self.assertNotIn("modeled_checkoff_continuation_available", {issue["code"] for issue in payload["issues"]})
+
     def test_frontier_doctor_catches_completed_live_phase_as_stale_continuation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="orp-frontier-stale-phase.") as td:
             root = Path(td)

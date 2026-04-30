@@ -6,6 +6,28 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.33 - 2026-04-30
+
+This release teaches ORP to manage Codex's global instruction and startup hook
+layer, and adds a modeled-checkoff frontier continuation for review-gated work.
+
+### Added
+
+- Added `orp agents codex audit` and `orp agents codex sync` to audit or
+  bootstrap Codex global `AGENTS.md`, `hooks.json`, the non-mutating
+  `SessionStart` hook script, and the `codex_hooks` feature flag.
+- Added frontier modeled-checkoff detection and
+  `orp frontier modeled-checkoff activate` so review/checkoff blockers can be
+  converted into explicitly modeled packet-improvement work without claiming
+  real human, clinical, legal, regulatory, privacy, publication, or expert gate
+  clearance.
+
+### Changed
+
+- Frontier delegation preflight now reports modeled-checkoff eligibility when a
+  live frontier appears blocked on review or sign-off, while preserving existing
+  active additional work as the safer continuation when it exists.
+
 ## v0.4.32 - 2026-04-25
 
 This release clarifies ORP's paid-work boundary so budgeted OpenAI research is
