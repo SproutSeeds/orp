@@ -2,32 +2,31 @@
   "schema_version": "1.0.0",
   "subset": "closed",
   "active_status": "open",
-  "generated_at_utc": "2026-03-05T15:52:31Z",
+  "generated_at_utc": "2026-04-30T07:09:19Z",
   "source": {
     "site": "erdosproblems.com",
     "url": "https://erdosproblems.com/range/1-end",
-    "source_sha256": "72366d21b9530355396bef95b3ead90176a9c634b7ecd68fd30c85bad703a0c1",
+    "source_sha256": "4960a952a11472552895985b2081fe606a73b85b69a6c25ecb40c644f3e0bc99",
     "solve_count": {
-      "raw": "488 solved out of 1179 shown",
-      "solved": 488,
-      "shown": 1179
+      "raw": "530 solved out of 1217 shown",
+      "solved": 530,
+      "shown": 1217
     }
   },
   "summary": {
-    "total": 488,
+    "total": 530,
     "open": 0,
-    "closed": 488,
+    "closed": 530,
     "unknown": 0,
     "status_label_counts": {
       "DECIDABLE": 7,
-      "DISPROVED": 76,
-      "DISPROVED (LEAN)": 39,
+      "DISPROVED": 72,
+      "DISPROVED (LEAN)": 54,
       "INDEPENDENT": 3,
-      "NOT PROVABLE": 1,
-      "PROVED": 237,
-      "PROVED (LEAN)": 63,
-      "SOLVED": 52,
-      "SOLVED (LEAN)": 10
+      "PROVED": 219,
+      "PROVED (LEAN)": 99,
+      "SOLVED": 62,
+      "SOLVED (LEAN)": 14
     }
   },
   "problem_ids": [
@@ -81,6 +80,7 @@
     116,
     118,
     121,
+    125,
     127,
     133,
     134,
@@ -91,6 +91,7 @@
     144,
     147,
     150,
+    152,
     154,
     157,
     163,
@@ -142,6 +143,7 @@
     250,
     253,
     255,
+    258,
     259,
     262,
     266,
@@ -170,6 +172,7 @@
     314,
     315,
     316,
+    318,
     328,
     331,
     333,
@@ -182,13 +185,16 @@
     353,
     355,
     356,
+    358,
     360,
     362,
     363,
+    369,
     370,
     372,
     378,
     379,
+    380,
     381,
     384,
     391,
@@ -222,6 +228,7 @@
     448,
     449,
     453,
+    457,
     459,
     464,
     465,
@@ -275,6 +282,7 @@
     559,
     565,
     570,
+    574,
     577,
     578,
     581,
@@ -297,6 +305,7 @@
     630,
     631,
     632,
+    633,
     636,
     637,
     639,
@@ -305,6 +314,7 @@
     646,
     648,
     649,
+    650,
     651,
     652,
     656,
@@ -362,6 +372,7 @@
     777,
     780,
     781,
+    783,
     784,
     785,
     794,
@@ -391,10 +402,14 @@
     843,
     844,
     845,
+    846,
     847,
     848,
+    851,
+    858,
     861,
     862,
+    863,
     867,
     868,
     871,
@@ -402,6 +417,7 @@
     877,
     880,
     882,
+    884,
     894,
     895,
     897,
@@ -431,6 +447,7 @@
     947,
     957,
     958,
+    960,
     964,
     965,
     966,
@@ -440,11 +457,14 @@
     980,
     981,
     984,
+    987,
     988,
     989,
+    990,
     991,
     992,
     994,
+    997,
     998,
     999,
     1000,
@@ -455,6 +475,7 @@
     1009,
     1010,
     1012,
+    1014,
     1015,
     1018,
     1019,
@@ -491,6 +512,8 @@
     1081,
     1089,
     1090,
+    1091,
+    1096,
     1098,
     1099,
     1102,
@@ -512,13 +535,31 @@
     1134,
     1136,
     1140,
+    1141,
     1147,
+    1148,
     1149,
+    1153,
     1161,
     1164,
     1165,
     1166,
-    1179
+    1179,
+    1180,
+    1185,
+    1187,
+    1193,
+    1195,
+    1196,
+    1197,
+    1198,
+    1202,
+    1205,
+    1211,
+    1213,
+    1214,
+    1215,
+    1216
   ],
   "problems": [
     {
@@ -534,7 +575,7 @@
         "number theory",
         "covering systems"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/2",
       "formalized": false,
       "formalized_url": "",
@@ -603,7 +644,7 @@
         "number theory",
         "covering systems"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/8",
       "formalized": false,
       "formalized_url": "",
@@ -623,7 +664,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/13",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/13.lean",
@@ -647,7 +688,7 @@
         "additive basis",
         "primes"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/16",
       "formalized": false,
       "formalized_url": "",
@@ -670,7 +711,7 @@
         "graph theory",
         "chromatic number"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/19",
       "formalized": false,
       "formalized_url": "",
@@ -726,8 +767,8 @@
       "problem_url": "/24",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Does every triangle-free graph on $5n$ vertices contain at most $n^5$ copies of $C_5$?",
       "tags": [
@@ -739,7 +780,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 24,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 26,
@@ -754,13 +795,13 @@
         "number theory",
         "divisors"
       ],
-      "last_edited": "07 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/26",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/26.lean",
       "oeis_urls": [],
       "comments_problem_id": 26,
-      "comments_count": 6
+      "comments_count": 11
     },
     {
       "problem_id": 27,
@@ -927,7 +968,7 @@
         "unit fractions",
         "ramsey theory"
       ],
-      "last_edited": "20 December 2025",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/46",
       "formalized": false,
       "formalized_url": "",
@@ -948,7 +989,7 @@
         "number theory",
         "unit fractions"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/47",
       "formalized": false,
       "formalized_url": "",
@@ -989,7 +1030,7 @@
         "number theory",
         "primes"
       ],
-      "last_edited": "",
+      "last_edited": "19 April 2026",
       "latex_path": "/latex/49",
       "formalized": false,
       "formalized_url": "",
@@ -1076,7 +1117,7 @@
         "number theory",
         "intersecting family"
       ],
-      "last_edited": "06 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/56",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/56.lean",
@@ -1183,7 +1224,7 @@
       "tags": [
         "discrepancy"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/67",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/67.lean",
@@ -1192,7 +1233,7 @@
         "https://oeis.org/A237695"
       ],
       "comments_problem_id": 67,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 69,
@@ -1207,7 +1248,7 @@
         "number theory",
         "irrationality"
       ],
-      "last_edited": "02 December 2025",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/69",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/69.lean",
@@ -1427,7 +1468,7 @@
         "convex",
         "distances"
       ],
-      "last_edited": "",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/95",
       "formalized": false,
       "formalized_url": "",
@@ -1480,8 +1521,8 @@
       "problem_url": "/110",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "NOT PROVABLE",
-      "status_detail": "Open in general, but there exist models of set theory where the result is false.",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
       "prize_amount": "",
       "statement": "Is there some $F(n)$ such that every graph with chromatic number $\\aleph_1$ has, for all large $n$, a subgraph with chromatic number $n$ on at most $F(n)$ vertices?",
       "tags": [
@@ -1495,7 +1536,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 110,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 113,
@@ -1612,6 +1653,29 @@
       "comments_count": 0
     },
     {
+      "problem_id": 125,
+      "problem_url": "/125",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $A = \\{ \\sum\\epsilon_k3^k : \\epsilon_k\\in \\{0,1\\}\\}$ be the set of integers which have only the digits $0,1$ when written base $3$, and $B=\\{ \\sum\\epsilon_k4^k : \\epsilon_k\\in \\{0,1\\}\\}$ be the set of integers which have only the digits $0,1$ when written base $4$. Does $A+B$ have positive lower density?",
+      "tags": [
+        "number theory",
+        "base representations"
+      ],
+      "last_edited": "30 March 2026",
+      "latex_path": "/latex/125",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/125.lean",
+      "oeis_urls": [
+        "https://oeis.org/A367090"
+      ],
+      "comments_problem_id": 125,
+      "comments_count": 23
+    },
+    {
       "problem_id": 127,
       "problem_url": "/127",
       "status_bucket": "closed",
@@ -1725,7 +1789,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/139",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/139.lean",
@@ -1774,7 +1838,7 @@
         "number theory",
         "divisors"
       ],
-      "last_edited": "29 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/144",
       "formalized": false,
       "formalized_url": "",
@@ -1810,8 +1874,8 @@
       "problem_url": "/150",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "A minimal cut of a graph is a minimal set of vertices whose removal disconnects the graph. Let $c(n)$ be the maximum number of minimal cuts a graph on $n$ vertices can have. Does $c(n)^{1/n}\\to \\alpha$ for some $\\alpha <2$?",
       "tags": [
@@ -1823,7 +1887,27 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 150,
-      "comments_count": 0
+      "comments_count": 1
+    },
+    {
+      "problem_id": 152,
+      "problem_url": "/152",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "For any $M\\geq 1$, if $A\\subset \\mathbb{N}$ is a sufficiently large finite Sidon set then there are at least $M$ many $a\\in A+A$ such that $a+1,a-1\\not\\in A+A$.",
+      "tags": [
+        "sidon sets"
+      ],
+      "last_edited": "03 April 2026",
+      "latex_path": "/latex/152",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/152.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 152,
+      "comments_count": 3
     },
     {
       "problem_id": 154,
@@ -1891,15 +1975,15 @@
       "problem_url": "/164",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "A set $A\\subset \\mathbb{N}$ is primitive if no member of $A$ divides another. Is the sum\\[\\sum_{n\\in A}\\frac{1}{n\\log n}\\]maximised over all primitive sets when $A$ is the set of primes?",
       "tags": [
         "number theory",
         "primitive sets"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/164",
       "formalized": false,
       "formalized_url": "",
@@ -1907,7 +1991,7 @@
         "https://oeis.org/A137245"
       ],
       "comments_problem_id": 164,
-      "comments_count": 0
+      "comments_count": 15
     },
     {
       "problem_id": 166,
@@ -1981,8 +2065,8 @@
       "problem_url": "/178",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A_1,A_2,\\ldots$ be an infinite collection of infinite sets of integers, say $A_i=\\{a_{i1}<a_{i2}<\\cdots\\}$. Does there exist some $f:\\mathbb{N}\\to\\{-1,1\\}$ such that\\[\\max_{m, 1\\leq i\\leq d} \\left\\lvert \\sum_{1\\leq j\\leq m} f(a_{ij})\\right\\rvert \\ll_d 1\\]for all $d\\geq 1$?",
       "tags": [
@@ -1994,7 +2078,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 178,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 179,
@@ -2009,7 +2093,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/179",
       "formalized": false,
       "formalized_url": "",
@@ -2024,12 +2108,12 @@
       "status_dom_id": "solved",
       "status_label": "PROVED",
       "status_detail": "This has been solved in the affirmative.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "Let $k\\geq 3$. What is the maximum number of edges that a graph on $n$ vertices can contain if it does not have a $k$-regular subgraph? Is it $\\ll n^{1+o(1)}$?",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/182",
       "formalized": false,
       "formalized_url": "",
@@ -2071,7 +2155,7 @@
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/186",
       "formalized": false,
       "formalized_url": "",
@@ -2149,8 +2233,8 @@
       "problem_url": "/194",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $k\\geq 3$. Must any ordering of $\\mathbb{R}$ contain a monotone $k$-term arithmetic progression, that is, some $x_1<\\cdots<x_k$ which forms an increasing or decreasing $k$-term arithmetic progression?",
       "tags": [
@@ -2162,7 +2246,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/194.lean",
       "oeis_urls": [],
       "comments_problem_id": 194,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 198,
@@ -2178,7 +2262,7 @@
         "sidon sets",
         "arithmetic progressions"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/198",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/198.lean",
@@ -2211,8 +2295,8 @@
       "problem_url": "/204",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Are there $n$ such that there is a covering system with moduli the divisors of $n$ which is 'as disjoint as possible'? That is, for all $d\\mid n$ with $d>1$ there is an associated $a_d$ such that every integer is congruent to some $a_d\\pmod{d}$, and if there is some integer $x$ with\\[x\\equiv a_d\\pmod{d}\\textrm{ and }x\\equiv a_{d'}\\pmod{d'}\\]then $(d,d')=1$.",
       "tags": [
@@ -2225,7 +2309,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/204.lean",
       "oeis_urls": [],
       "comments_problem_id": 204,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 205,
@@ -2239,21 +2323,21 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/205",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 205,
-      "comments_count": 21
+      "comments_count": 22
     },
     {
       "problem_id": 206,
       "problem_url": "/206",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $x>0$ be a real number. For any $n\\geq 1$ let\\[R_n(x) = \\sum_{i=1}^n\\frac{1}{m_i}<x\\]be the maximal sum of $n$ distinct unit fractions which is $<x$. Is it true that, for almost all $x$, for sufficiently large $n$, we have\\[R_{n+1}(x)=R_n(x)+\\frac{1}{m},\\]where $m$ is minimal such that $m$ does not appear in $R_n(x)$ and the right-hand side is $<x$? (That is, are the best underapproximations eventually always constructed in a 'greedy' fashion?)",
       "tags": [
@@ -2266,7 +2350,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 206,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 207,
@@ -2362,9 +2446,10 @@
       "statement": "Let $S\\subset \\mathbb{R}^2$ be such that no two points in $S$ are distance $1$ apart. Must the complement of $S$ contain four points which form a unit square?",
       "tags": [
         "geometry",
-        "distances"
+        "distances",
+        "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "02 April 2026",
       "latex_path": "/latex/214",
       "formalized": false,
       "formalized_url": "",
@@ -2430,7 +2515,7 @@
         "primes",
         "arithmetic progressions"
       ],
-      "last_edited": "28 September 2025",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/219",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/219.lean",
@@ -2483,7 +2568,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 221,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 223,
@@ -2538,7 +2623,7 @@
       "tags": [
         "analysis"
       ],
-      "last_edited": "01 February 2026",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/225",
       "formalized": false,
       "formalized_url": "",
@@ -2715,8 +2800,8 @@
       "problem_url": "/237",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A\\subseteq \\mathbb{N}$ be a set such that $\\lvert A\\cap \\{1,\\ldots,N\\}\\rvert \\gg \\log N$ for all large $N$. Let $f(n)$ count the number of solutions to $n=p+a$ for $p$ prime and $a\\in A$. Is it true that $\\limsup f(n)=\\infty$?",
       "tags": [
@@ -2729,7 +2814,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 237,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 239,
@@ -2824,13 +2909,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/248",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/248.lean",
       "oeis_urls": [],
       "comments_problem_id": 248,
-      "comments_count": 5
+      "comments_count": 6
     },
     {
       "problem_id": 250,
@@ -2873,7 +2958,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/253.lean",
       "oeis_urls": [],
       "comments_problem_id": 253,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 255,
@@ -2896,12 +2981,32 @@
       "comments_count": 0
     },
     {
+      "problem_id": 258,
+      "problem_url": "/258",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $a_1,a_2,\\ldots$ be a sequence of positive integers with $a_n\\to \\infty$. Is\\[\\sum_{n} \\frac{\\tau(n)}{a_1\\cdots a_n}\\]irrational, where $\\tau(n)$ is the number of divisors of $n$?",
+      "tags": [
+        "irrationality"
+      ],
+      "last_edited": "15 April 2026",
+      "latex_path": "/latex/258",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/258.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 258,
+      "comments_count": 7
+    },
+    {
       "problem_id": 259,
       "problem_url": "/259",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is the sum\\[\\sum_{n} \\mu(n)^2\\frac{n}{2^n}\\]irrational?",
       "tags": [
@@ -2915,7 +3020,7 @@
         "https://oeis.org/A371134"
       ],
       "comments_problem_id": 259,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 262,
@@ -2962,8 +3067,8 @@
       "problem_url": "/268",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $X\\subseteq \\mathbb{R}^3$ be the set of all points of the shape\\[\\left( \\sum_{n\\in A} \\frac{1}{n},\\sum_{n\\in A}\\frac{1}{n+1},\\sum_{n\\in A} \\frac{1}{n+2}\\right) \\]as $A\\subseteq\\mathbb{N}$ ranges over all infinite sets with $\\sum_{n\\in A}\\frac{1}{n}<\\infty$. Does $X$ contain an open set?",
       "tags": [
@@ -2975,7 +3080,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/268.lean",
       "oeis_urls": [],
       "comments_problem_id": 268,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 270,
@@ -3028,12 +3133,12 @@
       "status_label": "PROVED",
       "status_detail": "This has been solved in the affirmative.",
       "prize_amount": "",
-      "statement": "Is it true that, for every $c$, there exists an $n$ such that $\\sigma(n)>cn$ but there is no covering system whose moduli all divide $n$?",
+      "statement": "Is it true that, for every $c$, there exists an $n$ such that $\\sigma(n)>cn$ but there is no covering system whose moduli all distinct divisors of $n$ (which are $>1$)?",
       "tags": [
         "number theory",
         "covering systems"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/277",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/277.lean",
@@ -3046,8 +3151,8 @@
       "problem_url": "/280",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $n_1<n_2<\\cdots $ be an infinite sequence of integers with associated $a_k\\pmod{n_k}$, such that for some $\\epsilon>0$ we have $n_k>(1+\\epsilon)k\\log k$ for all $k$. Then\\[\\#\\{ m<n_k : m\\not\\equiv a_i\\pmod{n_i} \\textrm{ for }1\\leq i\\leq k\\}\\neq o(k).\\]",
       "tags": [
@@ -3060,7 +3165,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 280,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 281,
@@ -3218,8 +3323,8 @@
       "problem_url": "/296",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $N\\geq 1$ and let $k(N)$ be maximal such that there are $k$ disjoint $A_1,\\ldots,A_k\\subseteq \\{1,\\ldots,N\\}$ with $\\sum_{n\\in A_i}\\frac{1}{n}=1$ for all $i$. Estimate $k(N)$. Is it true that $k(N)=o(\\log N)$?",
       "tags": [
@@ -3232,7 +3337,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 296,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 297,
@@ -3270,7 +3375,7 @@
         "number theory",
         "unit fractions"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "31 March 2026",
       "latex_path": "/latex/298",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/298.lean",
@@ -3434,8 +3539,8 @@
       "problem_url": "/314",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $n\\geq 1$ and let $m$ be minimal such that $\\sum_{n\\leq k\\leq m}\\frac{1}{k}\\geq 1$. We define\\[\\epsilon(n) = \\sum_{n\\leq k\\leq m}\\frac{1}{k}-1.\\]How small can $\\epsilon(n)$ be? Is it true that\\[\\liminf n^2\\epsilon(n)=0?\\]",
       "tags": [
@@ -3448,7 +3553,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 314,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 315,
@@ -3496,6 +3601,27 @@
       "comments_count": 1
     },
     {
+      "problem_id": 318,
+      "problem_url": "/318",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $A\\subseteq \\mathbb{N}$ be an infinite arithmetic progression and $f:A\\to \\{-1,1\\}$ be a non-constant function. Must there exist a finite non-empty $S\\subset A$ such that\\[\\sum_{n\\in S}\\frac{f(n)}{n}=0?\\]What about if $A$ is an arbitrary set of positive density? What if $A$ is the set of squares excluding $1$?",
+      "tags": [
+        "number theory",
+        "unit fractions"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/318",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/318.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 318,
+      "comments_count": 14
+    },
+    {
       "problem_id": 328,
       "problem_url": "/328",
       "status_bucket": "closed",
@@ -3508,7 +3634,7 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/328",
       "formalized": false,
       "formalized_url": "",
@@ -3535,7 +3661,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/331.lean",
       "oeis_urls": [],
       "comments_problem_id": 331,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 333,
@@ -3724,7 +3850,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/355.lean",
       "oeis_urls": [],
       "comments_problem_id": 355,
-      "comments_count": 16
+      "comments_count": 18
     },
     {
       "problem_id": 356,
@@ -3745,6 +3871,28 @@
       "oeis_urls": [],
       "comments_problem_id": 356,
       "comments_count": 0
+    },
+    {
+      "problem_id": 358,
+      "problem_url": "/358",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $A=\\{a_1<\\cdots\\}$ be an infinite sequence of integers. Let $f(n)$ count the number of solutions to\\[n=\\sum_{u\\leq i\\leq v}a_i.\\]Is there such an $A$ for which $f(n)\\to \\infty$ as $n\\to \\infty$? Or even where $f(n)\\geq 2$ for all large $n$?",
+      "tags": [
+        "number theory",
+        "additive basis",
+        "primes"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/358",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/358.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 358,
+      "comments_count": 21
     },
     {
       "problem_id": 360,
@@ -3791,8 +3939,8 @@
       "problem_url": "/363",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that there are only finitely many collections of disjoint intervals $I_1,\\ldots,I_n$ of size $\\lvert I_i\\rvert \\geq 4$ for $1\\leq i\\leq n$ such that\\[\\prod_{1\\leq i\\leq n}\\prod_{m\\in I_i}m\\]is a square?",
       "tags": [
@@ -3804,7 +3952,27 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 363,
-      "comments_count": 1
+      "comments_count": 2
+    },
+    {
+      "problem_id": 369,
+      "problem_url": "/369",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $\\epsilon>0$ and $k\\geq 2$. Is it true that, for all sufficiently large $n$, there is a sequence of $k$ consecutive integers in $\\{1,\\ldots,n\\}$ all of which are $n^\\epsilon$-smooth?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "28 April 2026",
+      "latex_path": "/latex/369",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 369,
+      "comments_count": 11
     },
     {
       "problem_id": 370,
@@ -3889,6 +4057,31 @@
       "oeis_urls": [],
       "comments_problem_id": 379,
       "comments_count": 8
+    },
+    {
+      "problem_id": 380,
+      "problem_url": "/380",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "We call an interval $[u,v]$ 'bad' if the greatest prime factor of $\\prod_{u\\leq m\\leq v}m$ occurs with an exponent greater than $1$. Let $B(x)$ count the number of $n\\leq x$ which are contained in at least one bad interval. Is it true that\\[B(x)\\sim \\#\\{ n\\leq x: P(n)^2\\mid n\\},\\]where $P(n)$ is the largest prime factor of $n$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "10 April 2026",
+      "latex_path": "/latex/380",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [
+        "https://oeis.org/A070003",
+        "https://oeis.org/A387054",
+        "https://oeis.org/A388654",
+        "https://oeis.org/A389100"
+      ],
+      "comments_problem_id": 380,
+      "comments_count": 10
     },
     {
       "problem_id": 381,
@@ -4060,7 +4253,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 401,
-      "comments_count": 18
+      "comments_count": 21
     },
     {
       "problem_id": 402,
@@ -4074,7 +4267,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/402",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/402.lean",
@@ -4195,8 +4388,8 @@
       "problem_url": "/426",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "$25",
       "statement": "We say $H$ is a unique subgraph of $G$ if there is exactly one way to find $H$ as a subgraph (not necessarily induced) of $G$. Is there a graph on $n$ vertices with\\[\\gg \\frac{2^{\\binom{n}{2}}}{n!}\\]many distinct unique subgraphs?",
       "tags": [
@@ -4208,15 +4401,15 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 426,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 427,
       "problem_url": "/427",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that, for every $n$ and $d$, there exists $k$ such that\\[d \\mid p_{n+1}+\\cdots+p_{n+k},\\]where $p_r$ denotes the $r$th prime?",
       "tags": [
@@ -4229,7 +4422,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/427.lean",
       "oeis_urls": [],
       "comments_problem_id": 427,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 429,
@@ -4243,7 +4436,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/429",
       "formalized": false,
       "formalized_url": "",
@@ -4345,7 +4538,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "18 November 2025",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/438",
       "formalized": false,
       "formalized_url": "",
@@ -4368,7 +4561,7 @@
         "number theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/439",
       "formalized": false,
       "formalized_url": "",
@@ -4576,7 +4769,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "26 October 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/453",
       "formalized": false,
       "formalized_url": "",
@@ -4585,12 +4778,34 @@
       "comments_count": 1
     },
     {
+      "problem_id": 457,
+      "problem_url": "/457",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Is there some $\\epsilon>0$ such that there are infinitely many $n$ where all primes $p\\leq (2+\\epsilon)\\log n$ divide\\[\\prod_{1\\leq i\\leq \\log n}(n+i)?\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 March 2026",
+      "latex_path": "/latex/457",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/457.lean",
+      "oeis_urls": [
+        "https://oeis.org/A391668"
+      ],
+      "comments_problem_id": 457,
+      "comments_count": 10
+    },
+    {
       "problem_id": 459,
       "problem_url": "/459",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "SOLVED",
-      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "status_label": "SOLVED (LEAN)",
+      "status_detail": "This has been resolved in some other way than a proof or disproof, and that resolution verified in Lean.",
       "prize_amount": "",
       "statement": "Let $f(u)$ be the largest $v$ such that no $m\\in (u,v)$ is composed entirely of primes dividing $uv$. Estimate $f(u)$.",
       "tags": [
@@ -4605,7 +4820,7 @@
         "https://oeis.org/A289280"
       ],
       "comments_problem_id": 459,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 464,
@@ -4797,8 +5012,8 @@
       "problem_url": "/484",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Prove that there exists an absolute constant $c>0$ such that, whenever $\\{1,\\ldots,N\\}$ is $k$-coloured (and $N$ is large enough depending on $k$) then there are at least $cN$ many integers in $\\{1,\\ldots,N\\}$ which are representable as a monochromatic sum (that is, $a+b$ where $a,b\\in \\{1,\\ldots,N\\}$ are in the same colour class and $a\\neq b$).",
       "tags": [
@@ -4806,13 +5021,13 @@
         "additive combinatorics",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/484",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 484,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 485,
@@ -4827,7 +5042,7 @@
         "analysis",
         "polynomials"
       ],
-      "last_edited": "29 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/485",
       "formalized": false,
       "formalized_url": "",
@@ -4887,13 +5102,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/491",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 491,
-      "comments_count": 1
+      "comments_count": 0
     },
     {
       "problem_id": 492,
@@ -4954,7 +5169,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/494.lean",
       "oeis_urls": [],
       "comments_problem_id": 494,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 496,
@@ -5229,8 +5444,8 @@
       "problem_url": "/519",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $z_1,\\ldots,z_n\\in \\mathbb{C}$ with $z_1=1$. Must there exist an absolute constant $c>0$ such that\\[\\max_{1\\leq k\\leq n}\\left\\lvert \\sum_{i}z_i^k\\right\\rvert>c?\\]",
       "tags": [
@@ -5242,7 +5457,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 519,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 523,
@@ -5384,7 +5599,7 @@
         "number theory",
         "intersecting family"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/534",
       "formalized": false,
       "formalized_url": "",
@@ -5420,14 +5635,14 @@
       "problem_url": "/540",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that if $A\\subseteq \\mathbb{Z}/N\\mathbb{Z}$ has size $\\gg N^{1/2}$ then there exists some non-empty $S\\subseteq A$ such that $\\sum_{n\\in S}n\\equiv 0\\pmod{N}$?",
       "tags": [
         "number theory"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "06 March 2026",
       "latex_path": "/latex/540",
       "formalized": false,
       "formalized_url": "",
@@ -5435,7 +5650,7 @@
         "https://oeis.org/A034463"
       ],
       "comments_problem_id": 540,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 541,
@@ -5449,13 +5664,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/541",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/541.lean",
       "oeis_urls": [],
       "comments_problem_id": 541,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 542,
@@ -5469,7 +5684,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "17 October 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/542",
       "formalized": false,
       "formalized_url": "",
@@ -5690,6 +5905,27 @@
       "oeis_urls": [],
       "comments_problem_id": 570,
       "comments_count": 3
+    },
+    {
+      "problem_id": 574,
+      "problem_url": "/574",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "Is it true that, for $k\\geq 2$,\\[\\mathrm{ex}(n;\\{C_{2k-1},C_{2k}\\})=(1+o(1))(n/2)^{1+\\frac{1}{k}}.\\]",
+      "tags": [
+        "graph theory",
+        "turan number"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/574",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 574,
+      "comments_count": 1
     },
     {
       "problem_id": 577,
@@ -6047,8 +6283,8 @@
       "problem_url": "/621",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $G$ be a graph on $n$ vertices, $\\alpha_1(G)$ be the maximum number of edges that contain at most one edge from every triangle, and $\\tau_1(G)$ be the minimum number of edges that contain at least one edge from every triangle. Is it true that\\[\\alpha_1(G)+\\tau_1(G) \\leq \\frac{n^2}{4}?\\]",
       "tags": [
@@ -6060,7 +6296,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 621,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 622,
@@ -6144,6 +6380,26 @@
       "oeis_urls": [],
       "comments_problem_id": 632,
       "comments_count": 0
+    },
+    {
+      "problem_id": 633,
+      "problem_url": "/633",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "$25",
+      "statement": "Classify those triangles which can only be cut into a square number of congruent triangles.",
+      "tags": [
+        "geometry"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/633",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/633.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 633,
+      "comments_count": 7
     },
     {
       "problem_id": 636,
@@ -6240,9 +6496,10 @@
       "tags": [
         "number theory",
         "additive combinatorics",
-        "ramsey theory"
+        "ramsey theory",
+        "arithmetic progressions"
       ],
-      "last_edited": "24 October 2025",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/645",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/645.lean",
@@ -6291,7 +6548,7 @@
         "https://oeis.org/A391750"
       ],
       "comments_problem_id": 648,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 649,
@@ -6312,6 +6569,28 @@
       "oeis_urls": [],
       "comments_problem_id": 649,
       "comments_count": 2
+    },
+    {
+      "problem_id": 650,
+      "problem_url": "/650",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED (LEAN)",
+      "status_detail": "This has been resolved in some other way than a proof or disproof, and that resolution verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $f(m)$ be such that if $A\\subseteq \\{1,\\ldots,N\\}$ has $\\lvert A\\rvert=m$ then every interval in $[1,\\infty)$ of length $2N$ contains $\\geq f(m)$ many distinct integers $b_1,\\ldots,b_r$ where each $b_i$ is divisible by some $a_i\\in A$, where $a_1,\\ldots,a_r$ are distinct. Estimate $f(m)$. In particular is it true that $f(m)\\leq \\sqrt{m}$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "02 April 2026",
+      "latex_path": "/latex/650",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [
+        "https://oeis.org/A027434"
+      ],
+      "comments_problem_id": 650,
+      "comments_count": 28
     },
     {
       "problem_id": 651,
@@ -6363,12 +6642,12 @@
       "status_label": "PROVED",
       "status_detail": "This has been solved in the affirmative.",
       "prize_amount": "",
-      "statement": "Let $A\\subset \\mathbb{N}$ be a set with positive upper density. Must there exist an infinite set $B$ and integer $t$ such that\\[B+B+t\\subseteq A?\\]",
+      "statement": "Let $A\\subset \\mathbb{N}$ be a set with positive upper density. Must there exist an infinite set $B\\subseteq A$ and integer $t$ such that\\[\\{b_1+b_2: b_1\\neq b_2\\in B\\}+t\\subseteq A?\\]",
       "tags": [
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/656",
       "formalized": false,
       "formalized_url": "",
@@ -6381,8 +6660,8 @@
       "problem_url": "/658",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $\\delta>0$ and $N$ be sufficiently large depending on $\\delta$. Is it true that if $A\\subseteq \\{1,\\ldots,N\\}^2$ has $\\lvert A\\rvert \\geq \\delta N^2$ then $A$ must contain the vertices of a square?",
       "tags": [
@@ -6394,7 +6673,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 658,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 659,
@@ -6546,8 +6825,8 @@
       "problem_url": "/692",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $\\delta_1(n,m)$ be the density of the set of integers with exactly one divisor in $(n,m)$. Is $\\delta_1(n,m)$ unimodular for $m>n+1$ (i.e. increases until some $m$ then decreases thereafter)? For fixed $n$, where does $\\delta_1(n,m)$ achieve its maximum?",
       "tags": [
@@ -6560,7 +6839,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 692,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 697,
@@ -6782,7 +7061,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "26 October 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/720",
       "formalized": false,
       "formalized_url": "",
@@ -6804,7 +7083,7 @@
         "additive combinatorics",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/721",
       "formalized": false,
       "formalized_url": "",
@@ -6832,7 +7111,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 722,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 728,
@@ -6853,7 +7132,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/728.lean",
       "oeis_urls": [],
       "comments_problem_id": 728,
-      "comments_count": 84
+      "comments_count": 86
     },
     {
       "problem_id": 729,
@@ -7129,8 +7408,8 @@
       "problem_url": "/753",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "The list chromatic number $\\chi_L(G)$ is defined to be the minimal $k$ such that for any assignment of a list of $k$ colours to each vertex of $G$ (perhaps different lists for different vertices) a colouring of each vertex by a colour on its list can be chosen such that adjacent vertices receive distinct colours. Does there exist some constant $c>0$ such that\\[\\chi_L(G)+\\chi_L(G^c)> n^{1/2+c}\\]for every graph $G$ on $n$ vertices (where $G^c$ is the complement of $G$)?",
       "tags": [
@@ -7143,7 +7422,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 753,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 754,
@@ -7191,8 +7470,8 @@
       "problem_url": "/756",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A\\subset \\mathbb{R}^2$ be a set of $n$ points. Can there be $\\gg n$ many distinct distances each of which occurs for more than $n$ many pairs from $A$?",
       "tags": [
@@ -7205,7 +7484,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 756,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 758,
@@ -7254,21 +7533,21 @@
       "problem_url": "/760",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
-      "statement": "The cochromatic number of $G$, denoted by $\\zeta(G)$, is the minimum number of colours needed to colour the vertices of $G$ such that each colour class induces either a complete graph or empty graph. If $G$ is a graph with chromatic number $\\chi(G)=m$ then must $G$ contain a subgraph $H$ with\\[\\zeta(H) \\gg \\frac{m}{\\log m}?\\]",
+      "statement": "The cochromatic number of $G$, denoted by $\\zeta(G)$, is the minimum number of colours needed to colour the vertices of $G$ such that each colour class induces either a complete graph or independent set. If $G$ is a graph with chromatic number $\\chi(G)=m$ then must $G$ contain a subgraph $H$ with\\[\\zeta(H) \\gg \\frac{m}{\\log m}?\\]",
       "tags": [
         "graph theory",
         "chromatic number"
       ],
-      "last_edited": "",
+      "last_edited": "24 April 2026",
       "latex_path": "/latex/760",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 760,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 762,
@@ -7424,8 +7703,8 @@
       "problem_url": "/775",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is there a $3$-uniform hypergraph on $n$ vertices which contains at least $n-O(1)$ different sizes of cliques (maximal complete subgraphs)",
       "tags": [
@@ -7438,7 +7717,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 775,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 777,
@@ -7504,6 +7783,26 @@
       "comments_count": 0
     },
     {
+      "problem_id": 783,
+      "problem_url": "/783",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Fix some constant $C>0$ and let $N$ be large. Let $A\\subseteq \\{2,\\ldots,N\\}$ be such that $(a,b)=1$ for all $a\\neq b\\in A$ and $\\sum_{n\\in A}\\frac{1}{n}\\leq C$. What choice of such an $A$ minimises the number of integers $m\\leq N$ not divisible by any $a\\in A$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "11 April 2026",
+      "latex_path": "/latex/783",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 783,
+      "comments_count": 28
+    },
+    {
       "problem_id": 784,
       "problem_url": "/784",
       "status_bucket": "closed",
@@ -7515,7 +7814,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "20 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/784",
       "formalized": false,
       "formalized_url": "",
@@ -7528,20 +7827,20 @@
       "problem_url": "/785",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A,B\\subseteq \\mathbb{N}$ be infinite sets such that $A+B$ contains all large integers. Let $A(x)=\\lvert A\\cap [1,x]\\rvert$ and similarly for $B(x)$. Is it true that if $A(x)B(x)\\sim x$ then\\[A(x)B(x)-x\\to \\infty\\]as $x\\to \\infty$?",
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/785",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 785,
-      "comments_count": 2
+      "comments_count": 5
     },
     {
       "problem_id": 794,
@@ -7577,7 +7876,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/795",
       "formalized": false,
       "formalized_url": "",
@@ -7855,8 +8154,8 @@
       "problem_url": "/818",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A$ be a finite set of integers such that $\\lvert A+A\\rvert \\ll \\lvert A\\rvert$. Is it true that\\[\\lvert AA\\rvert \\gg \\frac{\\lvert A\\rvert^2}{(\\log \\lvert A\\rvert)^C}\\]for some constant $C>0$?",
       "tags": [
@@ -7868,7 +8167,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 818,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 822,
@@ -8071,8 +8370,8 @@
       "problem_url": "/844",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $A\\subseteq \\{1,\\ldots,N\\}$ be such that, for all $a,b\\in A$, the product $ab$ is not squarefree. Is the maximum size of such an $A$ achieved by taking $A$ to be the set of even numbers and odd non-squarefree numbers?",
       "tags": [
@@ -8085,7 +8384,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 844,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 845,
@@ -8106,6 +8405,26 @@
       "oeis_urls": [],
       "comments_problem_id": 845,
       "comments_count": 13
+    },
+    {
+      "problem_id": 846,
+      "problem_url": "/846",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $A\\subset \\mathbb{R}^2$ be an infinite set for which there exists some $\\epsilon>0$ such that in any subset of $A$ of size $n$ there are always at least $\\epsilon n$ with no three on a line. Is it true that $A$ is the union of a finite number of sets where no three are on a line?",
+      "tags": [
+        "geometry"
+      ],
+      "last_edited": "10 April 2026",
+      "latex_path": "/latex/846",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/846.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 846,
+      "comments_count": 8
     },
     {
       "problem_id": 847,
@@ -8145,7 +8464,48 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/848.lean",
       "oeis_urls": [],
       "comments_problem_id": 848,
-      "comments_count": 18
+      "comments_count": 48
+    },
+    {
+      "problem_id": 851,
+      "problem_url": "/851",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $\\epsilon>0$. Is there some $r\\ll_\\epsilon 1$ such that the density of integers of the form $2^k+n$, where $k\\geq 0$ and $n$ has at most $r$ prime divisors, is at least $1-\\epsilon$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "02 April 2026",
+      "latex_path": "/latex/851",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/851.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 851,
+      "comments_count": 5
+    },
+    {
+      "problem_id": 858,
+      "problem_url": "/858",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $A\\subseteq \\{1,\\ldots,N\\}$ be such that there is no solution to $at=b$ with $a,b\\in A$ and the smallest prime factor of $t$ is $>a$. Estimate the maximum of\\[\\frac{1}{\\log N}\\sum_{n\\in A}\\frac{1}{n}.\\]",
+      "tags": [
+        "number theory",
+        "primitive sets"
+      ],
+      "last_edited": "24 April 2026",
+      "latex_path": "/latex/858",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 858,
+      "comments_count": 13
     },
     {
       "problem_id": 861,
@@ -8197,12 +8557,34 @@
       "comments_count": 3
     },
     {
+      "problem_id": 863,
+      "problem_url": "/863",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $r\\geq 2$ and let $A\\subseteq \\{1,\\ldots,N\\}$ be a set of maximal size such that there are at most $r$ solutions to $n=a+b$ with $a\\leq b$ for any $n$. (That is, $A$ is a $B_2[r]$ set.) Similarly, let $B\\subseteq \\{1,\\ldots,N\\}$ be a set of maximal size such that there are at most $r$ solutions to $n=a-b$ for any $n\\geq 1$. If $\\lvert A\\rvert\\sim c_rN^{1/2}$ as $N\\to \\infty$ and $\\lvert B\\rvert \\sim c_r'N^{1/2}$ as $N\\to \\infty$ then is it true that $c_r\\neq c_r'$ for $r\\geq 2$? Is it true that $c_r'<c_r$?",
+      "tags": [
+        "number theory",
+        "sidon sets",
+        "additive combinatorics"
+      ],
+      "last_edited": "24 April 2026",
+      "latex_path": "/latex/863",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 863,
+      "comments_count": 2
+    },
+    {
       "problem_id": 867,
       "problem_url": "/867",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that if $A=\\{a_1<\\cdots <a_t\\}\\subseteq \\{1,\\ldots,N\\}$ has no solutions to\\[a_i+a_{i+1}+\\cdots+a_j\\in A\\]then\\[\\lvert A\\rvert \\leq \\frac{N}{2}+O(1)?\\]",
       "tags": [
@@ -8214,22 +8596,22 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 867,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 868,
       "problem_url": "/868",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "DISPROVED",
-      "status_detail": "This has been solved in the negative.",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
       "prize_amount": "",
       "statement": "If $A$ is an additive basis of order $2$, and $1_A\\ast 1_A(n)\\to \\infty$ as $n\\to \\infty$, then must $A$ contain a minimal additive basis of order $2$? (i.e. such that deleting any element creates infinitely many $n\\not\\in A+A$) What if $1_A\\ast 1_A(n) >\\epsilon \\log n$ (for all large $n$, for arbitrary fixed $\\epsilon>0$)?",
       "tags": [
         "number theory",
         "additive basis"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/868",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/868.lean",
@@ -8342,6 +8724,27 @@
       "comments_count": 0
     },
     {
+      "problem_id": 884,
+      "problem_url": "/884",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "Is it true that, for any $n$, if $d_1<\\cdots <d_t$ are the divisors of $n$, then\\[\\sum_{1\\leq i<j\\leq t}\\frac{1}{d_j-d_i} \\ll 1+\\sum_{1\\leq i<t}\\frac{1}{d_{i+1}-d_i},\\]where the implied constant is absolute?",
+      "tags": [
+        "number theory",
+        "divisors"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/884",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 884,
+      "comments_count": 10
+    },
+    {
       "problem_id": 894,
       "problem_url": "/894",
       "status_bucket": "closed",
@@ -8395,7 +8798,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "27 December 2025",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/897",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/897.lean",
@@ -8455,7 +8858,7 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/900",
       "formalized": false,
       "formalized_url": "",
@@ -8488,60 +8891,60 @@
       "problem_url": "/904",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
-      "statement": "If $G$ is a graph with $n$ vertices and $>n^2/4$ edges then it contains a triangle on $x,y,z$ such that\\[d(x)+d(y)+d(z) \\geq \\frac{3}{2}n.\\]",
+      "statement": "Let $r\\geq 2$ and let $t_r(n)$ be the Tur\u00e1n number (the maximal number of edges in a graph on $n$ vertices with no $K_{r+1}$). If $G$ is a graph with $n$ vertices and $m\\geq t_r(n)$ edges there exists a clique on $r$ vertices, say $x_1,\\ldots,x_r$, such that\\[d(x_1)+\\cdots+d(x_r)\\geq \\frac{2rm}{n}.\\]",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/904",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 904,
-      "comments_count": 0
+      "comments_count": 5
     },
     {
       "problem_id": 905,
       "problem_url": "/905",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Every graph with $n$ vertices and $>n^2/4$ edges contains an edge which is in at least $n/6$ triangles.",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/905",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 905,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 907,
       "problem_url": "/907",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
-      "statement": "Let $f:\\mathbb{R}\\to \\mathbb{R}$ be such that $f(x+h)-f(x)$ is continous for every $h>0$. Is it true that\\[f=g+h\\]for some continuous $g$ and additive $h$ (i.e. $h(x+y)=h(x)+h(y)$)?",
+      "statement": "Let $f:\\mathbb{R}\\to \\mathbb{R}$ be such that $f(x+h)-f(x)$ is continuous for every $h>0$. Is it true that\\[f=g+h\\]for some continuous $g$ and additive $h$ (i.e. $h(x+y)=h(x)+h(y)$)?",
       "tags": [
         "analysis"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/907",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 907,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 908,
@@ -8609,20 +9012,20 @@
       "problem_url": "/914",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $r\\geq 2$ and $m\\geq 1$. Every graph with $rm$ vertices and minimum degree at least $m(r-1)$ contains $m$ vertex disjoint copies of $K_r$.",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/914",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 914,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 915,
@@ -8713,8 +9116,8 @@
       "problem_url": "/923",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Is it true that, for every $k$, there is some $f(k)$ such that if $G$ has chromatic number $\\geq f(k)$ then $G$ contains a triangle-free subgraph with chromatic number $\\geq k$?",
       "tags": [
@@ -8727,7 +9130,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 923,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 924,
@@ -8943,6 +9346,26 @@
       "comments_count": 2
     },
     {
+      "problem_id": 960,
+      "problem_url": "/960",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "Let $r,k\\geq 2$ be fixed. Let $A\\subset \\mathbb{R}^2$ be a set of $n$ points with no $k$ points on a line. Determine the threshold $f_{r,k}(n)$ such that if there are at least $f_{r,k}(n)$ many ordinary lines (lines containing exactly two points) then there is a set $A'\\subseteq A$ of $r$ points such that all $\\binom{r}{2}$ many lines determined by $A'$ are ordinary. Is it true that $f_{r,k}(n)=o(n^2)$, or perhaps even $\\ll n$?",
+      "tags": [
+        "geometry"
+      ],
+      "last_edited": "09 April 2026",
+      "latex_path": "/latex/960",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 960,
+      "comments_count": 1
+    },
+    {
       "problem_id": 964,
       "problem_url": "/964",
       "status_bucket": "closed",
@@ -9031,8 +9454,8 @@
       "problem_url": "/974",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $z_1,\\ldots,z_n\\in \\mathbb{C}$ be a sequence such that $z_1=1$. Suppose that the sequence of\\[s_k=\\sum_{1\\leq i\\leq n}z_i^k\\]contains infinitely many $(n-1)$-tuples of consecutive values of $s_k$ which are all $0$. Then (essentially)\\[z_j=e(j/n),\\]where $e(x)=e^{2\\pi ix}$.",
       "tags": [
@@ -9044,7 +9467,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 974,
-      "comments_count": 13
+      "comments_count": 14
     },
     {
       "problem_id": 977,
@@ -9125,13 +9548,34 @@
         "arithmetic progressions",
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/984",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 984,
       "comments_count": 3
+    },
+    {
+      "problem_id": 987,
+      "problem_url": "/987",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $x_1,x_2,\\ldots \\in (0,1)$ be an infinite sequence and let\\[A_k=\\limsup_{n\\to \\infty}\\left\\lvert \\sum_{j\\leq n} e(kx_j)\\right\\rvert,\\]where $e(x)=e^{2\\pi ix}$. Is it true that\\[\\limsup_{k\\to \\infty} A_k=\\infty?\\]Is it possible for $A_k=o(k)$?",
+      "tags": [
+        "analysis",
+        "discrepancy"
+      ],
+      "last_edited": "09 April 2026",
+      "latex_path": "/latex/987",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 987,
+      "comments_count": 9
     },
     {
       "problem_id": 988,
@@ -9172,6 +9616,26 @@
       "oeis_urls": [],
       "comments_problem_id": 989,
       "comments_count": 0
+    },
+    {
+      "problem_id": 990,
+      "problem_url": "/990",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $f=a_0+\\cdots+a_dx^d\\in \\mathbb{C}[x]$ be a polynomial. Is it true that, if $f$ has roots $z_1,\\ldots,z_d$ with corresponding arguments $\\theta_1,\\ldots,\\theta_d\\in [0,2\\pi]$, then for all intervals $I\\subseteq [0,2\\pi]$\\[\\left\\lvert (\\# \\theta_i \\in I) - \\frac{\\lvert I\\rvert}{2\\pi}d\\right\\rvert \\ll \\left(n\\log M\\right)^{1/2},\\]where $n$ is the number of non-zero coefficients of $f$ and\\[M=\\frac{\\lvert a_0\\rvert+\\cdots +\\lvert a_d\\rvert}{(\\lvert a_0\\rvert\\lvert a_d\\rvert)^{1/2}}.\\]",
+      "tags": [
+        "analysis"
+      ],
+      "last_edited": "10 April 2026",
+      "latex_path": "/latex/990",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 990,
+      "comments_count": 3
     },
     {
       "problem_id": 991,
@@ -9233,6 +9697,28 @@
       "oeis_urls": [],
       "comments_problem_id": 994,
       "comments_count": 0
+    },
+    {
+      "problem_id": 997,
+      "problem_url": "/997",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Call $x_1,x_2,\\ldots \\in (0,1)$ well-distributed if, for every $\\epsilon>0$, if $k$ is sufficiently large then, for all $n>0$ and intervals $I\\subseteq [0,1]$,\\[\\lvert \\# \\{ n<m\\leq n+k : x_m\\in I\\} - \\lvert I\\rvert k\\rvert < \\epsilon k.\\]Is it true that, for every $\\alpha$, the sequence $\\{ \\alpha p_n\\}$ is not well-distributed, if $p_n$ is the sequence of primes?",
+      "tags": [
+        "analysis",
+        "discrepancy",
+        "primes"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/997",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/997.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 997,
+      "comments_count": 4
     },
     {
       "problem_id": 998,
@@ -9418,7 +9904,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1010,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1012,
@@ -9439,6 +9925,27 @@
       "oeis_urls": [],
       "comments_problem_id": 1012,
       "comments_count": 5
+    },
+    {
+      "problem_id": 1014,
+      "problem_url": "/1014",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $R(k,l)$ be the Ramsey number, so the minimal $n$ such that every graph on at least $n$ vertices contains either a $K_k$ or an independent set on $l$ vertices. Prove, for fixed $k\\geq 3$, that\\[\\lim_{l\\to \\infty}\\frac{R(k,l+1)}{R(k,l)}=1.\\]",
+      "tags": [
+        "graph theory",
+        "ramsey theory"
+      ],
+      "last_edited": "24 April 2026",
+      "latex_path": "/latex/1014",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1014,
+      "comments_count": 6
     },
     {
       "problem_id": 1015,
@@ -9761,13 +10268,13 @@
       "tags": [
         "analysis"
       ],
-      "last_edited": "15 September 2025",
+      "last_edited": "12 April 2026",
       "latex_path": "/latex/1042",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1042,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1043,
@@ -9794,8 +10301,8 @@
       "problem_url": "/1044",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "SOLVED",
-      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "status_label": "SOLVED (LEAN)",
+      "status_detail": "This has been resolved in some other way than a proof or disproof, and that resolution verified in Lean.",
       "prize_amount": "",
       "statement": "Let $f(z)=\\prod_{i=1}^n(z-z_i)\\in\\mathbb{C}[x]$ where $\\lvert z_i\\rvert\\leq 1$ for all $i$. If $\\Lambda(f)$ is the maximum of the lengths of the boundaries of the connected components of\\[\\{ z: \\lvert f(z)\\rvert<1\\}\\]then determine the infimum of $\\Lambda(f)$.",
       "tags": [
@@ -9807,7 +10314,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1044,
-      "comments_count": 7
+      "comments_count": 8
     },
     {
       "problem_id": 1046,
@@ -10183,6 +10690,47 @@
       "comments_count": 2
     },
     {
+      "problem_id": 1091,
+      "problem_url": "/1091",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $G$ be a $K_4$-free graph with chromatic number $4$. Must $G$ contain an odd cycle with at least two diagonals? More generally, is there some $f(r)\\to \\infty$ such that every graph with chromatic number $4$, in which every subgraph on $\\leq r$ vertices has chromatic number $\\leq 3$, contains an odd cycle with at least $f(r)$ diagonals?",
+      "tags": [
+        "graph theory",
+        "chromatic number"
+      ],
+      "last_edited": "09 April 2026",
+      "latex_path": "/latex/1091",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1091,
+      "comments_count": 2
+    },
+    {
+      "problem_id": 1096,
+      "problem_url": "/1096",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $1<q<1+\\epsilon$ and consider the set of numbers of the shape $\\sum_{i\\in S}q^i$ (for all finite $S$), ordered by size as $0=x_1<x_2<\\cdots$. Is it true that, provided $\\epsilon>0$ is sufficiently small, $x_{k+1}-x_k \\to 0$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "16 April 2026",
+      "latex_path": "/latex/1096",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1096,
+      "comments_count": 3
+    },
+    {
       "problem_id": 1098,
       "problem_url": "/1098",
       "status_bucket": "closed",
@@ -10200,7 +10748,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1098,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1099,
@@ -10371,20 +10919,20 @@
       "problem_url": "/1121",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "If $C_1,\\ldots,C_n$ are circles in $\\mathbb{R}^2$ with radii $r_1,\\ldots,r_n$ such that no line disjoint from all the circles divides them into two non-empty sets then the circles can be covered by a circle of radius $r=\\sum r_i$.",
       "tags": [
         "geometry"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/1121",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1121,
-      "comments_count": 0
+      "comments_count": 5
     },
     {
       "problem_id": 1123,
@@ -10398,7 +10946,7 @@
       "tags": [
         "algebra"
       ],
-      "last_edited": "31 December 2025",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/1123",
       "formalized": false,
       "formalized_url": "",
@@ -10431,8 +10979,8 @@
       "problem_url": "/1125",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $f:\\mathbb{R}\\to \\mathbb{R}$ be such that\\[2f(x) \\leq f(x+h)+f(x+2h)\\]for every $x\\in \\mathbb{R}$ and $h>0$. Must $f$ be monotonic?",
       "tags": [
@@ -10444,7 +10992,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1125,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1126,
@@ -10579,8 +11127,8 @@
       "problem_url": "/1136",
       "status_bucket": "closed",
       "status_dom_id": "solved",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Does there exist $A\\subset \\mathbb{N}$ with lower density $>1/3$ such that $a+b\\neq 2^k$ for any $a,b\\in A$ and $k\\geq 0$?",
       "tags": [
@@ -10592,7 +11140,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1136,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 1140,
@@ -10613,6 +11161,29 @@
       "oeis_urls": [],
       "comments_problem_id": 1140,
       "comments_count": 4
+    },
+    {
+      "problem_id": 1141,
+      "problem_url": "/1141",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Are there infinitely many $n$ such that $n-k^2$ is prime for all $k$ with $(n,k)=1$ and $k^2<n$?",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "09 April 2026",
+      "latex_path": "/latex/1141",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1141.lean",
+      "oeis_urls": [
+        "https://oeis.org/A214583"
+      ],
+      "comments_problem_id": 1141,
+      "comments_count": 11
     },
     {
       "problem_id": 1147,
@@ -10636,6 +11207,29 @@
       "comments_count": 2
     },
     {
+      "problem_id": 1148,
+      "problem_url": "/1148",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Can every large integer $n$ be written as $n=x^2+y^2-z^2$ with $\\max(x^2,y^2,z^2)\\leq n$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "23 March 2026",
+      "latex_path": "/latex/1148",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1148.lean",
+      "oeis_urls": [
+        "https://oeis.org/A390380",
+        "https://oeis.org/A393168"
+      ],
+      "comments_problem_id": 1148,
+      "comments_count": 26
+    },
+    {
       "problem_id": 1149,
       "problem_url": "/1149",
       "status_bucket": "closed",
@@ -10654,6 +11248,27 @@
       "oeis_urls": [],
       "comments_problem_id": 1149,
       "comments_count": 0
+    },
+    {
+      "problem_id": 1153,
+      "problem_url": "/1153",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "For $x_1,\\ldots,x_n\\in [-1,1]$ let\\[l_k(x)=\\frac{\\prod_{i\\neq k}(x-x_i)}{\\prod_{i\\neq k}(x_k-x_i)},\\]which are such that $l_k(x_k)=1$ and $l_k(x_i)=0$ for $i\\neq k$. Let\\[\\lambda(x)=\\sum_k \\lvert l_k(x)\\rvert.\\]Is it true that, for any fixed $-1\\leq a< b\\leq 1$,\\[\\max_{x\\in [a,b]}\\lambda(x)> \\left(\\frac{2}{\\pi}-o(1)\\right)\\log n?\\]",
+      "tags": [
+        "analysis",
+        "polynomials"
+      ],
+      "last_edited": "01 April 2026",
+      "latex_path": "/latex/1153",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1153,
+      "comments_count": 10
     },
     {
       "problem_id": 1161,
@@ -10755,6 +11370,316 @@
       "oeis_urls": [],
       "comments_problem_id": 1179,
       "comments_count": 0
+    },
+    {
+      "problem_id": 1180,
+      "problem_url": "/1180",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $\\epsilon>0$. Does there exist a constant $C_\\epsilon$ such that, for all primes $p$, every residue modulo $p$ is the sum of at most $C_\\epsilon$ many elements of\\[\\{ n^{-1} : 1\\leq n\\leq p^\\epsilon\\}\\]where $n^{-1}$ denotes the inverse of $n$ modulo $p$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "06 March 2026",
+      "latex_path": "/latex/1180",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1180,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1185,
+      "problem_url": "/1185",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $\\delta>0$ and $k\\geq 3$. Is it true that there exists $m\\geq 1$ (depending only on $\\delta$ and $k$) such that, for all large $N$, if $A,B\\subseteq \\{1,\\ldots,N\\}$ with $\\lvert A\\rvert \\geq \\delta N$ and $\\lvert B\\rvert \\geq m$ then there is a non-trivial $k$-term arithmetic progression in $A$ whose common difference is in $B-B$?",
+      "tags": [
+        "additive combinatorics",
+        "arithmetic progressions"
+      ],
+      "last_edited": "05 April 2026",
+      "latex_path": "/latex/1185",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1185,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1187,
+      "problem_url": "/1187",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $k\\geq 3$. Is it true that, in any finite colouring of the integers, there are monochromatic arithmetic progressions of primes of length $k$? Are there monochromatic arithmetic progressions of length $k$ whose common difference is a prime?",
+      "tags": [
+        "number theory",
+        "additive combinatorics",
+        "arithmetic progressions",
+        "primes"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1187",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1187,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1193,
+      "problem_url": "/1193",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED (LEAN)",
+      "status_detail": "This has been resolved in some other way than a proof or disproof, and that resolution verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $A\\subset \\mathbb{N}$ and let $g(n)$ be a non-decreasing function of $n$ which is always $>0$. Is the lower density of\\[\\{ n : 1_A\\ast 1_A(n)=g(n)\\}\\]always $0$? Is the upper density always $<c$ for some constant $c<1$?",
+      "tags": [
+        "additive combinatorics"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1193",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1193,
+      "comments_count": 1
+    },
+    {
+      "problem_id": 1195,
+      "problem_url": "/1195",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $S\\subset \\mathbb{R}$ be a set of infinite measure such that $x/y$ is never an integer for all distinct $x,y\\in S$. How fast can $\\lvert S\\cap (0,x)\\rvert$ tend to infinity?",
+      "tags": [
+        "analysis",
+        "number theory"
+      ],
+      "last_edited": "29 April 2026",
+      "latex_path": "/latex/1195",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1195,
+      "comments_count": 6
+    },
+    {
+      "problem_id": 1196,
+      "problem_url": "/1196",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED (LEAN)",
+      "status_detail": "This has been solved in the affirmative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Is it true that, for any $x$, if $A\\subset [x,\\infty)$ is a primitive set of integers (so that no distinct elements of $A$ divide each other) then\\[\\sum_{a\\in A}\\frac{1}{a\\log a}< 1+o(1),\\]where the $o(1)$ term $\\to 0$ as $x\\to \\infty$?",
+      "tags": [
+        "number theory",
+        "primitive sets"
+      ],
+      "last_edited": "15 April 2026",
+      "latex_path": "/latex/1196",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1196.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 1196,
+      "comments_count": 80
+    },
+    {
+      "problem_id": 1197,
+      "problem_url": "/1197",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
+      "prize_amount": "",
+      "statement": "Let $E\\subset (0,\\infty)$ be a set of positive measure. Is it true that, for almost all $x>0$, for all sufficiently large (depending on $x$) integers $n$ there exists an integer $r\\geq 1$ such that $nx\\in r\\cdot E$?",
+      "tags": [
+        "analysis"
+      ],
+      "last_edited": "15 April 2026",
+      "latex_path": "/latex/1197",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1197,
+      "comments_count": 4
+    },
+    {
+      "problem_id": 1198,
+      "problem_url": "/1198",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "If $\\mathbb{N}$ is $2$-coloured then must there exist an infinite set $A=\\{a_1<\\cdots\\}$ such that all expressions of the shape\\[\\prod_{i\\in S_1}a_i+\\cdots+\\prod_{i\\in S_k}a_i,\\]for disjoint $S_1,\\ldots,S_k$ (excluding the trivial expressions $a_i$) are the same colour?",
+      "tags": [
+        "additive combinatorics",
+        "ramsey theory"
+      ],
+      "last_edited": "17 April 2026",
+      "latex_path": "/latex/1198",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1198,
+      "comments_count": 4
+    },
+    {
+      "problem_id": 1202,
+      "problem_url": "/1202",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $\\epsilon,\\eta>0$. Does there exist a $k$ such that, given any set of $k$ primes $p_1<\\cdots<p_k<n^{1-\\epsilon}$, each with a set $A_i$ of $\\frac{p_i-1}{2}$ many congruence classes modulo $p_i$, the number of $m\\leq n$ such that $m\\not\\in A_i\\pmod{p_i}$ for all $i$ is at most $\\epsilon n$?",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "12 April 2026",
+      "latex_path": "/latex/1202",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1202,
+      "comments_count": 9
+    },
+    {
+      "problem_id": 1205,
+      "problem_url": "/1205",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $F(x)$ be maximal such that there exists, for all $n\\leq x$, a congruence class $a_n\\pmod{n}$ such that every $m\\leq x$ satisfies at least $F(x)$ of these congruences. Estimate $F(x)$.",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1205",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1205,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1211,
+      "problem_url": "/1211",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "SOLVED",
+      "status_detail": "This has been resolved in some other way than a proof or disproof.",
+      "prize_amount": "",
+      "statement": "Let $\\mathbb{N}=A\\cup B$ where $A$ and $B$ are disjoint. Let $S(A)$ be those integers which are the sum of finitely many distinct elements of $A$, and similarly for $S(B)$. If\\[\\overline{\\delta}(X)=\\limsup_{x\\to \\infty}\\frac{1}{\\log x}\\sum_{\\substack{n\\in X\\\\ n<x}}\\frac{1}{n}\\]is the upper logarithmic density of $X$ then how large must\\[\\max(\\overline{\\delta}(S(A)),\\overline{\\delta}(S(B)))\\]be?",
+      "tags": [
+        "number theory",
+        "ramsey theory"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1211",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1211,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1213,
+      "problem_url": "/1213",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $a,K\\geq 1$. Does there exist $f(a,K)$ such that if\\[a=a_1<\\cdots <a_s\\]is a sequence of integers with $a_s> f(a,K)$ and with bounded gaps $a_{i+1}-a_i\\leq K$ then there are two distinct intervals $I$ and $J$ such that\\[\\sum_{i\\in I}a_i=\\sum_{j\\in J}a_j?\\]",
+      "tags": [
+        "additive combinatorics"
+      ],
+      "last_edited": "10 April 2026",
+      "latex_path": "/latex/1213",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1213,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1214,
+      "problem_url": "/1214",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "PROVED",
+      "status_detail": "This has been solved in the affirmative.",
+      "prize_amount": "",
+      "statement": "Let $x,y\\geq 1$ be integers such that, for all $n\\geq 1$, the set of primes dividing $x^{n}-1$ is equal to set of primes dividing $y^n-1$. Must $x=y$?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "12 April 2026",
+      "latex_path": "/latex/1214",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1214,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1215,
+      "problem_url": "/1215",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "Does there exist a constant $C$ such that for every polynomial $P$ with $P(0)=1$, all of whose roots are on the unit circle, there exists a path in\\[\\{ z: \\lvert P(z)\\rvert < 1\\}\\]which connects $0$ to the unit circle of length at most $C$?",
+      "tags": [
+        "analysis"
+      ],
+      "last_edited": "12 April 2026",
+      "latex_path": "/latex/1215",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1215,
+      "comments_count": 3
+    },
+    {
+      "problem_id": 1216,
+      "problem_url": "/1216",
+      "status_bucket": "closed",
+      "status_dom_id": "solved",
+      "status_label": "DISPROVED",
+      "status_detail": "This has been solved in the negative.",
+      "prize_amount": "",
+      "statement": "A tournament is a complete directed graph. Let $f(n)$ be such that every tournament on $n$ vertices contains a transitive tournament on $f(n)$ vertices (i.e. one such that if $i\\to j\\to k$ then $i\\to k$). Is it true that $f(n)=\\lfloor \\log_2 n\\rfloor +1$?",
+      "tags": [
+        "graph theory",
+        "ramsey theory"
+      ],
+      "last_edited": "12 April 2026",
+      "latex_path": "/latex/1216",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1216,
+      "comments_count": 3
     }
   ]
 }
