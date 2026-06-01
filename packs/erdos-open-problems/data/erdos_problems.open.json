@@ -2,30 +2,29 @@
   "schema_version": "1.0.0",
   "subset": "open",
   "active_status": "open",
-  "generated_at_utc": "2026-03-05T15:52:31Z",
+  "generated_at_utc": "2026-06-01T08:11:32Z",
   "source": {
     "site": "erdosproblems.com",
     "url": "https://erdosproblems.com/range/1-end",
-    "source_sha256": "72366d21b9530355396bef95b3ead90176a9c634b7ecd68fd30c85bad703a0c1",
+    "source_sha256": "dbbd77bb17be4d1d6ab29a1a6ffa9836cad38fe766ad7eb930a10704a0179c00",
     "solve_count": {
-      "raw": "488 solved out of 1179 shown",
-      "solved": 488,
-      "shown": 1179
+      "raw": "550 solved out of 1217 shown",
+      "solved": 550,
+      "shown": 1217
     }
   },
   "summary": {
-    "total": 691,
-    "open": 691,
+    "total": 667,
+    "open": 667,
     "closed": 0,
     "unknown": 0,
     "status_label_counts": {
       "DECIDABLE": 2,
       "DISPROVED (LEAN)": 1,
-      "FALSIFIABLE": 29,
-      "NOT DISPROVABLE": 2,
+      "FALSIFIABLE": 27,
+      "NOT DISPROVABLE": 4,
       "NOT PROVABLE": 3,
-      "OPEN": 645,
-      "PROVED": 2,
+      "OPEN": 623,
       "VERIFIABLE": 7
     }
   },
@@ -50,12 +49,9 @@
     32,
     33,
     36,
-    38,
     39,
     40,
     41,
-    42,
-    43,
     44,
     50,
     51,
@@ -80,9 +76,7 @@
     86,
     87,
     89,
-    90,
     91,
-    92,
     96,
     97,
     98,
@@ -104,7 +98,6 @@
     122,
     123,
     124,
-    125,
     126,
     128,
     129,
@@ -121,7 +114,6 @@
     148,
     149,
     151,
-    152,
     153,
     155,
     156,
@@ -153,7 +145,6 @@
     197,
     200,
     201,
-    202,
     203,
     208,
     212,
@@ -176,7 +167,6 @@
     254,
     256,
     257,
-    258,
     260,
     261,
     263,
@@ -192,7 +182,6 @@
     278,
     279,
     282,
-    283,
     287,
     288,
     289,
@@ -208,7 +197,6 @@
     312,
     313,
     317,
-    318,
     319,
     320,
     321,
@@ -219,7 +207,6 @@
     326,
     327,
     329,
-    330,
     332,
     334,
     335,
@@ -232,11 +219,9 @@
     346,
     348,
     349,
-    351,
     352,
     354,
     357,
-    358,
     359,
     361,
     364,
@@ -244,14 +229,12 @@
     366,
     367,
     368,
-    369,
     371,
     373,
     374,
     375,
     376,
     377,
-    380,
     382,
     383,
     385,
@@ -295,7 +278,6 @@
     454,
     455,
     456,
-    457,
     458,
     460,
     461,
@@ -359,7 +341,6 @@
     571,
     572,
     573,
-    574,
     575,
     576,
     579,
@@ -381,7 +362,6 @@
     603,
     604,
     609,
-    610,
     611,
     612,
     614,
@@ -396,7 +376,6 @@
     627,
     628,
     629,
-    633,
     634,
     635,
     638,
@@ -405,7 +384,6 @@
     643,
     644,
     647,
-    650,
     653,
     654,
     655,
@@ -434,12 +412,9 @@
     687,
     688,
     689,
-    690,
     691,
     693,
-    694,
     695,
-    696,
     699,
     700,
     701,
@@ -465,7 +440,6 @@
     738,
     739,
     740,
-    741,
     743,
     749,
     750,
@@ -481,7 +455,6 @@
     778,
     779,
     782,
-    783,
     786,
     787,
     788,
@@ -515,24 +488,19 @@
     838,
     839,
     840,
-    846,
     849,
     850,
-    851,
     852,
     853,
     854,
     855,
     856,
     857,
-    858,
     859,
     860,
-    863,
     864,
     865,
     866,
-    869,
     870,
     872,
     873,
@@ -542,17 +510,14 @@
     879,
     881,
     883,
-    884,
     885,
     886,
     887,
-    888,
     889,
     890,
     891,
     892,
     893,
-    896,
     901,
     902,
     906,
@@ -589,7 +554,6 @@
     955,
     956,
     959,
-    960,
     961,
     962,
     963,
@@ -607,19 +571,15 @@
     983,
     985,
     986,
-    987,
-    990,
     993,
     995,
     996,
-    997,
     1002,
     1003,
     1004,
     1005,
     1011,
     1013,
-    1014,
     1016,
     1017,
     1020,
@@ -660,12 +620,9 @@
     1086,
     1087,
     1088,
-    1091,
-    1092,
     1093,
     1094,
     1095,
-    1096,
     1097,
     1100,
     1101,
@@ -689,17 +646,14 @@
     1137,
     1138,
     1139,
-    1141,
     1142,
     1143,
     1144,
     1145,
     1146,
-    1148,
     1150,
     1151,
     1152,
-    1153,
     1154,
     1155,
     1156,
@@ -720,7 +674,28 @@
     1175,
     1176,
     1177,
-    1178
+    1178,
+    1181,
+    1182,
+    1183,
+    1184,
+    1186,
+    1188,
+    1189,
+    1191,
+    1192,
+    1194,
+    1199,
+    1200,
+    1201,
+    1203,
+    1204,
+    1206,
+    1207,
+    1208,
+    1209,
+    1210,
+    1212
   ],
   "problems": [
     {
@@ -736,7 +711,7 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/1",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1.lean",
@@ -744,7 +719,7 @@
         "https://oeis.org/A276661"
       ],
       "comments_problem_id": 1,
-      "comments_count": 4
+      "comments_count": 3
     },
     {
       "problem_id": 3,
@@ -760,7 +735,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/3",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/3.lean",
@@ -794,7 +769,7 @@
         "https://oeis.org/A001223"
       ],
       "comments_problem_id": 5,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 7,
@@ -811,11 +786,11 @@
       ],
       "last_edited": "22 January 2026",
       "latex_path": "/latex/7",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/7.lean",
       "oeis_urls": [],
       "comments_problem_id": 7,
-      "comments_count": 12
+      "comments_count": 21
     },
     {
       "problem_id": 9,
@@ -831,7 +806,7 @@
         "additive basis",
         "primes"
       ],
-      "last_edited": "20 January 2026",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/9",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/9.lean",
@@ -855,7 +830,7 @@
         "additive basis",
         "primes"
       ],
-      "last_edited": "24 January 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/10",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/10.lean",
@@ -863,22 +838,22 @@
         "https://oeis.org/A387053"
       ],
       "comments_problem_id": 10,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 11,
       "problem_url": "/11",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "FALSIFIABLE",
-      "status_detail": "Open, but could be disproved with a finite counterexample.",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
       "statement": "Is every large odd integer $n$ the sum of a squarefree number and a power of 2?",
       "tags": [
         "number theory",
         "additive basis"
       ],
-      "last_edited": "20 January 2026",
+      "last_edited": "05 April 2026",
       "latex_path": "/latex/11",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/11.lean",
@@ -901,13 +876,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/12",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/12.lean",
       "oeis_urls": [],
       "comments_problem_id": 12,
-      "comments_count": 0
+      "comments_count": 13
     },
     {
       "problem_id": 14,
@@ -948,8 +923,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/15",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/15.lean",
       "oeis_urls": [],
       "comments_problem_id": 15,
       "comments_count": 2
@@ -991,10 +966,10 @@
         "divisors",
         "factorials"
       ],
-      "last_edited": "20 January 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/18",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/18.lean",
       "oeis_urls": [
         "https://oeis.org/A005153"
       ],
@@ -1013,7 +988,7 @@
       "tags": [
         "combinatorics"
       ],
-      "last_edited": "25 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/20",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/20.lean",
@@ -1021,7 +996,7 @@
         "https://oeis.org/A332077"
       ],
       "comments_problem_id": 20,
-      "comments_count": 6
+      "comments_count": 9
     },
     {
       "problem_id": 23,
@@ -1063,7 +1038,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/25.lean",
       "oeis_urls": [],
       "comments_problem_id": 25,
-      "comments_count": 2
+      "comments_count": 7
     },
     {
       "problem_id": 28,
@@ -1078,13 +1053,13 @@
         "number theory",
         "additive basis"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/28",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/28.lean",
       "oeis_urls": [],
       "comments_problem_id": 28,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 30,
@@ -1100,7 +1075,7 @@
         "sidon sets",
         "additive combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/30",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/30.lean",
@@ -1110,7 +1085,7 @@
         "https://oeis.org/A227590"
       ],
       "comments_problem_id": 30,
-      "comments_count": 5
+      "comments_count": 6
     },
     {
       "problem_id": 32,
@@ -1152,7 +1127,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/33.lean",
       "oeis_urls": [],
       "comments_problem_id": 33,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 36,
@@ -1175,27 +1150,7 @@
         "https://oeis.org/A393584"
       ],
       "comments_problem_id": 36,
-      "comments_count": 4
-    },
-    {
-      "problem_id": 38,
-      "problem_url": "/38",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Does there exist $B\\subset\\mathbb{N}$ which is not an additive basis, but is such that for every set $A\\subseteq\\mathbb{N}$ of Schnirelmann density $\\alpha$ and every $N$ there exists $b\\in B$ such that\\[\\lvert (A\\cup (A+b))\\cap \\{1,\\ldots,N\\}\\rvert\\geq (\\alpha+f(\\alpha))N\\]where $f(\\alpha)>0$ for $0<\\alpha <1 $? The Schnirelmann density is defined by\\[d_s(A) = \\inf_{N\\geq 1}\\frac{\\lvert A\\cap\\{1,\\ldots,N\\}\\rvert}{N}.\\]",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "16 September 2025",
-      "latex_path": "/latex/38",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/38.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 38,
-      "comments_count": 1
+      "comments_count": 5
     },
     {
       "problem_id": 39,
@@ -1211,7 +1166,7 @@
         "sidon sets",
         "additive combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/39",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/39.lean",
@@ -1254,61 +1209,13 @@
         "sidon sets",
         "additive combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/41",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/41.lean",
       "oeis_urls": [],
       "comments_problem_id": 41,
       "comments_count": 0
-    },
-    {
-      "problem_id": 42,
-      "problem_url": "/42",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $M\\geq 1$ and $N$ be sufficiently large in terms of $M$. Is it true that for every Sidon set $A\\subset \\{1,\\ldots,N\\}$ there is another Sidon set $B\\subset \\{1,\\ldots,N\\}$ of size $M$ such that $(A-A)\\cap(B-B)=\\{0\\}$?",
-      "tags": [
-        "number theory",
-        "sidon sets",
-        "additive combinatorics"
-      ],
-      "last_edited": "23 January 2026",
-      "latex_path": "/latex/42",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/42.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 42,
-      "comments_count": 6
-    },
-    {
-      "problem_id": 43,
-      "problem_url": "/43",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "$100",
-      "statement": "If $A,B\\subset \\{1,\\ldots,N\\}$ are two Sidon sets such that $(A-A)\\cap(B-B)=\\{0\\}$ then is it true that\\[ \\binom{\\lvert A\\rvert}{2}+\\binom{\\lvert B\\rvert}{2}\\leq\\binom{f(N)}{2}+O(1),\\]where $f(N)$ is the maximum possible size of a Sidon set in $\\{1,\\ldots,N\\}$? If $\\lvert A\\rvert=\\lvert B\\rvert$ then can this bound be improved to\\[\\binom{\\lvert A\\rvert}{2}+\\binom{\\lvert B\\rvert}{2}\\leq (1-c+o(1))\\binom{f(N)}{2}\\]for some constant $c>0$?",
-      "tags": [
-        "number theory",
-        "sidon sets",
-        "additive combinatorics"
-      ],
-      "last_edited": "20 December 2025",
-      "latex_path": "/latex/43",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [
-        "https://oeis.org/A003022",
-        "https://oeis.org/A143824",
-        "https://oeis.org/A227590"
-      ],
-      "comments_problem_id": 43,
-      "comments_count": 9
     },
     {
       "problem_id": 44,
@@ -1346,8 +1253,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/50",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/50.lean",
       "oeis_urls": [],
       "comments_problem_id": 50,
       "comments_count": 0
@@ -1388,15 +1295,15 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "28 May 2026",
       "latex_path": "/latex/52",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/52.lean",
       "oeis_urls": [
         "https://oeis.org/A263996"
       ],
       "comments_problem_id": 52,
-      "comments_count": 1
+      "comments_count": 10
     },
     {
       "problem_id": 60,
@@ -1415,7 +1322,9 @@
       "latex_path": "/latex/60",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A006855"
+      ],
       "comments_problem_id": 60,
       "comments_count": 0
     },
@@ -1431,13 +1340,13 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/61",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/61.lean",
       "oeis_urls": [],
       "comments_problem_id": 61,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 62,
@@ -1472,7 +1381,7 @@
         "graph theory",
         "cycles"
       ],
-      "last_edited": "18 January 2026",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/64",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/64.lean",
@@ -1514,13 +1423,13 @@
         "number theory",
         "additive basis"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/66",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/66.lean",
       "oeis_urls": [],
       "comments_problem_id": 66,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 68,
@@ -1604,11 +1513,11 @@
       ],
       "last_edited": "29 January 2026",
       "latex_path": "/latex/75",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/75.lean",
       "oeis_urls": [],
       "comments_problem_id": 75,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 77,
@@ -1631,7 +1540,7 @@
         "https://oeis.org/A059442"
       ],
       "comments_problem_id": 77,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 78,
@@ -1654,7 +1563,7 @@
         "https://oeis.org/A059442"
       ],
       "comments_problem_id": 78,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 80,
@@ -1669,13 +1578,13 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/80",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 80,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 81,
@@ -1709,17 +1618,28 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/82",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/82.lean",
       "oeis_urls": [
         "https://oeis.org/A120414",
         "https://oeis.org/A390256",
-        "https://oeis.org/A390257"
+        "https://oeis.org/A390257",
+        "https://oeis.org/A390919",
+        "https://oeis.org/A392636",
+        "https://oeis.org/A394400",
+        "https://oeis.org/A394462",
+        "https://oeis.org/A394539",
+        "https://oeis.org/A394563",
+        "https://oeis.org/A394564",
+        "https://oeis.org/A394573",
+        "https://oeis.org/A394574",
+        "https://oeis.org/A394930",
+        "https://oeis.org/A394933"
       ],
       "comments_problem_id": 82,
-      "comments_count": 16
+      "comments_count": 19
     },
     {
       "problem_id": 84,
@@ -1747,8 +1667,8 @@
       "problem_url": "/85",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "FALSIFIABLE",
-      "status_detail": "Open, but could be disproved with a finite counterexample.",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
       "statement": "Let $n\\geq 4$ and $f(n)$ be minimal such that every graph on $n$ vertices with minimal degree $\\geq f(n)$ contains a $C_4$. Is it true that, for all large $n$, $f(n+1)\\geq f(n)$?",
       "tags": [
@@ -1785,7 +1705,7 @@
         "https://oeis.org/A245762"
       ],
       "comments_problem_id": 86,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 87,
@@ -1835,29 +1755,6 @@
       "comments_count": 0
     },
     {
-      "problem_id": 90,
-      "problem_url": "/90",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "$500",
-      "statement": "Does every set of $n$ distinct points in $\\mathbb{R}^2$ contain at most $n^{1+O(1/\\log\\log n)}$ many pairs which are distance 1 apart?",
-      "tags": [
-        "geometry",
-        "distances"
-      ],
-      "last_edited": "23 January 2026",
-      "latex_path": "/latex/90",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/90.lean",
-      "oeis_urls": [
-        "https://oeis.org/A186705"
-      ],
-      "comments_problem_id": 90,
-      "comments_count": 0
-    },
-    {
       "problem_id": 91,
       "problem_url": "/91",
       "status_bucket": "open",
@@ -1865,41 +1762,20 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $n$ be a sufficently large integer. Suppose $A\\subset \\mathbb{R}^2$ has $\\lvert A\\rvert=n$ and minimises the number of distinct distances between points in $A$. Prove that there are at least two (and probably many) such $A$ which are non-similar.",
+      "statement": "Let $n$ be a sufficiently large integer. Suppose $A\\subset \\mathbb{R}^2$ has $\\lvert A\\rvert=n$ and minimises the number of distinct distances between points in $A$. Prove that there are at least two (and probably many) such $A$ which are non-similar.",
       "tags": [
         "geometry",
         "distances"
       ],
-      "last_edited": "16 January 2026",
+      "last_edited": "13 April 2026",
       "latex_path": "/latex/91",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/91.lean",
       "oeis_urls": [
         "https://oeis.org/A186704"
       ],
       "comments_problem_id": 91,
-      "comments_count": 5
-    },
-    {
-      "problem_id": 92,
-      "problem_url": "/92",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "$500",
-      "statement": "Let $f(n)$ be maximal such that there exists a set $A$ of $n$ points in $\\mathbb{R}^2$ in which every $x\\in A$ has at least $f(n)$ points in $A$ equidistant from $x$. Is it true that $f(n)\\leq n^{o(1)}$? Or even $f(n) < n^{O(1/\\log\\log n)}$?",
-      "tags": [
-        "geometry",
-        "distances"
-      ],
-      "last_edited": "28 December 2025",
-      "latex_path": "/latex/92",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/92.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 92,
-      "comments_count": 1
+      "comments_count": 7
     },
     {
       "problem_id": 96,
@@ -1917,8 +1793,8 @@
       ],
       "last_edited": "23 January 2026",
       "latex_path": "/latex/96",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/96.lean",
       "oeis_urls": [],
       "comments_problem_id": 96,
       "comments_count": 5
@@ -1943,7 +1819,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/97.lean",
       "oeis_urls": [],
       "comments_problem_id": 97,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 98,
@@ -1960,8 +1836,8 @@
       ],
       "last_edited": "15 October 2025",
       "latex_path": "/latex/98",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/98.lean",
       "oeis_urls": [],
       "comments_problem_id": 98,
       "comments_count": 0
@@ -2022,8 +1898,8 @@
       ],
       "last_edited": "27 December 2025",
       "latex_path": "/latex/101",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/101.lean",
       "oeis_urls": [
         "https://oeis.org/A006065"
       ],
@@ -2105,7 +1981,7 @@
       "tags": [
         "geometry"
       ],
-      "last_edited": "",
+      "last_edited": "06 March 2026",
       "latex_path": "/latex/106",
       "formalized": false,
       "formalized_url": "",
@@ -2126,7 +2002,7 @@
         "geometry",
         "convex"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/107",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/107.lean",
@@ -2134,7 +2010,7 @@
         "https://oeis.org/A000051"
       ],
       "comments_problem_id": 107,
-      "comments_count": 3
+      "comments_count": 2
     },
     {
       "problem_id": 108,
@@ -2206,8 +2082,8 @@
       "problem_url": "/114",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "status_label": "FALSIFIABLE",
+      "status_detail": "Open, but could be disproved with a finite counterexample.",
       "prize_amount": "$250",
       "statement": "If $p(z)\\in\\mathbb{C}[z]$ is a monic polynomial of degree $n$ then is the length of the curve $\\{ z\\in \\mathbb{C} : \\lvert p(z)\\rvert=1\\}$ maximised when $p(z)=z^n-1$?",
       "tags": [
@@ -2220,7 +2096,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 114,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 117,
@@ -2281,7 +2157,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/120.lean",
       "oeis_urls": [],
       "comments_problem_id": 120,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 122,
@@ -2291,17 +2167,17 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "For which number theoretic functions $f$ is it true that, for any $F(n)$ such that $f(n)/F(n)\\to 0$ for almost all $n$, there are infinitely many $x$ such that\\[\\frac{\\#\\{ n\\in \\mathbb{N} : n+f(n)\\in (x,x+F(x))\\}}{F(x)}\\to \\infty?\\]",
+      "statement": "For which number theoretic functions $f$ is it true that, for any $F(n)$ such that $F(n)/f(n)\\to 0$ for almost all $n$, there are infinitely many $x$ such that\\[\\frac{\\#\\{ n\\in \\mathbb{N} : n+f(n)\\in (x,x+F(x))\\}}{F(x)}\\to \\infty?\\]",
       "tags": [
         "number theory"
       ],
-      "last_edited": "01 February 2026",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/122",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 122,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 123,
@@ -2321,7 +2197,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/123.lean",
       "oeis_urls": [],
       "comments_problem_id": 123,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 124,
@@ -2343,30 +2219,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/124.lean",
       "oeis_urls": [],
       "comments_problem_id": 124,
-      "comments_count": 13
-    },
-    {
-      "problem_id": 125,
-      "problem_url": "/125",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $A = \\{ \\sum\\epsilon_k3^k : \\epsilon_k\\in \\{0,1\\}\\}$ be the set of integers which have only the digits $0,1$ when written base $3$, and $B=\\{ \\sum\\epsilon_k4^k : \\epsilon_k\\in \\{0,1\\}\\}$ be the set of integers which have only the digits $0,1$ when written base $4$. Does $A+B$ have positive density?",
-      "tags": [
-        "number theory",
-        "base representations"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/125",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/125.lean",
-      "oeis_urls": [
-        "https://oeis.org/A367090"
-      ],
-      "comments_problem_id": 125,
-      "comments_count": 13
+      "comments_count": 14
     },
     {
       "problem_id": 126,
@@ -2525,7 +2378,7 @@
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/138",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/138.lean",
@@ -2533,7 +2386,7 @@
         "https://oeis.org/A005346"
       ],
       "comments_problem_id": 138,
-      "comments_count": 4
+      "comments_count": 7
     },
     {
       "problem_id": 141,
@@ -2572,7 +2425,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/142",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/142.lean",
@@ -2597,13 +2450,13 @@
       "tags": [
         "primitive sets"
       ],
-      "last_edited": "",
+      "last_edited": "24 April 2026",
       "latex_path": "/latex/143",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/143.lean",
       "oeis_urls": [],
       "comments_problem_id": 143,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 145,
@@ -2680,11 +2533,11 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $G$ be a graph with maximum degree $\\Delta$. Is $G$ the union of at most $\\tfrac{5}{4}\\Delta^2$ sets of strongly independent edges (sets such that the induced subgraph is the union of vertex-disjoint edges)?",
+      "statement": "The strong chromatic index of a graph $G$, denoted by $\\mathrm{sq}(G)$, is the minimum $k$ such that the edges of $G$ can be partitioned into $k$ sets of 'strongly independent' edges, that is, such that the subgraph of $G$ induced by each set is the union of vertex-disjoint edges. Is it true that, for any graph $G$ with maximum degree $\\Delta$,\\[\\mathrm{sq}(G)\\leq\\frac{5}{4}\\Delta^2?\\]",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "01 February 2026",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/149",
       "formalized": false,
       "formalized_url": "",
@@ -2713,26 +2566,6 @@
       "comments_count": 1
     },
     {
-      "problem_id": 152,
-      "problem_url": "/152",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "For any $M\\geq 1$, if $A\\subset \\mathbb{N}$ is a sufficiently large finite Sidon set then there are at least $M$ many $a\\in A+A$ such that $a+1,a-1\\not\\in A+A$.",
-      "tags": [
-        "sidon sets"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/152",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/152.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 152,
-      "comments_count": 0
-    },
-    {
       "problem_id": 153,
       "problem_url": "/153",
       "status_bucket": "open",
@@ -2750,7 +2583,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/153.lean",
       "oeis_urls": [],
       "comments_problem_id": 153,
-      "comments_count": 2
+      "comments_count": 7
     },
     {
       "problem_id": 155,
@@ -2826,13 +2659,13 @@
       "status_dom_id": "open",
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "There exists some constant $c>0$ such that $$R(C_4,K_n) \\ll n^{2-c}.$$",
       "tags": [
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/159",
       "formalized": false,
       "formalized_url": "",
@@ -2904,7 +2737,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 162,
-      "comments_count": 3
+      "comments_count": 4
     },
     {
       "problem_id": 165,
@@ -2919,7 +2752,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/165",
       "formalized": false,
       "formalized_url": "",
@@ -2961,7 +2794,7 @@
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "24 October 2025",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/168",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/168.lean",
@@ -2987,7 +2820,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/169",
       "formalized": false,
       "formalized_url": "",
@@ -3032,7 +2865,7 @@
         "additive combinatorics",
         "ramsey theory"
       ],
-      "last_edited": "01 February 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/172",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/172.lean",
@@ -3096,13 +2929,13 @@
         "arithmetic progressions",
         "discrepancy"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/176",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 176,
-      "comments_count": 1
+      "comments_count": 8
     },
     {
       "problem_id": 177,
@@ -3144,7 +2977,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 180,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 181,
@@ -3180,7 +3013,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/183",
       "formalized": false,
       "formalized_url": "",
@@ -3203,13 +3036,13 @@
         "graph theory",
         "cycles"
       ],
-      "last_edited": "",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/184",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/184.lean",
       "oeis_urls": [],
       "comments_problem_id": 184,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 187,
@@ -3225,7 +3058,7 @@
         "ramsey theory",
         "arithmetic progressions"
       ],
-      "last_edited": "01 January 2026",
+      "last_edited": "04 April 2026",
       "latex_path": "/latex/187",
       "formalized": false,
       "formalized_url": "",
@@ -3273,7 +3106,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 190,
-      "comments_count": 0
+      "comments_count": 4
     },
     {
       "problem_id": 193,
@@ -3289,8 +3122,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/193",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/193.lean",
       "oeis_urls": [
         "https://oeis.org/A231255"
       ],
@@ -3393,7 +3226,7 @@
         "additive combinatorics",
         "arithmetic progressions"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/201",
       "formalized": false,
       "formalized_url": "",
@@ -3404,28 +3237,6 @@
         "https://oeis.org/A003005"
       ],
       "comments_problem_id": 201,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 202,
-      "problem_url": "/202",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $n_1<\\cdots < n_r\\leq N$ with associated $a_i\\pmod{n_i}$ such that the congruence classes are disjoint (that is, every integer is $\\equiv a_i\\pmod{n_i}$ for at most one $1\\leq i\\leq r$). How large can $r$ be in terms of $N$?",
-      "tags": [
-        "covering systems"
-      ],
-      "last_edited": "23 January 2026",
-      "latex_path": "/latex/202",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [
-        "https://oeis.org/A389975"
-      ],
-      "comments_problem_id": 202,
       "comments_count": 0
     },
     {
@@ -3527,13 +3338,13 @@
         "geometry",
         "distances"
       ],
-      "last_edited": "02 October 2025",
+      "last_edited": "13 April 2026",
       "latex_path": "/latex/217",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 217,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 218,
@@ -3604,7 +3415,7 @@
         "https://oeis.org/A074741"
       ],
       "comments_problem_id": 233,
-      "comments_count": 11
+      "comments_count": 16
     },
     {
       "problem_id": 234,
@@ -3685,7 +3496,7 @@
         "additive combinatorics",
         "sidon sets"
       ],
-      "last_edited": "30 September 2025",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/241",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/241.lean",
@@ -3693,7 +3504,7 @@
         "https://oeis.org/A387704"
       ],
       "comments_problem_id": 241,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 242,
@@ -3708,7 +3519,7 @@
         "number theory",
         "unit fractions"
       ],
-      "last_edited": "28 January 2026",
+      "last_edited": "07 May 2026",
       "latex_path": "/latex/242",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/242.lean",
@@ -3744,7 +3555,7 @@
         "https://oeis.org/A000058"
       ],
       "comments_problem_id": 243,
-      "comments_count": 6
+      "comments_count": 7
     },
     {
       "problem_id": 244,
@@ -3809,7 +3620,7 @@
         "https://oeis.org/A256936"
       ],
       "comments_problem_id": 249,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 251,
@@ -3832,7 +3643,7 @@
         "https://oeis.org/A098990"
       ],
       "comments_problem_id": 251,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 252,
@@ -3856,7 +3667,7 @@
         "https://oeis.org/A227989"
       ],
       "comments_problem_id": 252,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 254,
@@ -3872,8 +3683,8 @@
       ],
       "last_edited": "07 December 2025",
       "latex_path": "/latex/254",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/254.lean",
       "oeis_urls": [],
       "comments_problem_id": 254,
       "comments_count": 3
@@ -3910,33 +3721,13 @@
       "tags": [
         "irrationality"
       ],
-      "last_edited": "02 December 2025",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/257",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/257.lean",
       "oeis_urls": [],
       "comments_problem_id": 257,
       "comments_count": 6
-    },
-    {
-      "problem_id": 258,
-      "problem_url": "/258",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $a_1,a_2,\\ldots$ be a sequence of positive integers with $a_n\\to \\infty$. Is\\[\\sum_{n} \\frac{\\tau(n)}{a_1\\cdots a_n}\\]irrational, where $\\tau(n)$ is the number of divisors of $n$?",
-      "tags": [
-        "irrationality"
-      ],
-      "last_edited": "20 January 2026",
-      "latex_path": "/latex/258",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/258.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 258,
-      "comments_count": 0
     },
     {
       "problem_id": 260,
@@ -3952,8 +3743,8 @@
       ],
       "last_edited": "01 February 2026",
       "latex_path": "/latex/260",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/260.lean",
       "oeis_urls": [],
       "comments_problem_id": 260,
       "comments_count": 2
@@ -3976,7 +3767,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 261,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 263,
@@ -3986,17 +3777,17 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $a_n$ be a sequence of positive integers such that for every sequence of positive integers $b_n$ with $b_n/a_n\\to 1$ the sum\\[\\sum\\frac{1}{b_n}\\]is irrational. Is $a_n=2^{2^n}$ such a sequence? Must such a sequence satisfy $a_n^{1/n}\\to \\infty$?",
+      "statement": "Let $a_n$ be an increasing sequence of positive integers such that for every sequence of positive integers $b_n$ with $b_n/a_n\\to 1$ the sum\\[\\sum\\frac{1}{b_n}\\]is irrational. Is $a_n=2^{2^n}$ such a sequence? Must such a sequence satisfy $a_n^{1/n}\\to \\infty$?",
       "tags": [
         "irrationality"
       ],
-      "last_edited": "20 January 2026",
+      "last_edited": "02 April 2026",
       "latex_path": "/latex/263",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/263.lean",
       "oeis_urls": [],
       "comments_problem_id": 263,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 264,
@@ -4056,7 +3847,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/267.lean",
       "oeis_urls": [],
       "comments_problem_id": 267,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 269,
@@ -4099,7 +3890,7 @@
         "https://oeis.org/A005487"
       ],
       "comments_problem_id": 271,
-      "comments_count": 6
+      "comments_count": 7
     },
     {
       "problem_id": 272,
@@ -4116,8 +3907,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/272",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/272.lean",
       "oeis_urls": [],
       "comments_problem_id": 272,
       "comments_count": 7
@@ -4162,7 +3953,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/274.lean",
       "oeis_urls": [],
       "comments_problem_id": 274,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 276,
@@ -4220,13 +4011,13 @@
         "covering systems",
         "primes"
       ],
-      "last_edited": "20 January 2026",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/279",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/279.lean",
       "oeis_urls": [],
       "comments_problem_id": 279,
-      "comments_count": 0
+      "comments_count": 10
     },
     {
       "problem_id": 282,
@@ -4243,33 +4034,10 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/282",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/282.lean",
       "oeis_urls": [],
       "comments_problem_id": 282,
-      "comments_count": 2
-    },
-    {
-      "problem_id": 283,
-      "problem_url": "/283",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $p:\\mathbb{Z}\\to \\mathbb{Z}$ be a polynomial whose leading coefficient is positive and such that there exists no $d\\geq 2$ with $d\\mid p(n)$ for all $n\\geq 1$. Is it true that, for all sufficiently large $m$, there exist integers $1\\leq n_1<\\cdots <n_k$ such that\\[1=\\frac{1}{n_1}+\\cdots+\\frac{1}{n_k}\\]and\\[m=p(n_1)+\\cdots+p(n_k)?\\]",
-      "tags": [
-        "number theory",
-        "unit fractions"
-      ],
-      "last_edited": "28 December 2025",
-      "latex_path": "/latex/283",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/283.lean",
-      "oeis_urls": [
-        "https://oeis.org/A380791"
-      ],
-      "comments_problem_id": 283,
       "comments_count": 2
     },
     {
@@ -4291,7 +4059,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 287,
-      "comments_count": 3
+      "comments_count": 18
     },
     {
       "problem_id": 288,
@@ -4312,7 +4080,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/288.lean",
       "oeis_urls": [],
       "comments_problem_id": 288,
-      "comments_count": 3
+      "comments_count": 7
     },
     {
       "problem_id": 289,
@@ -4396,7 +4164,9 @@
       "latex_path": "/latex/295",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/295.lean",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A192881"
+      ],
       "comments_problem_id": 295,
       "comments_count": 0
     },
@@ -4463,7 +4233,10 @@
       "latex_path": "/latex/304",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/304.lean",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A097847",
+        "https://oeis.org/A097849"
+      ],
       "comments_problem_id": 304,
       "comments_count": 1
     },
@@ -4507,7 +4280,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/307.lean",
       "oeis_urls": [],
       "comments_problem_id": 307,
-      "comments_count": 5
+      "comments_count": 6
     },
     {
       "problem_id": 311,
@@ -4572,7 +4345,7 @@
         "https://oeis.org/A054377"
       ],
       "comments_problem_id": 313,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 317,
@@ -4594,27 +4367,6 @@
       "oeis_urls": [],
       "comments_problem_id": 317,
       "comments_count": 8
-    },
-    {
-      "problem_id": 318,
-      "problem_url": "/318",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $A\\subseteq \\mathbb{N}$ be an infinite arithmetic progression and $f:A\\to \\{-1,1\\}$ be a non-constant function. Must there exist a finite non-empty $S\\subset A$ such that\\[\\sum_{n\\in S}\\frac{f(n)}{n}=0?\\]What about if $A$ is an arbitrary set of positive density? What if $A$ is the set of squares excluding $1$?",
-      "tags": [
-        "number theory",
-        "unit fractions"
-      ],
-      "last_edited": "20 December 2025",
-      "latex_path": "/latex/318",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/318.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 318,
-      "comments_count": 14
     },
     {
       "problem_id": 319,
@@ -4723,8 +4475,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/323",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/323.lean",
       "oeis_urls": [],
       "comments_problem_id": 323,
       "comments_count": 0
@@ -4740,9 +4492,10 @@
       "statement": "Does there exist a polynomial $f(x)\\in\\mathbb{Z}[x]$ such that all the sums $f(a)+f(b)$ with $a<b$ nonnegative integers are distinct?",
       "tags": [
         "number theory",
-        "powers"
+        "powers",
+        "sidon sets"
       ],
-      "last_edited": "",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/324",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/324.lean",
@@ -4769,7 +4522,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/325.lean",
       "oeis_urls": [],
       "comments_problem_id": 325,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 326,
@@ -4779,18 +4532,18 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $A\\subset \\mathbb{N}$ be an additive basis of order $2$. Must there exist $B=\\{b_1<b_2<\\cdots\\}\\subseteq A$ which is also a basis such that\\[\\lim_{k\\to \\infty}\\frac{b_k}{k^2}\\]does not exist?",
+      "statement": "Does there exist $A=\\{a_1<a_2<\\cdots\\}\\subset \\mathbb{N}$ which is a minimal basis of order $2$ (i.e. every large integer is the sum of $2$ elements from $A$, and no proper subset of $A$ has this property), such that\\[\\lim_{k\\to \\infty}\\frac{a_k}{k^2}=c\\]for some $c\\neq 0$?",
       "tags": [
         "number theory",
         "additive basis"
       ],
-      "last_edited": "",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/326",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/326.lean",
       "oeis_urls": [],
       "comments_problem_id": 326,
-      "comments_count": 2
+      "comments_count": 7
     },
     {
       "problem_id": 327,
@@ -4813,7 +4566,7 @@
         "https://oeis.org/A384927"
       ],
       "comments_problem_id": 327,
-      "comments_count": 7
+      "comments_count": 10
     },
     {
       "problem_id": 329,
@@ -4828,34 +4581,13 @@
         "number theory",
         "sidon sets"
       ],
-      "last_edited": "18 November 2025",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/329",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/329.lean",
       "oeis_urls": [],
       "comments_problem_id": 329,
       "comments_count": 1
-    },
-    {
-      "problem_id": 330,
-      "problem_url": "/330",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Does there exist a minimal basis with positive density, say $A\\subset\\mathbb{N}$, such that for any $n\\in A$ the (upper) density of integers which cannot be represented without using $n$ is positive?",
-      "tags": [
-        "number theory",
-        "additive basis"
-      ],
-      "last_edited": "08 December 2025",
-      "latex_path": "/latex/330",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/330.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 330,
-      "comments_count": 16
     },
     {
       "problem_id": 332,
@@ -4875,7 +4607,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/332.lean",
       "oeis_urls": [],
       "comments_problem_id": 332,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 334,
@@ -4889,11 +4621,14 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/334",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A045535",
+        "https://oeis.org/A062241"
+      ],
       "comments_problem_id": 334,
       "comments_count": 2
     },
@@ -4910,13 +4645,13 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "28 September 2025",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/335",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 335,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 336,
@@ -5019,13 +4754,13 @@
       ],
       "last_edited": "30 September 2025",
       "latex_path": "/latex/342",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/342.lean",
       "oeis_urls": [
         "https://oeis.org/A002858"
       ],
       "comments_problem_id": 342,
-      "comments_count": 11
+      "comments_count": 18
     },
     {
       "problem_id": 345,
@@ -5048,7 +4783,7 @@
         "https://oeis.org/A001661"
       ],
       "comments_problem_id": 345,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 346,
@@ -5111,28 +4846,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/349.lean",
       "oeis_urls": [],
       "comments_problem_id": 349,
-      "comments_count": 8
-    },
-    {
-      "problem_id": 351,
-      "problem_url": "/351",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $p(x)\\in \\mathbb{Q}[x]$. Is it true that\\[A=\\{ p(n)+1/n : n\\in \\mathbb{N}\\}\\]is strongly complete, in the sense that, for any finite set $B$,\\[\\left\\{\\sum_{n\\in X}n : X\\subseteq A\\backslash B\\textrm{ finite }\\right\\}\\]contains all sufficiently large integers?",
-      "tags": [
-        "number theory",
-        "complete sequences"
-      ],
-      "last_edited": "02 December 2025",
-      "latex_path": "/latex/351",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/351.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 351,
-      "comments_count": 9
+      "comments_count": 12
     },
     {
       "problem_id": 352,
@@ -5152,7 +4866,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/352.lean",
       "oeis_urls": [],
       "comments_problem_id": 352,
-      "comments_count": 12
+      "comments_count": 16
     },
     {
       "problem_id": 354,
@@ -5196,29 +4910,7 @@
         "https://oeis.org/A364153"
       ],
       "comments_problem_id": 357,
-      "comments_count": 9
-    },
-    {
-      "problem_id": 358,
-      "problem_url": "/358",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $A=\\{a_1<\\cdots\\}$ be an infinite sequence of integers. Let $f(n)$ count the number of solutions to\\[n=\\sum_{u\\leq i\\leq v}a_i.\\]Is there such an $A$ for which $f(n)\\to \\infty$ as $n\\to \\infty$? Or even where $f(n)\\geq 2$ for all large $n$?",
-      "tags": [
-        "number theory",
-        "additive basis",
-        "primes"
-      ],
-      "last_edited": "01 October 2025",
-      "latex_path": "/latex/358",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/358.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 358,
-      "comments_count": 19
+      "comments_count": 10
     },
     {
       "problem_id": 359,
@@ -5275,7 +4967,7 @@
         "number theory",
         "powerful"
       ],
-      "last_edited": "20 December 2025",
+      "last_edited": "13 April 2026",
       "latex_path": "/latex/364",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/364.lean",
@@ -5309,7 +5001,7 @@
         "https://oeis.org/A175155"
       ],
       "comments_problem_id": 365,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 366,
@@ -5319,12 +5011,12 @@
       "status_label": "VERIFIABLE",
       "status_detail": "Open, but could be proved with a finite example.",
       "prize_amount": "",
-      "statement": "Are there any 2-full $n$ such that $n+1$ is 3-full? That is, if $p\\mid n$ then $p^2\\mid n$ and if $p\\mid n+1$ then $p^3\\mid n+1$.",
+      "statement": "Are there any $2$-full $n$ such that $n+1$ is $3$-full? That is, if $p\\mid n$ then $p^2\\mid n$ and if $p\\mid n+1$ then $p^3\\mid n+1$.",
       "tags": [
         "number theory",
         "powerful"
       ],
-      "last_edited": "20 December 2025",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/366",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/366.lean",
@@ -5332,7 +5024,7 @@
         "https://oeis.org/A060355"
       ],
       "comments_problem_id": 366,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 367,
@@ -5342,12 +5034,12 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $B_2(n)$ be the 2-full part of $n$ (that is, $B_2(n)=n/n'$ where $n'$ is the product of all primes that divide $n$ exactly once). Is it true that, for every fixed $k\\geq 1$,\\[\\prod_{n\\leq m<n+k}B_2(m) \\ll n^{2+o(1)}?\\]Or perhaps even $\\ll_k n^2$?",
+      "statement": "Let $B_2(n)$ be the $2$-full part of $n$ (that is, $B_2(n)=n/n'$ where $n'$ is the product of all primes that divide $n$ exactly once). Is it true that, for every fixed $k\\geq 1$,\\[\\prod_{n\\leq m<n+k}B_2(m) \\ll n^{2+o(1)}?\\]Or perhaps even $\\ll_k n^2$?",
       "tags": [
         "number theory",
         "powerful"
       ],
-      "last_edited": "08 February 2026",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/367",
       "formalized": false,
       "formalized_url": "",
@@ -5378,26 +5070,6 @@
       ],
       "comments_problem_id": 368,
       "comments_count": 4
-    },
-    {
-      "problem_id": 369,
-      "problem_url": "/369",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $\\epsilon>0$ and $k\\geq 2$. Is it true that, for all sufficiently large $n$, there is a sequence of $k$ consecutive integers in $\\{1,\\ldots,n\\}$ all of which are $n^\\epsilon$-smooth?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/369",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 369,
-      "comments_count": 0
     },
     {
       "problem_id": 371,
@@ -5467,7 +5139,7 @@
         "https://oeis.org/A389148"
       ],
       "comments_problem_id": 374,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 375,
@@ -5534,31 +5206,6 @@
       "oeis_urls": [],
       "comments_problem_id": 377,
       "comments_count": 1
-    },
-    {
-      "problem_id": 380,
-      "problem_url": "/380",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "We call an interval $[u,v]$ 'bad' if the greatest prime factor of $\\prod_{u\\leq m\\leq v}m$ occurs with an exponent greater than $1$. Let $B(x)$ count the number of $n\\leq x$ which are contained in at least one bad interval. Is it true that\\[B(x)\\sim \\#\\{ n\\leq x: P(n)^2\\mid n\\},\\]where $P(n)$ is the largest prime factor of $n$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/380",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [
-        "https://oeis.org/A070003",
-        "https://oeis.org/A387054",
-        "https://oeis.org/A388654",
-        "https://oeis.org/A389100"
-      ],
-      "comments_problem_id": 380,
-      "comments_count": 5
     },
     {
       "problem_id": 382,
@@ -5645,7 +5292,7 @@
         "https://oeis.org/A280992"
       ],
       "comments_problem_id": 386,
-      "comments_count": 12
+      "comments_count": 13
     },
     {
       "problem_id": 387,
@@ -5666,7 +5313,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/387.lean",
       "oeis_urls": [],
       "comments_problem_id": 387,
-      "comments_count": 6
+      "comments_count": 11
     },
     {
       "problem_id": 388,
@@ -5680,13 +5327,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/388",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 388,
-      "comments_count": 5
+      "comments_count": 10
     },
     {
       "problem_id": 389,
@@ -5708,7 +5355,7 @@
         "https://oeis.org/A375071"
       ],
       "comments_problem_id": 389,
-      "comments_count": 6
+      "comments_count": 8
     },
     {
       "problem_id": 390,
@@ -5731,7 +5378,7 @@
         "https://oeis.org/A193429"
       ],
       "comments_problem_id": 390,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 393,
@@ -5754,7 +5401,7 @@
         "https://oeis.org/A388302"
       ],
       "comments_problem_id": 393,
-      "comments_count": 6
+      "comments_count": 8
     },
     {
       "problem_id": 394,
@@ -5799,7 +5446,7 @@
         "https://oeis.org/A375077"
       ],
       "comments_problem_id": 396,
-      "comments_count": 1
+      "comments_count": 35
     },
     {
       "problem_id": 398,
@@ -5814,15 +5461,16 @@
         "number theory",
         "factorials"
       ],
-      "last_edited": "",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/398",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/398.lean",
       "oeis_urls": [
+        "https://oeis.org/A141399",
         "https://oeis.org/A146968"
       ],
       "comments_problem_id": 398,
-      "comments_count": 6
+      "comments_count": 10
     },
     {
       "problem_id": 400,
@@ -5839,11 +5487,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/400",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/400.lean",
       "oeis_urls": [],
       "comments_problem_id": 400,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 404,
@@ -5879,13 +5527,13 @@
         "number theory",
         "base representations"
       ],
-      "last_edited": "30 September 2025",
+      "last_edited": "13 April 2026",
       "latex_path": "/latex/406",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/406.lean",
       "oeis_urls": [],
       "comments_problem_id": 406,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 408,
@@ -5978,7 +5626,7 @@
         "https://oeis.org/A383044"
       ],
       "comments_problem_id": 411,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 412,
@@ -6017,7 +5665,7 @@
         "number theory",
         "iterated functions"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/413",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/413.lean",
@@ -6025,7 +5673,7 @@
         "https://oeis.org/A005236"
       ],
       "comments_problem_id": 413,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 414,
@@ -6058,17 +5706,17 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "For any $n$ let $F(n)$ be the largest $k$ such that any of the $k!$ possible ordering patterns appears in some sequence of $\\phi(m+1),\\ldots,\\phi(m+k)$ with $m+k\\leq n$. Is it true that\\[F(n)=(c+o(1))\\log\\log\\log n\\]for some constant $c$? Is the first pattern which fails to appear always\\[\\phi(m+1)>\\phi(m+2)>\\cdots \\phi(m+k)?\\]Is it true that 'natural' ordering which mimics what happens to $\\phi(1),\\ldots,\\phi(k)$ is the most likely to appear?",
+      "statement": "For any $n$ let $F(n)$ be the largest $k$ such that any of the $k!$ possible ordering patterns appears in some sequence of $\\phi(m+1),\\ldots,\\phi(m+k)$ with $m+k\\leq n$. Is it true that\\[F(n)=(c+o(1))\\log\\log\\log n\\]for some constant $c$? Is the first pattern which fails to appear always\\[\\phi(m+1)>\\phi(m+2)>\\cdots >\\phi(m+k)?\\]Is it true that the 'natural' ordering which mimics what happens to $\\phi(1),\\ldots,\\phi(k)$ is the most likely to appear?",
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "28 May 2026",
       "latex_path": "/latex/415",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 415,
-      "comments_count": 0
+      "comments_count": 4
     },
     {
       "problem_id": 416,
@@ -6113,7 +5761,7 @@
         "https://oeis.org/A264810"
       ],
       "comments_problem_id": 417,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 420,
@@ -6192,7 +5840,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "16 January 2026",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/423",
       "formalized": false,
       "formalized_url": "",
@@ -6200,7 +5848,7 @@
         "https://oeis.org/A005243"
       ],
       "comments_problem_id": 423,
-      "comments_count": 18
+      "comments_count": 38
     },
     {
       "problem_id": 424,
@@ -6214,7 +5862,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "31 March 2026",
       "latex_path": "/latex/424",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/424.lean",
@@ -6237,13 +5885,13 @@
         "number theory",
         "sidon sets"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/425",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 425,
-      "comments_count": 0
+      "comments_count": 5
     },
     {
       "problem_id": 428,
@@ -6299,7 +5947,7 @@
         "number theory",
         "primes"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/431",
       "formalized": false,
       "formalized_url": "",
@@ -6363,8 +6011,8 @@
       ],
       "last_edited": "27 December 2025",
       "latex_path": "/latex/445",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/445.lean",
       "oeis_urls": [],
       "comments_problem_id": 445,
       "comments_count": 1
@@ -6410,7 +6058,7 @@
         "https://oeis.org/A386620"
       ],
       "comments_problem_id": 451,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 452,
@@ -6494,29 +6142,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 456,
-      "comments_count": 2
-    },
-    {
-      "problem_id": 457,
-      "problem_url": "/457",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Is there some $\\epsilon>0$ such that there are infinitely many $n$ where all primes $p\\leq (2+\\epsilon)\\log n$ divide\\[\\prod_{1\\leq i\\leq \\log n}(n+i)?\\]",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "07 October 2025",
-      "latex_path": "/latex/457",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/457.lean",
-      "oeis_urls": [
-        "https://oeis.org/A391668"
-      ],
-      "comments_problem_id": 457,
-      "comments_count": 7
+      "comments_count": 3
     },
     {
       "problem_id": 458,
@@ -6539,7 +6165,7 @@
         "https://oeis.org/A056604"
       ],
       "comments_problem_id": 458,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 460,
@@ -6580,7 +6206,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 461,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 462,
@@ -6669,7 +6295,7 @@
         "https://oeis.org/A387503"
       ],
       "comments_problem_id": 468,
-      "comments_count": 7
+      "comments_count": 1
     },
     {
       "problem_id": 469,
@@ -6775,7 +6401,7 @@
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/475",
       "formalized": false,
       "formalized_url": "",
@@ -6791,11 +6417,12 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Is there a polynomial $f:\\mathbb{Z}\\to \\mathbb{Z}$ of degree at least $2$ and a set $A\\subset \\mathbb{Z}$ such that for any $n\\in \\mathbb{Z}$ there is exactly one $a\\in A$ and $b\\in \\{ f(n) : n\\in\\mathbb{Z}\\}$ such that $n=a+b$?",
+      "statement": "Is there a polynomial $f:\\mathbb{Z}\\to \\mathbb{Z}$ of degree at least $2$ and a set $A\\subset \\mathbb{Z}$ such that for any $n\\in \\mathbb{Z}$ there is exactly one $a\\in A$ and $b\\in \\{ f(k) : k\\in\\mathbb{Z}\\}$ such that $n=a+b$?",
       "tags": [
-        "number theory"
+        "number theory",
+        "sidon sets"
       ],
-      "last_edited": "29 December 2025",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/477",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/477.lean",
@@ -6816,7 +6443,7 @@
         "number theory",
         "factorials"
       ],
-      "last_edited": "04 October 2025",
+      "last_edited": "12 April 2026",
       "latex_path": "/latex/478",
       "formalized": false,
       "formalized_url": "",
@@ -6868,7 +6495,7 @@
         "additive combinatorics",
         "ramsey theory"
       ],
-      "last_edited": "14 October 2025",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/483",
       "formalized": false,
       "formalized_url": "",
@@ -6876,7 +6503,7 @@
         "https://oeis.org/A030126"
       ],
       "comments_problem_id": 483,
-      "comments_count": 3
+      "comments_count": 4
     },
     {
       "problem_id": 486,
@@ -6891,7 +6518,7 @@
         "number theory",
         "primitive sets"
       ],
-      "last_edited": "12 January 2026",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/486",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/486.lean",
@@ -6904,20 +6531,20 @@
       "problem_url": "/488",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "status_label": "FALSIFIABLE",
+      "status_detail": "Open, but could be disproved with a finite counterexample.",
       "prize_amount": "",
       "statement": "Let $A$ be a finite set and\\[B=\\{ n \\geq 1 : a\\mid n\\textrm{ for some }a\\in A\\}.\\]Is it true that, for every $m>n\\geq \\max(A)$,\\[\\frac{\\lvert B\\cap [1,m]\\rvert }{m}< 2\\frac{\\lvert B\\cap [1,n]\\rvert}{n}?\\]",
       "tags": [
         "number theory"
       ],
-      "last_edited": "31 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/488",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/488.lean",
       "oeis_urls": [],
       "comments_problem_id": 488,
-      "comments_count": 14
+      "comments_count": 29
     },
     {
       "problem_id": 489,
@@ -6937,7 +6564,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/489.lean",
       "oeis_urls": [],
       "comments_problem_id": 489,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 495,
@@ -6999,11 +6626,11 @@
       ],
       "last_edited": "25 January 2026",
       "latex_path": "/latex/501",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/501.lean",
       "oeis_urls": [],
       "comments_problem_id": 501,
-      "comments_count": 8
+      "comments_count": 11
     },
     {
       "problem_id": 503,
@@ -7026,7 +6653,7 @@
         "https://oeis.org/A175769"
       ],
       "comments_problem_id": 503,
-      "comments_count": 1
+      "comments_count": 16
     },
     {
       "problem_id": 507,
@@ -7122,13 +6749,13 @@
       "tags": [
         "analysis"
       ],
-      "last_edited": "28 December 2025",
+      "last_edited": "02 April 2026",
       "latex_path": "/latex/513",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/513.lean",
       "oeis_urls": [],
       "comments_problem_id": 513,
-      "comments_count": 5
+      "comments_count": 6
     },
     {
       "problem_id": 514,
@@ -7148,7 +6775,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 514,
-      "comments_count": 1
+      "comments_count": 12
     },
     {
       "problem_id": 517,
@@ -7168,7 +6795,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/517.lean",
       "oeis_urls": [],
       "comments_problem_id": 517,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 520,
@@ -7211,7 +6838,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 521,
-      "comments_count": 13
+      "comments_count": 20
     },
     {
       "problem_id": 522,
@@ -7233,7 +6860,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/522.lean",
       "oeis_urls": [],
       "comments_problem_id": 522,
-      "comments_count": 2
+      "comments_count": 24
     },
     {
       "problem_id": 524,
@@ -7255,7 +6882,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 524,
-      "comments_count": 10
+      "comments_count": 11
     },
     {
       "problem_id": 528,
@@ -7314,7 +6941,7 @@
         "number theory",
         "sidon sets"
       ],
-      "last_edited": "16 October 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/530",
       "formalized": false,
       "formalized_url": "",
@@ -7322,7 +6949,7 @@
         "https://oeis.org/A143824"
       ],
       "comments_problem_id": 530,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 531,
@@ -7357,13 +6984,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "29 April 2026",
       "latex_path": "/latex/535",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/535.lean",
       "oeis_urls": [],
       "comments_problem_id": 535,
-      "comments_count": 1
+      "comments_count": 9
     },
     {
       "problem_id": 536,
@@ -7373,17 +7000,17 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $\\epsilon>0$ and $N$ be sufficiently large. Is it true that if $A\\subseteq \\{1,\\ldots,N\\}$ has size at least $\\epsilon N$ then there must be distinct $a,b,c\\in A$ such that\\[[a,b]=[b,c]=[a,c],\\]where $[a,b]$ denotes the least common multiple?",
+      "statement": "Let $f(N)$ be the largest size of $A\\subseteq \\{1,\\ldots,N\\}$ with the property that there are no distinct $a,b,c\\in A$ such that\\[[a,b]=[b,c]=[a,c],\\]where $[a,b]$ denotes the least common multiple. Estimate $f(N)$ - in particular, is it true that $f(N)=o(N)$?",
       "tags": [
         "number theory"
       ],
-      "last_edited": "12 January 2026",
+      "last_edited": "29 April 2026",
       "latex_path": "/latex/536",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/536.lean",
       "oeis_urls": [],
       "comments_problem_id": 536,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 538,
@@ -7419,11 +7046,11 @@
       ],
       "last_edited": "22 January 2026",
       "latex_path": "/latex/539",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/539.lean",
       "oeis_urls": [],
       "comments_problem_id": 539,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 544,
@@ -7438,7 +7065,7 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "24 April 2026",
       "latex_path": "/latex/544",
       "formalized": false,
       "formalized_url": "",
@@ -7446,7 +7073,7 @@
         "https://oeis.org/A000791"
       ],
       "comments_problem_id": 544,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 545,
@@ -7478,12 +7105,12 @@
       "status_dom_id": "open",
       "status_label": "FALSIFIABLE",
       "status_detail": "Open, but could be disproved with a finite counterexample.",
-      "prize_amount": "",
+      "prize_amount": "$100",
       "statement": "Let $n\\geq k+1$. Every graph on $n$ vertices with at least $\\frac{k-1}{2}n+1$ edges contains every tree on $k+1$ vertices.",
       "tags": [
         "graph theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/548",
       "formalized": false,
       "formalized_url": "",
@@ -7573,9 +7200,11 @@
       "latex_path": "/latex/555",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A389313"
+      ],
       "comments_problem_id": 555,
-      "comments_count": 1
+      "comments_count": 0
     },
     {
       "problem_id": 557,
@@ -7809,7 +7438,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 569,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 571,
@@ -7824,7 +7453,7 @@
         "graph theory",
         "turan number"
       ],
-      "last_edited": "18 January 2026",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/571",
       "formalized": false,
       "formalized_url": "",
@@ -7852,7 +7481,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 572,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 573,
@@ -7875,27 +7504,6 @@
         "https://oeis.org/A006856"
       ],
       "comments_problem_id": 573,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 574,
-      "problem_url": "/574",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Is it true that, for $k\\geq 2$,\\[\\mathrm{ex}(n;\\{C_{2k-1},C_{2k}\\})=(1+o(1))(n/2)^{1+\\frac{1}{k}}.\\]",
-      "tags": [
-        "graph theory",
-        "turan number"
-      ],
-      "last_edited": "18 January 2026",
-      "latex_path": "/latex/574",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 574,
       "comments_count": 0
     },
     {
@@ -7993,13 +7601,13 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "05 March 2026",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/583",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 583,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 584,
@@ -8020,7 +7628,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 584,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 585,
@@ -8059,7 +7667,10 @@
       "latex_path": "/latex/588",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A006065",
+        "https://oeis.org/A008997"
+      ],
       "comments_problem_id": 588,
       "comments_count": 0
     },
@@ -8121,8 +7732,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/593",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/593.lean",
       "oeis_urls": [],
       "comments_problem_id": 593,
       "comments_count": 0
@@ -8142,8 +7753,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/595",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/595.lean",
       "oeis_urls": [],
       "comments_problem_id": 595,
       "comments_count": 0
@@ -8164,11 +7775,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/596",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/596.lean",
       "oeis_urls": [],
       "comments_problem_id": 596,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 597,
@@ -8211,7 +7822,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/598.lean",
       "oeis_urls": [],
       "comments_problem_id": 598,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 600,
@@ -8269,11 +7880,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/602",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/602.lean",
       "oeis_urls": [],
       "comments_problem_id": 602,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 603,
@@ -8294,7 +7905,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 603,
-      "comments_count": 2
+      "comments_count": 12
     },
     {
       "problem_id": 604,
@@ -8309,7 +7920,7 @@
         "geometry",
         "distances"
       ],
-      "last_edited": "15 October 2025",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/604",
       "formalized": false,
       "formalized_url": "",
@@ -8337,26 +7948,6 @@
       "oeis_urls": [],
       "comments_problem_id": 609,
       "comments_count": 1
-    },
-    {
-      "problem_id": 610,
-      "problem_url": "/610",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "For a graph $G$ let $\\tau(G)$ denote the minimal number of vertices that include at least one from each maximal clique of $G$ (sometimes called the clique transversal number). Estimate $\\tau(G)$. In particular, is it true that if $G$ has $n$ vertices then\\[\\tau(G) \\leq n-\\omega(n)\\sqrt{n}\\]for some $\\omega(n)\\to \\infty$, or even\\[\\tau(G) \\leq n-c\\sqrt{n\\log n}\\]for some absolute constant $c>0$?",
-      "tags": [
-        "graph theory"
-      ],
-      "last_edited": "02 December 2025",
-      "latex_path": "/latex/610",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 610,
-      "comments_count": 0
     },
     {
       "problem_id": 611,
@@ -8450,13 +8041,13 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/617",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/617.lean",
       "oeis_urls": [],
       "comments_problem_id": 617,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 619,
@@ -8476,7 +8067,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 619,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 620,
@@ -8516,7 +8107,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/623.lean",
       "oeis_urls": [],
       "comments_problem_id": 623,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 624,
@@ -8642,27 +8233,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 629,
-      "comments_count": 1
-    },
-    {
-      "problem_id": 633,
-      "problem_url": "/633",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "$25",
-      "statement": "Classify those triangles which can only be cut into a square number of congruent triangles.",
-      "tags": [
-        "geometry"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/633",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 633,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 634,
@@ -8717,13 +8288,13 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/638",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 638,
-      "comments_count": 1
+      "comments_count": 8
     },
     {
       "problem_id": 640,
@@ -8765,7 +8336,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 642,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 643,
@@ -8820,7 +8391,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "05 October 2025",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/647",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/647.lean",
@@ -8829,27 +8400,7 @@
         "https://oeis.org/A087280"
       ],
       "comments_problem_id": 647,
-      "comments_count": 6
-    },
-    {
-      "problem_id": 650,
-      "problem_url": "/650",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $f(m)$ be such that if $A\\subseteq \\{1,\\ldots,N\\}$ has $\\lvert A\\rvert=m$ then every interval in $[1,\\infty)$ of length $2N$ contains $\\geq f(m)$ many distinct integers $b_1,\\ldots,b_r$ where each $b_i$ is divisible by some $a_i\\in A$, where $a_1,\\ldots,a_r$ are distinct. Estimate $f(m)$. In particular is it true that $f(m)\\ll m^{1/2}$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/650",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 650,
-      "comments_count": 0
+      "comments_count": 9
     },
     {
       "problem_id": 653,
@@ -8866,8 +8417,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/653",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/653.lean",
       "oeis_urls": [],
       "comments_problem_id": 653,
       "comments_count": 0
@@ -8908,11 +8459,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/655",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/655.lean",
       "oeis_urls": [],
       "comments_problem_id": 655,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 657,
@@ -8997,7 +8548,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 662,
-      "comments_count": 2
+      "comments_count": 4
     },
     {
       "problem_id": 663,
@@ -9060,7 +8611,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 667,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 668,
@@ -9079,7 +8630,9 @@
       "latex_path": "/latex/668",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A385657"
+      ],
       "comments_problem_id": 668,
       "comments_count": 3
     },
@@ -9120,13 +8673,13 @@
         "geometry",
         "distances"
       ],
-      "last_edited": "",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/670",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 670,
-      "comments_count": 0
+      "comments_count": 4
     },
     {
       "problem_id": 671,
@@ -9186,7 +8739,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 675,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 676,
@@ -9200,7 +8753,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/676",
       "formalized": false,
       "formalized_url": "",
@@ -9208,7 +8761,7 @@
         "https://oeis.org/A390181"
       ],
       "comments_problem_id": 676,
-      "comments_count": 10
+      "comments_count": 9
     },
     {
       "problem_id": 677,
@@ -9228,7 +8781,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/677.lean",
       "oeis_urls": [],
       "comments_problem_id": 677,
-      "comments_count": 0
+      "comments_count": 8
     },
     {
       "problem_id": 679,
@@ -9242,7 +8795,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "12 January 2026",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/679",
       "formalized": false,
       "formalized_url": "",
@@ -9310,8 +8863,8 @@
       ],
       "last_edited": "31 December 2025",
       "latex_path": "/latex/683",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/683.lean",
       "oeis_urls": [
         "https://oeis.org/A006530",
         "https://oeis.org/A074399",
@@ -9334,7 +8887,7 @@
         "primes",
         "binomial coefficients"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/684",
       "formalized": false,
       "formalized_url": "",
@@ -9342,7 +8895,7 @@
         "https://oeis.org/A392019"
       ],
       "comments_problem_id": 684,
-      "comments_count": 23
+      "comments_count": 27
     },
     {
       "problem_id": 685,
@@ -9364,7 +8917,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 685,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 686,
@@ -9378,13 +8931,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/686",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/686.lean",
       "oeis_urls": [],
       "comments_problem_id": 686,
-      "comments_count": 16
+      "comments_count": 36
     },
     {
       "problem_id": 687,
@@ -9421,10 +8974,10 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "07 April 2026",
       "latex_path": "/latex/688",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/688.lean",
       "oeis_urls": [],
       "comments_problem_id": 688,
       "comments_count": 0
@@ -9441,33 +8994,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "06 December 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/689",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/689.lean",
       "oeis_urls": [],
       "comments_problem_id": 689,
-      "comments_count": 17
-    },
-    {
-      "problem_id": 690,
-      "problem_url": "/690",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $d_k(p)$ be the density of those integers whose $k$th smallest prime factor is $p$ (i.e. if $p_1<p_2<\\cdots$ are the primes dividing $n$ then $p_k=p$). For fixed $k\\geq 1$ is $d_k(p)$ unimodular in $p$? That is, it first increases in $p$ until its maximum then decreases.",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/690",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 690,
-      "comments_count": 2
+      "comments_count": 24
     },
     {
       "problem_id": 691,
@@ -9487,7 +9020,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 691,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 693,
@@ -9513,26 +9046,6 @@
       "comments_count": 0
     },
     {
-      "problem_id": 694,
-      "problem_url": "/694",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $f_{\\max}(n)$ be the largest $m$ such that $\\phi(m)=n$, and $f_{\\min}(n)$ be the smallest such $m$, where $\\phi$ is Euler's totient function. Investigate\\[\\max_{n\\leq x}\\frac{f_{\\max}(n)}{f_{\\min}(n)}.\\]",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/694",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/694.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 694,
-      "comments_count": 2
-    },
-    {
       "problem_id": 695,
       "problem_url": "/695",
       "status_bucket": "open",
@@ -9555,27 +9068,6 @@
       "comments_count": 1
     },
     {
-      "problem_id": 696,
-      "problem_url": "/696",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $h(n)$ be the largest $\\ell$ such that there is a sequence of primes $p_1<\\cdots < p_\\ell$ all dividing $n$ with $p_{i+1}\\equiv 1\\pmod{p_i}$. Let $H(n)$ be the largest $u$ such that there is a sequence of integers $d_1<\\cdots < d_u$ all dividing $n$ with $d_{i+1}\\equiv 1\\pmod{d_i}$. Estimate $h(n)$ and $H(n)$. Is it true that $H(n)/h(n)\\to \\infty$ for almost all $n$?",
-      "tags": [
-        "number theory",
-        "divisors"
-      ],
-      "last_edited": "15 October 2025",
-      "latex_path": "/latex/696",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 696,
-      "comments_count": 1
-    },
-    {
       "problem_id": 699,
       "problem_url": "/699",
       "status_bucket": "open",
@@ -9594,7 +9086,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/699.lean",
       "oeis_urls": [],
       "comments_problem_id": 699,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 700,
@@ -9634,11 +9126,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/701",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/701.lean",
       "oeis_urls": [],
       "comments_problem_id": 701,
-      "comments_count": 0
+      "comments_count": 6
     },
     {
       "problem_id": 704,
@@ -9654,13 +9146,13 @@
         "geometry",
         "chromatic number"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/704",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 704,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 706,
@@ -9681,7 +9173,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 706,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 708,
@@ -9701,7 +9193,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 708,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 709,
@@ -9715,13 +9207,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/709",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 709,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 710,
@@ -9800,7 +9292,7 @@
         "graph theory",
         "turan number"
       ],
-      "last_edited": "06 October 2025",
+      "last_edited": "07 March 2026",
       "latex_path": "/latex/713",
       "formalized": false,
       "formalized_url": "",
@@ -9912,7 +9404,7 @@
         "https://oeis.org/A001009"
       ],
       "comments_problem_id": 725,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 726,
@@ -10004,7 +9496,7 @@
         "https://oeis.org/A006197"
       ],
       "comments_problem_id": 731,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 734,
@@ -10024,7 +9516,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 734,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 736,
@@ -10066,7 +9558,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 738,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 739,
@@ -10104,31 +9596,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/740",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/740.lean",
       "oeis_urls": [],
       "comments_problem_id": 740,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 741,
-      "problem_url": "/741",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $A\\subseteq \\mathbb{N}$ be such that $A+A$ has positive density. Can one always decompose $A=A_1\\sqcup A_2$ such that $A_1+A_1$ and $A_2+A_2$ both have positive density? Is there a basis $A$ of order $2$ such that if $A=A_1\\sqcup A_2$ then $A_1+A_1$ and $A_2+A_2$ cannot both have bounded gaps?",
-      "tags": [
-        "additive combinatorics"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/741",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/741.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 741,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 743,
@@ -10162,13 +9634,13 @@
       "tags": [
         "additive combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/749",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/749.lean",
       "oeis_urls": [],
       "comments_problem_id": 749,
-      "comments_count": 0
+      "comments_count": 12
     },
     {
       "problem_id": 750,
@@ -10185,11 +9657,11 @@
       ],
       "last_edited": "14 October 2025",
       "latex_path": "/latex/750",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/750.lean",
       "oeis_urls": [],
       "comments_problem_id": 750,
-      "comments_count": 1
+      "comments_count": 16
     },
     {
       "problem_id": 757,
@@ -10205,7 +9677,7 @@
         "distances",
         "sidon sets"
       ],
-      "last_edited": "08 January 2026",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/757",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/757.lean",
@@ -10232,7 +9704,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 761,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 766,
@@ -10295,7 +9767,9 @@
       "latex_path": "/latex/769",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A014544"
+      ],
       "comments_problem_id": 769,
       "comments_count": 1
     },
@@ -10335,7 +9809,7 @@
         "sidon sets",
         "squares"
       ],
-      "last_edited": "",
+      "last_edited": "24 April 2026",
       "latex_path": "/latex/773",
       "formalized": false,
       "formalized_url": "",
@@ -10343,7 +9817,7 @@
         "https://oeis.org/A390813"
       ],
       "comments_problem_id": 773,
-      "comments_count": 1
+      "comments_count": 11
     },
     {
       "problem_id": 774,
@@ -10359,8 +9833,8 @@
       ],
       "last_edited": "28 December 2025",
       "latex_path": "/latex/774",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/774.lean",
       "oeis_urls": [],
       "comments_problem_id": 774,
       "comments_count": 2
@@ -10377,13 +9851,13 @@
       "tags": [
         "combinatorics"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/776",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 776,
-      "comments_count": 4
+      "comments_count": 6
     },
     {
       "problem_id": 778,
@@ -10449,26 +9923,6 @@
       "comments_count": 1
     },
     {
-      "problem_id": 783,
-      "problem_url": "/783",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Fix some constant $C>0$ and let $N$ be large. Let $A\\subseteq \\{2,\\ldots,N\\}$ be such that $(a,b)=1$ for all $a\\neq b\\in A$ and $\\sum_{n\\in A}\\frac{1}{n}\\leq C$. What choice of such an $A$ minimises the number of integers $m\\leq N$ not divisible by any $a\\in A$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "08 February 2026",
-      "latex_path": "/latex/783",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 783,
-      "comments_count": 28
-    },
-    {
       "problem_id": 786,
       "problem_url": "/786",
       "status_bucket": "open",
@@ -10480,7 +9934,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "02 February 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/786",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/786.lean",
@@ -10544,8 +9998,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/789",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/789.lean",
       "oeis_urls": [],
       "comments_problem_id": 789,
       "comments_count": 0
@@ -10700,18 +10154,18 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $k\\geq 3$ and define $F_k(n)$ to be the minimal $r$ such that there is a graph $G$ on $n$ vertices with $\\lfloor n^2/4\\rfloor+1$ many edges such that the edges can be $r$-coloured so that every subgraph isomorphic to $C_{2k+1}$ has no colour repeating on the edges. Is it true that\\[F_k(n)\\sim n^2/8?\\]",
+      "statement": "Define the anti-Ramsey number $\\chi_S(n,e,G)$ as the smallest $r$ such that there is a graph with $n$ vertices and $e$ edges with an $r$-colouring of its edges in which every copy of $G$ has entirely distinct edge colours. Is it true that, for all $k\\geq 3$,\\[\\chi_S(n, \\lfloor n^2/4\\rfloor+1,C_{2k+1})\\sim n^2/8?\\]",
       "tags": [
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/809",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 809,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 810,
@@ -10726,13 +10180,13 @@
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/810",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 810,
-      "comments_count": 7
+      "comments_count": 9
     },
     {
       "problem_id": 811,
@@ -10770,9 +10224,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/812",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/812.lean",
+      "oeis_urls": [
+        "https://oeis.org/A059442"
+      ],
       "comments_problem_id": 812,
       "comments_count": 0
     },
@@ -10834,7 +10290,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 819,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 820,
@@ -10912,13 +10368,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "17 April 2026",
       "latex_path": "/latex/826",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/826.lean",
       "oeis_urls": [],
       "comments_problem_id": 826,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 827,
@@ -10932,13 +10388,13 @@
       "tags": [
         "geometry"
       ],
-      "last_edited": "24 October 2025",
+      "last_edited": "11 May 2026",
       "latex_path": "/latex/827",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 827,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 828,
@@ -11041,7 +10497,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/835.lean",
       "oeis_urls": [],
       "comments_problem_id": 835,
-      "comments_count": 4
+      "comments_count": 7
     },
     {
       "problem_id": 836,
@@ -11063,7 +10519,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 836,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 837,
@@ -11105,7 +10561,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 838,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 839,
@@ -11125,7 +10581,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 839,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 840,
@@ -11147,26 +10603,6 @@
       "oeis_urls": [],
       "comments_problem_id": 840,
       "comments_count": 0
-    },
-    {
-      "problem_id": 846,
-      "problem_url": "/846",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "DISPROVED (LEAN)",
-      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
-      "prize_amount": "",
-      "statement": "Let $A\\subset \\mathbb{R}^2$ be an infinite set for which there exists some $\\epsilon>0$ such that in any subset of $A$ of size $n$ there are always at least $\\epsilon n$ with no three on a line. Is it true that $A$ is the union of a finite number of sets where no three are on a line?",
-      "tags": [
-        "geometry"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/846",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/846.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 846,
-      "comments_count": 8
     },
     {
       "problem_id": 849,
@@ -11221,26 +10657,6 @@
       "comments_count": 4
     },
     {
-      "problem_id": 851,
-      "problem_url": "/851",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
-      "prize_amount": "",
-      "statement": "Let $\\epsilon>0$. Is there some $r\\ll_\\epsilon 1$ such that the density of integers of the form $2^k+n$, where $k\\geq 0$ and $n$ has at most $r$ prime divisors, is at least $1-\\epsilon$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/851",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/851.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 851,
-      "comments_count": 5
-    },
-    {
       "problem_id": 852,
       "problem_url": "/852",
       "status_bucket": "open",
@@ -11263,7 +10679,7 @@
         "https://oeis.org/A078515"
       ],
       "comments_problem_id": 852,
-      "comments_count": 1
+      "comments_count": 6
     },
     {
       "problem_id": 853,
@@ -11287,7 +10703,7 @@
         "https://oeis.org/A390769"
       ],
       "comments_problem_id": 853,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 854,
@@ -11317,15 +10733,15 @@
       "problem_url": "/855",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "FALSIFIABLE",
-      "status_detail": "Open, but could be disproved with a finite counterexample.",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
       "statement": "If $\\pi(x)$ counts the number of primes in $[1,x]$ then is it true that (for large $x$ and $y$)\\[\\pi(x+y) \\leq \\pi(x)+\\pi(y)?\\]",
       "tags": [
         "number theory",
         "primes"
       ],
-      "last_edited": "12 January 2026",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/855",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/855.lean",
@@ -11353,7 +10769,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 856,
-      "comments_count": 12
+      "comments_count": 17
     },
     {
       "problem_id": 857,
@@ -11369,32 +10785,11 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/857",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/857.lean",
       "oeis_urls": [],
       "comments_problem_id": 857,
       "comments_count": 1
-    },
-    {
-      "problem_id": 858,
-      "problem_url": "/858",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $A\\subseteq \\{1,\\ldots,N\\}$ be such that there is no solution to $at=b$ with $a,b\\in A$ and the smallest prime factor of $t$ is $>a$. Estimate the maximum of\\[\\frac{1}{\\log N}\\sum_{n\\in A}\\frac{1}{n}.\\]",
-      "tags": [
-        "number theory",
-        "primitive sets"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/858",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 858,
-      "comments_count": 0
     },
     {
       "problem_id": 859,
@@ -11440,28 +10835,6 @@
       ],
       "comments_problem_id": 860,
       "comments_count": 3
-    },
-    {
-      "problem_id": 863,
-      "problem_url": "/863",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $r\\geq 2$ and let $A\\subseteq \\{1,\\ldots,N\\}$ be a set of maximal size such that there are at most $r$ solutions to $n=a+b$ with $a\\leq b$ for any $n$. (That is, $A$ is a $B_2[r]$ set.) Similarly, let $B\\subseteq \\{1,\\ldots,N\\}$ be a set of maximal size such that there are at most $r$ solutions to $n=a-b$ for any $n$. If $\\lvert A\\rvert\\sim c_rN^{1/2}$ as $N\\to \\infty$ and $\\lvert B\\rvert \\sim c_r'N^{1/2}$ as $N\\to \\infty$ then is it true that $c_r\\neq c_r'$ for $r\\geq 2$? Is it true that $c_r'<c_r$?",
-      "tags": [
-        "number theory",
-        "sidon sets",
-        "additive combinatorics"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/863",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 863,
-      "comments_count": 0
     },
     {
       "problem_id": 864,
@@ -11527,28 +10900,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 866,
-      "comments_count": 2
-    },
-    {
-      "problem_id": 869,
-      "problem_url": "/869",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "If $A_1,A_2$ are disjoint additive bases of order $2$ (i.e. $A_i+A_i$ contains all large integers) then must $A=A_1\\cup A_2$ contain a minimal additive basis of order $2$ (one such that deleting any element creates infinitely many $n\\not\\in A+A$)?",
-      "tags": [
-        "number theory",
-        "additive basis"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/869",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 869,
-      "comments_count": 1
+      "comments_count": 4
     },
     {
       "problem_id": 870,
@@ -11569,7 +10921,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 870,
-      "comments_count": 1
+      "comments_count": 9
     },
     {
       "problem_id": 872,
@@ -11584,13 +10936,13 @@
         "number theory",
         "primitive sets"
       ],
-      "last_edited": "",
+      "last_edited": "24 April 2026",
       "latex_path": "/latex/872",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 872,
-      "comments_count": 14
+      "comments_count": 33
     },
     {
       "problem_id": 873,
@@ -11610,7 +10962,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/873.lean",
       "oeis_urls": [],
       "comments_problem_id": 873,
-      "comments_count": 1
+      "comments_count": 8
     },
     {
       "problem_id": 875,
@@ -11630,7 +10982,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 875,
-      "comments_count": 1
+      "comments_count": 7
     },
     {
       "problem_id": 876,
@@ -11660,11 +11012,11 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "If $n=\\prod_{1\\leq i\\leq t} p_i^{k_i}$ is the factorisation of $n$ into distinct primes then let\\[f(n)=\\sum p_i^{\\ell_i},\\]where $\\ell_i$ is chosen such that $n\\in [p_i^{\\ell_i},p_i^{\\ell_i+1})$. Furthermore, let\\[F(n)=\\max \\sum_{i=1}^t a_i\\]where the maximum is taken over all $a_1,\\ldots,a_t\\leq n$ such that $(a_i,a_j)=1$ for $i\\neq j$ and all prime factors of each $a_i$ are prime factors of $n$. Is it true that, for almost all $n$,\\[f(n)=o(n\\log\\log n)\\]and\\[F(n) \\gg n\\log\\log n?\\]Is it true that\\[\\max_{n\\leq x}f(n)\\sim \\frac{x\\log x}{\\log\\log x}?\\]Is it true that (for all $x$, or perhaps just for all large $x$)\\[\\max_{n\\leq x}f(n)=\\max_{n\\leq x}F(n)?\\]Find an asymptotic formula for the number of $n<x$ such that $f(n)=F(n)$. Find an asymptotic formula for\\[H(x)=\\sum_{n<x}\\frac{f(n)}{n}.\\]Is it true that\\[H(x) \\ll x\\log\\log\\log\\log x?\\]",
+      "statement": "If $n=\\prod_{1\\leq i\\leq t} p_i^{k_i}$ is the factorisation of $n$ into distinct primes then let\\[f(n)=\\sum p_i^{\\ell_i},\\]where $\\ell_i$ is chosen such that $n\\in [p_i^{\\ell_i},p_i^{\\ell_i+1})$. Furthermore, let\\[F(n)=\\max \\sum_{i} a_i\\]where the maximum is taken over all distinct $a_1,\\ldots,a_k\\leq n$ such that $(a_i,a_j)=1$ for $i\\neq j$ and all prime factors of each $a_i$ are prime factors of $n$. Is it true that, for almost all $n$,\\[f(n)=o(n\\log\\log n)\\]and\\[F(n) \\gg n\\log\\log n?\\]Is it true that\\[\\max_{n\\leq x}f(n)\\sim \\frac{x\\log x}{\\log\\log x}?\\]Is it true that (for all $x$, or perhaps just for all large $x$)\\[\\max_{n\\leq x}f(n)=\\max_{n\\leq x}F(n)?\\]Find an asymptotic formula for the number of $n<x$ such that $f(n)=F(n)$. Find an asymptotic formula for\\[H(x)=\\sum_{n<x}\\frac{f(n)}{n}.\\]Is it true that\\[H(x) \\ll x\\log\\log\\log\\log x?\\]",
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "12 May 2026",
       "latex_path": "/latex/878",
       "formalized": false,
       "formalized_url": "",
@@ -11672,7 +11024,7 @@
         "https://oeis.org/A339378"
       ],
       "comments_problem_id": 878,
-      "comments_count": 1
+      "comments_count": 7
     },
     {
       "problem_id": 879,
@@ -11694,7 +11046,7 @@
         "https://oeis.org/A186736"
       ],
       "comments_problem_id": 879,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 881,
@@ -11715,7 +11067,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/881.lean",
       "oeis_urls": [],
       "comments_problem_id": 881,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 883,
@@ -11739,27 +11091,6 @@
       "comments_count": 3
     },
     {
-      "problem_id": 884,
-      "problem_url": "/884",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Is it true that, for any $n$, if $d_1<\\cdots <d_t$ are the divisors of $n$, then\\[\\sum_{1\\leq i<j\\leq t}\\frac{1}{d_j-d_i} \\ll 1+\\sum_{1\\leq i<t}\\frac{1}{d_{i+1}-d_i},\\]where the implied constant is absolute?",
-      "tags": [
-        "number theory",
-        "divisors"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/884",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 884,
-      "comments_count": 5
-    },
-    {
       "problem_id": 885,
       "problem_url": "/885",
       "status_bucket": "open",
@@ -11778,7 +11109,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/885.lean",
       "oeis_urls": [],
       "comments_problem_id": 885,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 886,
@@ -11814,36 +11145,13 @@
         "number theory",
         "divisors"
       ],
-      "last_edited": "",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/887",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/887.lean",
       "oeis_urls": [],
       "comments_problem_id": 887,
       "comments_count": 1
-    },
-    {
-      "problem_id": 888,
-      "problem_url": "/888",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "What is the size of the largest $A\\subseteq \\{1,\\ldots,n\\}$ such that if $a\\leq b\\leq c\\leq d\\in A$ are such that $abcd$ is a square then $ad=bc$?",
-      "tags": [
-        "number theory",
-        "squares"
-      ],
-      "last_edited": "22 January 2026",
-      "latex_path": "/latex/888",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/888.lean",
-      "oeis_urls": [
-        "https://oeis.org/A387584"
-      ],
-      "comments_problem_id": 888,
-      "comments_count": 20
     },
     {
       "problem_id": 889,
@@ -11873,18 +11181,18 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "If $\\omega(n)$ counts the number of distinct prime factors of $n$, then is it true that, for every $k\\geq 1$,\\[\\liminf_{n\\to \\infty}\\sum_{0\\leq i<k}\\omega(n+i)\\leq k+\\pi(k)?\\]Is it true that\\[\\limsup_{n\\to \\infty}\\left(\\sum_{0\\leq i<k}\\omega(n+i)\\right) \\frac{\\log\\log n}{\\log n}=1?\\]",
+      "statement": "If $\\omega_k(n)$ counts the number of distinct prime factors of $n$ which are $>k$, then is it true that, for every $k\\geq 1$,\\[\\liminf_{n\\to \\infty}\\sum_{0\\leq i<k}\\omega_k(n+i)\\leq k?\\]Is it true that\\[\\limsup_{n\\to \\infty}\\left(\\sum_{0\\leq i<k}\\omega(n+i)\\right) \\frac{\\log\\log n}{\\log n}=1,\\]where $\\omega$ counts the number of distinct prime factors without restriction?",
       "tags": [
         "number theory",
         "primes"
       ],
-      "last_edited": "",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/890",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/890.lean",
       "oeis_urls": [],
       "comments_problem_id": 890,
-      "comments_count": 3
+      "comments_count": 6
     },
     {
       "problem_id": 891,
@@ -11914,12 +11222,12 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Is there a necessary and sufficient condition for a sequence of integers $b_1<b_2<\\cdots$ that ensures there exists a primitive sequence $a_1<a_2<\\cdots$ (i.e. no element divides another) with $a_n \\ll b_n$ for all $n$? In particular, is this always possible if there are no non-trivial solutions to $(b_i,b_j)=b_k$?",
+      "statement": "Is there a necessary and sufficient condition for a sequence of integers $b_1<b_2<\\cdots$ that ensures there exists a primitive sequence $a_1<a_2<\\cdots$ (i.e. no element divides another) with $a_n \\ll b_n$ for all $n$? In particular, is this always possible if there are no non-trivial solutions to $(b_i,b_j)=b_k$? Similarly, find necessary and sufficient conditions on a sequence $n_1<n_2<\\cdots$ that ensure there exists a primitive set $A$ such that\\[\\lvert A\\cap [1,2^{n_i}]\\rvert \\gg 2^{n_i}\\]for every $i$.",
       "tags": [
         "number theory",
         "primitive sets"
       ],
-      "last_edited": "",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/892",
       "formalized": false,
       "formalized_url": "",
@@ -11949,26 +11257,6 @@
       ],
       "comments_problem_id": 893,
       "comments_count": 0
-    },
-    {
-      "problem_id": 896,
-      "problem_url": "/896",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Estimate the maximum of $F(A,B)$ as $A,B$ range over all subsets of $\\{1,\\ldots,N\\}$, where $F(A,B)$ counts the number of $m$ such that $m=ab$ has exactly one solution (with $a\\in A$ and $b\\in B$).",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "06 December 2025",
-      "latex_path": "/latex/896",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 896,
-      "comments_count": 1
     },
     {
       "problem_id": 901,
@@ -12032,7 +11320,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/906.lean",
       "oeis_urls": [],
       "comments_problem_id": 906,
-      "comments_count": 8
+      "comments_count": 13
     },
     {
       "problem_id": 911,
@@ -12176,7 +11464,7 @@
         "graph theory",
         "chromatic number"
       ],
-      "last_edited": "21 January 2026",
+      "last_edited": "28 May 2026",
       "latex_path": "/latex/920",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/920.lean",
@@ -12196,7 +11484,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/928",
       "formalized": false,
       "formalized_url": "",
@@ -12264,7 +11552,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/931.lean",
       "oeis_urls": [],
       "comments_problem_id": 931,
-      "comments_count": 0
+      "comments_count": 4
     },
     {
       "problem_id": 932,
@@ -12326,7 +11614,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 934,
-      "comments_count": 0
+      "comments_count": 3
     },
     {
       "problem_id": 935,
@@ -12396,7 +11684,7 @@
         "https://oeis.org/A001694"
       ],
       "comments_problem_id": 938,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 939,
@@ -12411,13 +11699,13 @@
         "number theory",
         "powerful"
       ],
-      "last_edited": "31 October 2025",
+      "last_edited": "28 May 2026",
       "latex_path": "/latex/939",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/939.lean",
       "oeis_urls": [],
       "comments_problem_id": 939,
-      "comments_count": 4
+      "comments_count": 9
     },
     {
       "problem_id": 940,
@@ -12480,7 +11768,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/943.lean",
       "oeis_urls": [],
       "comments_problem_id": 943,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 944,
@@ -12539,7 +11827,7 @@
         "number theory",
         "ramsey theory"
       ],
-      "last_edited": "22 September 2025",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/948",
       "formalized": false,
       "formalized_url": "",
@@ -12580,13 +11868,13 @@
         "number theory",
         "primes"
       ],
-      "last_edited": "",
+      "last_edited": "15 April 2026",
       "latex_path": "/latex/950",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 950,
-      "comments_count": 2
+      "comments_count": 3
     },
     {
       "problem_id": 951,
@@ -12600,7 +11888,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "28 January 2026",
+      "last_edited": "06 April 2026",
       "latex_path": "/latex/951",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/951.lean",
@@ -12620,7 +11908,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/952",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/952.lean",
@@ -12647,7 +11935,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 953,
-      "comments_count": 3
+      "comments_count": 17
     },
     {
       "problem_id": 954,
@@ -12711,7 +11999,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 956,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 959,
@@ -12735,26 +12023,6 @@
       "comments_count": 0
     },
     {
-      "problem_id": 960,
-      "problem_url": "/960",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $r,k\\geq 2$ be fixed. Let $A\\subset \\mathbb{R}^2$ be a set of $n$ points with no $k$ points on a line. Determine the threshold $f_{r,k}(n)$ such that if there are at least $f_{r,k}(n)$ many ordinary lines (lines containing exactly two points) then there is a set $A'\\subseteq A$ of $r$ points such that all $\\binom{r}{2}$ many lines determined by $A'$ are ordinary. Is it true that $f_{r,k}(n)=o(n^2)$, or perhaps even $\\ll n$?",
-      "tags": [
-        "geometry"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/960",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 960,
-      "comments_count": 1
-    },
-    {
       "problem_id": 961,
       "problem_url": "/961",
       "status_bucket": "open",
@@ -12766,7 +12034,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/961",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/961.lean",
@@ -12784,19 +12052,19 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $k(n)$ be the maximal $k$ such that there exists $m\\leq n$ such that each of the integers\\[m+1,\\ldots,m+k\\]are divisible by at least one prime $>k$. Estimate $k(n)$.",
+      "statement": "Let $k(n)$ be the maximal $k$ such that there exists $m\\leq n$ such that each of the integers\\[m+1,\\ldots,m+k\\]are divisible by at least one prime $>k$. Estimate $k(n)$ - in particular, is it true that\\[\\log k(n) \\leq (\\log n)^{1/2+o(1)}?\\]",
       "tags": [
         "number theory"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/962",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/962.lean",
       "oeis_urls": [
         "https://oeis.org/A327909"
       ],
       "comments_problem_id": 962,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 963,
@@ -12830,7 +12098,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "31 March 2026",
       "latex_path": "/latex/968",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/968.lean",
@@ -12944,7 +12212,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 973,
-      "comments_count": 7
+      "comments_count": 6
     },
     {
       "problem_id": 975,
@@ -12988,7 +12256,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 976,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 978,
@@ -12998,17 +12266,17 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $f\\in \\mathbb{Z}[x]$ be an irreducible polynomial of degree $k>2$ (and suppose that $k\\neq 2^l$ for any $l\\geq 1$) such that the leading coefficient of $f$ is positive. Does the set of integers $n\\geq 1$ for which $f(n)$ is $(k-1)$-power-free have positive density? If $k>3$ then are there infinitely many $n$ for which $f(n)$ is $(k-2)$-power-free? In particular, does\\[n^4+2\\]represent infinitely many squarefree numbers?",
+      "statement": "Let $f\\in \\mathbb{Z}[x]$ be an irreducible polynomial of degree $k>2$ (and suppose that $k\\neq 2^l$ for any $l\\geq 1$) such that the leading coefficient of $f$ is positive. Does the set of integers $n\\geq 1$ for which $f(n)$ is $(k-1)$-power-free have positive density? If $k>3$, and for all primes $p$ there exists $n$ such that $p^{k-2}\\nmid f(n)$, then are there infinitely many $n$ for which $f(n)$ is $(k-2)$-power-free? In particular, does\\[n^4+2\\]represent infinitely many squarefree numbers?",
       "tags": [
         "number theory"
       ],
-      "last_edited": "05 March 2026",
+      "last_edited": "31 March 2026",
       "latex_path": "/latex/978",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/978.lean",
       "oeis_urls": [],
       "comments_problem_id": 978,
-      "comments_count": 8
+      "comments_count": 16
     },
     {
       "problem_id": 979,
@@ -13030,7 +12298,7 @@
         "https://oeis.org/A385316"
       ],
       "comments_problem_id": 979,
-      "comments_count": 12
+      "comments_count": 11
     },
     {
       "problem_id": 982,
@@ -13074,7 +12342,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 983,
-      "comments_count": 4
+      "comments_count": 7
     },
     {
       "problem_id": 985,
@@ -13098,7 +12366,7 @@
         "https://oeis.org/A219429"
       ],
       "comments_problem_id": 985,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 986,
@@ -13108,12 +12376,12 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "For any fixed $k\\geq 3$,\\[R(k,n) \\gg \\frac{n^{k-1}}{(\\log n)^c}\\]for some constant $c=c(k)>0$.",
+      "statement": "For any fixed $s\\geq 3$,\\[R(s,k) \\gg \\frac{k^{s-1}}{(\\log k)^c}\\]for some constant $c=c(s)>0$.",
       "tags": [
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "",
+      "last_edited": "28 May 2026",
       "latex_path": "/latex/986",
       "formalized": false,
       "formalized_url": "",
@@ -13122,47 +12390,6 @@
         "https://oeis.org/A059442"
       ],
       "comments_problem_id": 986,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 987,
-      "problem_url": "/987",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $x_1,x_2,\\ldots \\in (0,1)$ be an infinite sequence and let\\[A_k=\\limsup_{n\\to \\infty}\\left\\lvert \\sum_{j\\leq n} e(kx_j)\\right\\rvert,\\]where $e(x)=e^{2\\pi ix}$. Is it true that\\[\\limsup_{k\\to \\infty} A_k=\\infty?\\]Is it possible for $A_k=o(k)$?",
-      "tags": [
-        "analysis",
-        "discrepancy"
-      ],
-      "last_edited": "29 December 2025",
-      "latex_path": "/latex/987",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 987,
-      "comments_count": 7
-    },
-    {
-      "problem_id": 990,
-      "problem_url": "/990",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $f=a_0+\\cdots+a_dx^d\\in \\mathbb{C}[x]$ be a polynomial. Is it true that, if $f$ has roots $z_1,\\ldots,z_d$ with corresponding arguments $\\theta_1,\\ldots,\\theta_d\\in [0,2\\pi]$, then for all intervals $I\\subseteq [0,2\\pi]$\\[\\left\\lvert (\\# \\theta_i \\in I) - \\frac{\\lvert I\\rvert}{2\\pi}d\\right\\rvert \\ll \\left(n\\log M\\right)^{1/2},\\]where $n$ is the number of non-zero coefficients of $f$ and\\[M=\\frac{\\lvert a_0\\rvert+\\cdots +\\lvert a_d\\rvert}{(\\lvert a_0\\rvert\\lvert a_d\\rvert)^{1/2}}.\\]",
-      "tags": [
-        "analysis"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/990",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 990,
       "comments_count": 1
     },
     {
@@ -13183,7 +12410,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 993,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 995,
@@ -13204,7 +12431,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 995,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 996,
@@ -13224,29 +12451,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/996.lean",
       "oeis_urls": [],
       "comments_problem_id": 996,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 997,
-      "problem_url": "/997",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Call $x_1,x_2,\\ldots \\in (0,1)$ well-distributed if, for every $\\epsilon>0$, if $k$ is sufficiently large then, for all $n>0$ and intervals $I\\subseteq [0,1]$,\\[\\lvert \\# \\{ n<m\\leq n+k : x_m\\in I\\} - \\lvert I\\rvert k\\rvert < \\epsilon k.\\]Is it true that, for every $\\alpha$, the sequence $\\{ \\alpha p_n\\}$ is not well-distributed, if $p_n$ is the sequence of primes?",
-      "tags": [
-        "analysis",
-        "discrepancy",
-        "primes"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/997",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/997.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 997,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1002,
@@ -13263,8 +12468,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/1002",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1002.lean",
       "oeis_urls": [],
       "comments_problem_id": 1002,
       "comments_count": 2
@@ -13281,7 +12486,7 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "31 October 2025",
+      "last_edited": "19 April 2026",
       "latex_path": "/latex/1003",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1003.lean",
@@ -13303,13 +12508,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "",
+      "last_edited": "12 April 2026",
       "latex_path": "/latex/1004",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1004.lean",
       "oeis_urls": [],
       "comments_problem_id": 1004,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 1005,
@@ -13375,27 +12580,6 @@
       ],
       "comments_problem_id": 1013,
       "comments_count": 15
-    },
-    {
-      "problem_id": 1014,
-      "problem_url": "/1014",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $R(k,l)$ be the Ramsey number, so the minimal $n$ such that every graph on at least $n$ vertices contains either a $K_k$ or an independent set on $l$ vertices. Prove, for fixed $k\\geq 3$, that\\[\\lim_{l\\to \\infty}\\frac{R(k,l+1)}{R(k,l)}=1.\\]",
-      "tags": [
-        "graph theory",
-        "ramsey theory"
-      ],
-      "last_edited": "",
-      "latex_path": "/latex/1014",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 1014,
-      "comments_count": 2
     },
     {
       "problem_id": 1016,
@@ -13478,7 +12662,9 @@
       "latex_path": "/latex/1029",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A059442"
+      ],
       "comments_problem_id": 1029,
       "comments_count": 1
     },
@@ -13490,12 +12676,12 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "If $R(k,l)$ is the Ramsey number then prove the existence of some $c>0$ such that\\[\\lim_k \\frac{R(k+1,k)}{R(k,k)}> 1+c.\\]",
+      "statement": "Let $R(k,l)$ be the usual Ramsey number: the smallest $n$ such that if the edges of $K_n$ are coloured red and blue then there exists either a red $K_k$ or a blue $K_l$. Prove the existence of some $c>0$ such that\\[\\lim_{k\\to \\infty}\\frac{R(k+1,k)}{R(k,k)}> 1+c.\\]",
       "tags": [
         "graph theory",
         "ramsey theory"
       ],
-      "last_edited": "03 December 2025",
+      "last_edited": "23 March 2026",
       "latex_path": "/latex/1030",
       "formalized": false,
       "formalized_url": "",
@@ -13504,7 +12690,7 @@
         "https://oeis.org/A059442"
       ],
       "comments_problem_id": 1030,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1032,
@@ -13525,7 +12711,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1032,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 1033,
@@ -13539,7 +12725,7 @@
       "tags": [
         "graph theory"
       ],
-      "last_edited": "",
+      "last_edited": "03 April 2026",
       "latex_path": "/latex/1033",
       "formalized": false,
       "formalized_url": "",
@@ -13585,7 +12771,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1038.lean",
       "oeis_urls": [],
       "comments_problem_id": 1038,
-      "comments_count": 127
+      "comments_count": 138
     },
     {
       "problem_id": 1039,
@@ -13606,7 +12792,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1039,
-      "comments_count": 1
+      "comments_count": 15
     },
     {
       "problem_id": 1040,
@@ -13626,7 +12812,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1040,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1041,
@@ -13647,27 +12833,27 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1041.lean",
       "oeis_urls": [],
       "comments_problem_id": 1041,
-      "comments_count": 2
+      "comments_count": 46
     },
     {
       "problem_id": 1045,
       "problem_url": "/1045",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "FALSIFIABLE",
-      "status_detail": "Open, but could be disproved with a finite counterexample.",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
       "statement": "Let $z_1,\\ldots,z_n\\in \\mathbb{C}$ with $\\lvert z_i-z_j\\rvert\\leq 2$ for all $i,j$, and\\[\\Delta(z_1,\\ldots,z_n)=\\prod_{i\\neq j}\\lvert z_i-z_j\\rvert.\\]What is the maximum possible value of $\\Delta$? Is it maximised by taking the $z_i$ to be the vertices of a regular polygon?",
       "tags": [
         "analysis"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "02 April 2026",
       "latex_path": "/latex/1045",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1045,
-      "comments_count": 43
+      "comments_count": 47
     },
     {
       "problem_id": 1049,
@@ -13687,7 +12873,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1049.lean",
       "oeis_urls": [],
       "comments_problem_id": 1049,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 1052,
@@ -13754,7 +12940,7 @@
         "https://oeis.org/A167485"
       ],
       "comments_problem_id": 1054,
-      "comments_count": 5
+      "comments_count": 22
     },
     {
       "problem_id": 1055,
@@ -13910,7 +13096,7 @@
         "https://oeis.org/A038372"
       ],
       "comments_problem_id": 1062,
-      "comments_count": 4
+      "comments_count": 13
     },
     {
       "problem_id": 1063,
@@ -13976,7 +13162,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1066,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1068,
@@ -14087,7 +13273,7 @@
         "https://oeis.org/A064164"
       ],
       "comments_problem_id": 1074,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 1075,
@@ -14122,7 +13308,7 @@
         "geometry",
         "distances"
       ],
-      "last_edited": "20 December 2025",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/1082",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1082.lean",
@@ -14147,7 +13333,9 @@
       "latex_path": "/latex/1083",
       "formalized": false,
       "formalized_url": "",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A186704"
+      ],
       "comments_problem_id": 1083,
       "comments_count": 0
     },
@@ -14187,13 +13375,15 @@
         "geometry",
         "distances"
       ],
-      "last_edited": "17 October 2025",
+      "last_edited": "23 May 2026",
       "latex_path": "/latex/1085",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1085.lean",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A186705"
+      ],
       "comments_problem_id": 1085,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1086,
@@ -14249,55 +13439,13 @@
       "tags": [
         "geometry"
       ],
-      "last_edited": "16 October 2025",
+      "last_edited": "08 April 2026",
       "latex_path": "/latex/1088",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1088,
       "comments_count": 0
-    },
-    {
-      "problem_id": 1091,
-      "problem_url": "/1091",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $G$ be a $K_4$-free graph with chromatic number $4$. Must $G$ contain an odd cycle with at least two diagonals? More generally, is there some $f(r)\\to \\infty$ such that every graph with chromatic number $4$, in which every subgraph on $\\leq r$ vertices has chromatic number $\\leq 3$, contains an odd cycle with at least $f(r)$ diagonals?",
-      "tags": [
-        "graph theory",
-        "chromatic number"
-      ],
-      "last_edited": "06 December 2025",
-      "latex_path": "/latex/1091",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 1091,
-      "comments_count": 2
-    },
-    {
-      "problem_id": 1092,
-      "problem_url": "/1092",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $f_r(n)$ be maximal such that, if a graph $G$ has the property that every subgraph $H$ on $m$ vertices is the union of a graph with chromatic number $r$ and a graph with $\\leq f_r(m)$ edges, then $G$ has chromatic number $\\leq r+1$. Is it true that $f_2(n) \\gg n$? More generally, is $f_r(n)\\gg_r n$?",
-      "tags": [
-        "graph theory",
-        "chromatic number"
-      ],
-      "last_edited": "06 December 2025",
-      "latex_path": "/latex/1092",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1092.lean",
-      "oeis_urls": [],
-      "comments_problem_id": 1092,
-      "comments_count": 2
     },
     {
       "problem_id": 1093,
@@ -14362,27 +13510,7 @@
         "https://oeis.org/A003458"
       ],
       "comments_problem_id": 1095,
-      "comments_count": 6
-    },
-    {
-      "problem_id": 1096,
-      "problem_url": "/1096",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Let $1<q<1+\\epsilon$ and consider the set of numbers of the shape $\\sum_{i\\in S}q^i$ (for all finite $S$), ordered by size as $0=x_1<x_2<\\cdots$. Is it true that, provided $\\epsilon>0$ is sufficiently small, $x_{k+1}-x_k \\to 0$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "19 October 2025",
-      "latex_path": "/latex/1096",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 1096,
-      "comments_count": 0
+      "comments_count": 8
     },
     {
       "problem_id": 1097,
@@ -14392,18 +13520,18 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Let $A$ be a set of $n$ integers. How many distinct $d$ can occur as the common difference of a three-term arithmetic progression in $A$? Are there always $O(n^{3/2})$ many such $d$?",
+      "statement": "Let $A$ be a set of $n$ integers. How many distinct $d$ can occur as the common difference of a three-term arithmetic progression in $A$? In particular, are there always $O(n^{3/2})$ many such $d$?",
       "tags": [
         "number theory",
         "additive combinatorics"
       ],
-      "last_edited": "03 December 2025",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/1097",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1097.lean",
       "oeis_urls": [],
       "comments_problem_id": 1097,
-      "comments_count": 11
+      "comments_count": 17
     },
     {
       "problem_id": 1100,
@@ -14426,7 +13554,7 @@
         "https://oeis.org/A325864"
       ],
       "comments_problem_id": 1100,
-      "comments_count": 2
+      "comments_count": 5
     },
     {
       "problem_id": 1101,
@@ -14446,7 +13574,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1101.lean",
       "oeis_urls": [],
       "comments_problem_id": 1101,
-      "comments_count": 1
+      "comments_count": 3
     },
     {
       "problem_id": 1103,
@@ -14468,7 +13596,7 @@
         "https://oeis.org/A392164"
       ],
       "comments_problem_id": 1103,
-      "comments_count": 4
+      "comments_count": 5
     },
     {
       "problem_id": 1104,
@@ -14487,7 +13615,9 @@
       "latex_path": "/latex/1104",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1104.lean",
-      "oeis_urls": [],
+      "oeis_urls": [
+        "https://oeis.org/A292528"
+      ],
       "comments_problem_id": 1104,
       "comments_count": 2
     },
@@ -14599,13 +13729,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "22 January 2026",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/1110",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1110,
-      "comments_count": 3
+      "comments_count": 4
     },
     {
       "problem_id": 1111,
@@ -14662,8 +13792,8 @@
       ],
       "last_edited": "29 December 2025",
       "latex_path": "/latex/1113",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1113.lean",
       "oeis_urls": [
         "https://oeis.org/A076336"
       ],
@@ -14722,13 +13852,13 @@
       "tags": [
         "number theory"
       ],
-      "last_edited": "30 December 2025",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/1122",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1122,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1131,
@@ -14749,7 +13879,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1131,
-      "comments_count": 2
+      "comments_count": 5
     },
     {
       "problem_id": 1132,
@@ -14764,13 +13894,13 @@
         "analysis",
         "polynomials"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "01 April 2026",
       "latex_path": "/latex/1132",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1132,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1133,
@@ -14791,7 +13921,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1133,
-      "comments_count": 0
+      "comments_count": 2
     },
     {
       "problem_id": 1135,
@@ -14846,8 +13976,8 @@
       "problem_url": "/1138",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "status_label": "DISPROVED (LEAN)",
+      "status_detail": "This has been solved in the negative and the proof verified in Lean.",
       "prize_amount": "",
       "statement": "Let $x/2<y<x$ and $C>1$. If $d=\\max_{p_n<x} (p_{n+1}-p_n)$, where $p_n$ denotes the $n$th prime, then is it true that\\[\\pi(y+Cd)-\\pi(y)\\sim\\frac{Cd}{\\log y}?\\]",
       "tags": [
@@ -14860,7 +13990,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1138,
-      "comments_count": 0
+      "comments_count": 11
     },
     {
       "problem_id": 1139,
@@ -14881,30 +14011,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1139.lean",
       "oeis_urls": [],
       "comments_problem_id": 1139,
-      "comments_count": 7
-    },
-    {
-      "problem_id": 1141,
-      "problem_url": "/1141",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Are there infinitely many $n$ such that $n-k^2$ is prime for all $k$ with $(n,k)=1$ and $k^2<n$?",
-      "tags": [
-        "number theory",
-        "primes"
-      ],
-      "last_edited": "26 January 2026",
-      "latex_path": "/latex/1141",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1141.lean",
-      "oeis_urls": [
-        "https://oeis.org/A214583"
-      ],
-      "comments_problem_id": 1141,
-      "comments_count": 5
+      "comments_count": 8
     },
     {
       "problem_id": 1142,
@@ -14919,7 +14026,7 @@
         "number theory",
         "primes"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "05 March 2026",
       "latex_path": "/latex/1142",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1142.lean",
@@ -14927,7 +14034,7 @@
         "https://oeis.org/A039669"
       ],
       "comments_problem_id": 1142,
-      "comments_count": 3
+      "comments_count": 5
     },
     {
       "problem_id": 1143,
@@ -14948,7 +14055,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1143,
-      "comments_count": 1
+      "comments_count": 6
     },
     {
       "problem_id": 1144,
@@ -14984,13 +14091,13 @@
         "additive combinatorics",
         "additive basis"
       ],
-      "last_edited": "08 February 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/1145",
       "formalized": true,
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1145.lean",
       "oeis_urls": [],
       "comments_problem_id": 1145,
-      "comments_count": 5
+      "comments_count": 4
     },
     {
       "problem_id": 1146,
@@ -15010,30 +14117,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1146,
-      "comments_count": 0
-    },
-    {
-      "problem_id": 1148,
-      "problem_url": "/1148",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
-      "prize_amount": "",
-      "statement": "Can every large integer $n$ be written as $n=x^2+y^2-z^2$ with $\\max(x^2,y^2,z^2)\\leq n$?",
-      "tags": [
-        "number theory"
-      ],
-      "last_edited": "26 January 2026",
-      "latex_path": "/latex/1148",
-      "formalized": true,
-      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1148.lean",
-      "oeis_urls": [
-        "https://oeis.org/A390380",
-        "https://oeis.org/A393168"
-      ],
-      "comments_problem_id": 1148,
-      "comments_count": 6
+      "comments_count": 2
     },
     {
       "problem_id": 1150,
@@ -15075,7 +14159,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1151,
-      "comments_count": 0
+      "comments_count": 7
     },
     {
       "problem_id": 1152,
@@ -15097,27 +14181,6 @@
       "oeis_urls": [],
       "comments_problem_id": 1152,
       "comments_count": 0
-    },
-    {
-      "problem_id": 1153,
-      "problem_url": "/1153",
-      "status_bucket": "open",
-      "status_dom_id": "open",
-      "status_label": "PROVED",
-      "status_detail": "This has been solved in the affirmative.",
-      "prize_amount": "",
-      "statement": "For $x_1,\\ldots,x_n\\in [-1,1]$ let\\[l_k(x)=\\frac{\\prod_{i\\neq k}(x-x_i)}{\\prod_{i\\neq k}(x_k-x_i)},\\]which are such that $l_k(x_k)=1$ and $l_k(x_i)=0$ for $i\\neq k$. Let\\[\\lambda(x)=\\sum_k \\lvert l_k(x)\\rvert.\\]Is it true that, for any fixed $-1\\leq a< b\\leq 1$,\\[\\max_{x\\in [a,b]}\\lambda(x)> \\left(\\frac{2}{\\pi}-o(1)\\right)\\log n?\\]",
-      "tags": [
-        "analysis",
-        "polynomials"
-      ],
-      "last_edited": "01 February 2026",
-      "latex_path": "/latex/1153",
-      "formalized": false,
-      "formalized_url": "",
-      "oeis_urls": [],
-      "comments_problem_id": 1153,
-      "comments_count": 7
     },
     {
       "problem_id": 1154,
@@ -15234,7 +14297,7 @@
       "tags": [
         "combinatorics"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "10 April 2026",
       "latex_path": "/latex/1159",
       "formalized": false,
       "formalized_url": "",
@@ -15302,7 +14365,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1163,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1167,
@@ -15319,8 +14382,8 @@
       ],
       "last_edited": "23 January 2026",
       "latex_path": "/latex/1167",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1167.lean",
       "oeis_urls": [],
       "comments_problem_id": 1167,
       "comments_count": 3
@@ -15344,7 +14407,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1168,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1169,
@@ -15417,18 +14480,18 @@
       "status_label": "OPEN",
       "status_detail": "This is open, and cannot be resolved with a finite computation.",
       "prize_amount": "",
-      "statement": "Establish whether the following are true assuming the generalised continuum hypothesis:\\[\\omega_3 \\to (\\omega_2,\\omega_1+2)^2,\\]\\[\\omega_3\\to (\\omega_2+\\omega_1,\\omega_2+\\omega)^2,\\]\\[\\omega_2\\to (\\omega_1^{\\omega+2}+2, \\omega_1+2)^2.\\]Establish whether the following is true assuming the continuum hypothesis:\\[\\omega_2\\to (\\omega_1+\\omega)_2^2.\\]",
+      "statement": "Establish whether the following are true assuming the generalised continuum hypothesis:\\[\\omega_3 \\to (\\omega_2,\\omega_1+2)^2,\\]\\[\\omega_3\\to (\\omega_2+\\omega_1,\\omega_2+\\omega)^2,\\]\\[\\omega_2\\to (\\omega_1^{\\omega+2}+2, \\omega_1+2)^2.\\]Establish whether the following is consistent with the generalised continuum hypothesis:\\[\\omega_2\\to (\\omega_1+\\omega)_2^2,\\]or even $\\omega_2 \\to (\\xi)_2^2$ for all $\\xi<\\omega_2$.",
       "tags": [
         "set theory",
         "ramsey theory"
       ],
-      "last_edited": "23 January 2026",
+      "last_edited": "11 April 2026",
       "latex_path": "/latex/1172",
       "formalized": false,
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1172,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1173,
@@ -15456,8 +14519,8 @@
       "problem_url": "/1174",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "status_label": "NOT DISPROVABLE",
+      "status_detail": "Open in general, but there exist models of set theory where the result is true.",
       "prize_amount": "",
       "statement": "Does there exist a graph $G$ with no $K_4$ such that every edge colouring of $G$ with countably many colours contains a monochromatic $K_3$? Does there exist a graph $G$ with no $K_{\\aleph_1}$ such that every edge colouring of $G$ with countably many colours contains a monochromatic $K_{\\aleph_0}$?",
       "tags": [
@@ -15470,7 +14533,7 @@
       "formalized_url": "",
       "oeis_urls": [],
       "comments_problem_id": 1174,
-      "comments_count": 1
+      "comments_count": 2
     },
     {
       "problem_id": 1175,
@@ -15487,8 +14550,8 @@
       ],
       "last_edited": "",
       "latex_path": "/latex/1175",
-      "formalized": false,
-      "formalized_url": "",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1175.lean",
       "oeis_urls": [],
       "comments_problem_id": 1175,
       "comments_count": 1
@@ -15498,8 +14561,8 @@
       "problem_url": "/1176",
       "status_bucket": "open",
       "status_dom_id": "open",
-      "status_label": "OPEN",
-      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "status_label": "NOT DISPROVABLE",
+      "status_detail": "Open in general, but there exist models of set theory where the result is true.",
       "prize_amount": "",
       "statement": "Let $G$ be a graph with chromatic number $\\aleph_1$. Is it true that there is a colouring of the edges with $\\aleph_1$ many colours such that, in any countable colouring of the vertices, there exists a vertex colour containing all edge colours?",
       "tags": [
@@ -15512,7 +14575,7 @@
       "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1176.lean",
       "oeis_urls": [],
       "comments_problem_id": 1176,
-      "comments_count": 0
+      "comments_count": 1
     },
     {
       "problem_id": 1177,
@@ -15556,6 +14619,447 @@
       "oeis_urls": [],
       "comments_problem_id": 1178,
       "comments_count": 1
+    },
+    {
+      "problem_id": 1181,
+      "problem_url": "/1181",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $q(n,k)$ denote the least prime which does not divide $\\prod_{1\\leq i\\leq k}(n+i)$. Is it true that there exists some $c>0$ such that, for all large $n$,\\[q(n,\\log n)<(1-c)(\\log n)^2?\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 March 2026",
+      "latex_path": "/latex/1181",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1181,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1182,
+      "problem_url": "/1182",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $f(n)$ be maximal such that there is a connected graph $G$ with $n$ vertices and $f(n)$ edges such that\\[R(K_3,G)= 2n-1.\\]Let $F(n)$ be maximal such that every connected graph $G$ with $n$ vertices and $\\leq F(n)$ edges has\\[R(K_3,G)= 2n-1.\\]Estimate $f(n)$ and $F(n)$. In particular, is it true that $F(n)/n\\to \\infty$?",
+      "tags": [
+        "graph theory",
+        "ramsey theory"
+      ],
+      "last_edited": "11 April 2026",
+      "latex_path": "/latex/1182",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1182,
+      "comments_count": 3
+    },
+    {
+      "problem_id": 1183,
+      "problem_url": "/1183",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $f(n)$ be maximal such that in any $2$-colouring of the subsets of $\\{1,\\ldots,n\\}$ there is always a monochromatic family of at least $f(n)$ sets which is closed under taking unions and intersections. Estimate $f(n)$. Let $F(n)$ be defined similarly, except that we only require the family be closed under taking unions. Estimate $F(n)$. In particular, is it true that $F(n)\\geq n^{\\omega(n)}$ for some $\\omega(n)\\to \\infty$ as $n\\to \\infty$, and $F(n)<(1+o(1))^n$?",
+      "tags": [
+        "combinatorics",
+        "ramsey theory"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1183",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1183,
+      "comments_count": 10
+    },
+    {
+      "problem_id": 1184,
+      "problem_url": "/1184",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $f(n,k)$ count the number of $1\\leq i\\leq k$ such that $P(n+i)>k$ (where $P(m)$ is the largest prime divisor of $m$). Is it true that, if $\\alpha>1$ is such that $n=k^{\\alpha+o(1)}$, then\\[f(n,k)=(1-\\rho(\\alpha)+o(1))k,\\]where $\\rho$ is the Dickman function ?",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "06 April 2026",
+      "latex_path": "/latex/1184",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1184,
+      "comments_count": 1
+    },
+    {
+      "problem_id": 1186,
+      "problem_url": "/1186",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $\\delta_k$ be such that in any $2$-colouring of $\\{1,\\ldots,n\\}$ there exist at least $(\\delta_k+o(1))n^2$ many monochromatic $k$-term arithmetic progressions. Give reasonable bounds (or even an asymptotic formula) for $\\delta_k$.",
+      "tags": [
+        "additive combinatorics",
+        "arithmetic progressions"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1186",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1186,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1188,
+      "problem_url": "/1188",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Call a set of distinct integers $1<n_1<\\cdots<n_k$ with associated congruence classes $a_i\\pmod{n_i}$ a distinct covering system if every integer satisfies at least one of these congruences. A minimal distinct covering system is one such that no proper subset forms a covering system. Let $F(x)$ count the number of minimal distinct covering systems with all moduli in $[1,x]$. Estimate $F(x)$.",
+      "tags": [
+        "number theory",
+        "covering systems"
+      ],
+      "last_edited": "17 April 2026",
+      "latex_path": "/latex/1188",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1188,
+      "comments_count": 5
+    },
+    {
+      "problem_id": 1189,
+      "problem_url": "/1189",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Call a set of distinct integers $1<n_1<\\cdots<n_k$ a covering set if there is a choice of $a_i\\pmod{n_i}$ for $1\\leq i\\leq k$ such that every integer satisfies at least one of these congruences. A set is an irreducible covering set if no proper subset is a covering set. How many irreducible covering sets of size $k$ are there? What is the minimum and maximum that $n_k$ can be? Determine or estimate $\\max \\sum\\frac{1}{n_i}$, where the maximum ranges over all irreducible covering sets of size $k$. Are there infinitely many $n$ such that the divisors of $n$ (which are $>1$) form an irreducible covering set?",
+      "tags": [
+        "number theory",
+        "covering systems"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1189",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1189,
+      "comments_count": 6
+    },
+    {
+      "problem_id": 1191,
+      "problem_url": "/1191",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "$1000",
+      "statement": "Let $A\\subset\\mathbb{N}$ be an infinite Sidon set. Is it true that\\[\\liminf_{x\\to \\infty} \\frac{\\lvert A\\cap [1,x]\\rvert}{x^{1/2}}(\\log x)^{1/2}=0?\\]Does there exist an infinite Sidon set $A$ such that\\[\\liminf_{x\\to \\infty} \\frac{\\lvert A\\cap [1,x]\\rvert}{x^{1/2}}(\\log x)^c>0\\]for some $c>0$?",
+      "tags": [
+        "additive combinatorics",
+        "sidon sets"
+      ],
+      "last_edited": "06 April 2026",
+      "latex_path": "/latex/1191",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1191,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1192,
+      "problem_url": "/1192",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "For $A\\subset \\mathbb{N}$ let $f_r(n)$ count the number of solutions to $n=a_1+\\cdots+a_r$ with $a_i\\in A$. Does there exist, for all $r\\geq 2$, a basis $A$ of order $r$ (so that $f_r(n)>0$ for all large $n$) such that\\[\\sum_{n\\leq x}f_r(n)^2 \\ll x\\]for all $x$?",
+      "tags": [
+        "additive combinatorics",
+        "additive basis"
+      ],
+      "last_edited": "06 April 2026",
+      "latex_path": "/latex/1192",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1192,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1194,
+      "problem_url": "/1194",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $A\\subset\\mathbb{N}$ be such that every integer $n\\geq 1$ can be written uniquely as $a_n-b_n$ for some $a_n,b_n\\in A$. How fast must $a_n/n$ increase?",
+      "tags": [
+        "additive combinatorics",
+        "additive basis",
+        "sidon sets"
+      ],
+      "last_edited": "24 April 2026",
+      "latex_path": "/latex/1194",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1194,
+      "comments_count": 8
+    },
+    {
+      "problem_id": 1199,
+      "problem_url": "/1199",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Is it true that in any $2$-colouring of $\\mathbb{N}$ there exists an infinite set $A$ such that all elements of $A+A$ are the same colour?",
+      "tags": [
+        "additive combinatorics",
+        "ramsey theory"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1199",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1199.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 1199,
+      "comments_count": 3
+    },
+    {
+      "problem_id": 1200,
+      "problem_url": "/1200",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "There exists a constant $C$ such that for all large $x$ there is a collection of primes $p_1<\\ldots<p_k<x$ with $\\sum\\frac{1}{p_i}<C$ together with a system of congruences $a_i\\pmod{p_i}$ such that every integer $n<x$ satisfies at least one of these congruences.",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1200",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1200,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1201,
+      "problem_url": "/1201",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Is it true that for every $\\epsilon,\\eta>0$ there exists a $k$ such that the density of $n$ for which\\[P(n(n+1)\\cdots(n+k))>n^{1-\\epsilon}\\]is at least $1-\\eta$ (where $P(m)$ is the greatest prime divisor of $m$)?",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "",
+      "latex_path": "/latex/1201",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1201,
+      "comments_count": 11
+    },
+    {
+      "problem_id": 1203,
+      "problem_url": "/1203",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "If $\\omega(n)$ counts the number of distinct prime divisors of $n$ then let\\[F(n)=\\max_k \\omega(n+k)\\frac{\\log\\log k}{\\log k}.\\]Prove that $F(n)\\to \\infty$ as $n\\to \\infty$.",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 April 2026",
+      "latex_path": "/latex/1203",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1203.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 1203,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1204,
+      "problem_url": "/1204",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "We call a sequence of integers $0\\leq a_1<\\cdots <a_k$ admissible if it is missing at least one congruence class modulo every prime $p$. Let $A(k)=\\min a_k$. Estimate $A(k)$ - in particular, is it true that\\[A(k)\\sim k\\log k?\\]Estimate\\[B(k)=\\min \\frac{a_1+\\cdots+a_k}{k}.\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "07 April 2026",
+      "latex_path": "/latex/1204",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [
+        "https://oeis.org/A008407",
+        "https://oeis.org/A023193",
+        "https://oeis.org/A135311"
+      ],
+      "comments_problem_id": 1204,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1206,
+      "problem_url": "/1206",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Does $\\{1,2^3,\\ldots,N^3\\}$ contain a Sidon set of size $\\gg N$? Is there an infinite set $A\\subset \\mathbb{N}$ of positive density such that $\\{a^3 : a\\in A\\}$ is a Sidon set?",
+      "tags": [
+        "number theory",
+        "sidon sets"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1206",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1206,
+      "comments_count": 1
+    },
+    {
+      "problem_id": 1207,
+      "problem_url": "/1207",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $P_d(n)$ be such that in any set of $n$ points in $\\mathbb{R}^d$ there exist at least $P_d(n)$ many points which do not contain an isosceles triangle. Estimate $P_d(n)$ - in particular, is it true that\\[P_2(n)<n^{1-c}\\]for some constant $c>0$?",
+      "tags": [
+        "geometry",
+        "distances"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1207",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1207,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1208,
+      "problem_url": "/1208",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "For $d\\geq 2$ let $F_d(n)$ be minimal such that every set of $n$ points in $\\mathbb{R}^d$ contains a set of $F_d(n)$ points with distinct distances. Estimate $F_d(n)$ for fixed $d$ as $n\\to \\infty$.",
+      "tags": [
+        "geometry",
+        "distances"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1208",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1208,
+      "comments_count": 0
+    },
+    {
+      "problem_id": 1209,
+      "problem_url": "/1209",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $A=\\{a_1<a_2<\\cdots\\}$ be a sequence of integers which tends to infinity sufficiently fast. If there is an $n$ such that all $n+a_k$ are primes then must there exist infinitely many such $n$? What if we ask for $n+a_k$ to be squarefree instead of prime? Are there $n$ such that $n+2^{2^k}$ is always a prime (or always squarefree, or infinitely often a prime, or infinitely often squarefree)?",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "17 April 2026",
+      "latex_path": "/latex/1209",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1209,
+      "comments_count": 7
+    },
+    {
+      "problem_id": 1210,
+      "problem_url": "/1210",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $A\\subseteq [1,n)$ be a set of integers such that $(a,b)=1$ for all distinct $a,b\\in A$. Is it true that\\[\\sum_{a\\in A}\\frac{1}{n-a}\\leq \\sum_{p<n}\\frac{1}{p}+O(1)?\\]",
+      "tags": [
+        "number theory"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1210",
+      "formalized": true,
+      "formalized_url": "https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/1210.lean",
+      "oeis_urls": [],
+      "comments_problem_id": 1210,
+      "comments_count": 3
+    },
+    {
+      "problem_id": 1212,
+      "problem_url": "/1212",
+      "status_bucket": "open",
+      "status_dom_id": "open",
+      "status_label": "OPEN",
+      "status_detail": "This is open, and cannot be resolved with a finite computation.",
+      "prize_amount": "",
+      "statement": "Let $G$ be the graph with vertex set those pairs $(x,y)\\in \\mathbb{N}^2$ with $\\mathrm{gcd}(x,y)=1$, in which we join two vertices if the differ in only one coordinate, and there by $\\pm 1$. Is there a path going to infinity on $G$, say $P$, such that for all $(x,y)\\in P$ both $\\min(x,y)>1$ and at least one of $x$ or $y$ is composite?",
+      "tags": [
+        "number theory",
+        "primes"
+      ],
+      "last_edited": "08 April 2026",
+      "latex_path": "/latex/1212",
+      "formalized": false,
+      "formalized_url": "",
+      "oeis_urls": [],
+      "comments_problem_id": 1212,
+      "comments_count": 0
     }
   ]
 }
