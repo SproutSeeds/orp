@@ -68,9 +68,52 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _orp_user_security_root() -> Path:
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    config_home = Path(xdg_config_home).expanduser() if xdg_config_home else Path.home() / ".config"
+    return (config_home / "orp").resolve()
+
+
+def _is_private_orp_user_path(path: Path) -> bool:
+    try:
+        path.expanduser().resolve().relative_to(_orp_user_security_root())
+        return True
+    except ValueError:
+        return False
+
+
 def _write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    path = path.expanduser()
+    private = _is_private_orp_user_path(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700 if private else 0o777)
+
+    if private:
+        private_root = _orp_user_security_root()
+        current = path.parent.resolve()
+        while True:
+            os.chmod(current, 0o700)
+            if current == private_root:
+                break
+            current = current.parent
+
+    existing_mode = path.stat().st_mode & 0o777 if path.exists() else None
+    target_mode = 0o600 if private else (existing_mode if existing_mode is not None else 0o644)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    temporary_path = Path(temporary_name)
+    open_descriptor: int | None = descriptor
+    try:
+        os.fchmod(descriptor, target_mode)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            open_descriptor = None
+            handle.write(json.dumps(data, indent=2, sort_keys=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        os.chmod(path, target_mode)
+    finally:
+        if open_descriptor is not None:
+            os.close(open_descriptor)
+        temporary_path.unlink(missing_ok=True)
 
 
 def _print_json(data: Any) -> None:

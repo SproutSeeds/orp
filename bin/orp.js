@@ -30,19 +30,19 @@ function isTopLevelHelp(args) {
 async function runCompute(args) {
   const mod = await import(computeCliUrl);
   const code = await mod.runComputeCli(args);
-  process.exit(code == null ? 0 : code);
+  return code == null ? 0 : code;
 }
 
 async function runWorkspace(args) {
   const mod = await import(workspaceCliUrl);
   const code = await mod.runOrpWorkspaceCommand(args);
-  process.exit(code == null ? 0 : code);
+  return code == null ? 0 : code;
 }
 
 async function runCodex(args) {
   const mod = await import(codexCliUrl);
   const code = await mod.runOrpCodexCommand(args);
-  process.exit(code == null ? 0 : code);
+  return code == null ? 0 : code;
 }
 
 function runPythonCli(args, { captureOutput }) {
@@ -70,7 +70,7 @@ function runPythonCli(args, { captureOutput }) {
           process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n  orp codex status -h\n");
         }
       }
-      process.exit(result.status == null ? 1 : result.status);
+      return result.status == null ? 1 : result.status;
     }
 
     if (result.error && result.error.code === "ENOENT") {
@@ -84,31 +84,31 @@ function runPythonCli(args, { captureOutput }) {
   if (lastErr) {
     console.error(String(lastErr));
   }
-  process.exit(1);
+  return 1;
 }
 
 async function main() {
   if (argv[0] === "compute") {
-    await runCompute(argv.slice(1));
-    return;
+    return runCompute(argv.slice(1));
   }
   if (argv[0] === "workspace" && argv[1] === "hygiene") {
-    runPythonCli(["hygiene", ...argv.slice(2)], { captureOutput: false });
-    return;
+    return runPythonCli(["hygiene", ...argv.slice(2)], { captureOutput: false });
   }
   if (argv[0] === "workspace") {
-    await runWorkspace(argv.slice(1));
-    return;
+    return runWorkspace(argv.slice(1));
   }
   if (argv[0] === "codex") {
-    await runCodex(argv.slice(1));
-    return;
+    return runCodex(argv.slice(1));
   }
 
-  runPythonCli(argv, { captureOutput: isTopLevelHelp(argv) });
+  return runPythonCli(argv, { captureOutput: isTopLevelHelp(argv) });
 }
 
-main().catch((error) => {
-  console.error(String(error && error.stack ? error.stack : error));
-  process.exit(1);
-});
+main()
+  .then((code) => {
+    process.exitCode = code == null ? 0 : code;
+  })
+  .catch((error) => {
+    console.error(String(error && error.stack ? error.stack : error));
+    process.exitCode = 1;
+  });
