@@ -11,8 +11,10 @@ venv/
 node_modules/
 *.tgz
 
-# Local ORP runtime and rendered configs
-/orp/
+# Local ORP runtime and rendered configs. Keep the hygiene classifier itself
+# versioned so dirty generated surfaces are consistently categorized.
+/orp/*
+!/orp/hygiene-policy.json
 /orp.yml
 /orp.*.yml
 /orp.*.pack-install-report.md

@@ -69,6 +69,43 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertIn("orp workspace sync <name-or-id>", proc.stdout)
         self.assertIn("orp workspace hygiene [--json]", proc.stdout)
 
+    def test_node_wrapper_drains_large_workspace_output_before_exit(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("node not found on PATH")
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            manifest_path = root / "large-workspace.json"
+            tabs = [
+                {
+                    "title": f"project-{index:04d}",
+                    "path": f"/tmp/orp-large-output/project-{index:04d}-" + ("x" * 120),
+                }
+                for index in range(700)
+            ]
+            manifest_path.write_text(
+                json.dumps({
+                    "version": "1",
+                    "workspaceId": "large-output-regression",
+                    "title": "Large output regression",
+                    "tabs": tabs,
+                }),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                ["node", str(BIN), "workspace", "tabs", "--workspace-file", str(manifest_path), "--json"],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+            self.assertGreater(len(proc.stdout.encode("utf-8")), 64 * 1024)
+            payload = json.loads(proc.stdout)
+            self.assertEqual(payload["tabCount"], len(tabs))
+            self.assertEqual(payload["tabs"][-1]["title"], "project-0699")
+
     def test_node_wrapper_exposes_codex_help(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("node not found on PATH")
