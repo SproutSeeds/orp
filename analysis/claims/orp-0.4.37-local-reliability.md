@@ -65,9 +65,10 @@ below and do not assert availability of the hosted `orp.earth` service.
 
 ## Status
 
-In review
+Verified
 
 ## Next Hook
 
-Complete the full package and fresh-install verification, then publish the exact
-verified commit as npm `open-research-protocol@0.4.37`.
+Merge and tag the exact verified commit, publish npm
+`open-research-protocol@0.4.37`, then repeat the fresh-install smoke test from
+the registry artifact.
