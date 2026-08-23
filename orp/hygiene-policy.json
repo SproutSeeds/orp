@@ -69,6 +69,7 @@
         "docs/**",
         ".github/**",
         ".gitignore",
+        ".npmignore",
         ".gitattributes",
         "package.json",
         "package-lock.json",

@@ -6,6 +6,21 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.38 - 2026-08-23
+
+This release carries the verified local reliability work forward from the
+unpublished `v0.4.37` candidate and makes the npm artifact deterministic even
+when tests generate Python bytecode in the checkout.
+
+### Changed
+
+- The npm package allowlist now explicitly excludes Python bytecode,
+  `__pycache__` directories, macOS metadata, local environments, dependency
+  trees, and nested tarballs.
+- The npm publication workflow suppresses Python bytecode generation and
+  audits the computed package manifest before publishing, including a required
+  check for the default hygiene policy.
+
 ## v0.4.37 - 2026-08-23
 
 This reliability release keeps local ORP usable when hosted services are

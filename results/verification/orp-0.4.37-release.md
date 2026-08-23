@@ -87,6 +87,7 @@ credential must be proven by the actual tagged release. Production
 
 ## Next Hook
 
-Merge this exact candidate, push tag `v0.4.37`, verify the npm workflow, install
-`open-research-protocol@0.4.37` from the registry, and repeat the installed
-version, large-output, fresh-init, permissions, and hosted-error smoke checks.
+Publish the corrected deterministic package as `0.4.38`, then repeat the
+installed version, large-output, fresh-init, permissions, and hosted-error
+smoke checks from the registry artifact. The failed `v0.4.37` publication is
+recorded in `analysis/FAILED_npm-publish-v0.4.37-20260823.md`.
