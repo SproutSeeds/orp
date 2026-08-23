@@ -868,6 +868,40 @@ AGENT_MODES: list[dict[str, Any]] = [
 class HostedApiError(RuntimeError):
     """Raised when the hosted ORP app returns an API error."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "hosted_request_failed",
+        status: int | None = None,
+        path: str = "",
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        raw_code = str(code or "hosted_request_failed").strip().lower()
+        normalized_code = re.sub(r"[^a-z0-9]+", "_", raw_code).strip("_")[:80]
+        self.code = normalized_code or "hosted_request_failed"
+        self.status = status
+        self.path = str(path or "").strip()
+        self.retryable = bool(retryable)
+
+    def as_payload(self) -> dict[str, Any]:
+        error: dict[str, Any] = {
+            "code": self.code,
+            "message": str(self),
+            "retryable": self.retryable,
+        }
+        if self.status is not None:
+            error["status"] = self.status
+        if self.path:
+            error["path"] = self.path
+        return {
+            "schema": "orp.hosted_error/1",
+            "kind": "orp_hosted_error",
+            "ok": False,
+            "error": error,
+        }
+
 
 def _agent_mode_map() -> dict[str, dict[str, Any]]:
     lookup: dict[str, dict[str, Any]] = {}
@@ -3800,7 +3834,33 @@ def _hosted_api_error(
     status: int,
     payload: dict[str, Any] | None,
 ) -> HostedApiError:
-    message = str((payload or {}).get("error") or (payload or {}).get("message") or f"Request failed: {status}")
+    body = payload or {}
+    raw_error = body.get("error")
+    nested_error = raw_error if isinstance(raw_error, dict) else {}
+    message = str(
+        nested_error.get("message")
+        or (raw_error if not isinstance(raw_error, dict) else "")
+        or body.get("message")
+        or f"Request failed: {status}"
+    )
+    code = str(nested_error.get("code") or body.get("code") or "").strip()
+    if not code:
+        if status == 401:
+            code = "authentication_required"
+        elif status == 403:
+            code = "permission_denied"
+        elif status == 404:
+            code = "hosted_route_or_record_not_found"
+        elif status == 409:
+            code = "hosted_conflict"
+        elif status == 429:
+            code = "hosted_rate_limited"
+        elif status == 503:
+            code = "service_unavailable"
+        elif status >= 500:
+            code = "hosted_server_error"
+        else:
+            code = "hosted_request_failed"
     stripped_message = message.lstrip()
     if stripped_message.startswith("<!DOCTYPE html") or stripped_message.startswith("<html"):
         message = "Hosted ORP returned an HTML error page instead of JSON"
@@ -3820,7 +3880,17 @@ def _hosted_api_error(
             hint = " The hosted record may have changed. Re-list the resource and retry."
     elif status == 409:
         hint = " The hosted record changed since you last fetched it. Re-open it and retry the update."
-    return HostedApiError(f"{message}{suffix}.{hint}".replace("..", "."))
+    elif status == 429:
+        hint = " Hosted ORP is rate limiting this request. Retry after the server-provided delay."
+    elif status >= 500:
+        hint = " Hosted ORP is temporarily unavailable. Local ORP commands remain available."
+    return HostedApiError(
+        f"{message}{suffix}.{hint}".replace("..", "."),
+        code=code,
+        status=status,
+        path=path,
+        retryable=status in {408, 425, 429} or status >= 500,
+    )
 
 
 def _request_hosted_json(
@@ -3858,7 +3928,10 @@ def _request_hosted_json(
         ) from exc
     except urlerror.URLError as exc:
         raise HostedApiError(
-            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}"
+            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}",
+            code="hosted_network_unreachable",
+            path=path,
+            retryable=True,
         ) from exc
 
 
@@ -3907,7 +3980,10 @@ def _request_hosted_sse_event(
                     data_lines.append(line.partition(":")[2].lstrip())
                     continue
         raise HostedApiError(
-            f"Hosted runner event stream ended before delivering a terminal event (path={path})."
+            f"Hosted runner event stream ended before delivering a terminal event (path={path}).",
+            code="hosted_event_stream_incomplete",
+            path=path,
+            retryable=True,
         )
     except urlerror.HTTPError as exc:
         payload = _read_json_safe(exc.read())
@@ -3920,7 +3996,10 @@ def _request_hosted_sse_event(
         ) from exc
     except urlerror.URLError as exc:
         raise HostedApiError(
-            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}"
+            f"Could not reach hosted ORP app at {_normalize_base_url(base_url)}{path}: {exc.reason}",
+            code="hosted_network_unreachable",
+            path=path,
+            retryable=True,
         ) from exc
 
 
@@ -4573,7 +4652,10 @@ def _wait_for_runner_signal_via_sse(args: argparse.Namespace, wait_seconds: int)
     session = _load_hosted_session()
     token = str(session.get("token", "")).strip()
     if not token:
-        raise HostedApiError("Run `orp auth login` and `orp auth verify` before waiting on hosted runner events.")
+        raise HostedApiError(
+            "Run `orp auth login` and `orp auth verify` before waiting on hosted runner events.",
+            code="authentication_required",
+        )
     machine = _load_runner_machine()
     machine_id = str(machine.get("machine_id", "")).strip()
     if not machine_id:
@@ -4593,7 +4675,7 @@ def _wait_for_runner_signal_via_sse(args: argparse.Namespace, wait_seconds: int)
     payload = signal.get("data", {}) if isinstance(signal.get("data"), dict) else {}
     if event_name == "error":
         message = str(payload.get("error") or payload.get("message") or "runner event stream failed").strip()
-        raise HostedApiError(message)
+        raise HostedApiError(message, code="hosted_event_stream_error", retryable=True)
     return {
         "transport": "sse",
         "event": event_name,
@@ -31906,9 +31988,17 @@ def main() -> int:
     return args.func(args)
 
 
+def _emit_runtime_error(exc: RuntimeError, *, argv: list[str] | None = None) -> int:
+    arguments = sys.argv[1:] if argv is None else argv
+    if isinstance(exc, HostedApiError) and "--json" in arguments:
+        _print_json(exc.as_payload())
+    else:
+        print(f"error: {exc}", file=sys.stderr)
+    return 2
+
+
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except RuntimeError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(_emit_runtime_error(exc))
