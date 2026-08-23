@@ -6,6 +6,27 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.4.37 - 2026-08-23
+
+This reliability release keeps local ORP usable when hosted services are
+unavailable and hardens the local state and npm wrapper paths used by agents.
+
+### Added
+
+- Added a checked-in default hygiene policy so source, generated, canonical,
+  and scratch paths receive consistent non-destructive classification.
+- Added regression coverage for JSON output larger than 64 KiB and private
+  local configuration writes under permissive process umasks.
+
+### Changed
+
+- The npm wrapper now sets the process exit code after asynchronous output has
+  drained, preventing large workspace JSON responses from being truncated.
+- ORP user configuration JSON is now written atomically with private directory
+  and file permissions (`0700` and `0600`) independent of the caller's umask.
+- Hosted API failures now expose a stable machine-readable error envelope for
+  `--json` callers, including retryability, status, path, and a sanitized code.
+
 ## v0.4.36 - 2026-04-30
 
 ### Changed

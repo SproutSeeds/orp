@@ -6,7 +6,7 @@ import io
 import json
 import os
 import subprocess
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import unittest
 
@@ -61,6 +61,47 @@ class HostedCliShapeTests(unittest.TestCase):
         self.assertIn("path=/api/cli/secrets", message)
         self.assertIn("hosted API route may not be deployed", message)
         self.assertNotIn("<!DOCTYPE html>", message)
+
+    def test_hosted_503_json_error_is_structured_and_retryable(self) -> None:
+        module = load_cli_module()
+        error = module._hosted_api_error(
+            base_url="https://orp.earth",
+            path="/api/cli/workspaces",
+            method="GET",
+            status=503,
+            payload={"error": {"code": "database_unavailable", "message": "Service unavailable"}},
+        )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = module._emit_runtime_error(error, argv=["workspaces", "list", "--json"])
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(stderr.getvalue(), "")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["schema"], "orp.hosted_error/1")
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error"]["code"], "database_unavailable")
+        self.assertEqual(payload["error"]["status"], 503)
+        self.assertEqual(payload["error"]["path"], "/api/cli/workspaces")
+        self.assertTrue(payload["error"]["retryable"])
+        self.assertIn("Local ORP commands remain available", payload["error"]["message"])
+
+    def test_hosted_network_error_payload_omits_status_and_preserves_path(self) -> None:
+        module = load_cli_module()
+        error = module.HostedApiError(
+            "Could not reach hosted ORP",
+            code="Hosted Network Unreachable!",
+            path="/api/cli/workspaces",
+            retryable=True,
+        )
+
+        payload = error.as_payload()
+        self.assertNotIn("status", payload["error"])
+        self.assertEqual(payload["error"]["code"], "hosted_network_unreachable")
+        self.assertEqual(payload["error"]["path"], "/api/cli/workspaces")
+        self.assertTrue(payload["error"]["retryable"])
 
     def test_ideas_list_accepts_items_and_next_cursor_shape(self) -> None:
         module = load_cli_module()

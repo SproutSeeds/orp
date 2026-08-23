@@ -10,14 +10,16 @@ results. Evidence must live in your project’s **canonical artifact paths** (co
 
 ## Canonical Paths (Source of Truth)
 
-Every project must define, in concrete paths, where authoritative artifacts live. Edit this list for your repo:
+Authoritative ORP artifacts live in these concrete repository paths:
 
-- **Paper/spec (if any):** `paper/`
-- **Code:** `src/` (or `core/`, etc.)
-- **Analysis/experiments:** `analysis/`
-- **Data/artifacts:** `data/`
-- **Formal proofs (optional):** `proof/` / `lean/` / `coq/`
-- **Runbooks/logs (optional):** `runbooks/` / `logs/`
+- **Protocol and schemas:** `PROTOCOL.md`, `AGENT_INTEGRATION.md`, `spec/`
+- **CLI and packaged code:** `cli/`, `bin/`, `packages/`, `modules/`
+- **Tests and deterministic fixtures:** `tests/`
+- **Operational and release scripts:** `scripts/`, `.github/workflows/`
+- **Durable analysis and failed paths:** `analysis/`
+- **Verification records and release evidence:** `results/verification/`
+- **User and operator documentation:** `README.md`, `INSTALL.md`, `docs/`, `llms.txt`
+- **Release metadata:** `package.json`, `CHANGELOG.md`
 
 Rule: **All claims must point to canonical artifacts.** If a claim cannot be tied to a canonical artifact, it is not a claim yet.
 
