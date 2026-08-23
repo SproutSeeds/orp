@@ -54,6 +54,28 @@ Codex
 - npm SHA-1: `4e9a536ae1a6266abc8504dcd558a30cd0b052ad`.
 - SHA-256:
   `a287c8a8fb60a20f260af2f0d308f86912f8627176d148bbd5c3c4a953b9918c`.
+- Pull request 7 checks: GitGuardian PASS and Kernel Evidence PASS.
+- Merged release commit:
+  `fce795d3930cc3a96398db545dbd2e75e04cebbd`.
+- GitHub Actions publication run `32670049296`: PASS, including 240 tests,
+  package-manifest audit, and npm publish.
+- npm registry: `latest` is `0.4.38`, 204 files, npm SHA-1
+  `7ebe47ff7fb4cb3d3443551a805b7276b74b1fbc`, registry tarball SHA-256
+  `c76f665c81e5106e7a7f6ad54453b8734bf6beff4a1dfc850af9b28e78f655e1`.
+- Extracted registry and local package directories compare byte-for-byte with
+  no differences. The compressed tarball hashes differ because the local and
+  CI npm toolchains emitted different gzip bytes around identical contents.
+- Fresh registry prefix install: version `0.4.38`, two packages installed, no
+  `.pyc` or `.DS_Store` files present.
+- Fresh repository initialization: `ok: true`; configuration, agent guides,
+  hygiene policy, project context, and governance files created.
+- Fresh repository hygiene: five generated bootstrap paths classified, zero
+  unclassified paths, `safe_to_expand: true`.
+- Installed large-output check: 123,831 stdout bytes, valid JSON, 98 tabs, zero
+  stderr bytes.
+- Installed hosted check: stable `orp.hosted_error/1` response with status 500,
+  retryable true, and path `/api/cli/me`.
+- GitHub release: `https://github.com/SproutSeeds/orp/releases/tag/v0.4.38`.
 
 ## Result
 
@@ -61,9 +83,8 @@ Codex
 
 ## Notes
 
-The first npm publication attempt is a separate failed path. This record proves
-the corrected source/package candidate and credential identity; public registry
-availability requires the actual `v0.4.38` workflow and a fresh registry install.
+The first npm publication attempt remains a separate failed path. The corrected
+release is publicly available and its fresh registry install is verified.
 
 ## Default action if FAIL/INCONCLUSIVE
 
@@ -72,5 +93,6 @@ availability requires the actual `v0.4.38` workflow and a fresh registry install
 
 ## Next Hook
 
-Commit, push, pass pull-request checks, merge, rotate `NPM_TOKEN` through stdin,
-tag `v0.4.38`, and verify the published registry artifact from a fresh prefix.
+Start ORP 0.5 from merged commit
+`fce795d3930cc3a96398db545dbd2e75e04cebbd`, retaining 0.4.38 as the rollback
+and compatibility baseline.
