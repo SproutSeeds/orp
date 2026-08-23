@@ -21,8 +21,8 @@ workflow independently audits those conditions before publishing.
 - Applies to the source candidate in this branch and the tarball identified in
   the verification record below.
 - Covers package contents, tests, and workflow validation.
-- Does not claim registry availability until the `v0.4.38` workflow completes
-  and a fresh registry installation is verified.
+- Registry availability is included after successful workflow publication and
+  fresh installation of `open-research-protocol@0.4.38` from npm.
 
 ## Canonical Artifacts
 
@@ -50,6 +50,6 @@ Verified
 
 ## Next Hook
 
-Commit and push the exact candidate, merge it after required checks, rotate the
-repository npm secret from the approved Keychain credential, tag `v0.4.38`,
-then verify publication and fresh installation from npm.
+Use the verified 0.4.38 release as the stable base for ORP 0.5 local storage,
+configuration, Codex integration, browser authentication, and hosted workspace
+work.
