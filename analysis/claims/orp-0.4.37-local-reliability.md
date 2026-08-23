@@ -69,6 +69,7 @@ Verified
 
 ## Next Hook
 
-Merge and tag the exact verified commit, publish npm
-`open-research-protocol@0.4.37`, then repeat the fresh-install smoke test from
-the registry artifact.
+The `v0.4.37` tag passed code and package validation but failed before npm
+publication. Preserve that failed tag and publish the corrected package as
+`open-research-protocol@0.4.38`; see
+`analysis/FAILED_npm-publish-v0.4.37-20260823.md`.

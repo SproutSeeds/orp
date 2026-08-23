@@ -1,6 +1,6 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.37",
+  "version": "0.4.38",
   "description": "ORP CLI (Open Research Protocol): workspace ledgers, secrets, scheduling, governed execution, and agent-friendly research workflows.",
   "license": "MIT",
   "author": "Fractal Research Group <cody@frg.earth>",
@@ -32,6 +32,8 @@
     "scripts/",
     "spec/",
     "templates/",
+    "!**/__pycache__/**",
+    "!**/*.py[cod]",
     "AGENT_INTEGRATION.md",
     "CHANGELOG.md",
     "INSTALL.md",
