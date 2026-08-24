@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/local-config.schema.json",
+  "title": "ORP machine-local configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "storage", "codex", "sync"],
+  "properties": {
+    "schema": { "const": "orp.local_config/1" },
+    "schema_version": { "const": "1.0.0" },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layout", "retention"],
+      "properties": {
+        "layout": { "enum": ["legacy-v0", "xdg-v1"] },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cache_days", "backup_days", "backup_keep"],
+          "properties": {
+            "cache_days": { "type": "integer", "minimum": 0 },
+            "backup_days": { "type": "integer", "minimum": 0 },
+            "backup_keep": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "codex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context_enabled", "max_bytes", "hosted_sync"],
+      "properties": {
+        "context_enabled": { "type": "boolean", "default": false },
+        "max_bytes": { "type": "integer", "minimum": 256, "maximum": 2048, "default": 2048 },
+        "hosted_sync": { "const": false }
+      }
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "allowlist"],
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "allowlist": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "workspace.summary",
+              "workspace.current_focus",
+              "workspace.trajectory",
+              "tabs.title",
+              "tabs.remote_url",
+              "tabs.remote_branch",
+              "tabs.linked_idea_id",
+              "tabs.linked_feature_id",
+              "tabs.activity",
+              "tabs.plan_summary",
+              "tabs.tasks"
+            ]
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

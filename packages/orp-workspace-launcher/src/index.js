@@ -1,5 +1,6 @@
 export {
   applyCodexReconcilePlan,
+  buildCodexContextPacket,
   buildCodexReconcilePlan,
   buildCodexStatusReport,
   parseCodexSessionMetaLine,
@@ -45,6 +46,8 @@ export {
   buildHostedWorkspaceState,
   enrichWorkspaceManifestWithProjectContext,
   enrichWorkspaceTabsWithProjectContext,
+  HOSTED_SYNC_ALLOWLIST,
+  normalizeHostedRemoteUrl,
 } from "./hosted-state.js";
 export {
   applyWorkspaceSlotsToInventory,
@@ -98,6 +101,21 @@ export {
   setWorkspaceSlot,
   summarizeManifestForRegistry,
 } from "./registry.js";
+export {
+  atomicWriteOrpFile,
+  defaultLocalConfig,
+  getCacheHome,
+  getConfigHome as getLocalConfigHome,
+  getDataHome,
+  getLocalConfigPath,
+  getOrpStorageDir,
+  getOrpStorageRoots,
+  getStateHome,
+  getStorageLayout,
+  loadLocalConfig,
+  STORAGE_LAYOUT_LEGACY,
+  STORAGE_LAYOUT_XDG,
+} from "./storage.js";
 export {
   buildWorkspaceSyncPreview,
   extractWorkspaceNarrativeNotes,

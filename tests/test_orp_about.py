@@ -126,8 +126,15 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("kernel_propose", command_names)
         self.assertIn("kernel_migrate", command_names)
         self.assertIn("youtube_inspect", command_names)
+        self.assertIn("config_validate", command_names)
+        self.assertIn("storage_report", command_names)
+        self.assertIn("workspace_create", command_names)
+        self.assertIn("workspace_sync", command_names)
+        self.assertIn("codex_context", command_names)
         self.assertIn("auth_login", command_names)
         self.assertIn("auth_verify", command_names)
+        self.assertIn("auth_devices", command_names)
+        self.assertIn("auth_revoke_device", command_names)
         self.assertIn("auth_logout", command_names)
         self.assertIn("whoami", command_names)
         self.assertIn("mode_list", command_names)
@@ -191,6 +198,7 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("runner_retry", command_names)
         self.assertIn("checkpoint_queue", command_names)
         self.assertIn("checkpoint_create", command_names)
+        self.assertIn("checkpoint_inspect", command_names)
         self.assertIn("backup", command_names)
         self.assertIn("agent_work", command_names)
         self.assertIn("discover_profile_init", command_names)
@@ -276,9 +284,16 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("kernel_propose", json_commands)
         self.assertIn("kernel_migrate", json_commands)
         self.assertIn("youtube_inspect", json_commands)
+        self.assertIn("config_validate", json_commands)
+        self.assertIn("storage_report", json_commands)
+        self.assertIn("workspace_create", json_commands)
+        self.assertIn("workspace_sync", json_commands)
+        self.assertIn("codex_context", json_commands)
         self.assertIn("home", json_commands)
         self.assertIn("auth_login", json_commands)
         self.assertIn("auth_verify", json_commands)
+        self.assertIn("auth_devices", json_commands)
+        self.assertIn("auth_revoke_device", json_commands)
         self.assertIn("auth_logout", json_commands)
         self.assertIn("whoami", json_commands)
         self.assertIn("mode_list", json_commands)
@@ -342,6 +357,7 @@ class OrpAboutTests(unittest.TestCase):
         self.assertIn("runner_retry", json_commands)
         self.assertIn("checkpoint_queue", json_commands)
         self.assertIn("checkpoint_create", json_commands)
+        self.assertIn("checkpoint_inspect", json_commands)
         self.assertIn("backup", json_commands)
         self.assertIn("agent_work", json_commands)
         self.assertIn("discover_profile_init", json_commands)
@@ -457,7 +473,7 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("orp secrets keychain-add --alias <alias> --provider <provider> --value-stdin --json", commands)
             self.assertIn("orp secrets keychain-list --json", commands)
             self.assertIn("orp secrets sync-keychain <alias-or-id> --json", commands)
-            self.assertIn("orp secrets resolve --provider openai --reveal --local-first --json", commands)
+            self.assertIn("orp secrets resolve --provider openai --reveal --json", commands)
             self.assertIn("orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json", commands)
             self.assertIn("orp ideas list --json", commands)
             self.assertIn("orp link status --json", commands)
@@ -551,7 +567,7 @@ class OrpAboutTests(unittest.TestCase):
             self.assertIn("orp opportunities list", proc.stdout)
             self.assertIn("Quick Actions", proc.stdout)
 
-    def test_secrets_help_teaches_interactive_and_stdin_flows(self) -> None:
+    def test_secrets_help_teaches_local_keychain_and_stdin_flows(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(CLI), "secrets", "-h"],
             capture_output=True,
@@ -559,12 +575,25 @@ class OrpAboutTests(unittest.TestCase):
             cwd=str(REPO_ROOT),
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
-        self.assertIn("saved credentials and related login metadata", proc.stdout)
+        self.assertIn("ORP secrets are machine-local", proc.stdout)
         self.assertIn("Run `orp secrets add ...`", proc.stdout)
         self.assertIn("--username", proc.stdout)
         self.assertIn("--value-stdin", proc.stdout)
+        self.assertIn("never sends it to orp.earth", proc.stdout)
+        self.assertIn("require macOS", proc.stdout)
         self.assertIn('orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai', proc.stdout)
-        self.assertIn("orp secrets keychain-add --alias openai-primary", proc.stdout)
+        self.assertNotIn("--local-first", proc.stdout)
+
+        add_help = subprocess.run(
+            [sys.executable, str(CLI), "secrets", "add", "-h"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(add_help.returncode, 0, msg=add_help.stderr + "\n" + add_help.stdout)
+        self.assertIn("--value-stdin", add_help.stdout)
+        self.assertNotIn("--value VALUE", add_help.stdout)
+        self.assertNotIn("--base-url", add_help.stdout)
 
     def test_gate_run_json_is_machine_readable(self) -> None:
         with tempfile.TemporaryDirectory() as td:

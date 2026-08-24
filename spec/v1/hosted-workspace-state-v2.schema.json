@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/hosted-workspace-state-v2.schema.json",
+  "title": "ORP hosted workspace state v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "state_version",
+    "snapshot_id",
+    "captured_at_utc",
+    "updated_at_utc",
+    "tab_count",
+    "sync_policy",
+    "tabs"
+  ],
+  "properties": {
+    "contract_version": { "const": "2.0.0" },
+    "state_version": { "type": "integer", "minimum": 1 },
+    "snapshot_id": { "type": "string", "pattern": "^snapshot-[a-f0-9]{16}$" },
+    "captured_at_utc": { "type": "string", "format": "date-time" },
+    "updated_at_utc": { "type": "string", "format": "date-time" },
+    "tab_count": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string", "maxLength": 500 },
+    "current_focus": { "type": "string", "maxLength": 500 },
+    "trajectory": { "type": "string", "maxLength": 500 },
+    "sync_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "allowlist", "always_excluded"],
+      "properties": {
+        "mode": { "const": "explicit_allowlist" },
+        "allowlist": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "always_excluded": {
+          "type": "array",
+          "uniqueItems": true,
+          "prefixItems": [
+            { "const": "absolute_paths" },
+            { "const": "source_files" },
+            { "const": "transcripts" },
+            { "const": "secret_values" },
+            { "const": "resume_commands" },
+            { "const": "resume_ids" },
+            { "const": "codex_state" },
+            { "const": "machine_ids" },
+            { "const": "hostnames" }
+          ],
+          "items": false,
+          "minItems": 9,
+          "maxItems": 9
+        }
+      }
+    },
+    "tabs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tab_id", "order_index", "status"],
+        "properties": {
+          "tab_id": { "type": "string", "pattern": "^tab-[a-f0-9]{16}$" },
+          "order_index": { "type": "integer", "minimum": 0 },
+          "status": { "const": "active" },
+          "title": { "type": "string", "maxLength": 200 },
+          "remote_url": { "type": "string", "maxLength": 500 },
+          "remote_branch": { "type": "string", "maxLength": 200 },
+          "linked_idea_id": { "type": "string", "maxLength": 200 },
+          "linked_feature_id": { "type": "string", "maxLength": 200 },
+          "last_activity_at_utc": { "type": "string", "format": "date-time" },
+          "last_synced_at_utc": { "type": "string", "format": "date-time" },
+          "plan_summary": { "type": "string", "maxLength": 500 },
+          "tasks": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id"],
+              "properties": {
+                "id": { "type": "string", "maxLength": 100 },
+                "title": { "type": "string", "maxLength": 300 },
+                "status": { "type": "string", "maxLength": 40 },
+                "completed": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

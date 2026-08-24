@@ -1,107 +1,128 @@
-# Launch Kit
+# Launch kit
 
 ## Positioning
 
 Short version:
-- ORP is an agent-first CLI for research workflows, workspace ledgers, secrets, scheduling, and governed execution.
+
+ORP is a local-first CLI for workspace recovery, project context, secrets,
+checkpoints, and research workflows.
 
 Medium version:
-- ORP is a unified CLI surface for turning a project directory into a reusable agent-friendly operating environment: hosted auth, local governance, saved workspaces, scheduled Codex jobs, secrets, packets, reports, and more.
+
+ORP gives people and coding agents one local operating layer for understanding
+a repo, recovering a workspace, finding the right credential, checking storage,
+and creating an intentional checkpoint. orp.earth adds an optional,
+metadata-only workspace view.
 
 Long version:
-- ORP is meant to feel like one tool that helps operators and agents move from "what am I working on?" to "recover the workspace ledger, resolve the right key, run the next loop, checkpoint the state, and keep the workflow honest." It supports both hosted control-plane flows and local-first repo governance without forcing the user to stitch together a pile of unrelated scripts.
 
-Demo/marketing rule:
-- Public demos and launch materials should use the same human-facing command output ORP actually prints. Do not paraphrase command results into friendlier invented summaries.
+ORP starts with a practical question: what does an agent need to understand this
+project and continue safely? It keeps the answer in local workspace,
+configuration, storage, and governance surfaces. It can give Codex a small
+prompt-preserving context packet when you ask for one, while Codex keeps
+ownership of its threads, goals, memory, permissions, and execution. Hosted
+sync is a separate reviewed step with an explicit field allowlist.
 
-## Launch Copy
+Public demos and launch materials should show the command output ORP actually
+prints.
+
+## Launch copy
 
 ### One-liner
-- Agent-first CLI for research workflows, saved workspaces, secrets, and governed execution.
+
+Local-first project context, workspace recovery, secrets, and checkpoints for
+people and coding agents.
 
 ### Short post
-- I just shipped `open-research-protocol`, an agent-first CLI for research workflows, saved workspaces, secrets, scheduled Codex jobs, and governed project execution. It is designed to make the local desk and the hosted control plane feel like one surface. Install with `npm install -g open-research-protocol`. GitHub: https://github.com/SproutSeeds/orp
+
+I just shipped ORP 0.5. It is a local-first CLI for project context, workspace
+recovery, secrets, checkpoints, and research workflows. It works offline,
+keeps credentials in the macOS Keychain, and only sends workspace metadata to
+orp.earth when you preview and confirm an allowlisted projection. Install it
+with `npm install -g open-research-protocol`.
 
 ### Longer post
-- I just shipped `open-research-protocol`, a unified CLI for agent-first research and research-like engineering. ORP can keep a hosted workspace ledger synced, manage a hosted secret inventory with optional local Keychain sync, schedule recurring Codex jobs, and still expose the local governance loop for checkpoints, packets, reports, and readiness. The goal is not just "more commands"; it is one coherent operator surface that agents can discover and use without losing track of boundaries.
 
-## Demo Flow
+I just shipped ORP 0.5. The main change is that the local machine is clearly in
+charge now. Workspaces, configuration, storage review, checkpoints, and secret
+lookup all work without an account. The Codex adapter is optional, read-only,
+offline, and capped at 2 KiB. It preserves your prompt and stays out of Codex
+threads, goals, memory, permissions, and execution.
 
-Primary demo flow:
+orp.earth is still useful when you want the same workspace metadata visible
+across machines. That sync starts as a dry run, defaults to an empty allowlist,
+and needs the exact snapshot ID before it writes. Paths, source files,
+transcripts, prompts, secret values, resume IDs, and Codex state stay local.
 
-```bash
+## Demo flow
+
+Primary local demo:
+
+```sh
 npm install -g open-research-protocol
 orp home
-orp workspaces list
-orp auth login
-orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai
+orp init
+orp config validate --json
+orp storage report --json
+orp workspace create main
+orp workspace add-tab main --here --title "current project"
 orp workspace tabs main
-orp schedule add codex --name morning-summary --prompt "Summarize this repo"
-orp checkpoint create -m "capture loop state"
-orp frontier state
-orp exchange repo synthesize /path/to/source
-orp mode nudge sleek-minimal-progressive
+orp codex context --allow-once --prompt "my exact prompt"
+orp checkpoint inspect --json
 ```
 
-Focused workspace demo:
+Focused secrets demo on macOS:
 
-```bash
-orp workspace list
-orp workspace tabs main
-orp workspace tabs main
-orp workspace add-tab main --path /absolute/path/to/project --resume-command "codex resume <id>"
-orp workspace sync main
-```
-
-Focused secrets demo:
-
-```bash
-orp auth login
+```sh
 orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai
 orp secrets list --json
-orp secrets sync-keychain openai-primary --json
-orp secrets resolve openai-primary --reveal --local-first --json
+orp secrets show openai-primary --json
 ```
 
-## What To Emphasize
+Focused hosted demo:
 
-- One CLI surface instead of a scattered bag of scripts.
-- Strong workspace recovery with `workspace tabs main`.
-- Interactive secret save for humans, stdin-based save for agents, plus optional local Keychain sync.
-- Scheduled Codex work without making the operator wire raw cron jobs.
-- Agent-readable discovery surfaces like `orp home --json` and `orp about --json`.
+```sh
+orp auth login
+orp whoami --json
+orp workspace sync main --allow tabs.title --json
+orp workspace sync main --allow tabs.title --apply --confirm <snapshot_id> --json
+```
 
-## GitHub Presentation Notes
+## What to emphasize
+
+- Local work remains useful without an account.
+- `workspace tabs main` is the recovery surface.
+- Secret values live in the native macOS Keychain and stay out of hosted sync.
+- The Codex adapter adds bounded repository context without owning Codex.
+- Hosted projection is field-allowlisted, previewed, and exactly confirmed.
+- `orp home --json` and `orp about --json` give agents structured discovery.
+
+## GitHub presentation notes
 
 Recommended repo tagline:
-- Agent-first CLI for research workflows, saved workspaces, secrets, and governed execution.
+
+Local-first project context, workspace recovery, secrets, and checkpoints for
+people and coding agents.
 
 Recommended demo assets:
+
 - animated terminal demo: `assets/terminal-demo.gif`
 - poster frame: `assets/terminal-demo-poster.png`
 - storyboard grid: `assets/terminal-demo-storyboard.png`
-- per-scene posters:
-  - `assets/terminal-scene-01-home.png`
-  - `assets/terminal-scene-02-hosted.png`
-  - `assets/terminal-scene-03-secrets.png`
-  - `assets/terminal-scene-04-workspace.png`
-  - `assets/terminal-scene-05-schedule.png`
-  - `assets/terminal-scene-06-governance.png`
-  - `assets/terminal-scene-07-planning.png`
-  - `assets/terminal-scene-08-synthesis.png`
-  - `assets/terminal-scene-09-mode.png`
+- per-scene posters under `assets/terminal-scene-*.png`
 
-## npm Presentation Notes
+## npm presentation notes
 
 - Keep the README lead readable.
 - Show the terminal demo GIF near the top.
-- Use the demo flow to make the command families concrete quickly.
-- Prefer the workspace + secrets story over listing every possible ORP surface at once.
+- Lead with local setup, storage visibility, workspace recovery, and the bounded
+  Codex adapter.
+- Introduce hosted sync as an optional reviewed projection.
 
-## Maintainer Notes
+## Maintainer notes
 
-Regenerate the terminal demo assets with:
+Regenerate terminal demo assets with:
 
-```bash
+```sh
 npm run render:terminal-demo
 ```

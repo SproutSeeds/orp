@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/storage-report.schema.json",
+  "title": "ORP local storage report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "layout",
+    "config_path",
+    "roots",
+    "totals",
+    "legacy",
+    "codex_storage_scanned",
+    "repository_storage_scanned"
+  ],
+  "properties": {
+    "schema": { "const": "orp.storage_report/1" },
+    "schema_version": { "const": "1.0.0" },
+    "layout": { "enum": ["legacy-v0", "xdg-v1"] },
+    "config_path": { "type": "string" },
+    "roots": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["category", "path", "exists", "file_count", "bytes"],
+        "properties": {
+          "category": { "enum": ["config", "data", "state", "cache"] },
+          "path": { "type": "string" },
+          "exists": { "type": "boolean" },
+          "file_count": { "type": "integer", "minimum": 0 },
+          "bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_count", "bytes"],
+      "properties": {
+        "file_count": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "legacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "material_present", "unclassified"],
+      "properties": {
+        "path": { "type": "string" },
+        "material_present": { "type": "boolean" },
+        "unclassified": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "codex_storage_scanned": { "const": false },
+    "repository_storage_scanned": { "const": false }
+  }
+}

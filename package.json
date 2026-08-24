@@ -1,6 +1,6 @@
 {
   "name": "open-research-protocol",
-  "version": "0.4.38",
+  "version": "0.5.0-rc.1",
   "description": "ORP CLI (Open Research Protocol): workspace ledgers, secrets, scheduling, governed execution, and agent-friendly research workflows.",
   "license": "MIT",
   "author": "Fractal Research Group <cody@frg.earth>",

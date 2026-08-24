@@ -26,7 +26,7 @@ class NpmBinWrapperTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
         self.assertIn("ORP CLI", proc.stdout)
         self.assertIn(
-            "{home,about,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,research,collaborate,project,init,hygiene,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
+            "{home,about,config,storage,mode,update,maintenance,schedule,agenda,agents,opportunities,connections,auth,whoami,ideas,workspaces,idea,feature,world,youtube,secrets,link,runner,checkpoint,agent,discover,exchange,research,collaborate,project,init,hygiene,status,branch,backup,ready,doctor,cleanup,frontier,kernel,gate,packet,erdos,pack,report}",
             proc.stdout,
         )
         self.assertIn("orp compute -h", proc.stdout)
@@ -117,9 +117,9 @@ class NpmBinWrapperTests(unittest.TestCase):
             cwd=str(REPO_ROOT),
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
-        self.assertIn("ORP Codex session tracking", proc.stdout)
-        self.assertIn("orp codex status", proc.stdout)
-        self.assertIn("orp codex reconcile", proc.stdout)
+        self.assertIn("ORP Codex adapter", proc.stdout)
+        self.assertIn("orp codex context --allow-once", proc.stdout)
+        self.assertIn("--legacy-session-access", proc.stdout)
 
     def test_node_wrapper_routes_workspace_hygiene_alias(self) -> None:
         if shutil.which("node") is None:

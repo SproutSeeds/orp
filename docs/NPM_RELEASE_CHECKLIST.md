@@ -52,6 +52,8 @@ Use this checklist to publish professional, versioned ORP CLI releases.
 7. Watch workflow:
    - `.github/workflows/npm-publish.yml`
    - tag push is the normal publish trigger
+   - semantic prereleases such as `0.5.0-rc.1` publish to npm `next`; stable
+     versions publish to `latest`
 8. Verify npm install after publish:
    - `npm i -g open-research-protocol`
    - `orp -h`
@@ -78,7 +80,8 @@ If automation is temporarily unavailable:
 1. Checkout intended commit locally.
 2. Run release validations above, including `npm publish --dry-run`.
 3. Publish:
-   - `npm publish --access public`
+   - prerelease: `npm publish --access public --tag next`
+   - stable: `npm publish --access public --tag latest`
 4. Create and push the matching tag:
    - `git tag vX.Y.Z`
    - `git push origin vX.Y.Z`

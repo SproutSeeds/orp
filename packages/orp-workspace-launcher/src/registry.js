@@ -1,10 +1,14 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { createHash } from "node:crypto";
 
 import { normalizeWorkspaceManifest } from "./core-plan.js";
+import {
+  atomicWriteOrpFile,
+  getConfigHome as resolveConfigHome,
+  getOrpStorageDir,
+} from "./storage.js";
 
 const WORKSPACE_REGISTRY_VERSION = "1";
 const WORKSPACE_SLOTS_VERSION = "1";
@@ -251,15 +255,11 @@ function sortRegistryEntries(entries) {
 }
 
 export function getConfigHome(env = process.env) {
-  const xdgConfigHome = normalizeOptionalString(env?.XDG_CONFIG_HOME);
-  if (xdgConfigHome) {
-    return path.resolve(xdgConfigHome);
-  }
-  return path.join(os.homedir(), ".config");
+  return resolveConfigHome(env);
 }
 
 export function getOrpUserDir(env = process.env) {
-  return path.join(getConfigHome(env), "orp");
+  return getOrpStorageDir("data", env);
 }
 
 export function getWorkspaceRegistryPath(options = {}) {
@@ -407,14 +407,16 @@ export async function loadWorkspaceRegistry(options = {}) {
   }
 }
 
-async function saveWorkspaceRegistry(registryPath, registry) {
-  await fs.mkdir(path.dirname(registryPath), { recursive: true });
-  await fs.writeFile(`${registryPath}`, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+async function saveWorkspaceRegistry(registryPath, registry, options = {}) {
+  await atomicWriteOrpFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, {
+    env: options.env,
+  });
 }
 
-async function saveWorkspaceSlots(slotsPath, payload) {
-  await fs.mkdir(path.dirname(slotsPath), { recursive: true });
-  await fs.writeFile(`${slotsPath}`, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+async function saveWorkspaceSlots(slotsPath, payload, options = {}) {
+  await atomicWriteOrpFile(slotsPath, `${JSON.stringify(payload, null, 2)}\n`, {
+    env: options.env,
+  });
 }
 
 export async function loadWorkspaceSlots(options = {}) {
@@ -466,7 +468,7 @@ export async function setWorkspaceSlot(slotName, assignment, options = {}) {
   await saveWorkspaceSlots(slotsPath, {
     version: WORKSPACE_SLOTS_VERSION,
     slots: nextSlots,
-  });
+  }, options);
 
   return {
     slotsPath,
@@ -493,7 +495,7 @@ export async function clearWorkspaceSlot(slotName, options = {}) {
   await saveWorkspaceSlots(slotsPath, {
     version: WORKSPACE_SLOTS_VERSION,
     slots: nextSlots,
-  });
+  }, options);
   return {
     slotsPath,
     cleared: true,
@@ -519,7 +521,7 @@ export async function registerWorkspaceManifest(manifestPath, manifest, options 
     ]),
   };
 
-  await saveWorkspaceRegistry(registryPath, nextRegistry);
+  await saveWorkspaceRegistry(registryPath, nextRegistry, options);
 
   return {
     registryPath,
@@ -530,8 +532,9 @@ export async function registerWorkspaceManifest(manifestPath, manifest, options 
 export async function cacheManagedWorkspaceManifest(manifest, options = {}) {
   const resolvedManifest = normalizeWorkspaceManifest(manifest);
   const manifestPath = getManagedWorkspaceManifestPath(resolvedManifest, options);
-  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
-  await fs.writeFile(`${manifestPath}`, serializeManagedWorkspaceManifest(resolvedManifest), "utf8");
+  await atomicWriteOrpFile(manifestPath, serializeManagedWorkspaceManifest(resolvedManifest), {
+    env: options.env,
+  });
   const registration = await registerWorkspaceManifest(manifestPath, resolvedManifest, options);
   return {
     manifestPath,

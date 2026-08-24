@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v1/codex-context.schema.json",
+  "title": "ORP bounded Codex context packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schema_version", "prompt", "context", "provenance", "boundaries"],
+  "properties": {
+    "schema": { "const": "orp.codex_context/1" },
+    "schema_version": { "const": "1.0.0" },
+    "prompt": { "type": "string" },
+    "context": { "type": "object" },
+    "provenance": { "type": "array", "items": { "type": "object" } },
+    "boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only",
+        "offline",
+        "prompt_transform",
+        "codex_storage_access",
+        "transcript_access",
+        "memory_access",
+        "goal_access",
+        "hosted_sync",
+        "absolute_paths_emitted",
+        "resume_ids_emitted"
+      ],
+      "properties": {
+        "read_only": { "const": true },
+        "offline": { "const": true },
+        "prompt_transform": { "const": "none" },
+        "codex_storage_access": { "const": false },
+        "transcript_access": { "const": false },
+        "memory_access": { "const": false },
+        "goal_access": { "const": false },
+        "hosted_sync": { "const": false },
+        "absolute_paths_emitted": { "const": false },
+        "resume_ids_emitted": { "const": false }
+      }
+    }
+  }
+}

@@ -55,9 +55,12 @@ jobs:
           echo "package_name=$PKG_NAME" >> "$GITHUB_OUTPUT"
           echo "package_version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
           echo "expected_version=$EXPECTED_VERSION" >> "$GITHUB_OUTPUT"
+          DIST_TAG="$(node scripts/npm-release-tag.js "$PKG_VERSION")"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
           echo "package_name=$PKG_NAME"
           echo "package_version=$PKG_VERSION"
           echo "expected_version=$EXPECTED_VERSION"
+          echo "dist_tag=$DIST_TAG"
           if [ "$PKG_VERSION" != "$EXPECTED_VERSION" ]; then
             echo "error: package.json version does not match requested release version." >&2
             exit 1
@@ -108,6 +111,6 @@ jobs:
 
       - name: Publish package
         if: steps.npm_lookup.outputs.already_published != 'true'
-        run: npm publish --access public
+        run: npm publish --access public --tag "${{ steps.release_meta.outputs.dist_tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

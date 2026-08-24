@@ -69,14 +69,19 @@ List saved workspaces:
 
 ```bash
 orp workspace list
+orp workspace list --hosted
 orp workspace slot list
 orp workspace slot set main main-cody-1
 orp workspace slot set offhand research-lab
 ```
 
+The first command reads only the local ledger. `--hosted` requests and merges
+orp.earth data; `sync.enabled=true` in local ORP config also enables that read.
+
 ## Options
 
 - `--json`: print agent-friendly JSON
+- `--hosted`: request and merge hosted workspaces during `workspace list`
 - `--notes-file <path>`: read a local notes file instead of ORP
 - `--hosted-workspace-id <id>`: read or update a first-class hosted workspace instead of an idea-backed bridge
 - `--workspace-file <path>`: read or update a structured workspace manifest JSON file

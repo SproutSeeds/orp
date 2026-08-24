@@ -434,7 +434,7 @@ export function enrichWorkspaceManifestWithProjectContext(manifest) {
   };
 }
 
-export function buildHostedWorkspaceState(manifest, options = {}) {
+function buildLegacyHostedWorkspaceState(manifest, options = {}) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     throw new Error("workspace manifest is required to build a hosted workspace state payload");
   }
@@ -593,5 +593,233 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
       projects,
       tabs,
     }).filter(([, value]) => value !== undefined && value !== null),
+  );
+}
+
+export const HOSTED_SYNC_ALLOWLIST = new Set([
+  "workspace.summary",
+  "workspace.current_focus",
+  "workspace.trajectory",
+  "tabs.title",
+  "tabs.remote_url",
+  "tabs.remote_branch",
+  "tabs.linked_idea_id",
+  "tabs.linked_feature_id",
+  "tabs.activity",
+  "tabs.plan_summary",
+  "tabs.tasks",
+]);
+
+function normalizeHostedSyncAllowlist(value) {
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  const normalized = [...new Set(values.map((item) => normalizeOptionalString(item)).filter(Boolean))].sort();
+  const invalid = normalized.filter((item) => !HOSTED_SYNC_ALLOWLIST.has(item));
+  if (invalid.length > 0) {
+    throw new Error(`unsupported hosted sync allowlist field: ${invalid.join(", ")}`);
+  }
+  return normalized;
+}
+
+function boundedText(value, maxLength = 500) {
+  const normalized = normalizeOptionalString(value);
+  return normalized ? normalized.slice(0, maxLength) : null;
+}
+
+const HOSTED_TEXT_RULES = [
+  {
+    label: "an absolute path",
+    pattern: /(?:file:\/\/\/|(?:^|[\s"'`()={\[])(?:\/(?!\/)(?:[^/\s"'`<>]+\/)+[^/\s"'`<>]*|\/(?:Users|Volumes|home|tmp|private|var|etc|usr|opt|root)(?:\/|\b)|[A-Za-z]:[\\/][^\s"'`<>]*|\\\\[^\\\s"'`<>]+\\[^\\\s"'`<>]+))/i,
+  },
+  {
+    label: "a secret value",
+    pattern: /(?:-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|orp_(?:rt|dc)_[A-Za-z0-9_-]{12,})\b|\bBearer\s+[A-Za-z0-9._~+/=-]{12,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b|\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret)\s*[:=]\s*(?!\[?(?:redacted|hidden|omitted)\]?\b|none\b|null\b|unset\b|example\b)[^\s"'`<>]{4,}|\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^@\s/]+@)/i,
+  },
+  {
+    label: "transcript content",
+    pattern: /(?:\b(?:full\s+)?transcript\s*:|(?:^|\n)\s*(?:user|human)\s*:[\s\S]*\n\s*(?:assistant|ai)\s*:|<\s*(?:user|assistant)\s*>|\{\s*["']role["']\s*:\s*["'](?:user|assistant)["'])/i,
+  },
+  {
+    label: "a resume command or session identifier",
+    pattern: /(?:\b(?:codex|claude)\s+(?:exec\s+)?resume(?:\s|$)|\b(?:resume|session|thread|codex[_ -]?session|claude[_ -]?session)[_-]?id\s*[:=]\s*[A-Za-z0-9_-]{8,})/i,
+  },
+  {
+    label: "a machine identifier or hostname",
+    pattern: /\b(?:machine[_ -]?id|host[_ -]?name|hostname)\s*[:=]\s*[^\s"'`<>]+/i,
+  },
+];
+
+function assertHostedMetadataText(value, fieldPath = "metadata") {
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(value)) {
+    throw new Error(`hosted workspace metadata contains control characters at ${fieldPath}`);
+  }
+  for (const rule of HOSTED_TEXT_RULES) {
+    if (rule.pattern.test(value)) {
+      throw new Error(`hosted workspace metadata contains ${rule.label} at ${fieldPath}`);
+    }
+  }
+  return value;
+}
+
+export function normalizeHostedRemoteUrl(value) {
+  const normalized = boundedText(value, 500);
+  if (!normalized) {
+    return null;
+  }
+  if (/^git@[A-Za-z0-9.-]+:[A-Za-z0-9._/-]+$/.test(normalized)) {
+    return normalized;
+  }
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error("hosted remote URL must be a public repository URL");
+  }
+  if (!new Set(["http:", "https:", "ssh:", "git:"]).has(parsed.protocol)) {
+    throw new Error("hosted remote URL uses an unsupported protocol");
+  }
+  if (parsed.password || parsed.search || parsed.hash || (parsed.username && !(parsed.protocol === "ssh:" && parsed.username === "git"))) {
+    throw new Error("hosted remote URL must not contain credentials, query parameters, or fragments");
+  }
+  if (!parsed.hostname || !parsed.pathname || parsed.pathname === "/") {
+    throw new Error("hosted remote URL must identify a repository");
+  }
+  return normalized;
+}
+
+function safeTaskRows(tasks) {
+  if (!Array.isArray(tasks)) {
+    return [];
+  }
+  return tasks.slice(0, 50).map((task, index) =>
+    Object.fromEntries(
+      Object.entries({
+        id: boundedText(task?.id, 100) || `task-${index + 1}`,
+        title: boundedText(task?.title ?? task?.summary, 300) || undefined,
+        status: boundedText(task?.status, 40) || undefined,
+        completed: typeof task?.completed === "boolean" ? task.completed : undefined,
+      }).filter(([, value]) => value !== undefined && value !== null),
+    ),
+  );
+}
+
+function previousWorkspaceState(previousWorkspace) {
+  return getHostedObjectValue(previousWorkspace, "state") || {};
+}
+
+function assertSafeHostedWorkspaceState(state) {
+  const forbiddenKey = /(^|_)(path|project_root|resume|session|codex|claude|transcript|prompt|secret|token|password|source_files?|machine|hostname|host_name)(_|$)/i;
+  const visit = (value, keyPath = []) => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, [...keyPath, String(index)]));
+      return;
+    }
+    if (!value || typeof value !== "object") {
+      if (typeof value === "string") {
+        assertHostedMetadataText(value, keyPath.join(".") || "root");
+      }
+      return;
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      if (forbiddenKey.test(key)) {
+        throw new Error(`hosted workspace state contains forbidden field ${[...keyPath, key].join(".")}`);
+      }
+      visit(nested, [...keyPath, key]);
+    }
+  };
+  visit(state);
+  return state;
+}
+
+export function buildHostedWorkspaceState(manifest, options = {}) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new Error("workspace manifest is required to build a hosted workspace state payload");
+  }
+  if (!Array.isArray(manifest.tabs) || manifest.tabs.length === 0) {
+    throw new Error("workspace manifest must include at least one saved tab");
+  }
+
+  const allowlist = normalizeHostedSyncAllowlist(options.syncAllowlist ?? options.allowlist);
+  const allowed = new Set(allowlist);
+  const previousState = previousWorkspaceState(options.previousWorkspace);
+  const capturedAt = normalizeOptionalString(options.capturedAt) || new Date().toISOString();
+  const updatedAt = normalizeOptionalString(options.updatedAt) || capturedAt;
+  const workspaceId = normalizeOptionalString(manifest.workspaceId) || "workspace";
+  const stateVersion = Math.max(1, (getHostedIntegerValue(previousState, "state_version", "stateVersion") || 0) + 1);
+
+  const tabs = manifest.tabs.map((tab, index) => {
+    const row = {
+      tab_id: `tab-${hashText(JSON.stringify({ workspaceId, index })).slice(0, 16)}`,
+      order_index: index,
+      status: "active",
+    };
+    if (allowed.has("tabs.title")) {
+      row.title = boundedText(tab.title, 200) || undefined;
+    }
+    if (allowed.has("tabs.remote_url")) {
+      row.remote_url = normalizeHostedRemoteUrl(tab.remoteUrl) || undefined;
+    }
+    if (allowed.has("tabs.remote_branch")) {
+      row.remote_branch = boundedText(tab.remoteBranch, 200) || undefined;
+    }
+    if (allowed.has("tabs.linked_idea_id")) {
+      row.linked_idea_id = boundedText(tab.linkedIdeaId ?? tab.linked_idea_id, 200) || undefined;
+    }
+    if (allowed.has("tabs.linked_feature_id")) {
+      row.linked_feature_id = boundedText(tab.linkedFeatureId ?? tab.linked_feature_id, 200) || undefined;
+    }
+    if (allowed.has("tabs.activity")) {
+      row.last_activity_at_utc = boundedText(tab.lastActivityAt ?? tab.last_activity_at_utc, 50) || undefined;
+      row.last_synced_at_utc = boundedText(tab.lastSyncedAt ?? tab.last_synced_at_utc, 50) || updatedAt;
+    }
+    if (allowed.has("tabs.plan_summary")) {
+      row.plan_summary = boundedText(tab.plan?.summary, 500) || undefined;
+    }
+    if (allowed.has("tabs.tasks")) {
+      const tasks = safeTaskRows(tab.tasks);
+      row.tasks = tasks.length > 0 ? tasks : undefined;
+    }
+    return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined && value !== null));
+  });
+
+  const state = {
+    contract_version: "2.0.0",
+    state_version: stateVersion,
+    snapshot_id: `snapshot-${hashText(JSON.stringify({ workspaceId, stateVersion, allowlist, tabs })).slice(0, 16)}`,
+    captured_at_utc: capturedAt,
+    updated_at_utc: updatedAt,
+    tab_count: tabs.length,
+    sync_policy: {
+      mode: "explicit_allowlist",
+      allowlist,
+      always_excluded: [
+        "absolute_paths",
+        "source_files",
+        "transcripts",
+        "secret_values",
+        "resume_commands",
+        "resume_ids",
+        "codex_state",
+        "machine_ids",
+        "hostnames",
+      ],
+    },
+    tabs,
+  };
+  if (allowed.has("workspace.summary")) {
+    state.summary = boundedText(options.summary ?? previousState.summary, 500) || undefined;
+  }
+  if (allowed.has("workspace.current_focus")) {
+    state.current_focus = boundedText(options.currentFocus ?? previousState.current_focus, 500) || undefined;
+  }
+  if (allowed.has("workspace.trajectory")) {
+    state.trajectory = boundedText(options.trajectory ?? previousState.trajectory, 500) || undefined;
+  }
+
+  return assertSafeHostedWorkspaceState(
+    Object.fromEntries(Object.entries(state).filter(([, value]) => value !== undefined && value !== null)),
   );
 }

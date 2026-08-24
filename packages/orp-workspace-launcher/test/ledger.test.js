@@ -440,7 +440,7 @@ test("runWorkspaceAddTab updates a local workspace manifest file", async () => {
   });
 });
 
-test("runWorkspaceAddTab promotes idea-bridge workspaces to hosted workspace state", async () => {
+test("runWorkspaceAddTab keeps idea-bridge edits local until explicit sync", async () => {
   await withTempConfigHome(async (configHome) => {
     const tempDir = await makeTempDir();
     const { scriptPath, logPath } = await makeFakeIdeaBridgeOrpCommand(tempDir);
@@ -475,18 +475,18 @@ test("runWorkspaceAddTab promotes idea-bridge workspaces to hosted workspace sta
       const slots = JSON.parse(await fs.readFile(path.join(configHome, "orp", "workspace-slots.json"), "utf8"));
 
       assert.equal(code, 0);
-      assert.equal(payload.persistedTo, "hosted-workspace");
+      assert.equal(payload.persistedTo, "workspace-file");
       assert.equal(payload.promotedFromIdeaId, "idea-main-123");
-      assert.equal(payload.createdHostedWorkspace, true);
-      assert.equal(payload.workspaceSourceId, "ws-main-cody-1");
+      assert.equal(payload.createdHostedWorkspace, false);
+      assert.equal(payload.hostedSyncRequired, true);
       assert.equal(payload.tabCount, 3);
       assert.equal(payload.tab.restartCommand, "cd '/Volumes/Code_2TB/code/anthropic-lab' && codex resume 019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
       assert.equal(payload.manifest.tabs[2]?.path, "/Volumes/Code_2TB/code/anthropic-lab");
-      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "add"));
-      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "push-state"));
+      assert.equal(calls.some((args) => args[0] === "workspaces" && args[1] === "add"), false);
+      assert.equal(calls.some((args) => args[0] === "workspaces" && args[1] === "push-state"), false);
       assert.equal(calls.some((args) => args[0] === "idea" && args[1] === "update"), false);
-      assert.equal(slots.slots.main.kind, "hosted-workspace");
-      assert.equal(slots.slots.main.hostedWorkspaceId, "ws-main-cody-1");
+      assert.equal(slots.slots.main.kind, "workspace-file");
+      assert.equal(slots.slots.main.manifestPath, payload.manifestPath);
     } finally {
       if (originalLogPath == null) {
         delete process.env.FAKE_ORP_LOG;
@@ -497,7 +497,7 @@ test("runWorkspaceAddTab promotes idea-bridge workspaces to hosted workspace sta
   });
 });
 
-test("runWorkspaceAddTab falls back to local ledger when hosted workspace creation is unavailable", async () => {
+test("runWorkspaceAddTab never attempts hosted creation during local editing", async () => {
   await withTempConfigHome(async (configHome) => {
     const tempDir = await makeTempDir();
     const { scriptPath, logPath } = await makeFakeIdeaBridgeOrpCommand(tempDir, { failCreate: true });
@@ -535,10 +535,11 @@ test("runWorkspaceAddTab falls back to local ledger when hosted workspace creati
       assert.equal(code, 0);
       assert.equal(payload.persistedTo, "workspace-file");
       assert.equal(payload.promotedFromIdeaId, "idea-main-123");
-      assert.match(payload.hostedMigrationSkippedReason, /status=404/);
+      assert.match(payload.hostedMigrationSkippedReason, /explicit `orp workspace sync`/);
+      assert.equal(payload.hostedSyncRequired, true);
       assert.equal(payload.tabCount, 3);
       assert.equal(saved.tabs[2]?.path, "/Volumes/Code_2TB/code/anthropic-lab");
-      assert.ok(calls.some((args) => args[0] === "workspaces" && args[1] === "add"));
+      assert.equal(calls.some((args) => args[0] === "workspaces" && args[1] === "add"), false);
       assert.equal(calls.some((args) => args[0] === "idea" && args[1] === "update"), false);
       assert.equal(slots.slots.main.kind, "workspace-file");
       assert.equal(slots.slots.main.manifestPath, payload.manifestPath);

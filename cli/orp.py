@@ -28,11 +28,14 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
 import datetime as dt
 import fnmatch
 import getpass
+import gzip
 import hashlib
 import html
+import io
 import json
 import os
 import platform
@@ -46,6 +49,8 @@ import sys
 import tempfile
 import threading
 import time
+import tarfile
+import webbrowser
 from typing import Any, Sequence
 import uuid
 from urllib import error as urlerror
@@ -68,27 +73,67 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _orp_user_security_roots() -> tuple[Path, ...]:
+    """Return every user-owned ORP root that must remain private.
+
+    The legacy layout stored every file below ``~/.config/orp``. The v1 local
+    layout separates config, durable data, runtime state, and cache using the
+    XDG base-directory contract. Both layouts remain readable during the
+    reversible migration window, so writes below either layout receive the
+    same private permissions.
+    """
+
+    home = Path.home()
+    roots = {
+        (Path(os.environ.get("XDG_CONFIG_HOME", "").strip()).expanduser()
+         if os.environ.get("XDG_CONFIG_HOME", "").strip()
+         else home / ".config")
+        / "orp",
+        (Path(os.environ.get("XDG_DATA_HOME", "").strip()).expanduser()
+         if os.environ.get("XDG_DATA_HOME", "").strip()
+         else home / ".local" / "share")
+        / "orp",
+        (Path(os.environ.get("XDG_STATE_HOME", "").strip()).expanduser()
+         if os.environ.get("XDG_STATE_HOME", "").strip()
+         else home / ".local" / "state")
+        / "orp",
+        (Path(os.environ.get("XDG_CACHE_HOME", "").strip()).expanduser()
+         if os.environ.get("XDG_CACHE_HOME", "").strip()
+         else home / ".cache")
+        / "orp",
+    }
+    return tuple(sorted((root.resolve() for root in roots), key=lambda item: str(item)))
+
+
 def _orp_user_security_root() -> Path:
-    xdg_config_home = os.environ.get("XDG_CONFIG_HOME", "").strip()
-    config_home = Path(xdg_config_home).expanduser() if xdg_config_home else Path.home() / ".config"
-    return (config_home / "orp").resolve()
+    """Compatibility alias for the legacy/config root."""
+
+    return (_config_home() / "orp").resolve()
+
+
+def _private_orp_user_root(path: Path) -> Path | None:
+    resolved = path.expanduser().resolve()
+    for root in _orp_user_security_roots():
+        try:
+            resolved.relative_to(root)
+            return root
+        except ValueError:
+            continue
+    return None
 
 
 def _is_private_orp_user_path(path: Path) -> bool:
-    try:
-        path.expanduser().resolve().relative_to(_orp_user_security_root())
-        return True
-    except ValueError:
-        return False
+    return _private_orp_user_root(path) is not None
 
 
 def _write_json(path: Path, data: Any) -> None:
     path = path.expanduser()
-    private = _is_private_orp_user_path(path)
+    private_root = _private_orp_user_root(path)
+    private = private_root is not None
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700 if private else 0o777)
 
     if private:
-        private_root = _orp_user_security_root()
+        assert private_root is not None
         current = path.parent.resolve()
         while True:
             os.chmod(current, 0o700)
@@ -1037,16 +1082,911 @@ def _config_home() -> Path:
     return Path.home() / ".config"
 
 
-def _orp_user_dir() -> Path:
+LOCAL_CONFIG_SCHEMA = "orp.local_config/1"
+LOCAL_CONFIG_SCHEMA_VERSION = "1.0.0"
+STORAGE_LAYOUT_LEGACY = "legacy-v0"
+STORAGE_LAYOUT_XDG = "xdg-v1"
+STORAGE_LAYOUTS = {STORAGE_LAYOUT_LEGACY, STORAGE_LAYOUT_XDG}
+HOSTED_SYNC_CONFIG_FIELDS = {
+    "workspace.summary",
+    "workspace.current_focus",
+    "workspace.trajectory",
+    "tabs.title",
+    "tabs.remote_url",
+    "tabs.remote_branch",
+    "tabs.linked_idea_id",
+    "tabs.linked_feature_id",
+    "tabs.activity",
+    "tabs.plan_summary",
+    "tabs.tasks",
+}
+
+_HOSTED_FORBIDDEN_KEY_RE = re.compile(
+    r"(?:^|_)(?:path|project_root|resume|session|codex|claude|transcript|prompt|secret|token|password|source_files?|machine|hostname|host_name)(?:_|$)",
+    flags=re.IGNORECASE,
+)
+_HOSTED_TEXT_RULES = (
+    (
+        "an absolute path",
+        re.compile(
+            r'''(?:file:///|(?:^|[\s"'`()={\[])(?:/(?!/)(?:[^/\s"'`<>]+/)+[^/\s"'`<>]*|/(?:Users|Volumes|home|tmp|private|var|etc|usr|opt|root)(?:/|\b)|[A-Za-z]:[\\/][^\s"'`<>]*|\\\\[^\\\s"'`<>]+\\[^\\\s"'`<>]+))''',
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "a secret value",
+        re.compile(
+            r'''(?:-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|orp_(?:rt|dc)_[A-Za-z0-9_-]{12,})\b|\bBearer\s+[A-Za-z0-9._~+/=-]{12,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b|\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret)\s*[:=]\s*(?!\[?(?:redacted|hidden|omitted)\]?\b|none\b|null\b|unset\b|example\b)[^\s"'`<>]{4,}|\b[a-z][a-z0-9+.-]*://[^/\s:@]+:[^@\s/]+@)''',
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "transcript content",
+        re.compile(
+            r'''(?:\b(?:full\s+)?transcript\s*:|(?:^|\n)\s*(?:user|human)\s*:.*\n\s*(?:assistant|ai)\s*:|<\s*(?:user|assistant)\s*>|\{\s*["']role["']\s*:\s*["'](?:user|assistant)["'])''',
+            flags=re.IGNORECASE | re.DOTALL,
+        ),
+    ),
+    (
+        "a resume command or session identifier",
+        re.compile(
+            r'''(?:\b(?:codex|claude)\s+(?:exec\s+)?resume(?:\s|$)|\b(?:resume|session|thread|codex[_ -]?session|claude[_ -]?session)[_-]?id\s*[:=]\s*[A-Za-z0-9_-]{8,})''',
+            flags=re.IGNORECASE,
+        ),
+    ),
+    (
+        "a machine identifier or hostname",
+        re.compile(r'''\b(?:machine[_ -]?id|host[_ -]?name|hostname)\s*[:=]\s*[^\s"'`<>]+''', flags=re.IGNORECASE),
+    ),
+)
+
+
+def _assert_safe_hosted_metadata_text(value: str, *, field_path: str = "metadata") -> str:
+    if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", value):
+        raise RuntimeError(f"Hosted workspace metadata contains control characters at {field_path}.")
+    for label, pattern in _HOSTED_TEXT_RULES:
+        if pattern.search(value):
+            raise RuntimeError(f"Hosted workspace metadata contains {label} at {field_path}.")
+    return value
+
+
+def _assert_safe_hosted_payload(value: Any, *, field_path: str = "root") -> None:
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _assert_safe_hosted_payload(item, field_path=f"{field_path}.{index}")
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_text = str(key)
+            if _HOSTED_FORBIDDEN_KEY_RE.search(key_text):
+                raise RuntimeError(f"Hosted workspace metadata contains forbidden field {field_path}.{key_text}.")
+            _assert_safe_hosted_payload(item, field_path=f"{field_path}.{key_text}")
+        return
+    if isinstance(value, str):
+        _assert_safe_hosted_metadata_text(value, field_path=field_path)
+
+
+def _data_home() -> Path:
+    value = os.environ.get("XDG_DATA_HOME", "").strip()
+    return Path(value).expanduser() if value else Path.home() / ".local" / "share"
+
+
+def _state_home() -> Path:
+    value = os.environ.get("XDG_STATE_HOME", "").strip()
+    return Path(value).expanduser() if value else Path.home() / ".local" / "state"
+
+
+def _cache_home() -> Path:
+    value = os.environ.get("XDG_CACHE_HOME", "").strip()
+    return Path(value).expanduser() if value else Path.home() / ".cache"
+
+
+def _legacy_orp_user_dir() -> Path:
     return _config_home() / "orp"
 
 
+def _local_config_path() -> Path:
+    return _config_home() / "orp" / "config.json"
+
+
+def _local_config_template(*, layout: str = STORAGE_LAYOUT_XDG) -> dict[str, Any]:
+    return {
+        "schema": LOCAL_CONFIG_SCHEMA,
+        "schema_version": LOCAL_CONFIG_SCHEMA_VERSION,
+        "storage": {
+            "layout": layout,
+            "retention": {
+                "cache_days": 30,
+                "backup_days": 90,
+                "backup_keep": 5,
+            },
+        },
+        "codex": {
+            "context_enabled": False,
+            "max_bytes": 2048,
+            "hosted_sync": False,
+        },
+        "sync": {
+            "enabled": False,
+            "allowlist": [],
+        },
+    }
+
+
+def _deep_merge_dict(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    result = copy.deepcopy(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge_dict(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value)
+    return result
+
+
+def _read_local_config_raw() -> dict[str, Any] | None:
+    path = _local_config_path()
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"Invalid ORP local config at {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Invalid ORP local config at {path}: expected a JSON object.")
+    return payload
+
+
+def _validate_local_config(payload: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for key in sorted(set(payload) - {"schema", "schema_version", "storage", "codex", "sync"}):
+        errors.append(f"unknown root key: {key}")
+    if payload.get("schema") != LOCAL_CONFIG_SCHEMA:
+        errors.append(f"schema must be {LOCAL_CONFIG_SCHEMA}")
+    if payload.get("schema_version") != LOCAL_CONFIG_SCHEMA_VERSION:
+        errors.append(f"schema_version must be {LOCAL_CONFIG_SCHEMA_VERSION}")
+
+    storage = payload.get("storage")
+    if not isinstance(storage, dict):
+        errors.append("storage must be an object")
+    else:
+        for key in sorted(set(storage) - {"layout", "retention"}):
+            errors.append(f"unknown storage key: {key}")
+        if storage.get("layout") not in STORAGE_LAYOUTS:
+            errors.append("storage.layout must be legacy-v0 or xdg-v1")
+        retention = storage.get("retention")
+        if not isinstance(retention, dict):
+            errors.append("storage.retention must be an object")
+        else:
+            for key in sorted(set(retention) - {"cache_days", "backup_days", "backup_keep"}):
+                errors.append(f"unknown storage.retention key: {key}")
+            for key, minimum in (("cache_days", 0), ("backup_days", 0), ("backup_keep", 1)):
+                value = retention.get(key)
+                if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+                    errors.append(f"storage.retention.{key} must be an integer >= {minimum}")
+
+    codex = payload.get("codex")
+    if not isinstance(codex, dict):
+        errors.append("codex must be an object")
+    else:
+        for key in sorted(set(codex) - {"context_enabled", "max_bytes", "hosted_sync"}):
+            errors.append(f"unknown codex key: {key}")
+        for key in ("context_enabled", "hosted_sync"):
+            if not isinstance(codex.get(key), bool):
+                errors.append(f"codex.{key} must be a boolean")
+        max_bytes = codex.get("max_bytes")
+        if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or not 256 <= max_bytes <= 2048:
+            errors.append("codex.max_bytes must be an integer between 256 and 2048")
+        if codex.get("hosted_sync") is not False:
+            errors.append("codex.hosted_sync must remain false")
+
+    sync = payload.get("sync")
+    if not isinstance(sync, dict):
+        errors.append("sync must be an object")
+    else:
+        for key in sorted(set(sync) - {"enabled", "allowlist"}):
+            errors.append(f"unknown sync key: {key}")
+        if not isinstance(sync.get("enabled"), bool):
+            errors.append("sync.enabled must be a boolean")
+        allowlist = sync.get("allowlist")
+        if not isinstance(allowlist, list) or any(not isinstance(item, str) for item in allowlist):
+            errors.append("sync.allowlist must be an array of strings")
+        elif len(allowlist) != len(set(allowlist)):
+            errors.append("sync.allowlist must contain unique values")
+        else:
+            unsupported = sorted(set(allowlist) - HOSTED_SYNC_CONFIG_FIELDS)
+            if unsupported:
+                errors.append("sync.allowlist contains unsupported fields: " + ", ".join(unsupported))
+    return errors
+
+
+def _load_local_config() -> dict[str, Any]:
+    raw = _read_local_config_raw()
+    if raw is None:
+        return _local_config_template(layout=_detect_default_storage_layout())
+    errors = _validate_local_config(raw)
+    if errors:
+        raise RuntimeError(f"Invalid ORP local config at {_local_config_path()}: " + "; ".join(errors))
+    return raw
+
+
+def _legacy_layout_has_material() -> bool:
+    root = _legacy_orp_user_dir()
+    if not root.exists() or not root.is_dir():
+        return False
+    try:
+        return any(entry.name != "config.json" for entry in root.iterdir())
+    except OSError:
+        return False
+
+
+def _detect_default_storage_layout() -> str:
+    # A caller that redirects only XDG_CONFIG_HOME is using the historical ORP
+    # test/automation contract. Requiring all four homes avoids spilling its
+    # data into the real user's default data/state/cache directories.
+    xdg_config_only = bool(os.environ.get("XDG_CONFIG_HOME", "").strip()) and not any(
+        os.environ.get(name, "").strip()
+        for name in ("XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME")
+    )
+    if _legacy_layout_has_material() or xdg_config_only:
+        return STORAGE_LAYOUT_LEGACY
+    return STORAGE_LAYOUT_XDG
+
+
+def _orp_storage_layout() -> str:
+    override = os.environ.get("ORP_STORAGE_LAYOUT", "").strip()
+    if override:
+        if override not in STORAGE_LAYOUTS:
+            raise RuntimeError("ORP_STORAGE_LAYOUT must be legacy-v0 or xdg-v1.")
+        return override
+    raw = _read_local_config_raw()
+    if raw is not None:
+        storage = raw.get("storage")
+        layout = storage.get("layout") if isinstance(storage, dict) else None
+        if layout not in STORAGE_LAYOUTS:
+            raise RuntimeError(
+                f"Invalid ORP local config at {_local_config_path()}: storage.layout must be legacy-v0 or xdg-v1"
+            )
+        return str(layout)
+    return _detect_default_storage_layout()
+
+
+def _orp_storage_root(category: str, *, layout: str | None = None) -> Path:
+    selected = layout or _orp_storage_layout()
+    if selected == STORAGE_LAYOUT_LEGACY:
+        return _legacy_orp_user_dir()
+    roots = {
+        "config": _config_home() / "orp",
+        "data": _data_home() / "orp",
+        "state": _state_home() / "orp",
+        "cache": _cache_home() / "orp",
+    }
+    if category not in roots:
+        raise RuntimeError(f"Unknown ORP storage category: {category}")
+    return roots[category]
+
+
+def _orp_storage_file(category: str, relative_path: str) -> Path:
+    return _orp_storage_root(category) / relative_path
+
+
+def _orp_user_dir() -> Path:
+    """Compatibility helper for durable ORP user data."""
+
+    return _orp_storage_root("data")
+
+
+_STORAGE_TOP_LEVEL_CATEGORIES: dict[str, str] = {
+    "agents.json": "config",
+    "agenda.json": "data",
+    "connections.json": "data",
+    "opportunities.json": "data",
+    "research-spend-ledger.json": "data",
+    "schedules.json": "data",
+    "secrets-keychain.json": "data",
+    "workspace-registry.json": "data",
+    "workspace-slots.json": "data",
+    "workspace-styles.json": "data",
+    "workspace-style-bindings.json": "data",
+    "workspaces": "data",
+    "launch-runtime": "state",
+    "maintenance.json": "state",
+    "machine.json": "state",
+    "remote-session.json": "state",
+    "schedule-logs": "state",
+    "cache": "cache",
+}
+
+
+def _classify_legacy_relative_path(relative_path: Path) -> str | None:
+    if not relative_path.parts:
+        return None
+    top = relative_path.parts[0]
+    if top == "config.json":
+        return "config"
+    direct = _STORAGE_TOP_LEVEL_CATEGORIES.get(top)
+    if direct:
+        return direct
+    for name, category in _STORAGE_TOP_LEVEL_CATEGORIES.items():
+        if top.startswith(f"{name}.bak-"):
+            return category
+    return None
+
+
+def _iter_regular_files(root: Path) -> list[Path]:
+    if not root.exists() or not root.is_dir():
+        return []
+    files: list[Path] = []
+    for directory, names, file_names in os.walk(root, followlinks=False):
+        names[:] = sorted(name for name in names if not (Path(directory) / name).is_symlink())
+        for name in sorted(file_names):
+            candidate = Path(directory) / name
+            if candidate.is_symlink() or not candidate.is_file():
+                continue
+            files.append(candidate)
+    return files
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _storage_root_inventory(category: str, root: Path) -> dict[str, Any]:
+    files = _iter_regular_files(root)
+    total_bytes = sum(path.stat().st_size for path in files)
+    return {
+        "category": category,
+        "path": str(root),
+        "exists": root.exists(),
+        "file_count": len(files),
+        "bytes": total_bytes,
+    }
+
+
+def _storage_report_payload() -> dict[str, Any]:
+    layout = _orp_storage_layout()
+    category_roots = {
+        category: _orp_storage_root(category, layout=layout)
+        for category in ("config", "data", "state", "cache")
+    }
+    inventories = [
+        _storage_root_inventory(category, root)
+        for category, root in category_roots.items()
+    ]
+    unique_roots: dict[str, Path] = {}
+    for root in category_roots.values():
+        unique_roots[str(root.resolve())] = root
+    unique_files: dict[str, Path] = {}
+    for root in unique_roots.values():
+        for path in _iter_regular_files(root):
+            unique_files[str(path.resolve())] = path
+
+    legacy_root = _legacy_orp_user_dir()
+    unclassified: list[str] = []
+    if legacy_root.exists():
+        for path in _iter_regular_files(legacy_root):
+            relative = path.relative_to(legacy_root)
+            if _classify_legacy_relative_path(relative) is None:
+                unclassified.append(relative.as_posix())
+
+    return {
+        "schema": "orp.storage_report/1",
+        "schema_version": "1.0.0",
+        "layout": layout,
+        "config_path": str(_local_config_path()),
+        "roots": inventories,
+        "totals": {
+            "file_count": len(unique_files),
+            "bytes": sum(path.stat().st_size for path in unique_files.values()),
+        },
+        "legacy": {
+            "path": str(legacy_root),
+            "material_present": _legacy_layout_has_material(),
+            "unclassified": sorted(unclassified),
+        },
+        "codex_storage_scanned": False,
+        "repository_storage_scanned": False,
+    }
+
+
+def _render_storage_report(payload: dict[str, Any]) -> str:
+    totals = payload["totals"]
+    lines = [
+        "ORP Local Storage",
+        "",
+        f"Layout: {payload['layout']}",
+        f"Files: {totals['file_count']}",
+        f"Bytes: {totals['bytes']}",
+    ]
+    for row in payload["roots"]:
+        lines.append(f"{row['category']}: {row['path']} ({row['file_count']} files, {row['bytes']} bytes)")
+    unclassified = payload["legacy"]["unclassified"]
+    lines.append(f"Legacy unclassified: {len(unclassified)}")
+    lines.append("Codex and repository storage: outside scope")
+    return "\n".join(lines)
+
+
+def _canonical_plan_id(kind: str, operations: list[dict[str, Any]], extra: dict[str, Any] | None = None) -> str:
+    material = {
+        "kind": kind,
+        "operations": operations,
+        "extra": extra or {},
+    }
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:20]
+
+
+def _build_storage_migration_plan() -> dict[str, Any]:
+    source_root = _legacy_orp_user_dir()
+    operations: list[dict[str, Any]] = []
+    unclassified: list[str] = []
+    conflicts: list[dict[str, Any]] = []
+    if source_root.exists():
+        for source in _iter_regular_files(source_root):
+            relative = source.relative_to(source_root)
+            if relative.as_posix() == "config.json":
+                continue
+            category = _classify_legacy_relative_path(relative)
+            if category is None:
+                unclassified.append(relative.as_posix())
+                continue
+            target = _orp_storage_root(category, layout=STORAGE_LAYOUT_XDG) / relative
+            if source.resolve() == target.resolve():
+                continue
+            source_sha256 = _sha256_file(source)
+            operation = {
+                "action": "copy",
+                "category": category,
+                "relative_path": relative.as_posix(),
+                "source": str(source),
+                "target": str(target),
+                "bytes": source.stat().st_size,
+                "sha256": source_sha256,
+            }
+            if target.exists():
+                target_sha256 = _sha256_file(target) if target.is_file() and not target.is_symlink() else ""
+                if target_sha256 == source_sha256:
+                    operation["action"] = "already_copied"
+                else:
+                    operation["action"] = "conflict"
+                    operation["target_sha256"] = target_sha256
+                    conflicts.append(operation)
+            operations.append(operation)
+
+    operations.sort(key=lambda row: (row["relative_path"], row["category"], row["target"]))
+    extra = {
+        "from": STORAGE_LAYOUT_LEGACY,
+        "to": STORAGE_LAYOUT_XDG,
+        "unclassified": sorted(unclassified),
+    }
+    plan_id = _canonical_plan_id("storage-migration", operations, extra)
+    return {
+        "schema": "orp.storage_migration_plan/1",
+        "schema_version": "1.0.0",
+        "plan_id": plan_id,
+        "from_layout": STORAGE_LAYOUT_LEGACY,
+        "to_layout": STORAGE_LAYOUT_XDG,
+        "current_layout": _orp_storage_layout(),
+        "dry_run": True,
+        "can_apply": not conflicts,
+        "operations": operations,
+        "copy_count": sum(row["action"] == "copy" for row in operations),
+        "already_copied_count": sum(row["action"] == "already_copied" for row in operations),
+        "conflicts": conflicts,
+        "unclassified": sorted(unclassified),
+        "source_retained": True,
+        "rollback": "Set storage.layout to legacy-v0 in the local config; migration never removes legacy files.",
+    }
+
+
+def _copy_file_atomic(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    current = target.parent.resolve()
+    private_root = _private_orp_user_root(target)
+    if private_root is not None:
+        while True:
+            os.chmod(current, 0o700)
+            if current == private_root:
+                break
+            current = current.parent
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent))
+    temporary = Path(temporary_name)
+    open_descriptor: int | None = descriptor
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as output, source.open("rb") as input_handle:
+            open_descriptor = None
+            shutil.copyfileobj(input_handle, output, length=1024 * 1024)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+        os.chmod(target, 0o600)
+    finally:
+        if open_descriptor is not None:
+            os.close(open_descriptor)
+        temporary.unlink(missing_ok=True)
+
+
+def _apply_storage_migration(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
+    if confirmation != plan["plan_id"]:
+        raise RuntimeError("Migration confirmation must exactly match the current plan_id.")
+    if not plan.get("can_apply"):
+        raise RuntimeError("Migration has target conflicts; resolve them and generate a new plan before applying.")
+    copied: list[dict[str, Any]] = []
+    for operation in plan["operations"]:
+        if operation["action"] != "copy":
+            continue
+        source = Path(operation["source"])
+        target = Path(operation["target"])
+        if _sha256_file(source) != operation["sha256"]:
+            raise RuntimeError(f"Migration source changed after review: {source}")
+        _copy_file_atomic(source, target)
+        if _sha256_file(target) != operation["sha256"]:
+            raise RuntimeError(f"Migration verification failed for target: {target}")
+        copied.append(operation)
+
+    config = _load_local_config()
+    config["storage"]["layout"] = STORAGE_LAYOUT_XDG
+    _write_json(_local_config_path(), config)
+    errors = _validate_local_config(_load_local_config())
+    if errors:
+        raise RuntimeError("Migrated local config failed validation: " + "; ".join(errors))
+    return {
+        **plan,
+        "dry_run": False,
+        "applied": True,
+        "copied_count": len(copied),
+        "verified_count": len(copied),
+        "active_layout": _orp_storage_layout(),
+    }
+
+
+def _backup_family(path: Path) -> str | None:
+    marker = ".bak-"
+    if marker not in path.name:
+        return None
+    return path.name.split(marker, 1)[0]
+
+
+def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, Any]:
+    config = _load_local_config()
+    retention = config["storage"]["retention"]
+    current = now or dt.datetime.now(dt.timezone.utc)
+    current_timestamp = current.timestamp()
+    backup_cutoff = current_timestamp - int(retention["backup_days"]) * 86400
+    cache_cutoff = current_timestamp - int(retention["cache_days"]) * 86400
+    keep = int(retention["backup_keep"])
+    roots = {
+        category: _orp_storage_root(category)
+        for category in ("config", "data", "state", "cache")
+    }
+
+    backup_groups: dict[tuple[str, str, str], list[Path]] = {}
+    for category in ("config", "data", "state"):
+        root = roots[category]
+        for path in _iter_regular_files(root):
+            family = _backup_family(path)
+            if family is None:
+                continue
+            key = (category, str(path.parent.resolve()), family)
+            backup_groups.setdefault(key, []).append(path)
+
+    candidates: dict[str, tuple[str, Path, Path]] = {}
+    for (category, _parent, _family), paths in backup_groups.items():
+        ordered = sorted(paths, key=lambda item: (-item.stat().st_mtime_ns, item.name))
+        root = roots[category]
+        for index, path in enumerate(ordered):
+            if index >= keep and path.stat().st_mtime <= backup_cutoff:
+                candidates[str(path.resolve())] = ("expired_backup", path, root)
+
+    cache_root = roots["cache"]
+    for path in _iter_regular_files(cache_root):
+        if path.stat().st_mtime <= cache_cutoff:
+            candidates[str(path.resolve())] = ("expired_cache", path, cache_root)
+
+    operations: list[dict[str, Any]] = []
+    for absolute in sorted(candidates):
+        reason, path, root = candidates[absolute]
+        category = next(name for name, candidate_root in roots.items() if candidate_root.resolve() == root.resolve())
+        operations.append(
+            {
+                "action": "archive_then_remove",
+                "reason": reason,
+                "category": category,
+                "path": str(path),
+                "relative_path": path.relative_to(root).as_posix(),
+                "bytes": path.stat().st_size,
+                "sha256": _sha256_file(path),
+            }
+        )
+    extra = {
+        "retention": retention,
+        "layout": _orp_storage_layout(),
+    }
+    plan_id = _canonical_plan_id("storage-compaction", operations, extra)
+    archive_path = _orp_storage_root("data") / "archives" / f"compaction-{plan_id}.tar.gz"
+    return {
+        "schema": "orp.storage_compaction_plan/1",
+        "schema_version": "1.0.0",
+        "plan_id": plan_id,
+        "layout": _orp_storage_layout(),
+        "dry_run": True,
+        "operations": operations,
+        "operation_count": len(operations),
+        "reclaimable_bytes": sum(row["bytes"] for row in operations),
+        "archive_path": str(archive_path),
+        "retention": retention,
+        "codex_storage_scanned": False,
+        "repository_storage_scanned": False,
+    }
+
+
+def _write_compaction_archive(plan: dict[str, Any]) -> Path:
+    archive_path = Path(plan["archive_path"])
+    archive_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{archive_path.name}.", suffix=".tmp", dir=str(archive_path.parent)
+    )
+    temporary = Path(temporary_name)
+    open_descriptor: int | None = descriptor
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as raw:
+            open_descriptor = None
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+                with tarfile.open(fileobj=compressed, mode="w") as archive:
+                    manifest_rows: list[dict[str, Any]] = []
+                    for index, operation in enumerate(plan["operations"]):
+                        source = Path(operation["path"])
+                        if _sha256_file(source) != operation["sha256"]:
+                            raise RuntimeError(f"Compaction source changed after review: {source}")
+                        member_name = f"files/{index:04d}/{operation['category']}/{operation['relative_path']}"
+                        info = tarfile.TarInfo(member_name)
+                        info.size = source.stat().st_size
+                        info.mode = 0o600
+                        info.uid = 0
+                        info.gid = 0
+                        info.uname = ""
+                        info.gname = ""
+                        info.mtime = 0
+                        with source.open("rb") as source_handle:
+                            archive.addfile(info, source_handle)
+                        manifest_rows.append({**operation, "archive_member": member_name})
+                    manifest_bytes = (json.dumps({"plan_id": plan["plan_id"], "files": manifest_rows}, indent=2) + "\n").encode("utf-8")
+                    manifest_info = tarfile.TarInfo("MANIFEST.json")
+                    manifest_info.size = len(manifest_bytes)
+                    manifest_info.mode = 0o600
+                    manifest_info.uid = 0
+                    manifest_info.gid = 0
+                    manifest_info.uname = ""
+                    manifest_info.gname = ""
+                    manifest_info.mtime = 0
+                    archive.addfile(manifest_info, io.BytesIO(manifest_bytes))
+            raw.flush()
+            os.fsync(raw.fileno())
+        os.replace(temporary, archive_path)
+        os.chmod(archive_path, 0o600)
+    finally:
+        if open_descriptor is not None:
+            os.close(open_descriptor)
+        temporary.unlink(missing_ok=True)
+    return archive_path
+
+
+def _verify_compaction_archive(archive_path: Path, plan: dict[str, Any]) -> None:
+    with tarfile.open(archive_path, mode="r:gz") as archive:
+        manifest_handle = archive.extractfile("MANIFEST.json")
+        if manifest_handle is None:
+            raise RuntimeError("Compaction archive is missing MANIFEST.json.")
+        manifest = json.loads(manifest_handle.read().decode("utf-8"))
+        if manifest.get("plan_id") != plan["plan_id"]:
+            raise RuntimeError("Compaction archive plan id mismatch.")
+        rows = manifest.get("files") if isinstance(manifest.get("files"), list) else []
+        if len(rows) != len(plan["operations"]):
+            raise RuntimeError("Compaction archive file count mismatch.")
+        for row in rows:
+            handle = archive.extractfile(row["archive_member"])
+            if handle is None or hashlib.sha256(handle.read()).hexdigest() != row["sha256"]:
+                raise RuntimeError(f"Compaction archive hash mismatch for {row.get('relative_path', '')}.")
+
+
+def _apply_storage_compaction(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
+    if confirmation != plan["plan_id"]:
+        raise RuntimeError("Compaction confirmation must exactly match the current plan_id.")
+    if not plan["operations"]:
+        return {**plan, "dry_run": False, "applied": True, "removed_count": 0, "archive_created": False}
+    archive_path = _write_compaction_archive(plan)
+    _verify_compaction_archive(archive_path, plan)
+    for operation in plan["operations"]:
+        path = Path(operation["path"])
+        if _sha256_file(path) != operation["sha256"]:
+            raise RuntimeError(f"Compaction source changed before removal: {path}")
+        path.unlink()
+    return {
+        **plan,
+        "dry_run": False,
+        "applied": True,
+        "removed_count": len(plan["operations"]),
+        "archive_created": True,
+        "archive_sha256": _sha256_file(archive_path),
+    }
+
+
+def _config_value(payload: dict[str, Any], dotted_key: str) -> Any:
+    current: Any = payload
+    for part in dotted_key.split("."):
+        if not isinstance(current, dict) or part not in current:
+            raise RuntimeError(f"Unknown ORP local config key: {dotted_key}")
+        current = current[part]
+    return current
+
+
+def _set_config_value(payload: dict[str, Any], dotted_key: str, value: Any) -> None:
+    if dotted_key == "storage.layout":
+        raise RuntimeError("Use `orp storage migrate` to change storage.layout safely.")
+    allowed = {
+        "storage.retention.cache_days",
+        "storage.retention.backup_days",
+        "storage.retention.backup_keep",
+        "codex.context_enabled",
+        "codex.max_bytes",
+        "codex.hosted_sync",
+        "sync.enabled",
+        "sync.allowlist",
+    }
+    if dotted_key not in allowed:
+        raise RuntimeError(f"Unknown or read-only ORP local config key: {dotted_key}")
+    parts = dotted_key.split(".")
+    current = payload
+    for part in parts[:-1]:
+        next_value = current.get(part)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[part] = next_value
+        current = next_value
+    current[parts[-1]] = value
+
+
+def _parse_config_cli_value(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+def cmd_config_path(args: argparse.Namespace) -> int:
+    payload = {
+        "schema": "orp.config_path/1",
+        "path": str(_local_config_path()),
+        "exists": _local_config_path().exists(),
+        "layout": _orp_storage_layout(),
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(payload["path"])
+    return 0
+
+
+def cmd_config_show(args: argparse.Namespace) -> int:
+    payload = {
+        "schema": "orp.local_config_view/1",
+        "path": str(_local_config_path()),
+        "exists": _local_config_path().exists(),
+        "config": _load_local_config(),
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(json.dumps(payload["config"], indent=2))
+    return 0
+
+
+def cmd_config_get(args: argparse.Namespace) -> int:
+    value = _config_value(_load_local_config(), args.key)
+    if args.json_output:
+        _print_json({"schema": "orp.local_config_value/1", "key": args.key, "value": value})
+    elif isinstance(value, (dict, list)):
+        print(json.dumps(value, indent=2))
+    elif isinstance(value, bool):
+        print("true" if value else "false")
+    else:
+        print(value)
+    return 0
+
+
+def cmd_config_set(args: argparse.Namespace) -> int:
+    payload = _load_local_config()
+    value = _parse_config_cli_value(args.value)
+    _set_config_value(payload, args.key, value)
+    errors = _validate_local_config(payload)
+    if errors:
+        raise RuntimeError("Invalid ORP local config update: " + "; ".join(errors))
+    _write_json(_local_config_path(), payload)
+    result = {
+        "schema": "orp.local_config_update/1",
+        "ok": True,
+        "path": str(_local_config_path()),
+        "key": args.key,
+        "value": _config_value(payload, args.key),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"{args.key}={json.dumps(result['value'], separators=(',', ':'))}")
+    return 0
+
+
+def cmd_config_validate(args: argparse.Namespace) -> int:
+    raw = _read_local_config_raw()
+    payload = raw if raw is not None else _local_config_template(layout=_detect_default_storage_layout())
+    errors = _validate_local_config(payload)
+    result = {
+        "schema": "orp.local_config_validation/1",
+        "ok": not errors,
+        "path": str(_local_config_path()),
+        "exists": raw is not None,
+        "errors": errors,
+        "effective_layout": payload.get("storage", {}).get("layout"),
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print("PASS" if result["ok"] else "FAIL")
+        for error in errors:
+            print(f"error={error}")
+    return 0 if result["ok"] else 2
+
+
+def cmd_storage_report(args: argparse.Namespace) -> int:
+    payload = _storage_report_payload()
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(_render_storage_report(payload))
+    return 0
+
+
+def cmd_storage_migrate(args: argparse.Namespace) -> int:
+    plan = _build_storage_migration_plan()
+    result = _apply_storage_migration(plan, args.confirm) if args.apply else plan
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"plan_id={result['plan_id']}")
+        print(f"mode={'apply' if args.apply else 'dry-run'}")
+        print(f"copy_count={result.get('copy_count', 0)}")
+        print(f"conflicts={len(result.get('conflicts', []))}")
+        print(f"unclassified={len(result.get('unclassified', []))}")
+        if not args.apply:
+            print(f"next=orp storage migrate --apply --confirm {result['plan_id']}")
+    return 0
+
+
+def cmd_storage_compact(args: argparse.Namespace) -> int:
+    plan = _build_storage_compaction_plan()
+    result = _apply_storage_compaction(plan, args.confirm) if args.apply else plan
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"plan_id={result['plan_id']}")
+        print(f"mode={'apply' if args.apply else 'dry-run'}")
+        print(f"operation_count={result['operation_count']}")
+        print(f"reclaimable_bytes={result['reclaimable_bytes']}")
+        if not args.apply:
+            print(f"next=orp storage compact --apply --confirm {result['plan_id']}")
+    return 0
+
+
 def _keychain_secret_registry_path() -> Path:
-    return _orp_user_dir() / "secrets-keychain.json"
+    return _orp_storage_file("data", "secrets-keychain.json")
 
 
 def _research_spend_ledger_path() -> Path:
-    return _orp_user_dir() / "research-spend-ledger.json"
+    return _orp_storage_file("data", "research-spend-ledger.json")
 
 
 def _research_spend_ledger_template() -> dict[str, Any]:
@@ -1091,8 +2031,228 @@ def _keychain_supported() -> bool:
 def _ensure_keychain_supported() -> None:
     if not _keychain_supported():
         raise RuntimeError("macOS Keychain integration is only available on macOS.")
-    if shutil.which("security") is None:
-        raise RuntimeError("The macOS `security` command is not available on PATH.")
+
+
+_KEYCHAIN_ITEM_NOT_FOUND = -25300
+_CF_STRING_ENCODING_UTF8 = 0x08000100
+
+
+def _load_keychain_frameworks() -> tuple[Any, Any]:
+    _ensure_keychain_supported()
+    try:
+        security = ctypes.CDLL(
+            "/System/Library/Frameworks/Security.framework/Security"
+        )
+        core_foundation = ctypes.CDLL(
+            "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+        )
+    except OSError as exc:
+        raise RuntimeError(f"macOS Keychain frameworks are unavailable: {exc}") from exc
+
+    core_foundation.CFStringCreateWithCString.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_char_p,
+        ctypes.c_uint32,
+    ]
+    core_foundation.CFStringCreateWithCString.restype = ctypes.c_void_p
+    core_foundation.CFDataCreate.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_ubyte),
+        ctypes.c_long,
+    ]
+    core_foundation.CFDataCreate.restype = ctypes.c_void_p
+    core_foundation.CFDictionaryCreate.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_long,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    ]
+    core_foundation.CFDictionaryCreate.restype = ctypes.c_void_p
+    core_foundation.CFDataGetLength.argtypes = [ctypes.c_void_p]
+    core_foundation.CFDataGetLength.restype = ctypes.c_long
+    core_foundation.CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
+    core_foundation.CFDataGetBytePtr.restype = ctypes.POINTER(ctypes.c_ubyte)
+    core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+    core_foundation.CFRelease.restype = None
+
+    security.SecItemCopyMatching.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    security.SecItemCopyMatching.restype = ctypes.c_int32
+    security.SecItemUpdate.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    security.SecItemUpdate.restype = ctypes.c_int32
+    security.SecItemAdd.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    security.SecItemAdd.restype = ctypes.c_int32
+    security.SecItemDelete.argtypes = [ctypes.c_void_p]
+    security.SecItemDelete.restype = ctypes.c_int32
+    return security, core_foundation
+
+
+def _framework_constant(library: Any, name: str) -> int:
+    value = ctypes.c_void_p.in_dll(library, name).value
+    if not value:
+        raise RuntimeError(f"macOS Keychain constant is unavailable: {name}")
+    return int(value)
+
+
+def _cf_string(core_foundation: Any, value: str) -> int:
+    ref = core_foundation.CFStringCreateWithCString(
+        None,
+        value.encode("utf-8"),
+        _CF_STRING_ENCODING_UTF8,
+    )
+    if not ref:
+        raise RuntimeError("Could not encode macOS Keychain text metadata.")
+    return int(ref)
+
+
+def _cf_data(core_foundation: Any, value: bytes) -> int:
+    if value:
+        buffer = (ctypes.c_ubyte * len(value)).from_buffer_copy(value)
+        ref = core_foundation.CFDataCreate(None, buffer, len(value))
+    else:
+        ref = core_foundation.CFDataCreate(None, None, 0)
+    if not ref:
+        raise RuntimeError("Could not encode macOS Keychain password data.")
+    return int(ref)
+
+
+def _cf_dictionary(core_foundation: Any, pairs: Sequence[tuple[int, int]]) -> int:
+    keys = (ctypes.c_void_p * len(pairs))(*(key for key, _ in pairs))
+    values = (ctypes.c_void_p * len(pairs))(*(value for _, value in pairs))
+    ref = core_foundation.CFDictionaryCreate(
+        None,
+        keys,
+        values,
+        len(pairs),
+        None,
+        None,
+    )
+    if not ref:
+        raise RuntimeError("Could not construct a macOS Keychain request.")
+    return int(ref)
+
+
+def _release_cf(core_foundation: Any, refs: Sequence[int]) -> None:
+    for ref in refs:
+        if ref:
+            core_foundation.CFRelease(ref)
+
+
+def _keychain_query(
+    security: Any,
+    core_foundation: Any,
+    service: str,
+    account: str,
+) -> tuple[int, list[int]]:
+    service_ref = _cf_string(core_foundation, service)
+    account_ref = _cf_string(core_foundation, account)
+    query = _cf_dictionary(
+        core_foundation,
+        [
+            (_framework_constant(security, "kSecClass"), _framework_constant(security, "kSecClassGenericPassword")),
+            (_framework_constant(security, "kSecAttrService"), service_ref),
+            (_framework_constant(security, "kSecAttrAccount"), account_ref),
+        ],
+    )
+    return query, [query, service_ref, account_ref]
+
+
+def _keychain_read_password(service: str, account: str) -> str:
+    security, core_foundation = _load_keychain_frameworks()
+    query, query_refs = _keychain_query(security, core_foundation, service, account)
+    query_with_return = 0
+    result = ctypes.c_void_p()
+    try:
+        query_with_return = _cf_dictionary(
+            core_foundation,
+            [
+                (_framework_constant(security, "kSecClass"), _framework_constant(security, "kSecClassGenericPassword")),
+                (_framework_constant(security, "kSecAttrService"), query_refs[1]),
+                (_framework_constant(security, "kSecAttrAccount"), query_refs[2]),
+                (_framework_constant(security, "kSecReturnData"), _framework_constant(core_foundation, "kCFBooleanTrue")),
+                (_framework_constant(security, "kSecMatchLimit"), _framework_constant(security, "kSecMatchLimitOne")),
+            ],
+        )
+        status = int(security.SecItemCopyMatching(query_with_return, ctypes.byref(result)))
+        if status == _KEYCHAIN_ITEM_NOT_FOUND:
+            raise RuntimeError("No matching macOS Keychain password was found.")
+        if status != 0 or not result.value:
+            raise RuntimeError(f"macOS Keychain read failed (OSStatus {status}).")
+        length = int(core_foundation.CFDataGetLength(result.value))
+        pointer = core_foundation.CFDataGetBytePtr(result.value)
+        raw = ctypes.string_at(pointer, length) if length else b""
+        return raw.decode("utf-8")
+    finally:
+        if result.value:
+            core_foundation.CFRelease(result.value)
+        if query_with_return:
+            core_foundation.CFRelease(query_with_return)
+        _release_cf(core_foundation, query_refs)
+
+
+def _keychain_store_password(
+    *,
+    service: str,
+    account: str,
+    value: str,
+    label: str,
+    description: str,
+    comment: str,
+) -> None:
+    security, core_foundation = _load_keychain_frameworks()
+    query, query_refs = _keychain_query(security, core_foundation, service, account)
+    created_refs: list[int] = []
+    attrs = 0
+    add_request = 0
+    try:
+        label_ref = _cf_string(core_foundation, label)
+        description_ref = _cf_string(core_foundation, description)
+        comment_ref = _cf_string(core_foundation, comment)
+        value_ref = _cf_data(core_foundation, value.encode("utf-8"))
+        created_refs.extend([label_ref, description_ref, comment_ref, value_ref])
+        attr_pairs = [
+            (_framework_constant(security, "kSecAttrLabel"), label_ref),
+            (_framework_constant(security, "kSecAttrDescription"), description_ref),
+            (_framework_constant(security, "kSecAttrComment"), comment_ref),
+            (_framework_constant(security, "kSecValueData"), value_ref),
+        ]
+        attrs = _cf_dictionary(core_foundation, attr_pairs)
+        status = int(security.SecItemUpdate(query, attrs))
+        if status == _KEYCHAIN_ITEM_NOT_FOUND:
+            add_request = _cf_dictionary(
+                core_foundation,
+                [
+                    (_framework_constant(security, "kSecClass"), _framework_constant(security, "kSecClassGenericPassword")),
+                    (_framework_constant(security, "kSecAttrService"), query_refs[1]),
+                    (_framework_constant(security, "kSecAttrAccount"), query_refs[2]),
+                    *attr_pairs,
+                ],
+            )
+            status = int(security.SecItemAdd(add_request, None))
+        if status != 0:
+            raise RuntimeError(f"macOS Keychain write failed (OSStatus {status}).")
+    finally:
+        if add_request:
+            core_foundation.CFRelease(add_request)
+        if attrs:
+            core_foundation.CFRelease(attrs)
+        _release_cf(core_foundation, created_refs)
+        _release_cf(core_foundation, query_refs)
+
+
+def _keychain_delete_password(service: str, account: str) -> bool:
+    security, core_foundation = _load_keychain_frameworks()
+    query, query_refs = _keychain_query(security, core_foundation, service, account)
+    try:
+        status = int(security.SecItemDelete(query))
+        if status == _KEYCHAIN_ITEM_NOT_FOUND:
+            return False
+        if status != 0:
+            raise RuntimeError(f"macOS Keychain delete failed (OSStatus {status}).")
+        return True
+    finally:
+        _release_cf(core_foundation, query_refs)
 
 
 def _keychain_registry_template() -> dict[str, Any]:
@@ -1128,16 +2288,6 @@ def _save_keychain_secret_registry(payload: dict[str, Any]) -> None:
     _write_json(_keychain_secret_registry_path(), merged)
 
 
-def _run_keychain_command(args: Sequence[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    _ensure_keychain_supported()
-    return subprocess.run(
-        ["security", *args],
-        capture_output=True,
-        text=True,
-        input=input_text,
-    )
-
-
 def _tool_package_root() -> Path:
     override = os.environ.get("ORP_TOOL_PACKAGE_ROOT", "").strip()
     if override:
@@ -1149,7 +2299,7 @@ def _launch_runtime_root() -> Path:
     override = os.environ.get("ORP_LAUNCH_RUNTIME_ROOT", "").strip()
     if override:
         return Path(override).expanduser().resolve()
-    return _orp_user_dir() / "launch-runtime"
+    return _orp_storage_file("state", "launch-runtime")
 
 
 def _launch_working_directory() -> Path:
@@ -1717,7 +2867,7 @@ def _maintenance_state_path() -> Path:
     override = str(os.environ.get("ORP_MAINTENANCE_STATE_PATH", "")).strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "maintenance.json"
+    return _orp_storage_file("state", "maintenance.json")
 
 
 def _maintenance_label() -> str:
@@ -2015,21 +3165,21 @@ def _schedule_registry_path() -> Path:
     override = os.environ.get("ORP_SCHEDULE_REGISTRY_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "schedules.json"
+    return _orp_storage_file("data", "schedules.json")
 
 
 def _agenda_registry_path() -> Path:
     override = os.environ.get("ORP_AGENDA_REGISTRY_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "agenda.json"
+    return _orp_storage_file("data", "agenda.json")
 
 
 def _schedule_logs_dir() -> Path:
     override = os.environ.get("ORP_SCHEDULE_LOGS_DIR", "").strip()
     if override:
         return Path(override).expanduser()
-    return _schedule_registry_path().parent / "schedule-logs"
+    return _orp_storage_file("state", "schedule-logs")
 
 
 def _schedule_launch_agents_dir() -> Path:
@@ -2066,21 +3216,21 @@ def _opportunities_registry_path() -> Path:
     override = os.environ.get("ORP_OPPORTUNITIES_REGISTRY_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "opportunities.json"
+    return _orp_storage_file("data", "opportunities.json")
 
 
 def _connections_registry_path() -> Path:
     override = os.environ.get("ORP_CONNECTIONS_REGISTRY_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "connections.json"
+    return _orp_storage_file("data", "connections.json")
 
 
 def _agents_registry_path() -> Path:
     override = os.environ.get("ORP_AGENTS_REGISTRY_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return _orp_user_dir() / "agents.json"
+    return _orp_storage_file("config", "agents.json")
 
 
 def _default_agents_registry_payload() -> dict[str, Any]:
@@ -3743,16 +4893,21 @@ def _render_maintenance_disable_report(payload: dict[str, Any]) -> str:
 
 
 def _hosted_session_path() -> Path:
-    return _orp_user_dir() / "remote-session.json"
+    return _orp_storage_file("state", "remote-session.json")
 
 
 def _hosted_session_template() -> dict[str, Any]:
     return {
+        "schema_version": "orp.hosted_session/2",
         "base_url": "",
         "email": "",
         "token": "",
         "user": None,
         "pending_verification": None,
+        "auth_mode": "legacy",
+        "device_id": "",
+        "credential": None,
+        "access_expires_at": 0,
     }
 
 
@@ -3766,10 +4921,13 @@ def _load_hosted_session() -> dict[str, Any]:
         return _hosted_session_template()
     if not isinstance(payload, dict):
         return _hosted_session_template()
-    return {
+    session = {
         **_hosted_session_template(),
         **payload,
     }
+    if str(session.get("auth_mode", "")).strip() == "device_authorization":
+        session = _hydrate_hosted_session(session, refresh=False)
+    return session
 
 
 def _save_hosted_session(payload: dict[str, Any]) -> None:
@@ -3777,7 +4935,116 @@ def _save_hosted_session(payload: dict[str, Any]) -> None:
         **_hosted_session_template(),
         **payload,
     }
+    if str(merged.get("auth_mode", "")).strip() == "device_authorization":
+        merged["token"] = ""
+        merged.pop("refresh_token", None)
+        merged.pop("access_token", None)
+        merged.pop("device_code", None)
     _write_json(_hosted_session_path(), merged)
+
+
+HOSTED_AUTH_KEYCHAIN_SERVICE = "earth.orp.cli.auth"
+
+
+def _hosted_keychain_account(base_url: str) -> str:
+    digest = hashlib.sha256(_normalize_base_url(base_url).encode("utf-8")).hexdigest()[:20]
+    return f"orp-cli-{digest}"
+
+
+def _hosted_credential_coordinates(base_url: str) -> dict[str, str]:
+    return {
+        "service": HOSTED_AUTH_KEYCHAIN_SERVICE,
+        "account": _hosted_keychain_account(base_url),
+    }
+
+
+def _read_hosted_credentials(session: dict[str, Any]) -> dict[str, Any]:
+    locator = session.get("credential") if isinstance(session.get("credential"), dict) else {}
+    service = str(locator.get("service", "")).strip()
+    account = str(locator.get("account", "")).strip()
+    if not service or not account:
+        return {}
+    try:
+        encoded = _keychain_read_password(service, account)
+    except RuntimeError:
+        return {}
+    try:
+        payload = json.loads(encoded)
+    except Exception:
+        return {}
+    if not isinstance(payload, dict) or payload.get("schema_version") != "orp.hosted_credential/1":
+        return {}
+    return payload
+
+
+def _store_hosted_credentials(base_url: str, payload: dict[str, Any]) -> dict[str, str]:
+    coordinates = _hosted_credential_coordinates(base_url)
+    credential = {
+        "schema_version": "orp.hosted_credential/1",
+        "access_token": str(payload.get("access_token", "")).strip(),
+        "refresh_token": str(payload.get("refresh_token", "")).strip(),
+        "token_type": str(payload.get("token_type", "Bearer")).strip() or "Bearer",
+        "scope": str(payload.get("scope", "")).strip(),
+        "access_expires_at": int(time.time()) + max(0, int(payload.get("expires_in", 0) or 0)),
+    }
+    if not credential["access_token"] or not credential["refresh_token"]:
+        raise RuntimeError("Hosted device authorization did not return both access and refresh credentials.")
+    encoded_credential = json.dumps(credential, separators=(",", ":"))
+    _keychain_store_password(
+        service=coordinates["service"],
+        account=coordinates["account"],
+        value=encoded_credential,
+        label="ORP CLI hosted session",
+        description="ORP Hosted Session",
+        comment=json.dumps({"schema_version": "orp.hosted_credential_locator/1"}, separators=(",", ":")),
+    )
+    return coordinates
+
+
+def _delete_hosted_credentials(session: dict[str, Any]) -> bool:
+    locator = session.get("credential") if isinstance(session.get("credential"), dict) else {}
+    service = str(locator.get("service", "")).strip()
+    account = str(locator.get("account", "")).strip()
+    if not service or not account:
+        return False
+    try:
+        return _keychain_delete_password(service, account)
+    except RuntimeError:
+        return False
+
+
+def _hydrate_hosted_session(session: dict[str, Any], *, refresh: bool) -> dict[str, Any]:
+    hydrated = {**session, "token": ""}
+    credential = _read_hosted_credentials(session)
+    if not credential:
+        return hydrated
+    expires_at = int(credential.get("access_expires_at", 0) or 0)
+    if refresh and expires_at <= int(time.time()) + 60:
+        refresh_token = str(credential.get("refresh_token", "")).strip()
+        if not refresh_token:
+            return hydrated
+        base_url = _normalize_base_url(session.get("base_url", "")) or _default_hosted_base_url()
+        payload = _request_hosted_json(
+            base_url=base_url,
+            path="/api/auth/device/token",
+            method="POST",
+            body={"grant_type": "refresh_token", "refresh_token": refresh_token},
+        )
+        coordinates = _store_hosted_credentials(base_url, payload)
+        credential = _read_hosted_credentials({"credential": coordinates})
+        expires_at = int(credential.get("access_expires_at", 0) or 0)
+        metadata = {
+            **session,
+            "auth_mode": "device_authorization",
+            "credential": coordinates,
+            "access_expires_at": expires_at,
+        }
+        _save_hosted_session(metadata)
+        hydrated.update(metadata)
+    if expires_at > int(time.time()):
+        hydrated["token"] = str(credential.get("access_token", "")).strip()
+        hydrated["access_expires_at"] = expires_at
+    return hydrated
 
 
 def _normalize_base_url(raw: str) -> str:
@@ -3839,11 +5106,17 @@ def _hosted_api_error(
     nested_error = raw_error if isinstance(raw_error, dict) else {}
     message = str(
         nested_error.get("message")
+        or body.get("error_description")
         or (raw_error if not isinstance(raw_error, dict) else "")
         or body.get("message")
         or f"Request failed: {status}"
     )
-    code = str(nested_error.get("code") or body.get("code") or "").strip()
+    code = str(
+        nested_error.get("code")
+        or body.get("error_code")
+        or body.get("code")
+        or (raw_error if isinstance(raw_error, str) and re.fullmatch(r"[a-z0-9_]+", raw_error) else "")
+    ).strip()
     if not code:
         if status == 401:
             code = "authentication_required"
@@ -3867,7 +5140,7 @@ def _hosted_api_error(
     suffix = f" (status={status} path={path})"
     hint = ""
     if status == 401:
-        hint = " Run `orp auth login` and `orp auth verify` again to refresh the hosted session."
+        hint = " Run `orp auth login` again to authorize this device."
     elif status == 403:
         hint = " The hosted ORP app rejected the operation. Check permissions on the target record."
     elif status == 404:
@@ -4740,14 +6013,24 @@ def _session_summary(session: dict[str, Any]) -> dict[str, Any]:
         "user": user,
         "connected": bool(str(session.get("token", "")).strip()),
         "pending_verification": pending,
+        "auth_mode": str(session.get("auth_mode", "legacy")).strip() or "legacy",
+        "credential_storage": "macos_keychain"
+        if str(session.get("auth_mode", "")).strip() == "device_authorization"
+        else "legacy_session_file",
+        "access_expires_at": int(session.get("access_expires_at", 0) or 0),
     }
 
 
 def _require_hosted_session(args: argparse.Namespace) -> dict[str, Any]:
     session = _load_hosted_session()
     session["base_url"] = _resolve_hosted_base_url(args, session)
+    if str(session.get("auth_mode", "")).strip() == "device_authorization":
+        try:
+            session = _hydrate_hosted_session(session, refresh=True)
+        except HostedApiError as exc:
+            raise RuntimeError(f"Hosted ORP session refresh failed: {exc}") from exc
     if not str(session.get("token", "")).strip():
-        raise RuntimeError("No hosted ORP session found. Run `orp auth login` and `orp auth verify` first.")
+        raise RuntimeError("No usable hosted ORP session found. Run `orp auth login` to authorize this device.")
     return session
 
 
@@ -8253,7 +9536,7 @@ def _link_status_payload(repo_root: Path, args: argparse.Namespace, *, refresh_r
 
 
 def _runner_machine_path() -> Path:
-    return _orp_user_dir() / "machine.json"
+    return _orp_storage_file("state", "machine.json")
 
 
 def _runner_repo_path(repo_root: Path) -> Path | None:
@@ -13220,6 +14503,10 @@ def _about_payload() -> dict[str, Any]:
             "link_session": "spec/v1/link-session.schema.json",
             "runner_machine": "spec/v1/runner-machine.schema.json",
             "runner_runtime": "spec/v1/runner-runtime.schema.json",
+            "local_config": "spec/v1/local-config.schema.json",
+            "storage_report": "spec/v1/storage-report.schema.json",
+            "codex_context": "spec/v1/codex-context.schema.json",
+            "hosted_workspace_state_v2": "spec/v1/hosted-workspace-state-v2.schema.json",
         },
         "abilities": [
             {
@@ -13242,9 +14529,17 @@ def _about_payload() -> dict[str, Any]:
             },
             {
                 "id": "workspace",
-                "description": "Hosted workspace auth, first-class workspace records, ideas, features, worlds, checkpoints, and worker operations.",
+                "description": "Local-first workspace recovery with optional, reviewed, allowlisted projection to dedicated hosted workspace records.",
                 "entrypoints": [
+                    ["workspace", "create"],
+                    ["workspace", "list"],
+                    ["workspace", "tabs"],
+                    ["workspace", "add-tab"],
+                    ["workspace", "remove-tab"],
+                    ["workspace", "sync"],
                     ["auth", "login"],
+                    ["auth", "devices"],
+                    ["auth", "revoke-device"],
                     ["whoami"],
                     ["workspaces", "list"],
                     ["workspaces", "show"],
@@ -13323,12 +14618,16 @@ def _about_payload() -> dict[str, Any]:
             },
             {
                 "id": "secrets",
-                "description": "Hosted secret store for global API key inventory, provider metadata, and project-scoped resolution.",
+                "description": "Machine-local macOS Keychain secrets with private non-secret registry metadata and an explicit legacy hosted import command.",
                 "entrypoints": [
                     ["secrets", "list"],
                     ["secrets", "show"],
                     ["secrets", "add"],
+                    ["secrets", "ensure"],
+                    ["secrets", "update"],
+                    ["secrets", "archive"],
                     ["secrets", "bind"],
+                    ["secrets", "unbind"],
                     ["secrets", "resolve"],
                 ],
             },
@@ -13438,12 +14737,25 @@ def _about_payload() -> dict[str, Any]:
                 ],
             },
             {
-                "id": "governance",
-                "description": "Local-first repo governance, branch safety, checkpoint commits, backup refs, and runtime status.",
+                "id": "codex_context",
+                "description": "Opt-in, read-only, offline, prompt-preserving repository context bounded to 2,048 bytes without reading Codex-owned state.",
                 "entrypoints": [
+                    ["codex", "context"],
+                ],
+            },
+            {
+                "id": "governance",
+                "description": "Local-first configuration, ORP-owned storage, repo governance, branch safety, checkpoint commits, backup refs, and runtime status.",
+                "entrypoints": [
+                    ["config", "show"],
+                    ["config", "validate"],
+                    ["storage", "report"],
+                    ["storage", "migrate"],
+                    ["storage", "compact"],
                     ["init"],
                     ["status"],
                     ["branch", "start"],
+                    ["checkpoint", "inspect"],
                     ["checkpoint", "create"],
                     ["backup"],
                     ["ready"],
@@ -13471,6 +14783,21 @@ def _about_payload() -> dict[str, Any]:
         "commands": [
             {"name": "home", "path": ["home"], "json_output": True},
             {"name": "about", "path": ["about"], "json_output": True},
+            {"name": "config_path", "path": ["config", "path"], "json_output": True},
+            {"name": "config_show", "path": ["config", "show"], "json_output": True},
+            {"name": "config_get", "path": ["config", "get"], "json_output": True},
+            {"name": "config_set", "path": ["config", "set"], "json_output": True},
+            {"name": "config_validate", "path": ["config", "validate"], "json_output": True},
+            {"name": "storage_report", "path": ["storage", "report"], "json_output": True},
+            {"name": "storage_migrate", "path": ["storage", "migrate"], "json_output": True},
+            {"name": "storage_compact", "path": ["storage", "compact"], "json_output": True},
+            {"name": "workspace_create", "path": ["workspace", "create"], "json_output": True},
+            {"name": "workspace_list", "path": ["workspace", "list"], "json_output": True},
+            {"name": "workspace_tabs", "path": ["workspace", "tabs"], "json_output": True},
+            {"name": "workspace_add_tab", "path": ["workspace", "add-tab"], "json_output": True},
+            {"name": "workspace_remove_tab", "path": ["workspace", "remove-tab"], "json_output": True},
+            {"name": "workspace_sync", "path": ["workspace", "sync"], "json_output": True},
+            {"name": "codex_context", "path": ["codex", "context"], "json_output": True},
             {"name": "update", "path": ["update"], "json_output": True},
             {"name": "maintenance_check", "path": ["maintenance", "check"], "json_output": True},
             {"name": "maintenance_status", "path": ["maintenance", "status"], "json_output": True},
@@ -13523,6 +14850,8 @@ def _about_payload() -> dict[str, Any]:
             {"name": "youtube_inspect", "path": ["youtube", "inspect"], "json_output": True},
             {"name": "auth_login", "path": ["auth", "login"], "json_output": True},
             {"name": "auth_verify", "path": ["auth", "verify"], "json_output": True},
+            {"name": "auth_devices", "path": ["auth", "devices"], "json_output": True},
+            {"name": "auth_revoke_device", "path": ["auth", "revoke-device"], "json_output": True},
             {"name": "auth_logout", "path": ["auth", "logout"], "json_output": True},
             {"name": "whoami", "path": ["whoami"], "json_output": True},
             {"name": "mode_list", "path": ["mode", "list"], "json_output": True},
@@ -13622,6 +14951,7 @@ def _about_payload() -> dict[str, Any]:
             {"name": "frontier_doctor", "path": ["frontier", "doctor"], "json_output": True},
             {"name": "branch_start", "path": ["branch", "start"], "json_output": True},
             {"name": "checkpoint_create", "path": ["checkpoint", "create"], "json_output": True},
+            {"name": "checkpoint_inspect", "path": ["checkpoint", "inspect"], "json_output": True},
             {"name": "backup", "path": ["backup"], "json_output": True},
             {"name": "ready", "path": ["ready"], "json_output": True},
             {"name": "doctor", "path": ["doctor"], "json_output": True},
@@ -13646,11 +14976,14 @@ def _about_payload() -> dict[str, Any]:
             "Research council runs are built into ORP through `orp research ask`, `orp research status`, and `orp research show`, with dry-run decomposition by default and explicit `--execute` for live provider calls.",
             "Project context is built into ORP through `orp project refresh` and `orp project show`; it records local authority surfaces and research timing policy for the current directory without calling providers.",
             "Worktree hygiene is built into ORP through `orp hygiene --json` and the `orp workspace hygiene --json` alias; it is non-destructive and stops long-running agent expansion while dirty paths are unclassified.",
+            "Local configuration and storage are inspectable through `orp config ...` and `orp storage ...`; storage scans only ORP-owned roots and never scans repositories or Codex storage.",
+            "The `orp codex context` adapter is opt-in, read-only, offline, prompt-preserving, transcript-free, and bounded to 2,048 bytes; Codex retains ownership of its threads, goals, memory, permissions, configuration, and execution.",
+            "Hosted workspace sync defaults to an empty field allowlist, previews a sanitized contract-2.0 projection, and requires exact snapshot confirmation before a remote write.",
             "Collaboration is a built-in ORP ability exposed through `orp collaborate ...`.",
             "Frontier control is a built-in ORP ability exposed through `orp frontier ...`, separating the exact live point, the exact active milestone, the near structured checklist, the additional work queue, and strict continuation preflight before delegation.",
             "Agent modes are lightweight optional overlays for taste, perspective shifts, fresh movement, and intentional comprehension breakdowns; `orp mode breakdown granular-breakdown --json` gives agents a broad-to-atomic ladder for complex work, while `orp mode nudge granular-breakdown --json` gives a short reminder card.",
             "Project/session linking is a built-in ORP ability exposed through `orp link ...` and stored machine-locally under `.git/orp/link/`.",
-            "Secrets are easiest to understand as saved credentials and related login metadata: humans usually run `orp secrets add ...` and paste the value at the prompt, agents usually pipe the value with `--value-stdin`, optional usernames can be stored alongside the secret when a service needs them, and local macOS Keychain caching plus hosted sync are optional layers on top.",
+            "Secrets are machine-local by default: values live in the macOS Keychain, ORP keeps non-secret registry metadata in its private local data directory, and hosted workspace sync excludes secret values and secret metadata.",
             "Connections give ORP one place to remember service accounts, public data sources, deployment targets, and which saved secret alias or named secret bindings power each integration through `orp connections providers`, `orp connections list`, `orp connections show`, `orp connections add`, `orp connections update`, `orp connections remove`, `orp connections sync`, and `orp connections pull`.",
             "Agenda refresh is built into ORP through `orp agenda refresh`, `orp agenda actions`, `orp agenda suggestions`, `orp agenda focus`, and `orp agenda set-north-star`, using a Codex reasoning pass over current workspace, GitHub, opportunities, and connection context to keep a ranked action list and a ranked suggestion list.",
             "Recurring agenda refreshes are always explicit opt-in. Nothing runs on a schedule until the user enables it with `orp agenda enable-refreshes`; `orp agenda refresh-status` shows the current state and default morning/afternoon/evening presets.",
@@ -13844,8 +15177,16 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp hygiene --json",
         },
         {
-            "label": "Bootstrap a new project with private GitHub, workspace main, and Clawdad when installed",
-            "command": "orp init --project-startup --github-repo owner/repo --current-codex",
+            "label": "Initialize local ORP governance for the current repository",
+            "command": "orp init",
+        },
+        {
+            "label": "Inspect ORP-owned local storage without scanning repositories or Codex",
+            "command": "orp storage report --json",
+        },
+        {
+            "label": "Emit one bounded prompt-preserving context packet for Codex",
+            "command": "orp codex context --allow-once --prompt \"my exact prompt\"",
         },
         {
             "label": "Inspect the saved service and data connections for this user",
@@ -13952,20 +15293,20 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             "command": "orp secrets ensure --alias <alias> --provider <provider> --current-project --json",
         },
         {
-            "label": "List locally cached Keychain-backed secrets on this Mac",
+            "label": "List local Keychain-backed secrets on this Mac",
             "command": "orp secrets keychain-list --json",
         },
         {
-            "label": "Save a key directly into the local ORP macOS Keychain store",
+            "label": "Save a key through the explicit Keychain compatibility alias",
             "command": "orp secrets keychain-add --alias <alias> --provider <provider> --value-stdin --json",
         },
         {
-            "label": "Sync one hosted secret into the local macOS Keychain",
+            "label": "Import one legacy hosted secret into the local macOS Keychain",
             "command": "orp secrets sync-keychain <alias-or-id> --json",
         },
         {
-            "label": "Resolve one provider secret for the current project with local-first lookup",
-            "command": "orp secrets resolve --provider openai --reveal --local-first --json",
+            "label": "Resolve one local provider secret for the current project",
+            "command": "orp secrets resolve --provider openai --reveal --json",
         },
         {
             "label": "Inspect a YouTube video and ingest full public transcript context",
@@ -14338,7 +15679,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
             },
             {
                 "id": "secrets",
-                "description": "Saved API keys, tokens, passwords, and optional usernames, with an interactive human flow, a stdin agent flow, optional local macOS Keychain caching, and optional hosted sync.",
+                "description": "Machine-local API keys, tokens, passwords, and optional usernames backed by the macOS Keychain; hosted workspace sync excludes this registry and every secret value.",
                 "entrypoints": [
                     "orp secrets list --json",
                     "orp secrets show <alias-or-id> --json",
@@ -14349,7 +15690,7 @@ def _home_payload(repo_root: Path, config_arg: str) -> dict[str, Any]:
                     "orp secrets keychain-show <alias-or-id> --json",
                     "orp secrets sync-keychain <alias-or-id> --json",
                     "orp secrets bind <alias-or-id> --idea-id <idea-id> --json",
-                    "orp secrets resolve --provider <provider> --reveal --local-first --json",
+                    "orp secrets resolve --provider <provider> --reveal --json",
                 ],
             },
             {
@@ -15524,6 +16865,12 @@ def cmd_checkpoint_create(args: argparse.Namespace) -> int:
     if not git.get("present"):
         raise RuntimeError("git repository not detected. Run `orp init` first.")
 
+    hygiene = _build_hygiene_report(repo_root)
+    if hygiene.get("stop_condition"):
+        raise RuntimeError(
+            "checkpoint blocked because worktree hygiene contains unclassified paths; classify them before staging"
+        )
+
     branch = str(git.get("branch", "")).strip()
     if not branch:
         raise RuntimeError("git HEAD is detached. Switch to a named work branch before checkpointing.")
@@ -15564,13 +16911,18 @@ def cmd_checkpoint_create(args: argparse.Namespace) -> int:
         "ready_for_agent_work": refreshed.get("ready_for_agent_work", False),
         "warnings": refreshed.get("warnings", []),
         "next_actions": refreshed.get("next_actions", []),
+        "boundary": {
+            "local_only": True,
+            "hosted_request": False,
+            "staged_paths_classified": True,
+        },
     }
     if args.json_output:
         _print_json(result)
     else:
-        print(f"commit={commit_short}")
+        print(f"commit={event['commit']}")
         print(f"branch={branch}")
-        print(f"message={commit_message}")
+        print(f"message={event['commit_message']}")
         print(f"checkpoint_log={result['checkpoint_log_path']}")
         print(f"git_runtime={result['git_runtime_path']}")
         for warning in result["warnings"]:
@@ -15578,6 +16930,59 @@ def cmd_checkpoint_create(args: argparse.Namespace) -> int:
         for action_line in result["next_actions"]:
             print(f"next={action_line}")
     return 0
+
+
+def cmd_checkpoint_inspect(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    status_payload = _governance_status_payload(repo_root, args.config)
+    hygiene = _build_hygiene_report(repo_root)
+    git = status_payload.get("git", {}) if isinstance(status_payload.get("git"), dict) else {}
+    payload = {
+        "schema": "orp.checkpoint_inspection/1",
+        "schema_version": "1.0.0",
+        "ok": bool(status_payload.get("orp_governed")) and not bool(hygiene.get("stop_condition")),
+        "repository": {
+            "root": str(repo_root),
+            "branch": str(git.get("branch", "")),
+            "head": _git_stdout(repo_root, ["rev-parse", "HEAD"]) if git.get("present") else "",
+        },
+        "hygiene": {
+            "status": hygiene.get("status"),
+            "dirty_count": hygiene.get("dirty_count", 0),
+            "unclassified_count": hygiene.get("unclassified_count", 0),
+            "safe_to_expand": hygiene.get("safe_to_expand", False),
+            "entries": [
+                {
+                    "path": row.get("path", ""),
+                    "git_status": row.get("git_status", ""),
+                    "category": row.get("category", ""),
+                    "classification": row.get("classification", ""),
+                }
+                for row in hygiene.get("entries", [])
+                if isinstance(row, dict)
+            ],
+        },
+        "boundary": {
+            "read_only": True,
+            "local_only": True,
+            "hosted_request": False,
+            "file_contents_included": False,
+        },
+        "next": (
+            'orp checkpoint create -m "describe completed unit"'
+            if not hygiene.get("stop_condition")
+            else "classify unclassified worktree paths before checkpointing"
+        ),
+    }
+    if args.json_output:
+        _print_json(payload)
+    else:
+        print(f"status={'ready' if payload['ok'] else 'blocked'}")
+        print(f"branch={payload['repository']['branch'] or '(detached)'}")
+        print(f"dirty={payload['hygiene']['dirty_count']}")
+        print(f"unclassified={payload['hygiene']['unclassified_count']}")
+        print(f"next={payload['next']}")
+    return 0 if payload["ok"] else 2
 
 
 def cmd_backup(args: argparse.Namespace) -> int:
@@ -24470,165 +25875,96 @@ def cmd_report_summary(args: argparse.Namespace) -> int:
 def cmd_auth_login(args: argparse.Namespace) -> int:
     session = _load_hosted_session()
     base_url = _resolve_hosted_base_url(args, session)
-
-    email = str(getattr(args, "email", "")).strip() or str(session.get("email", "")).strip()
-    if not email:
-        email = _prompt_value("Email")
-    if not email:
-        raise RuntimeError("Email is required.")
-
-    password_from_stdin = bool(getattr(args, "password_stdin", False))
-    password = str(getattr(args, "password", "")).strip()
-    if password_from_stdin and password:
-        raise RuntimeError("Use either --password or --password-stdin, not both.")
-    if password_from_stdin:
-        password = _read_value_from_stdin()
-    if not password:
-        password = _prompt_value("Password", secret=True)
-    if not password:
-        raise RuntimeError("Password is required.")
-
-    payload = _request_hosted_json(
+    device_name = str(getattr(args, "device_name", "")).strip() or f"ORP CLI on {platform.system() or 'this computer'}"
+    requested_scopes = [str(value).strip() for value in (getattr(args, "scopes", None) or []) if str(value).strip()]
+    start_body: dict[str, Any] = {"device_name": device_name}
+    if requested_scopes:
+        start_body["scopes"] = requested_scopes
+    started = _request_hosted_json(
         base_url=base_url,
-        path="/api/auth/device-login",
+        path="/api/auth/device/start",
         method="POST",
-        body={
-            "email": email,
-            "password": password,
-        },
+        body=start_body,
     )
-    pending = payload.get("pendingVerification")
-    expires_at = str(payload.get("expiresAt", "")).strip()
-    token = str(payload.get("token", "")).strip()
-    user = payload.get("user") if isinstance(payload.get("user"), dict) else None
-    if user is None and any(key in payload for key in ("userId", "email", "name")):
-        user = {
-            "id": str(payload.get("userId", "")).strip(),
-            "email": str(payload.get("email", email)).strip() or email,
-            "name": str(payload.get("name", "")).strip(),
-        }
+    device_code = str(started.get("device_code", "")).strip()
+    user_code = str(started.get("user_code", "")).strip()
+    verification_uri = str(started.get("verification_uri", "")).strip()
+    verification_complete = str(started.get("verification_uri_complete", "")).strip() or verification_uri
+    expires_in = max(1, int(started.get("expires_in", 600) or 600))
+    interval = max(1, int(started.get("interval", 5) or 5))
+    if not device_code or not user_code or not verification_uri:
+        raise RuntimeError("Hosted ORP returned an invalid device authorization response.")
 
-    if isinstance(pending, dict) or expires_at:
-        pending_payload = pending if isinstance(pending, dict) else {"expiresAt": expires_at}
-        updated = {
-            **session,
-            "base_url": base_url,
-            "email": email,
-            "token": "",
-            "user": None,
-            "pending_verification": pending_payload,
-        }
-        _save_hosted_session(updated)
+    print(f"Open: {verification_complete}", file=sys.stderr)
+    print(f"Code: {user_code}", file=sys.stderr)
+    if not bool(getattr(args, "no_browser", False)):
+        try:
+            webbrowser.open(verification_complete, new=2)
+        except Exception:
+            pass
 
-        result = {
-            "base_url": base_url,
-            "email": _mask_email(email),
-            "expires_at": str(pending_payload.get("expiresAt", "")).strip(),
-            "pending_verification": True,
-        }
-    elif token and user is not None:
-        updated = {
-            **session,
-            "base_url": base_url,
-            "email": email,
-            "token": token,
-            "user": user,
-            "pending_verification": None,
-        }
-        _save_hosted_session(updated)
-
-        result = {
-            "base_url": base_url,
-            "email": str(user.get("email", email)).strip() or email,
-            "user_id": str(user.get("id", "")).strip(),
-            "connected": True,
-        }
-    else:
-        raise RuntimeError(
-            "Hosted ORP login did not return pending verification details or a usable session."
-        )
-
-    if args.json_output:
-        _print_json(result)
-    else:
-        if result.get("pending_verification") is True:
-            _print_pairs(
-                [
-                    ("base_url", result["base_url"]),
-                    ("email", result["email"]),
-                    ("expires_at", result["expires_at"]),
-                    ("pending_verification", "true"),
-                ]
+    timeout = min(expires_in, max(1, int(getattr(args, "timeout", expires_in) or expires_in)))
+    deadline = time.monotonic() + timeout
+    token_payload: dict[str, Any] | None = None
+    while time.monotonic() < deadline:
+        try:
+            token_payload = _request_hosted_json(
+                base_url=base_url,
+                path="/api/auth/device/token",
+                method="POST",
+                body={
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                    "device_code": device_code,
+                },
             )
-        else:
-            _print_pairs(
-                [
-                    ("base_url", result["base_url"]),
-                    ("email", result["email"]),
-                    ("user_id", result["user_id"]),
-                    ("connected", "true"),
-                ]
-            )
-    return 0
+            break
+        except HostedApiError as exc:
+            if exc.code == "authorization_pending":
+                time.sleep(interval)
+                continue
+            if exc.code == "slow_down":
+                interval += 5
+                time.sleep(interval)
+                continue
+            raise
+    if token_payload is None:
+        raise RuntimeError("Hosted device authorization timed out. Run `orp auth login` again.")
 
-
-def cmd_auth_verify(args: argparse.Namespace) -> int:
-    session = _load_hosted_session()
-    base_url = _resolve_hosted_base_url(args, session)
-
-    email = str(getattr(args, "email", "")).strip() or str(session.get("email", "")).strip()
-    if not email:
-        email = _prompt_value("Email")
-    if not email:
-        raise RuntimeError("Email is required.")
-
-    code_from_stdin = bool(getattr(args, "code_stdin", False))
-    code = str(getattr(args, "code", "")).strip()
-    if code_from_stdin and code:
-        raise RuntimeError("Use either --code or --code-stdin, not both.")
-    if code_from_stdin:
-        code = _read_value_from_stdin()
-    if not code:
-        code = _prompt_value("Verification code")
-    if not code:
-        raise RuntimeError("Verification code is required.")
-
-    payload = _request_hosted_json(
+    access_token = str(token_payload.get("access_token", "")).strip()
+    identity = _request_hosted_json(
         base_url=base_url,
-        path="/api/auth/device-verify",
-        method="POST",
-        body={
-            "email": email,
-            "code": code,
-        },
+        path="/api/cli/me",
+        token=access_token,
     )
-    token = str(payload.get("token", "")).strip()
-    user = payload.get("user") if isinstance(payload.get("user"), dict) else None
-    if user is None and any(key in payload for key in ("userId", "email", "name")):
-        user = {
-            "id": str(payload.get("userId", "")).strip(),
-            "email": str(payload.get("email", email)).strip() or email,
-            "name": str(payload.get("name", "")).strip(),
-        }
-    if not token or user is None:
-        raise RuntimeError("Hosted ORP verify did not return a usable session.")
-
+    user = identity.get("user") if isinstance(identity.get("user"), dict) else {}
+    email = str(user.get("email", "")).strip()
+    coordinates = _store_hosted_credentials(base_url, token_payload)
+    expires_at = int(time.time()) + max(0, int(token_payload.get("expires_in", 0) or 0))
     updated = {
         **session,
+        "schema_version": "orp.hosted_session/2",
         "base_url": base_url,
         "email": email,
-        "token": token,
         "user": user,
         "pending_verification": None,
+        "auth_mode": "device_authorization",
+        "credential": coordinates,
+        "access_expires_at": expires_at,
+        "token": "",
     }
     _save_hosted_session(updated)
-
     result = {
+        "ok": True,
         "base_url": base_url,
-        "email": str(user.get("email", email)).strip() or email,
+        "email": email,
         "user_id": str(user.get("id", "")).strip(),
         "connected": True,
+        "auth_mode": "device_authorization",
+        "credential_storage": "macos_keychain",
+        "access_expires_at": expires_at,
+        "scope": str(token_payload.get("scope", "")).strip().split(),
     }
+
     if args.json_output:
         _print_json(result)
     else:
@@ -24638,6 +25974,96 @@ def cmd_auth_verify(args: argparse.Namespace) -> int:
                 ("email", result["email"]),
                 ("user_id", result["user_id"]),
                 ("connected", "true"),
+                ("auth_mode", result["auth_mode"]),
+                ("credential_storage", result["credential_storage"]),
+            ]
+        )
+    return 0
+
+
+def cmd_auth_verify(args: argparse.Namespace) -> int:
+    raise RuntimeError("`orp auth verify` is retired in ORP 0.5. Run `orp auth login`; approval now happens securely in your browser.")
+
+
+def cmd_auth_devices(args: argparse.Namespace) -> int:
+    session = _require_hosted_session(args)
+    base_url = _resolve_hosted_base_url(args, session)
+    payload = _request_hosted_json(
+        base_url=base_url,
+        path="/api/auth/devices",
+        token=str(session.get("token", "")).strip(),
+    )
+    devices = payload.get("devices") if isinstance(payload.get("devices"), list) else []
+    result = {
+        "ok": True,
+        "base_url": base_url,
+        "devices": [row for row in devices if isinstance(row, dict)],
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"devices={len(result['devices'])}")
+        for row in result["devices"]:
+            _print_pairs(
+                [
+                    ("device.id", str(row.get("id", "")).strip()),
+                    ("device.name", str(row.get("name", "")).strip()),
+                    ("device.status", str(row.get("status", "")).strip()),
+                    ("device.current", str(bool(row.get("current", False))).lower()),
+                    ("device.last_seen_at", str(row.get("last_seen_at", "") or "").strip()),
+                ]
+            )
+    return 0
+
+
+def cmd_auth_revoke_device(args: argparse.Namespace) -> int:
+    device_id = str(getattr(args, "device_id", "") or "").strip()
+    if not device_id:
+        raise RuntimeError("Device id is required.")
+    stored_session = _load_hosted_session()
+    session = _require_hosted_session(args)
+    base_url = _resolve_hosted_base_url(args, session)
+    payload = _request_hosted_json(
+        base_url=base_url,
+        path=f"/api/auth/devices/{urlparse.quote(device_id)}",
+        method="DELETE",
+        token=str(session.get("token", "")).strip(),
+    )
+    current = bool(payload.get("current", False))
+    local_credentials_removed = False
+    if current:
+        local_credentials_removed = _delete_hosted_credentials(stored_session)
+        _save_hosted_session(
+            {
+                "schema_version": "orp.hosted_session/2",
+                "base_url": base_url,
+                "email": str(stored_session.get("email", "")).strip(),
+                "token": "",
+                "user": None,
+                "pending_verification": None,
+                "auth_mode": "device_authorization",
+                "credential": None,
+                "device_id": "",
+                "access_expires_at": 0,
+            }
+        )
+    result = {
+        "ok": True,
+        "base_url": base_url,
+        "device_id": device_id,
+        "status": str(payload.get("status", "revoked")).strip() or "revoked",
+        "current": current,
+        "local_credentials_removed": local_credentials_removed,
+    }
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(
+            [
+                ("device_id", result["device_id"]),
+                ("status", result["status"]),
+                ("current", str(current).lower()),
+                ("local_credentials_removed", str(local_credentials_removed).lower()),
             ]
         )
     return 0
@@ -24645,18 +26071,53 @@ def cmd_auth_verify(args: argparse.Namespace) -> int:
 
 def cmd_auth_logout(args: argparse.Namespace) -> int:
     session = _load_hosted_session()
+    base_url = _resolve_hosted_base_url(args, session)
+    warnings: list[str] = []
+    remote_revoked = False
+    active = session
+    if str(session.get("auth_mode", "")).strip() == "device_authorization":
+        try:
+            active = _hydrate_hosted_session(
+                {**session, "base_url": base_url},
+                refresh=not bool(getattr(args, "local_only", False)),
+            )
+        except Exception as exc:
+            active = session
+            if not bool(getattr(args, "local_only", False)):
+                warnings.append(f"Unable to refresh the device session for remote revocation: {exc}")
+    token = str(active.get("token", "")).strip()
+    if token and not bool(getattr(args, "local_only", False)):
+        try:
+            _request_hosted_json(
+                base_url=base_url,
+                path="/api/auth/device/revoke",
+                method="POST",
+                token=token,
+            )
+            remote_revoked = True
+        except HostedApiError as exc:
+            warnings.append(f"Remote device revocation failed: {exc}")
+    keychain_removed = _delete_hosted_credentials(session)
     updated = {
-        "base_url": _normalize_base_url(session.get("base_url", "")),
+        "schema_version": "orp.hosted_session/2",
+        "base_url": base_url,
         "email": str(session.get("email", "")).strip(),
         "token": "",
         "user": None,
         "pending_verification": None,
+        "auth_mode": "device_authorization",
+        "credential": None,
+        "device_id": "",
+        "access_expires_at": 0,
     }
     _save_hosted_session(updated)
     result = {
         "base_url": updated["base_url"],
         "connected": False,
         "ok": True,
+        "remote_revoked": remote_revoked,
+        "keychain_removed": keychain_removed,
+        "warnings": warnings,
     }
     if args.json_output:
         _print_json(result)
@@ -24666,8 +26127,12 @@ def cmd_auth_logout(args: argparse.Namespace) -> int:
                 ("base_url", result["base_url"]),
                 ("connected", "false"),
                 ("ok", "true"),
+                ("remote_revoked", str(remote_revoked).lower()),
+                ("keychain_removed", str(keychain_removed).lower()),
             ]
         )
+        for warning in warnings:
+            print(f"warning={warning}")
     return 0
 
 
@@ -24723,12 +26188,11 @@ def _resolve_secret_scope_from_args(
 def _resolve_secret_value_arg(args: argparse.Namespace, *, required: bool) -> tuple[bool, str]:
     value_from_stdin = bool(getattr(args, "value_stdin", False))
     value_from_env = bool(getattr(args, "from_env", False))
-    raw_value = getattr(args, "value", None)
-    if sum([bool(value_from_stdin), bool(value_from_env), raw_value is not None]) > 1:
-        raise RuntimeError("Use only one of --value, --value-stdin, or --from-env.")
+    if value_from_stdin and value_from_env:
+        raise RuntimeError("Use only one of --value-stdin or --from-env.")
 
-    provided = raw_value is not None or value_from_stdin or value_from_env
-    value = str(raw_value).strip() if raw_value is not None else ""
+    provided = value_from_stdin or value_from_env
+    value = ""
     if value_from_stdin:
         value = _read_value_from_stdin()
     if value_from_env:
@@ -25241,13 +26705,7 @@ def _read_keychain_secret_value(entry: dict[str, Any]) -> str:
     account = str(entry.get("keychain_account", "")).strip()
     if not service or not account:
         raise RuntimeError("Local Keychain secret entry is missing its service/account coordinates.")
-    proc = _run_keychain_command(
-        ["find-generic-password", "-s", service, "-a", account, "-w"],
-    )
-    if proc.returncode != 0:
-        message = proc.stderr.strip() or proc.stdout.strip() or "macOS Keychain lookup failed."
-        raise RuntimeError(message)
-    return proc.stdout.rstrip("\n")
+    return _keychain_read_password(service, account)
 
 
 def _store_keychain_secret_value(secret: dict[str, Any], value: str) -> dict[str, str]:
@@ -25255,27 +26713,14 @@ def _store_keychain_secret_value(secret: dict[str, Any], value: str) -> dict[str
     account = _keychain_account_for_secret(secret)
     label = _keychain_label_for_secret(secret)
     comment = _keychain_comment_for_secret(secret)
-    proc = _run_keychain_command(
-        [
-            "add-generic-password",
-            "-a",
-            account,
-            "-s",
-            service,
-            "-D",
-            "ORP Secret",
-            "-j",
-            comment,
-            "-l",
-            label,
-            "-U",
-            "-w",
-            value,
-        ]
+    _keychain_store_password(
+        service=service,
+        account=account,
+        value=value,
+        label=label,
+        description="ORP Secret",
+        comment=comment,
     )
-    if proc.returncode != 0:
-        message = proc.stderr.strip() or proc.stdout.strip() or "macOS Keychain write failed."
-        raise RuntimeError(message)
     return {
         "keychain_service": service,
         "keychain_account": account,
@@ -26013,7 +27458,10 @@ def _build_remote_workspace_body(
             body["title"] = _normalize_workspace_title_input(text)
     if description is not None:
         text = str(description).strip()
-        body["description"] = text or None
+        body["description"] = _assert_safe_hosted_metadata_text(
+            text,
+            field_path="workspace.description",
+        ) if text else None
     if visibility is not None:
         text = str(visibility).strip()
         if text:
@@ -26038,6 +27486,7 @@ def _load_hosted_workspace_json_file(path_arg: str, *, label: str) -> tuple[Path
         raise RuntimeError(f"Failed to parse {label} JSON at {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise RuntimeError(f"{label} JSON at {path} must be an object.")
+    _assert_safe_hosted_payload(payload, field_path=label.replace(" ", "_"))
     return path, payload
 
 
@@ -26787,111 +28236,15 @@ def cmd_world_bind(args: argparse.Namespace) -> int:
 
 
 def cmd_secrets_list(args: argparse.Namespace) -> int:
-    params: list[str] = []
-    provider = str(getattr(args, "provider", "") or "").strip()
-    if provider:
-        params.append(f"provider={urlparse.quote(provider)}")
-    world_id, idea_id = _resolve_secret_scope_from_args(args, require_scope=False)
-    if world_id:
-        params.append(f"worldId={urlparse.quote(world_id)}")
-    if idea_id:
-        params.append(f"ideaId={urlparse.quote(idea_id)}")
-    if bool(getattr(args, "archived", False)):
-        params.append("archived=1")
-    query = f"?{'&'.join(params)}" if params else ""
-
-    payload = _request_secret_payload(args, path=f"/api/cli/secrets{query}")
-    items = payload.get("items") if isinstance(payload.get("items"), list) else []
-    result = {
-        "ok": bool(payload.get("ok", True)),
-        "items": [row for row in items if isinstance(row, dict)],
-        "provider": provider,
-        "world_id": world_id,
-        "idea_id": idea_id,
-        "archived": bool(getattr(args, "archived", False)),
-    }
-    if args.json_output:
-        _print_json(result)
-    else:
-        _print_pairs(
-            [
-                ("secrets.count", len(result["items"])),
-                ("filter.provider", provider),
-                ("filter.world_id", world_id),
-                ("filter.idea_id", idea_id),
-                ("filter.archived", str(result["archived"]).lower()),
-            ]
-        )
-        for secret in result["items"]:
-            print("---")
-            _print_secret_human(secret, include_bindings=False)
-    return 0
+    return cmd_secrets_keychain_list(args)
 
 
 def cmd_secrets_show(args: argparse.Namespace) -> int:
-    secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
-    if not secret_ref:
-        raise RuntimeError("Secret reference is required.")
-    payload = _request_secret_payload(
-        args,
-        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
-    )
-    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
-    if not isinstance(secret, dict):
-        raise RuntimeError("Hosted ORP returned an invalid secret record.")
-    result = {
-        "ok": bool(payload.get("ok", True)),
-        "secret": secret,
-    }
-    if args.json_output:
-        _print_json(result)
-    else:
-        _print_secret_human(secret, include_bindings=True)
-    return 0
+    return cmd_secrets_keychain_show(args)
 
 
 def cmd_secrets_add(args: argparse.Namespace) -> int:
-    _, value = _resolve_secret_value_arg(args, required=True)
-    body: dict[str, Any] = {
-        "alias": str(getattr(args, "alias", "")).strip(),
-        "label": str(getattr(args, "label", "")).strip(),
-        "provider": str(getattr(args, "provider", "")).strip(),
-        "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
-        "value": value,
-    }
-    username = getattr(args, "username", None)
-    if username is not None:
-        text = str(username).strip()
-        body["username"] = text or None
-    env_var_name = getattr(args, "env_var_name", None)
-    if env_var_name is not None:
-        text = str(env_var_name).strip()
-        body["envVarName"] = text or None
-    notes = getattr(args, "notes", None)
-    if notes is not None:
-        text = str(notes).strip()
-        body["notes"] = text or None
-    binding = _build_secret_binding_payload_from_args(args)
-    body["bindings"] = [binding] if binding else []
-
-    payload = _request_secret_payload(
-        args,
-        path="/api/cli/secrets",
-        method="POST",
-        body=body,
-    )
-    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
-    if not isinstance(secret, dict):
-        raise RuntimeError("Hosted ORP returned an invalid secret record.")
-    result = {
-        "ok": bool(payload.get("ok", True)),
-        "secret": secret,
-    }
-    if args.json_output:
-        _print_json(result)
-    else:
-        _print_secret_human(secret, include_bindings=True)
-    return 0
+    return cmd_secrets_keychain_add(args)
 
 
 def cmd_secrets_ensure(args: argparse.Namespace) -> int:
@@ -26903,68 +28256,54 @@ def cmd_secrets_ensure(args: argparse.Namespace) -> int:
         args,
         fallback_to_current_project=True,
     )
-    secret = _try_get_secret_by_ref(args, alias)
+    existing = _select_keychain_entry(secret_ref=alias, provider="", world_id="", idea_id="")
     created = False
     binding_created = False
     binding_reused = False
-    binding = None
+    binding: dict[str, Any] | None = None
 
-    if secret is None:
+    if existing is None:
+        _ensure_keychain_supported()
         _, value = _resolve_secret_value_arg(args, required=True)
-        label = str(getattr(args, "label", "") or "").strip() or alias
-        body: dict[str, Any] = {
-            "alias": alias,
-            "label": label,
-            "provider": str(getattr(args, "provider", "")).strip(),
-            "kind": str(getattr(args, "kind", "api_key")).strip() or "api_key",
-            "value": value,
-        }
-        username = getattr(args, "username", None)
-        if username is not None:
-            text = str(username).strip()
-            body["username"] = text or None
-        env_var_name = getattr(args, "env_var_name", None)
-        if env_var_name is not None:
-            text = str(env_var_name).strip()
-            body["envVarName"] = text or None
-        notes = getattr(args, "notes", None)
-        if notes is not None:
-            text = str(notes).strip()
-            body["notes"] = text or None
-        body["bindings"] = [desired_binding] if desired_binding else []
-
-        payload = _request_secret_payload(
-            args,
-            path="/api/cli/secrets",
-            method="POST",
-            body=body,
-        )
-        created_secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
-        if not isinstance(created_secret, dict):
-            raise RuntimeError("Hosted ORP returned an invalid secret record.")
-        secret = created_secret
+        secret = _build_local_keychain_secret_from_args(args)
+        if desired_binding:
+            desired_binding = dict(desired_binding)
+            desired_binding["id"] = f"local-binding-{uuid.uuid4().hex[:12]}"
+        entry = _build_keychain_registry_entry(secret, binding=desired_binding)
+        entry.update(_store_keychain_secret_value(secret, value))
+        entry = _upsert_keychain_secret_registry_entry(entry)
         created = True
         if desired_binding:
-            binding = _find_secret_binding(secret, desired_binding)
-            binding_created = binding is not None
+            binding = _binding_payload_from_keychain_summary(
+                _normalize_secret_binding_summary(desired_binding)
+            )
+            binding_created = True
     else:
+        entry = dict(existing)
+        secret = _secret_payload_from_keychain_entry(entry)
         _validate_existing_secret_for_ensure(secret, args)
         if desired_binding:
             binding = _find_secret_binding(secret, desired_binding)
             if binding is not None:
                 binding_reused = True
             else:
-                binding = _create_secret_binding_for_ensure(args, secret, desired_binding)
+                desired_binding = dict(desired_binding)
+                desired_binding["id"] = f"local-binding-{uuid.uuid4().hex[:12]}"
+                normalized_binding = _normalize_secret_binding_summary(desired_binding)
+                entry["bindings"] = _merge_secret_binding_summaries(
+                    entry.get("bindings", []) if isinstance(entry.get("bindings"), list) else [],
+                    [normalized_binding],
+                )
+                entry["last_synced_at_utc"] = _now_utc()
+                entry = _upsert_keychain_secret_registry_entry(entry)
+                binding = _binding_payload_from_keychain_summary(normalized_binding)
                 binding_created = True
-                secret = dict(secret)
-                secret["bindings"] = [*_secret_bindings(secret), binding]
+        secret = _secret_payload_from_keychain_entry(entry)
 
-    resolved: dict[str, Any] | None = None
     if bool(getattr(args, "reveal", False)):
-        resolved = _resolve_secret_for_ensure(args, secret, desired_binding)
-        secret = resolved["secret"]
-        if binding is None and isinstance(resolved.get("binding"), dict):
-            binding = resolved["binding"]
+        value = _read_keychain_secret_value(entry)
+    else:
+        value = None
 
     result = {
         "ok": True,
@@ -26973,10 +28312,11 @@ def cmd_secrets_ensure(args: argparse.Namespace) -> int:
         "binding_reused": binding_reused,
         "secret": secret,
         "binding": binding,
+        "source": "keychain",
     }
-    if resolved is not None:
-        result["value"] = resolved.get("value")
-        result["matched_by"] = resolved.get("matched_by", "")
+    if value is not None:
+        result["value"] = value
+        result["matched_by"] = "keychain+alias"
 
     if args.json_output:
         _print_json(result)
@@ -26987,6 +28327,7 @@ def cmd_secrets_ensure(args: argparse.Namespace) -> int:
             binding=binding if isinstance(binding, dict) else None,
             value=result.get("value") if bool(getattr(args, "reveal", False)) else None,
             matched_by=str(result.get("matched_by", "") or ""),
+            source="keychain",
         )
         print(f"secret.created={str(created).lower()}")
         print(f"binding.created={str(binding_created).lower()}")
@@ -26999,44 +28340,47 @@ def cmd_secrets_update(args: argparse.Namespace) -> int:
     if not secret_ref:
         raise RuntimeError("Secret reference is required.")
 
-    body: dict[str, Any] = {}
-    for attr_name, body_key in (
-        ("alias", "alias"),
+    items = _list_keychain_registry_entries(secret_ref=secret_ref)
+    if not items:
+        raise RuntimeError("No matching local Keychain secret was found.")
+    entry = dict(items[0])
+    next_alias = getattr(args, "alias", None)
+    next_provider = getattr(args, "provider", None)
+    if next_alias is not None and str(next_alias).strip() != str(entry.get("alias", "")).strip():
+        raise RuntimeError("Local secret aliases are immutable; add a new alias and archive this one.")
+    if next_provider is not None and str(next_provider).strip() != str(entry.get("provider", "")).strip():
+        raise RuntimeError("Local secret providers are immutable; add a new secret for the new provider.")
+    changed = False
+    for attr_name, entry_key in (
         ("label", "label"),
-        ("provider", "provider"),
         ("kind", "kind"),
         ("username", "username"),
-        ("env_var_name", "envVarName"),
+        ("env_var_name", "env_var_name"),
         ("notes", "notes"),
         ("status", "status"),
     ):
-        value = getattr(args, attr_name, None)
-        if value is not None:
-            text = str(value).strip()
-            if body_key in {"username", "envVarName", "notes"}:
-                body[body_key] = text or None
-            else:
-                body[body_key] = text
-
+        raw = getattr(args, attr_name, None)
+        if raw is not None:
+            entry[entry_key] = str(raw).strip()
+            changed = True
     value_provided, value = _resolve_secret_value_arg(args, required=False)
     if value_provided:
-        body["value"] = value
-
-    if not body:
+        _ensure_keychain_supported()
+        secret = _secret_payload_from_keychain_entry(entry)
+        entry.update(_store_keychain_secret_value(secret, value))
+        now = _now_utc()
+        entry["value_version"] = f"local:{now}"
+        entry["rotated_at_utc"] = now
+        changed = True
+    if not changed:
         raise RuntimeError("Provide at least one field to update.")
-
-    payload = _request_secret_payload(
-        args,
-        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
-        method="PATCH",
-        body=body,
-    )
-    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
-    if not isinstance(secret, dict):
-        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    entry["last_synced_at_utc"] = _now_utc()
+    entry = _upsert_keychain_secret_registry_entry(entry)
+    secret = _secret_payload_from_keychain_entry(entry)
     result = {
-        "ok": bool(payload.get("ok", True)),
+        "ok": True,
         "secret": secret,
+        "source": "keychain",
     }
     if args.json_output:
         _print_json(result)
@@ -27049,19 +28393,21 @@ def cmd_secrets_archive(args: argparse.Namespace) -> int:
     secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
     if not secret_ref:
         raise RuntimeError("Secret reference is required.")
-    payload = _request_secret_payload(
-        args,
-        path=f"/api/cli/secrets/{urlparse.quote(secret_ref)}",
-        method="DELETE",
-    )
-    secret = payload.get("secret") if isinstance(payload.get("secret"), dict) else payload
-    if not isinstance(secret, dict):
-        raise RuntimeError("Hosted ORP returned an invalid secret record.")
+    items = _list_keychain_registry_entries(secret_ref=secret_ref)
+    if not items:
+        raise RuntimeError("No matching local Keychain secret was found.")
+    entry = dict(items[0])
+    entry["status"] = "archived"
+    entry["last_synced_at_utc"] = _now_utc()
+    entry = _upsert_keychain_secret_registry_entry(entry)
+    secret = _secret_payload_from_keychain_entry(entry)
     result = {
-        "ok": bool(payload.get("ok", True)),
+        "ok": True,
         "secret": secret,
-        "removed_secret_id": str(payload.get("removedSecretId", secret.get("id", ""))).strip(),
-        "archived": bool(payload.get("archived", True)),
+        "removed_secret_id": str(secret.get("id", "")).strip(),
+        "archived": True,
+        "value_retained_in_keychain": True,
+        "source": "keychain",
     }
     if args.json_output:
         _print_json(result)
@@ -27081,31 +28427,38 @@ def cmd_secrets_bind(args: argparse.Namespace) -> int:
         require_scope=True,
         fallback_to_current_project=True,
     )
-    body: dict[str, Any] = {
-        "secretId" if _looks_like_uuid(secret_ref) else "secretAlias": secret_ref,
+    items = _list_keychain_registry_entries(secret_ref=secret_ref)
+    if not items:
+        raise RuntimeError("No matching local Keychain secret was found.")
+    entry = dict(items[0])
+    normalized = {
+        "binding_id": f"local-binding-{uuid.uuid4().hex[:12]}",
+        "world_id": world_id,
+        "idea_id": idea_id,
+        "purpose": str(getattr(args, "purpose", "") or "").strip(),
+        "primary": bool(getattr(args, "primary", False)),
     }
-    if world_id:
-        body["worldId"] = world_id
-    if idea_id:
-        body["ideaId"] = idea_id
-    purpose = str(getattr(args, "purpose", "") or "").strip()
-    if purpose:
-        body["purpose"] = purpose
-    if bool(getattr(args, "primary", False)):
-        body["isPrimary"] = True
-
-    payload = _request_secret_payload(
-        args,
-        path="/api/cli/secrets/bindings",
-        method="POST",
-        body=body,
+    existing_bindings = entry.get("bindings", []) if isinstance(entry.get("bindings"), list) else []
+    existing = next(
+        (row for row in existing_bindings if isinstance(row, dict)
+         and str(row.get("world_id", "")).strip() == world_id
+         and str(row.get("idea_id", "")).strip() == idea_id
+         and str(row.get("purpose", "")).strip() == normalized["purpose"]),
+        None,
     )
-    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else payload
-    if not isinstance(binding, dict):
-        raise RuntimeError("Hosted ORP returned an invalid binding record.")
+    if existing:
+        normalized = _normalize_secret_binding_summary(existing)
+    else:
+        entry["bindings"] = _merge_secret_binding_summaries(existing_bindings, [normalized])
+        entry["last_synced_at_utc"] = _now_utc()
+        _upsert_keychain_secret_registry_entry(entry)
+    binding = _binding_payload_from_keychain_summary(normalized)
+    binding["secretId"] = str(entry.get("secret_id", "")).strip()
     result = {
-        "ok": bool(payload.get("ok", True)),
+        "ok": True,
         "binding": binding,
+        "created": existing is None,
+        "source": "keychain",
     }
     if args.json_output:
         _print_json(result)
@@ -27126,16 +28479,35 @@ def cmd_secrets_unbind(args: argparse.Namespace) -> int:
     binding_id = str(getattr(args, "binding_id", "") or "").strip()
     if not binding_id:
         raise RuntimeError("Binding id is required.")
-    payload = _request_secret_payload(
-        args,
-        path=f"/api/cli/secrets/bindings/{urlparse.quote(binding_id)}",
-        method="DELETE",
-    )
-    binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else {}
+    registry = _load_keychain_secret_registry()
+    items = registry.get("items") if isinstance(registry.get("items"), list) else []
+    binding: dict[str, Any] | None = None
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        bindings = entry.get("bindings") if isinstance(entry.get("bindings"), list) else []
+        kept: list[dict[str, Any]] = []
+        for row in bindings:
+            if not isinstance(row, dict):
+                continue
+            normalized = _normalize_secret_binding_summary(row)
+            if normalized["binding_id"] == binding_id:
+                binding = _binding_payload_from_keychain_summary(normalized)
+                binding["secretId"] = str(entry.get("secret_id", "")).strip()
+            else:
+                kept.append(normalized)
+        if binding is not None:
+            entry["bindings"] = kept
+            entry["last_synced_at_utc"] = _now_utc()
+            break
+    if binding is None:
+        raise RuntimeError("No matching local secret binding was found.")
+    _save_keychain_secret_registry(registry)
     result = {
-        "ok": bool(payload.get("ok", True)),
-        "removed_binding_id": str(payload.get("removedBindingId", binding_id)).strip(),
+        "ok": True,
+        "removed_binding_id": binding_id,
         "binding": binding,
+        "source": "keychain",
     }
     if args.json_output:
         _print_json(result)
@@ -27154,38 +28526,14 @@ def cmd_secrets_resolve(args: argparse.Namespace) -> int:
     secret_ref = str(getattr(args, "secret_ref", "") or "").strip()
     provider = str(getattr(args, "provider", "") or "").strip()
     reveal = bool(getattr(args, "reveal", False))
-    local_first = bool(getattr(args, "local_first", False))
-    local_only = bool(getattr(args, "local_only", False))
-    sync_keychain = bool(getattr(args, "sync_keychain", False))
-    if local_first and local_only:
-        raise RuntimeError("Use either --local-first or --local-only, not both.")
-
-    result: dict[str, Any] | None = None
-    if local_first or local_only:
-        result = _resolve_secret_from_keychain(
-            args,
-            secret_ref=secret_ref,
-            provider=provider,
-            reveal=reveal,
-        )
-        if result is None and local_only:
-            raise RuntimeError("No matching local Keychain secret was found.")
-
+    result = _resolve_secret_from_keychain(
+        args,
+        secret_ref=secret_ref,
+        provider=provider,
+        reveal=reveal,
+    )
     if result is None:
-        result = _resolve_secret_from_hosted(
-            args,
-            secret_ref=secret_ref,
-            provider=provider,
-            reveal=reveal,
-        )
-        if sync_keychain:
-            if not reveal:
-                raise RuntimeError("--sync-keychain requires --reveal so ORP can securely cache the resolved value locally.")
-            _sync_secret_to_keychain(
-                result["secret"],
-                value=str(result.get("value") or ""),
-                binding=result.get("binding") if isinstance(result.get("binding"), dict) else None,
-            )
+        raise RuntimeError("No matching local Keychain secret was found.")
     if args.json_output:
         _print_json(result)
     else:
@@ -27297,12 +28645,16 @@ def cmd_secrets_keychain_list(args: argparse.Namespace) -> int:
         world_id=world_id,
         idea_id=idea_id,
     )
+    include_archived = bool(getattr(args, "archived", False))
+    if not include_archived:
+        items = [row for row in items if str(row.get("status", "active")).strip() == "active"]
     result = {
         "ok": True,
         "items": items,
         "provider": provider,
         "world_id": world_id,
         "idea_id": idea_id,
+        "archived": include_archived,
         "registry_path": str(_keychain_secret_registry_path()),
     }
     if args.json_output:
@@ -28937,6 +30289,63 @@ def build_parser() -> argparse.ArgumentParser:
     add_json_flag(s_about)
     s_about.set_defaults(func=cmd_about, json_output=False)
 
+    s_local_config = sub.add_parser(
+        "config",
+        help="Inspect and update the machine-local ORP configuration",
+    )
+    local_config_sub = s_local_config.add_subparsers(dest="local_config_cmd", required=True)
+
+    s_local_config_path = local_config_sub.add_parser("path", help="Print the local config path")
+    add_json_flag(s_local_config_path)
+    s_local_config_path.set_defaults(func=cmd_config_path, json_output=False)
+
+    s_local_config_show = local_config_sub.add_parser("show", help="Show the effective local config")
+    add_json_flag(s_local_config_show)
+    s_local_config_show.set_defaults(func=cmd_config_show, json_output=False)
+
+    s_local_config_get = local_config_sub.add_parser("get", help="Read one local config value")
+    s_local_config_get.add_argument("key", help="Dotted local config key")
+    add_json_flag(s_local_config_get)
+    s_local_config_get.set_defaults(func=cmd_config_get, json_output=False)
+
+    s_local_config_set = local_config_sub.add_parser("set", help="Set one supported local config value")
+    s_local_config_set.add_argument("key", help="Dotted local config key")
+    s_local_config_set.add_argument("value", help="JSON value or string")
+    add_json_flag(s_local_config_set)
+    s_local_config_set.set_defaults(func=cmd_config_set, json_output=False)
+
+    s_local_config_validate = local_config_sub.add_parser("validate", help="Validate the effective local config")
+    add_json_flag(s_local_config_validate)
+    s_local_config_validate.set_defaults(func=cmd_config_validate, json_output=False)
+
+    s_storage = sub.add_parser(
+        "storage",
+        help="Report, migrate, and compact machine-local ORP storage",
+    )
+    storage_sub = s_storage.add_subparsers(dest="storage_cmd", required=True)
+
+    s_storage_report = storage_sub.add_parser("report", help="Report ORP-owned local storage without scanning Codex")
+    add_json_flag(s_storage_report)
+    s_storage_report.set_defaults(func=cmd_storage_report, json_output=False)
+
+    s_storage_migrate = storage_sub.add_parser(
+        "migrate",
+        help="Plan or apply the reversible legacy-v0 to xdg-v1 migration",
+    )
+    s_storage_migrate.add_argument("--apply", action="store_true", help="Apply the reviewed migration plan")
+    s_storage_migrate.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
+    add_json_flag(s_storage_migrate)
+    s_storage_migrate.set_defaults(func=cmd_storage_migrate, json_output=False)
+
+    s_storage_compact = storage_sub.add_parser(
+        "compact",
+        help="Plan or apply deterministic archive-first retention compaction",
+    )
+    s_storage_compact.add_argument("--apply", action="store_true", help="Archive, verify, then remove reviewed candidates")
+    s_storage_compact.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
+    add_json_flag(s_storage_compact)
+    s_storage_compact.set_defaults(func=cmd_storage_compact, json_output=False)
+
     s_mode = sub.add_parser(
         "mode",
         help="Agent-first cognitive overlay modes for creativity, perspective, and breakdown",
@@ -29578,31 +30987,40 @@ def build_parser() -> argparse.ArgumentParser:
     s_auth = sub.add_parser("auth", help="Hosted workspace authentication operations")
     auth_sub = s_auth.add_subparsers(dest="auth_cmd", required=True)
 
-    s_auth_login = auth_sub.add_parser("login", help="Start hosted workspace login flow")
-    s_auth_login.add_argument("--email", default="", help="Hosted account email")
-    s_auth_login.add_argument("--password", default="", help="Hosted account password")
+    s_auth_login = auth_sub.add_parser("login", help="Authorize this CLI in the hosted ORP browser flow")
+    s_auth_login.add_argument("--device-name", default="", help="Human-readable name shown during browser approval")
     s_auth_login.add_argument(
-        "--password-stdin",
-        action="store_true",
-        help="Read the hosted account password from stdin",
+        "--scope",
+        dest="scopes",
+        action="append",
+        default=None,
+        help="Request one hosted scope; repeat for additional scopes",
     )
+    s_auth_login.add_argument("--no-browser", action="store_true", help="Print the approval URL without opening a browser")
+    s_auth_login.add_argument("--timeout", type=int, default=600, help="Maximum seconds to wait for browser approval")
     add_base_url_flag(s_auth_login)
     add_json_flag(s_auth_login)
     s_auth_login.set_defaults(func=cmd_auth_login, json_output=False)
 
-    s_auth_verify = auth_sub.add_parser("verify", help="Complete hosted workspace verification")
-    s_auth_verify.add_argument("--email", default="", help="Hosted account email")
-    s_auth_verify.add_argument("--code", default="", help="Verification code")
-    s_auth_verify.add_argument(
-        "--code-stdin",
-        action="store_true",
-        help="Read the verification code from stdin",
-    )
+    s_auth_verify = auth_sub.add_parser("verify", help="Deprecated alias; browser approval is completed by auth login")
     add_base_url_flag(s_auth_verify)
     add_json_flag(s_auth_verify)
     s_auth_verify.set_defaults(func=cmd_auth_verify, json_output=False)
 
-    s_auth_logout = auth_sub.add_parser("logout", help="Clear the hosted workspace session")
+    s_auth_devices = auth_sub.add_parser("devices", help="List devices authorized for the current ORP account")
+    add_base_url_flag(s_auth_devices)
+    add_json_flag(s_auth_devices)
+    s_auth_devices.set_defaults(func=cmd_auth_devices, json_output=False)
+
+    s_auth_revoke_device = auth_sub.add_parser("revoke-device", help="Revoke one authorized device by id")
+    s_auth_revoke_device.add_argument("device_id", help="Device id returned by `orp auth devices`")
+    add_base_url_flag(s_auth_revoke_device)
+    add_json_flag(s_auth_revoke_device)
+    s_auth_revoke_device.set_defaults(func=cmd_auth_revoke_device, json_output=False)
+
+    s_auth_logout = auth_sub.add_parser("logout", help="Revoke the device session and clear its local Keychain credentials")
+    s_auth_logout.add_argument("--local-only", action="store_true", help="Clear local credentials without remote revocation")
+    add_base_url_flag(s_auth_logout)
     add_json_flag(s_auth_logout)
     s_auth_logout.set_defaults(func=cmd_auth_logout, json_output=False)
 
@@ -29842,25 +31260,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets = sub.add_parser(
         "secrets",
-        help="Save and reuse API keys, tokens, passwords, and related login usernames",
+        help="Save and reuse machine-local credentials through the macOS Keychain",
         description=(
-            "ORP secrets are easiest to understand as saved credentials and related login metadata.\n\n"
+            "ORP secrets are machine-local. Secret values live in the macOS Keychain; ORP stores only non-secret registry metadata in its private local data directory. Hosted workspace sync excludes both.\n\n"
             "Human flow:\n"
             "  1. Run `orp secrets add ...`\n"
             "  2. Paste the value when ORP prompts `Secret value:`\n"
             "  3. Later run `orp secrets list` or `orp secrets resolve ...`\n\n"
             "Agent flow:\n"
-            "  - Pipe the value with `--value-stdin` instead of typing it interactively.\n\n"
-            "Local flow:\n"
-            "  - Use `orp secrets keychain-add ...` to store a machine-local secret without the hosted API.\n\n"
-            "Local macOS Keychain caching and hosted sync are optional layers on top."
+            "  - Pipe the value with `--value-stdin`; ORP never sends it to orp.earth.\n\n"
+            "Compatibility:\n"
+            "  - `keychain-*` commands are explicit aliases for the same local store.\n"
+            "  - `sync-keychain` is an explicit one-way import from the legacy hosted secret API.\n\n"
+            "Secret commands currently require macOS."
         ),
         epilog=(
             "Examples:\n"
             "  orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai\n"
             "  orp secrets add --alias huggingface-login --label \"Hugging Face Login\" --provider huggingface --kind password --username cody\n"
             "  printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label \"OpenAI Primary\" --provider openai --value-stdin\n"
-            "  printf '%s' 'sk-...' | orp secrets keychain-add --alias openai-primary --label \"OpenAI Primary\" --provider openai --env-var-name OPENAI_API_KEY --value-stdin\n"
             "  orp secrets list\n"
             "  orp secrets resolve openai-primary --reveal"
         ),
@@ -29868,7 +31286,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     secrets_sub = s_secrets.add_subparsers(dest="secrets_cmd", required=True)
 
-    s_secrets_list = secrets_sub.add_parser("list", help="List saved secrets known to ORP")
+    s_secrets_list = secrets_sub.add_parser("list", help="List local secret metadata (never values)")
     s_secrets_list.add_argument("--provider", default="", help="Optional provider filter")
     add_secret_scope_flags(s_secrets_list)
     s_secrets_list.add_argument(
@@ -29876,19 +31294,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include archived secrets",
     )
-    add_base_url_flag(s_secrets_list)
     add_json_flag(s_secrets_list)
     s_secrets_list.set_defaults(func=cmd_secrets_list, json_output=False)
 
-    s_secrets_show = secrets_sub.add_parser("show", help="Show one saved secret by alias or id")
+    s_secrets_show = secrets_sub.add_parser("show", help="Show one local secret's metadata by alias or id")
     s_secrets_show.add_argument("secret_ref", help="Secret alias or id")
-    add_base_url_flag(s_secrets_show)
     add_json_flag(s_secrets_show)
     s_secrets_show.set_defaults(func=cmd_secrets_show, json_output=False)
 
     s_secrets_add = secrets_sub.add_parser(
         "add",
-        help="Save a new secret; ORP prompts for the value unless you pass --value-stdin",
+        help="Save a secret in the local macOS Keychain",
     )
     s_secrets_add.add_argument("--alias", required=True, help="Stable secret alias")
     s_secrets_add.add_argument("--label", required=True, help="Human label for the secret")
@@ -29905,7 +31321,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional username or login identifier that belongs with this credential",
     )
     s_secrets_add.add_argument("--env-var-name", default=None, help="Optional env var name, for example OPENAI_API_KEY")
-    s_secrets_add.add_argument("--value", default=None, help="Secret value")
     s_secrets_add.add_argument(
         "--value-stdin",
         action="store_true",
@@ -29919,13 +31334,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Mark the binding as primary for the project when binding during create",
     )
-    add_base_url_flag(s_secrets_add)
     add_json_flag(s_secrets_add)
     s_secrets_add.set_defaults(func=cmd_secrets_add, json_output=False)
 
     s_secrets_ensure = secrets_sub.add_parser(
         "ensure",
-        help="Reuse a saved secret or prompt for it and save it when missing",
+        help="Reuse a local secret or prompt and save it when missing",
     )
     s_secrets_ensure.add_argument("--alias", required=True, help="Stable secret alias")
     s_secrets_ensure.add_argument("--label", default="", help="Human label for create-if-missing flows")
@@ -29946,7 +31360,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional env var name to store on create, for example OPENAI_API_KEY",
     )
-    s_secrets_ensure.add_argument("--value", default=None, help="Secret value when create-if-missing is needed")
     s_secrets_ensure.add_argument(
         "--value-stdin",
         action="store_true",
@@ -29965,13 +31378,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Resolve and return the plaintext value after ensuring the secret",
     )
-    add_base_url_flag(s_secrets_ensure)
     add_json_flag(s_secrets_ensure)
     s_secrets_ensure.set_defaults(func=cmd_secrets_ensure, json_output=False)
 
     s_secrets_keychain_add = secrets_sub.add_parser(
         "keychain-add",
-        help="Save or update one secret directly in the local macOS Keychain registry",
+        help="Compatibility alias for local `secrets add`",
     )
     s_secrets_keychain_add.add_argument("--alias", required=True, help="Stable secret alias")
     s_secrets_keychain_add.add_argument("--label", default="", help="Human label for the secret")
@@ -29988,7 +31400,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional username or login identifier that belongs with this credential",
     )
     s_secrets_keychain_add.add_argument("--env-var-name", default=None, help="Optional env var name, for example OPENAI_API_KEY")
-    s_secrets_keychain_add.add_argument("--value", default=None, help="Secret value")
     s_secrets_keychain_add.add_argument(
         "--value-stdin",
         action="store_true",
@@ -30063,7 +31474,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_keychain_list = secrets_sub.add_parser(
         "keychain-list",
-        help="List local macOS Keychain copies known to ORP on this machine",
+        help="Compatibility alias for local `secrets list`",
     )
     s_secrets_keychain_list.add_argument("--provider", default="", help="Optional provider filter")
     add_secret_scope_flags(s_secrets_keychain_list)
@@ -30072,7 +31483,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_keychain_show = secrets_sub.add_parser(
         "keychain-show",
-        help="Show one local macOS Keychain copy by alias or id",
+        help="Compatibility alias for local `secrets show` with optional reveal",
     )
     s_secrets_keychain_show.add_argument("secret_ref", help="Secret alias or id")
     s_secrets_keychain_show.add_argument(
@@ -30085,7 +31496,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_secrets_sync_keychain = secrets_sub.add_parser(
         "sync-keychain",
-        help="Copy one saved secret into the local macOS Keychain",
+        help="Import one legacy hosted secret into the local macOS Keychain",
     )
     s_secrets_sync_keychain.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
     s_secrets_sync_keychain.add_argument("--provider", default="", help="Provider slug for project-scoped sync")
@@ -30093,13 +31504,13 @@ def build_parser() -> argparse.ArgumentParser:
     s_secrets_sync_keychain.add_argument(
         "--all",
         action="store_true",
-        help="Sync every matching hosted secret into the local Keychain",
+        help="Import every matching legacy hosted secret into the local Keychain",
     )
     add_base_url_flag(s_secrets_sync_keychain)
     add_json_flag(s_secrets_sync_keychain)
     s_secrets_sync_keychain.set_defaults(func=cmd_secrets_sync_keychain, json_output=False)
 
-    s_secrets_update = secrets_sub.add_parser("update", help="Update one saved secret")
+    s_secrets_update = secrets_sub.add_parser("update", help="Update local secret metadata or rotate its Keychain value")
     s_secrets_update.add_argument("secret_ref", help="Secret alias or id")
     s_secrets_update.add_argument("--alias", default=None, help="New alias")
     s_secrets_update.add_argument("--label", default=None, help="New label")
@@ -30112,7 +31523,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_secrets_update.add_argument("--username", default=None, help="Updated username or login identifier")
     s_secrets_update.add_argument("--env-var-name", default=None, help="Updated env var name")
-    s_secrets_update.add_argument("--value", default=None, help="New secret value")
     s_secrets_update.add_argument(
         "--value-stdin",
         action="store_true",
@@ -30125,17 +31535,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Update the secret status",
     )
-    add_base_url_flag(s_secrets_update)
     add_json_flag(s_secrets_update)
     s_secrets_update.set_defaults(func=cmd_secrets_update, json_output=False)
 
-    s_secrets_archive = secrets_sub.add_parser("archive", help="Archive one saved secret")
+    s_secrets_archive = secrets_sub.add_parser("archive", help="Archive local secret metadata while retaining its Keychain value")
     s_secrets_archive.add_argument("secret_ref", help="Secret alias or id")
-    add_base_url_flag(s_secrets_archive)
     add_json_flag(s_secrets_archive)
     s_secrets_archive.set_defaults(func=cmd_secrets_archive, json_output=False)
 
-    s_secrets_bind = secrets_sub.add_parser("bind", help="Bind one saved secret to a hosted project/world")
+    s_secrets_bind = secrets_sub.add_parser("bind", help="Bind one local secret alias to local project metadata")
     s_secrets_bind.add_argument("secret_ref", help="Secret alias or id")
     add_secret_scope_flags(s_secrets_bind)
     s_secrets_bind.add_argument("--purpose", default="", help="Optional project usage note")
@@ -30144,19 +31552,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Mark the binding as primary for the target project",
     )
-    add_base_url_flag(s_secrets_bind)
     add_json_flag(s_secrets_bind)
     s_secrets_bind.set_defaults(func=cmd_secrets_bind, json_output=False)
 
-    s_secrets_unbind = secrets_sub.add_parser("unbind", help="Remove one hosted secret binding")
-    s_secrets_unbind.add_argument("binding_id", help="Hosted binding id")
-    add_base_url_flag(s_secrets_unbind)
+    s_secrets_unbind = secrets_sub.add_parser("unbind", help="Remove one local secret binding")
+    s_secrets_unbind.add_argument("binding_id", help="Local binding id")
     add_json_flag(s_secrets_unbind)
     s_secrets_unbind.set_defaults(func=cmd_secrets_unbind, json_output=False)
 
     s_secrets_resolve = secrets_sub.add_parser(
         "resolve",
-        help="Resolve one saved secret by alias/id or by provider plus project scope",
+        help="Resolve one local Keychain secret by alias/id or provider plus project scope",
     )
     s_secrets_resolve.add_argument("secret_ref", nargs="?", default="", help="Optional secret alias or id")
     s_secrets_resolve.add_argument("--provider", default="", help="Provider slug for project-scoped resolution")
@@ -30166,22 +31572,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Return the plaintext value in the command output",
     )
-    s_secrets_resolve.add_argument(
-        "--local-first",
-        action="store_true",
-        help="Prefer the local macOS Keychain cache before falling back to the hosted secret store",
-    )
-    s_secrets_resolve.add_argument(
-        "--local-only",
-        action="store_true",
-        help="Resolve only from the local macOS Keychain cache",
-    )
-    s_secrets_resolve.add_argument(
-        "--sync-keychain",
-        action="store_true",
-        help="After a hosted resolve, store the plaintext value in the local macOS Keychain",
-    )
-    add_base_url_flag(s_secrets_resolve)
     add_json_flag(s_secrets_resolve)
     s_secrets_resolve.set_defaults(func=cmd_secrets_resolve, json_output=False)
 
@@ -30483,6 +31873,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_checkpoint = sub.add_parser("checkpoint", help="Checkpoint operations")
     checkpoint_sub = s_checkpoint.add_subparsers(dest="checkpoint_cmd", required=True)
+
+    s_checkpoint_inspect = checkpoint_sub.add_parser(
+        "inspect",
+        help="Inspect the local checkpoint boundary without reading file contents or contacting hosted ORP",
+    )
+    add_json_flag(s_checkpoint_inspect)
+    s_checkpoint_inspect.set_defaults(func=cmd_checkpoint_inspect, json_output=False)
 
     s_checkpoint_create = checkpoint_sub.add_parser(
         "create",

@@ -11,6 +11,7 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUARD = REPO_ROOT / "scripts" / "npm-prepublish-guard.js"
+RELEASE_TAG = REPO_ROOT / "scripts" / "npm-release-tag.js"
 
 
 def _guard_env(**overrides: str | None) -> dict[str, str]:
@@ -73,6 +74,33 @@ def _git_init_bare(root: Path) -> None:
 
 
 class NpmPublishGuardTests(unittest.TestCase):
+    def test_release_tag_keeps_prereleases_off_latest(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node not found on PATH")
+
+        prerelease = subprocess.run(
+            [node, str(RELEASE_TAG), "0.5.0-rc.1"],
+            capture_output=True,
+            text=True,
+        )
+        stable = subprocess.run(
+            [node, str(RELEASE_TAG), "0.5.0"],
+            capture_output=True,
+            text=True,
+        )
+        invalid = subprocess.run(
+            [node, str(RELEASE_TAG), "release-candidate"],
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(prerelease.returncode, 0, msg=prerelease.stderr)
+        self.assertEqual(prerelease.stdout.strip(), "next")
+        self.assertEqual(stable.returncode, 0, msg=stable.stderr)
+        self.assertEqual(stable.stdout.strip(), "latest")
+        self.assertNotEqual(invalid.returncode, 0)
+
     def test_package_manifest_excludes_generated_bytecode(self) -> None:
         npm = shutil.which("npm")
         if npm is None:

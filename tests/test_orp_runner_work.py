@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import redirect_stdout
@@ -527,9 +528,14 @@ class OrpRunnerWorkTests(unittest.TestCase):
     def test_runner_work_sends_periodic_heartbeats_while_executing(self) -> None:
         module = load_cli_module()
         calls: list[tuple[str, str, dict[str, object] | None]] = []
+        periodic_heartbeat_seen = threading.Event()
 
         def fake_request_hosted_json(*, base_url, path, token, method="GET", body=None):
             calls.append((method, path, body))
+            if path == "/api/cli/runner/heartbeat":
+                heartbeat_count = sum(1 for _, called_path, _ in calls if called_path == path)
+                if heartbeat_count >= 2:
+                    periodic_heartbeat_seen.set()
             if path.startswith("/api/cli/runner/jobs/poll"):
                 return {
                     "job": {
@@ -544,7 +550,8 @@ class OrpRunnerWorkTests(unittest.TestCase):
             return {"ok": True}
 
         def slow_run_runner_codex_job(*, job, repo_root, selected_session, args):
-            time.sleep(2.2)
+            if not periodic_heartbeat_seen.wait(timeout=5):
+                raise AssertionError("periodic runner heartbeat was not sent while the job was active")
             return {
                 "ok": True,
                 "exitCode": 0,

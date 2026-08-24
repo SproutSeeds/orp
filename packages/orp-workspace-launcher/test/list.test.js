@@ -22,9 +22,13 @@ async function makeTempDir() {
   return fs.mkdtemp(path.join(os.tmpdir(), "orp-workspace-list-"));
 }
 
-test("parseWorkspaceListArgs accepts --json", () => {
-  const parsed = parseWorkspaceListArgs(["--json"]);
+test("parseWorkspaceListArgs defaults offline and accepts explicit hosted reads", () => {
+  const local = parseWorkspaceListArgs(["--json"]);
+  assert.equal(local.json, true);
+  assert.equal(local.hosted, false);
+  const parsed = parseWorkspaceListArgs(["--hosted", "--json"]);
   assert.equal(parsed.json, true);
+  assert.equal(parsed.hosted, true);
   assert.throws(() => parseWorkspaceListArgs(["--wat"]), /unexpected argument/);
 });
 

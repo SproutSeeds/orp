@@ -29,7 +29,7 @@ test("runOrpWorkspaceCommand shows the ledger-first help surface", async () => {
   const { code, stdout } = await captureStdout(() => runOrpWorkspaceCommand(["-h"]));
 
   assert.equal(code, 0);
-  assert.match(stdout, /orp workspace list \[--json\]/);
+  assert.match(stdout, /orp workspace list \[--hosted\] \[--json\]/);
   assert.match(stdout, /orp workspace add-tab <name-or-id>/);
   assert.match(stdout, /--here/);
   assert.match(stdout, /--current-codex/);
