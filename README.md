@@ -29,7 +29,7 @@ ORP is a unified CLI for research and research-like engineering. It helps humans
 - schedule the next loop
 - checkpoint and protect progress
 - emit packets and reports
-- keep hosted and local state aligned
+- publish a reviewed, metadata-only workspace projection when you opt in
 
 **Boundary (non-negotiable):** ORP files are process-only. They are not evidence and must not be cited as proof. Evidence lives in canonical project artifacts such as code, data, papers, proofs, and logs.
 
@@ -107,7 +107,7 @@ It walks through:
 - umbrella and project-level `AGENTS.md` / `CLAUDE.md` guidance
 - local-first workspace ledgers
 - local-first opportunity boards
-- saved Codex and Claude resume commands
+- optional, prompt-preserving Codex context
 - secrets setup
 - the checkpoint and governance loop
 - optional hosted sync later
@@ -310,13 +310,10 @@ The practical model is:
 
 ## Secrets Quick Start
 
-ORP secrets can live in the hosted ORP secret inventory, with optional local macOS Keychain caching, or directly in the local ORP Keychain registry when you need a machine-local store immediately. For hosted secrets, start with:
-
-```bash
-orp auth login
-```
-
-After that, there are two normal ways to save a secret.
+ORP secrets are machine-local by default. Values live in the macOS Keychain;
+ORP stores only private local registry metadata such as aliases, providers,
+usernames, project bindings, and spend policies. Neither values nor registry
+metadata are included in hosted workspace sync.
 
 For a human at the terminal, use the interactive path:
 
@@ -336,18 +333,6 @@ For an agent or script, use stdin:
 
 ```bash
 printf '%s' 'sk-...' | orp secrets add --alias openai-primary --label "OpenAI Primary" --provider openai --value-stdin
-```
-
-For a local-only machine secret, use the ORP Keychain path:
-
-```bash
-printf '%s' 'sk-...' | orp secrets keychain-add --alias openai-primary --label "OpenAI Primary" --provider openai --env-var-name OPENAI_API_KEY --value-stdin
-```
-
-If the key is already in the current process environment:
-
-```bash
-orp secrets keychain-add --alias openai-primary --label "OpenAI Primary" --provider openai --env-var-name OPENAI_API_KEY --from-env
 ```
 
 If a service needs both a username and a secret, store the username with it:
@@ -391,10 +376,18 @@ For secrets, the simplest plain-English rule is:
 - `orp secrets show ...` = inspect one saved key record
 - `orp secrets resolve ...` = get the key value for use right now
 - `orp secrets ensure ...` = use the saved key if it exists, otherwise create it
-- `orp secrets keychain-add ...` = save or update a machine-local ORP secret in macOS Keychain
-- `orp secrets sync-keychain ...` = keep a secure local Mac copy too
+- `orp secrets update ... --value-stdin` = rotate the Keychain value
+- `orp secrets archive ...` = archive its registry metadata while retaining the Keychain value
+- `orp secrets keychain-*` = compatibility aliases for the same local store
+- `orp secrets sync-keychain ...` = explicitly import one legacy hosted secret into the local Keychain
 
-You can ignore `--env-var-name` at first. It is optional metadata like `OPENAI_API_KEY`, not the key itself.
+Secret values are never accepted through the public `--value` argument, which
+keeps them out of process listings. Human prompts and `--value-stdin` are the
+supported inputs. The native Keychain surface currently requires macOS; the
+rest of ORP remains cross-platform.
+
+Hosted login is used for optional workspace metadata and the explicit legacy
+import path, not for ordinary secret storage.
 
 ## Product Map
 
@@ -439,6 +432,7 @@ Hosted control plane:
 
 ```bash
 orp auth login
+orp auth devices --json
 orp whoami --json
 orp ideas list --json
 orp workspaces list --json
@@ -451,37 +445,34 @@ orp agent work --once --json
 Local desk and automation:
 
 ```bash
+orp config show --json
+orp storage report --json
 orp workspace create mac-main --machine-label "Mac Studio"
 orp workspace list
+orp workspace list --hosted
 orp workspace tabs main
-orp init --project-startup --github-repo owner/repo --current-codex
-orp workspace add-tab main --path /absolute/path/to/project --remote-url git@github.com:org/project.git --bootstrap-command "npm install" --resume-command "codex resume <id>"
-orp workspace add-tab main --path /absolute/path/to/project --title "second active thread" --resume-tool claude --resume-session-id <id> --append
+orp init
+orp workspace add-tab main --here --title "current project"
 orp workspace remove-tab main --path /absolute/path/to/project
-orp workspace sync main
-orp codex status
-orp codex reconcile --dry-run
-orp codex --search
+orp workspace sync main --allow tabs.title --json
+orp codex context --allow-once --prompt "my exact prompt"
 orp secrets list --json
 orp secrets ensure --alias openai-primary --provider openai --current-project --json
-orp secrets keychain-add --alias openai-primary --provider openai --env-var-name OPENAI_API_KEY --value-stdin --json
-orp secrets sync-keychain openai-primary --json
 orp schedule add codex --name morning-summary --prompt "Summarize this repo" --json
 ```
 
-`orp codex` is a local compatibility layer for keeping workspace `main`
-aligned with Codex sessions. `status` compares the current repo against the
-latest local Codex session metadata, `reconcile` refreshes stale saved sessions,
-and bare `orp codex` launches Codex from the repo root while watching for the new
-session id. Codex exec and delegated/subagent sessions are ignored by default,
-and artifact-output repos should be left untracked when a separate lab repo is
-the source of truth. Use `--include-exec` only when diagnosing short-lived exec
-sessions, and use `--` before Codex args that conflict with ORP wrapper options.
-The manual fallback from inside Codex is still:
+`orp codex context` is an opt-in, read-only adapter. It preserves the supplied
+prompt byte-for-byte and emits at most 2 KiB of provenance-aware repository
+context without reading Codex threads, transcripts, goals, memory, permissions,
+or configuration. It stays offline and never launches Codex or writes hosted
+state.
 
-```bash
-orp workspace add-tab main --here --current-codex
-```
+`orp workspace list` is offline by default. Add `--hosted` for one explicit
+merged lookup, or set `sync.enabled=true` when hosted reads should be routine.
+
+Historical session status, reconciliation, and launcher behavior remains
+available only with `--legacy-session-access`. Bare `orp codex` performs no
+launch or mutation.
 
 For secrets, the simplest plain-English rule is:
 
@@ -591,7 +582,7 @@ Stable artifact paths:
 1. Copy this folder into a new project directory.
 2. If you keep projects under one umbrella directory, run `orp agents root set /absolute/path/to/projects` once from anywhere.
 3. Run `orp init` immediately so the repo starts ORP-governed, scaffolds or updates `AGENTS.md` and `CLAUDE.md`, and creates `orp/project.json`.
-   For the fuller new-project ritual, run `orp init --project-startup --github-repo owner/repo --current-codex`; ORP will create a private GitHub remote through `gh`, save the path/session in workspace `main`, and register Clawdad delegation when `clawdad` is installed. Use `--startup-dry-run --json` first when you want to inspect the planned external commands.
+   Keep initialization local by default. If you later choose the project-startup workflow that creates a remote, inspect its `--startup-dry-run --json` output and authorize the external action separately.
 4. Edit `PROTOCOL.md` to define your canonical paths and claim labels.
 5. Run `orp project refresh --json` whenever the directory gains new roadmap, spec, docs, manifest, or command-surface files.
 6. Run `orp agents audit` to confirm the repo-level agent files are aligned and still preserving human notes.
@@ -619,15 +610,13 @@ ORP remains docs-first by default. For teams that want local gate execution and 
 Minimal CLI skeleton:
 
 ```bash
-orp auth login
 orp youtube inspect https://www.youtube.com/watch?v=<video_id> --json
-orp ideas list --json
-orp world bind --idea-id <idea-id> --project-root /abs/path --codex-session-id <session-id> --json
-orp checkpoint queue --idea-id <idea-id> --json
-orp runner work --once --json
-orp runner work --continuous --transport auto --json
-orp agent work --once --json   # compatibility alias with legacy checkpoint fallback
 orp init
+orp config show --json
+orp storage report --json
+orp workspace create main
+orp workspace add-tab main --here --title "current project"
+orp codex context --allow-once --prompt "my exact prompt"
 orp status --json
 orp branch start work/<topic> --json
 orp checkpoint create -m "describe completed unit" --json
@@ -639,6 +628,10 @@ orp packet emit --profile default
 orp report summary --run-id <run_id>
 orp erdos sync
 ```
+
+Optional hosted projection starts with `orp auth login`, followed by a dry-run
+`orp workspace sync <selector> --allow <field> --json`. An apply requires the
+exact reviewed `snapshot_id`.
 
 Equivalent local-repo commands are available via `./scripts/orp ...` when developing ORP itself.
 

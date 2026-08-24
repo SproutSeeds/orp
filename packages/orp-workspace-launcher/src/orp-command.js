@@ -55,7 +55,7 @@ function printWorkspaceHelp() {
 
 Usage:
   orp workspace create <title-slug> [--workspace-file <path>] [--slot <main|offhand>] [--machine-id <id>] [--machine-label <label>] [--platform <platform>] [--path <absolute-path>] [--remote-url <git-url>] [--remote-branch <branch>] [--bootstrap-command <text>] [--resume-command <text> | --resume-tool <codex|claude> --resume-session-id <id>] [--json]
-  orp workspace list [--json]
+  orp workspace list [--hosted] [--json]
   orp workspace tabs <name-or-id> [--json]
   orp workspace tabs --hosted-workspace-id <workspace-id> [--json]
   orp workspace tabs --notes-file <path> [--json]
@@ -72,7 +72,7 @@ Usage:
 
 Commands:
   create  Create a local workspace ledger so ORP works without a hosted account
-  list    List one merged inventory of hosted ORP workspaces and local manifests
+  list    List local workspaces offline; opt in to a merged hosted lookup
   tabs    List the saved tabs inside a workspace with copyable resume/recovery lines
   add-tab Add a saved tab/path/session to the workspace ledger directly
   remove-tab Remove one or more saved tabs from the workspace ledger directly
@@ -83,7 +83,7 @@ Commands:
 
 Notes:
   - Local-only usage works: create a workspace with \`orp workspace create <title-slug>\`, then use \`orp workspace tabs ...\`, \`orp workspace add-tab ...\`, and \`orp workspace remove-tab ...\` without authenticating.
-  - Use \`orp workspace list\` for the combined hosted + local workspace inventory.
+  - Use \`orp workspace list\` for offline local inventory and \`orp workspace list --hosted\` for one explicit merged lookup.
   - Use \`orp workspace tabs <workspace>\` when you want saved paths plus copyable \`cd ... && codex resume ...\` / \`claude --resume ...\` recovery lines, along with optional remote repo and bootstrap metadata for another machine.
   - Use \`orp workspace create ... --machine-label ...\` when you want the workspace ledger to stay clearly tied to one rig.
   - Use \`orp workspace add-tab ... --remote-url ... --bootstrap-command ...\` when you want ORP to remember how to recreate the repo on another machine.
@@ -99,6 +99,7 @@ Examples:
   orp workspace create main-cody-1 --slot main
   orp workspace create mac-main --machine-label "Mac Studio" --path /absolute/path/to/orp --remote-url git@github.com:SproutSeeds/orp.git --bootstrap-command "npm install"
   orp workspace list
+  orp workspace list --hosted
   orp workspace tabs main-cody-1
   orp workspace hygiene --json
   orp workspace add-tab main --here --current-codex

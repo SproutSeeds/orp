@@ -46,6 +46,33 @@ class HostedCliShapeTests(unittest.TestCase):
             }
         )
 
+    def _save_local_secret(self, module, td: str, *, bindings=None) -> None:
+        os.environ["XDG_CONFIG_HOME"] = td
+        module._save_keychain_secret_registry(
+            {
+                "schema_version": "1.0.0",
+                "items": [
+                    {
+                        "secret_id": "local-openai-primary",
+                        "alias": "openai-primary",
+                        "label": "OpenAI Primary",
+                        "provider": "openai",
+                        "kind": "api_key",
+                        "username": "cody",
+                        "env_var_name": "OPENAI_API_KEY",
+                        "status": "active",
+                        "value_version": "local:test",
+                        "value_preview": "stored in local Keychain",
+                        "keychain_service": "orp.test.openai",
+                        "keychain_account": "openai-primary",
+                        "keychain_label": "OpenAI Primary",
+                        "bindings": bindings or [],
+                        "last_synced_at_utc": "2026-08-23T00:00:00Z",
+                    }
+                ],
+            }
+        )
+
     def test_hosted_html_404_is_reported_without_dumping_page(self) -> None:
         module = load_cli_module()
         error = module._hosted_api_error(
@@ -102,6 +129,36 @@ class HostedCliShapeTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "hosted_network_unreachable")
         self.assertEqual(payload["error"]["path"], "/api/cli/workspaces")
         self.assertTrue(payload["error"]["retryable"])
+
+    def test_hosted_metadata_preflight_rejects_sensitive_embedded_content(self) -> None:
+        module = load_cli_module()
+        sensitive = (
+            "Review /Volumes/Code_2TB/code/orp before release",
+            "access_token=super-secret-value",
+            "User: keep this private\nAssistant: understood",
+            "Run codex resume 019dcd50-111d-7451-bd01-dbc21336c679",
+            "hostname=codys-macbook.local",
+        )
+        for value in sensitive:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(RuntimeError, "Hosted workspace metadata contains"):
+                    module._assert_safe_hosted_metadata_text(value, field_path="workspace.summary")
+
+        self.assertEqual(
+            module._assert_safe_hosted_metadata_text(
+                "Rotate access tokens and document transcript protections.",
+                field_path="workspace.summary",
+            ),
+            "Rotate access tokens and document transcript protections.",
+        )
+
+    def test_hosted_json_preflight_rejects_forbidden_fields(self) -> None:
+        module = load_cli_module()
+        with self.assertRaisesRegex(RuntimeError, "forbidden field"):
+            module._assert_safe_hosted_payload(
+                {"tabs": [{"source_file": "README.md"}]},
+                field_path="workspace_state",
+            )
 
     def test_ideas_list_accepts_items_and_next_cursor_shape(self) -> None:
         module = load_cli_module()
@@ -550,7 +607,9 @@ class HostedCliShapeTests(unittest.TestCase):
                 "items": [{"id": "secret_123", "alias": "openai-primary"}],
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets list must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": idea_id,
@@ -560,6 +619,17 @@ class HostedCliShapeTests(unittest.TestCase):
 
         with TemporaryDirectory() as td:
             self._prepare_session(module, td)
+            self._save_local_secret(
+                module,
+                td,
+                bindings=[{
+                    "binding_id": "binding_123",
+                    "world_id": world_id,
+                    "idea_id": idea_id,
+                    "purpose": "agent work",
+                    "primary": True,
+                }],
+            )
             buf = io.StringIO()
             with redirect_stdout(buf):
                 result = module.cmd_secrets_list(
@@ -580,7 +650,7 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(payload["idea_id"], idea_id)
             self.assertEqual(payload["items"][0]["alias"], "openai-primary")
 
-    def test_secrets_add_posts_binding_for_current_project(self) -> None:
+    def test_secrets_add_stores_local_binding_for_current_project(self) -> None:
         module = load_cli_module()
         world_id = "11111111-1111-4111-8111-111111111111"
 
@@ -618,6 +688,13 @@ class HostedCliShapeTests(unittest.TestCase):
             "world_id": world_id,
             "idea_id": "",
         }
+        module._ensure_keychain_supported = lambda: None
+        module._read_value_from_stdin = lambda: "sk-test"
+        module._store_keychain_secret_value = lambda secret, value: {
+            "keychain_service": "orp.secret.openai",
+            "keychain_account": "openai-primary",
+            "keychain_label": "OpenAI Primary",
+        }
 
         from tempfile import TemporaryDirectory
 
@@ -633,8 +710,7 @@ class HostedCliShapeTests(unittest.TestCase):
                         kind="api_key",
                         username="cody",
                         env_var_name="OPENAI_API_KEY",
-                        value="sk-test",
-                        value_stdin=False,
+                        value_stdin=True,
                         notes="main key",
                         world_id="",
                         idea_id="",
@@ -648,7 +724,9 @@ class HostedCliShapeTests(unittest.TestCase):
                 )
             self.assertEqual(result, 0)
             payload = json.loads(buf.getvalue())
-            self.assertEqual(payload["secret"]["id"], "secret_123")
+            self.assertTrue(payload["secret"]["id"].startswith("local-"))
+            self.assertEqual(payload["source"], "keychain")
+            self.assertNotIn("sk-test", json.dumps(payload))
 
     def test_secrets_ensure_reuses_existing_secret_and_binding(self) -> None:
         module = load_cli_module()
@@ -706,16 +784,30 @@ class HostedCliShapeTests(unittest.TestCase):
                 "matchedBy": "alias+project",
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets ensure must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": idea_id,
         }
+        module._read_keychain_secret_value = lambda entry: "sk-local"
 
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as td:
             self._prepare_session(module, td)
+            self._save_local_secret(
+                module,
+                td,
+                bindings=[{
+                    "binding_id": "binding_123",
+                    "world_id": world_id,
+                    "idea_id": idea_id,
+                    "purpose": "",
+                    "primary": True,
+                }],
+            )
             buf = io.StringIO()
             with redirect_stdout(buf):
                 result = module.cmd_secrets_ensure(
@@ -744,8 +836,9 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertFalse(payload["created"])
             self.assertFalse(payload["binding_created"])
             self.assertTrue(payload["binding_reused"])
-            self.assertEqual(payload["value"], "sk-live")
-            self.assertEqual(len(calls), 2)
+            self.assertEqual(payload["value"], "sk-local")
+            self.assertEqual(payload["source"], "keychain")
+            self.assertEqual(len(calls), 0)
 
     def test_secrets_ensure_creates_missing_secret_and_binding(self) -> None:
         module = load_cli_module()
@@ -785,10 +878,19 @@ class HostedCliShapeTests(unittest.TestCase):
                 },
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets ensure must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": "",
+        }
+        module._ensure_keychain_supported = lambda: None
+        module._read_value_from_stdin = lambda: "sk-test"
+        module._store_keychain_secret_value = lambda secret, value: {
+            "keychain_service": "orp.test.openai",
+            "keychain_account": "openai-primary",
+            "keychain_label": "OpenAI Primary",
         }
 
         from tempfile import TemporaryDirectory
@@ -805,8 +907,7 @@ class HostedCliShapeTests(unittest.TestCase):
                         kind="api_key",
                         username="cody",
                         env_var_name="OPENAI_API_KEY",
-                        value="sk-test",
-                        value_stdin=False,
+                        value_stdin=True,
                         notes="main key",
                         world_id="",
                         idea_id="",
@@ -867,7 +968,9 @@ class HostedCliShapeTests(unittest.TestCase):
                 },
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets ensure must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": idea_id,
@@ -877,6 +980,7 @@ class HostedCliShapeTests(unittest.TestCase):
 
         with TemporaryDirectory() as td:
             self._prepare_session(module, td)
+            self._save_local_secret(module, td)
             buf = io.StringIO()
             with redirect_stdout(buf):
                 result = module.cmd_secrets_ensure(
@@ -905,7 +1009,8 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertFalse(payload["created"])
             self.assertTrue(payload["binding_created"])
             self.assertFalse(payload["binding_reused"])
-            self.assertEqual(payload["binding"]["id"], "binding_456")
+            self.assertTrue(payload["binding"]["id"].startswith("local-binding-"))
+            self.assertEqual(payload["source"], "keychain")
 
     def test_secrets_sync_keychain_stores_hosted_secret_locally(self) -> None:
         module = load_cli_module()
@@ -948,12 +1053,11 @@ class HostedCliShapeTests(unittest.TestCase):
         }
         module._keychain_supported = lambda: True
         module._ensure_keychain_supported = lambda: None
-        module._run_keychain_command = lambda args, input_text=None: subprocess.CompletedProcess(
-            ["security", *args],
-            0,
-            "",
-            "",
-        )
+        module._store_keychain_secret_value = lambda secret, value: {
+            "keychain_service": "orp.secret.openai",
+            "keychain_account": "openai-primary",
+            "keychain_label": "OpenAI Primary",
+        }
 
         from tempfile import TemporaryDirectory
 
@@ -1006,6 +1110,7 @@ class HostedCliShapeTests(unittest.TestCase):
 
         module._request_secret_payload = fail_hosted_request
         module._ensure_keychain_supported = lambda: None
+        module._read_value_from_stdin = lambda: "sk-local"
         module._store_keychain_secret_value = fake_store_keychain_secret_value
 
         from tempfile import TemporaryDirectory
@@ -1022,8 +1127,7 @@ class HostedCliShapeTests(unittest.TestCase):
                         kind="api_key",
                         username=None,
                         env_var_name="OPENAI_API_KEY",
-                        value="sk-local",
-                        value_stdin=False,
+                        value_stdin=True,
                         from_env=False,
                         daily_spend_cap_usd=5.0,
                         dashboard_spend_cap_status="confirmed",
@@ -1321,7 +1425,7 @@ class HostedCliShapeTests(unittest.TestCase):
             self.assertEqual(payload["value"], "sk-local")
             self.assertEqual(payload["matched_by"], "keychain+provider+project")
 
-    def test_secrets_bind_uses_alias_and_current_project_scope(self) -> None:
+    def test_secrets_bind_uses_local_alias_and_current_project_scope(self) -> None:
         module = load_cli_module()
         world_id = "11111111-1111-4111-8111-111111111111"
         idea_id = "22222222-2222-4222-8222-222222222222"
@@ -1347,7 +1451,9 @@ class HostedCliShapeTests(unittest.TestCase):
                 },
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets bind must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": idea_id,
@@ -1357,6 +1463,7 @@ class HostedCliShapeTests(unittest.TestCase):
 
         with TemporaryDirectory() as td:
             self._prepare_session(module, td)
+            self._save_local_secret(module, td)
             buf = io.StringIO()
             with redirect_stdout(buf):
                 result = module.cmd_secrets_bind(
@@ -1374,9 +1481,10 @@ class HostedCliShapeTests(unittest.TestCase):
                 )
             self.assertEqual(result, 0)
             payload = json.loads(buf.getvalue())
-            self.assertEqual(payload["binding"]["id"], "binding_123")
+            self.assertTrue(payload["binding"]["id"].startswith("local-binding-"))
+            self.assertEqual(payload["source"], "keychain")
 
-    def test_secrets_resolve_reveals_value_from_provider_and_project_scope(self) -> None:
+    def test_secrets_resolve_defaults_to_local_keychain_project_scope(self) -> None:
         module = load_cli_module()
         world_id = "11111111-1111-4111-8111-111111111111"
         idea_id = "22222222-2222-4222-8222-222222222222"
@@ -1412,16 +1520,30 @@ class HostedCliShapeTests(unittest.TestCase):
                 "matchedBy": "provider+project",
             }
 
-        module._request_hosted_json = fake_request_hosted_json
+        module._request_hosted_json = lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("local secrets resolve must not call hosted ORP")
+        )
         module._read_link_project = lambda repo_root: {
             "world_id": world_id,
             "idea_id": idea_id,
         }
+        module._read_keychain_secret_value = lambda entry: "sk-local"
 
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as td:
             self._prepare_session(module, td)
+            self._save_local_secret(
+                module,
+                td,
+                bindings=[{
+                    "binding_id": "binding_123",
+                    "world_id": world_id,
+                    "idea_id": idea_id,
+                    "purpose": "",
+                    "primary": True,
+                }],
+            )
             buf = io.StringIO()
             with redirect_stdout(buf):
                 result = module.cmd_secrets_resolve(
@@ -1439,8 +1561,9 @@ class HostedCliShapeTests(unittest.TestCase):
                 )
             self.assertEqual(result, 0)
             payload = json.loads(buf.getvalue())
-            self.assertEqual(payload["value"], "sk-live")
-            self.assertEqual(payload["matched_by"], "provider+project")
+            self.assertEqual(payload["value"], "sk-local")
+            self.assertEqual(payload["matched_by"], "keychain+provider+project")
+            self.assertEqual(payload["source"], "keychain")
 
 
 if __name__ == "__main__":

@@ -3,10 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 import { buildLaunchPlan, getResumeCommand, parseWorkspaceSource } from "./core-plan.js";
 import { applyWorkspaceAddTabOptions } from "./ledger.js";
 import { loadWorkspaceSource } from "./orp.js";
+import { loadLocalConfig } from "./storage.js";
 
 const DEFAULT_WORKSPACE = "main";
 const DEFAULT_SCAN_DAYS = 30;
@@ -555,6 +557,128 @@ export function summarizeCodexReconcile(report) {
   return lines.join("\n").trimEnd();
 }
 
+function runReadOnlyGit(repoRoot, args) {
+  const result = spawnSync("git", ["-C", repoRoot, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return result.status === 0 ? result.stdout.replace(/\r?\n$/, "") : null;
+}
+
+async function digestLocalContractFile(repoRoot, relativePath) {
+  const filePath = path.join(repoRoot, relativePath);
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return null;
+    }
+    const bytes = await fs.readFile(filePath);
+    return {
+      kind: "file_digest",
+      path: relativePath,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.length,
+    };
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function buildCodexContextPacket(options = {}) {
+  const env = options.env || process.env;
+  const config = loadLocalConfig(env);
+  if (!config.codex.context_enabled && !options.allowOnce) {
+    throw new Error(
+      "ORP Codex context is disabled. Use --allow-once or enable it with `orp config set codex.context_enabled true`.",
+    );
+  }
+  if (config.codex.hosted_sync !== false) {
+    throw new Error("ORP Codex context cannot run while codex.hosted_sync is enabled");
+  }
+
+  const prompt = options.prompt == null ? "" : String(options.prompt);
+  const repo = resolveRepoRoot(options.path || process.cwd(), options);
+  if (!repo.ok) {
+    throw new Error(`Refusing Codex context for ${path.basename(repo.repoRoot)}: ${repo.reason}`);
+  }
+
+  const branch = runReadOnlyGit(repo.repoRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  const head = runReadOnlyGit(repo.repoRoot, ["rev-parse", "--short=12", "HEAD"]);
+  const porcelain = runReadOnlyGit(repo.repoRoot, ["status", "--porcelain=v1", "--untracked-files=normal"]);
+  const contractFiles = [];
+  for (const relativePath of ["AGENTS.md", "PROTOCOL.md", "orp.yml"]) {
+    const digest = await digestLocalContractFile(repo.repoRoot, relativePath);
+    if (digest) {
+      contractFiles.push(digest);
+    }
+  }
+
+  const packet = {
+    schema: "orp.codex_context/1",
+    schema_version: "1.0.0",
+    prompt,
+    context: {
+      project: path.basename(repo.repoRoot),
+      repository: {
+        branch: branch || "detached-or-unknown",
+        head: head || "unknown",
+        worktree: porcelain == null ? "unknown" : porcelain.length === 0 ? "clean" : "dirty",
+      },
+      governed: contractFiles.some((row) => row.path === "PROTOCOL.md"),
+    },
+    provenance: [
+      {
+        kind: "git_read_only",
+        fields: ["branch", "head", "worktree"],
+      },
+      ...contractFiles,
+    ],
+    boundaries: {
+      read_only: true,
+      offline: true,
+      prompt_transform: "none",
+      codex_storage_access: false,
+      transcript_access: false,
+      memory_access: false,
+      goal_access: false,
+      hosted_sync: false,
+      absolute_paths_emitted: false,
+      resume_ids_emitted: false,
+    },
+  };
+
+  const maxBytes = Math.min(2048, config.codex.max_bytes);
+  let serialized = JSON.stringify(packet);
+  while (Buffer.byteLength(`${serialized}\n`, "utf8") > maxBytes && packet.provenance.length > 1) {
+    packet.provenance.pop();
+    packet.context.provenance_reduced_to_fit = true;
+    serialized = JSON.stringify(packet);
+  }
+  const byteLength = Buffer.byteLength(`${serialized}\n`, "utf8");
+  if (byteLength > maxBytes) {
+    throw new Error(
+      `Prompt-preserving context would be ${byteLength} bytes, above the configured ${maxBytes}-byte limit. Shorten the prompt or raise codex.max_bytes up to 2048.`,
+    );
+  }
+  return {
+    packet,
+    serialized,
+    byteLength,
+    maxBytes,
+  };
+}
+
+async function readPromptStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 function parseCommonOptions(argv = [], defaults = {}, parseOptions = {}) {
   const options = {
     workspace: DEFAULT_WORKSPACE,
@@ -583,6 +707,18 @@ function parseCommonOptions(argv = [], defaults = {}, parseOptions = {}) {
     }
     if (arg === "--append") {
       options.append = true;
+      continue;
+    }
+    if (arg === "--allow-once") {
+      options.allowOnce = true;
+      continue;
+    }
+    if (arg === "--prompt-stdin") {
+      options.promptStdin = true;
+      continue;
+    }
+    if (arg === "--legacy-session-access") {
+      options.legacySessionAccess = true;
       continue;
     }
     if (arg === "--include-subagents" || arg === "--include-delegated") {
@@ -659,6 +795,11 @@ function parseCommonOptions(argv = [], defaults = {}, parseOptions = {}) {
           throw new Error(`missing value for ${arg}`);
         }
         options.watchTimeoutMs = Number(next);
+      } else if (arg === "--prompt") {
+        if (next == null || next.startsWith("--")) {
+          throw new Error(`missing value for ${arg}`);
+        }
+        options.prompt = next;
       } else {
         if (parseOptions.passUnknownOptions) {
           rest.push(...argv.slice(index));
@@ -675,21 +816,26 @@ function parseCommonOptions(argv = [], defaults = {}, parseOptions = {}) {
 }
 
 function printCodexHelp() {
-  console.log(`ORP Codex session tracking
+  console.log(`ORP Codex adapter
 
 Usage:
-  orp codex [--workspace main] [--append] [--title <title>] [codex args...]
-  orp codex status [--workspace main] [--json]
-  orp codex reconcile [--workspace main] [--dry-run] [--add-missing] [--json]
-  orp codex start [--workspace main] [--append] [--title <title>] [-- <codex args...>]
+  orp codex context --allow-once [--prompt <exact-prompt> | --prompt-stdin]
+  orp codex status --legacy-session-access [--workspace main] [--json]
+  orp codex reconcile --legacy-session-access [--workspace main] [--dry-run] [--json]
+  orp codex start --legacy-session-access [--workspace main] [-- <codex args...>]
 
 Commands:
-  status     Compare this repo's ORP tab with the latest local Codex session
-  reconcile  Scan recent local Codex sessions and refresh stale ORP workspace tabs
-  start      Launch Codex in the repo root and save the new session when metadata appears
+  context    Emit an opt-in, read-only, offline context packet of at most 2 KiB
+  status     Legacy metadata-only session comparison; requires explicit access
+  reconcile  Legacy workspace session update; requires explicit access
+  start      Legacy Codex launcher/session recorder; requires explicit access
 
 Notes:
-  - Codex exec sessions are ignored by default.
+  - Context never reads Codex sessions, transcripts, memory, goals, or permissions.
+  - Context preserves the supplied prompt byte-for-byte and never syncs it.
+  - The 0.5 context adapter is read-only and never reads Codex-owned storage.
+  - Legacy session commands require --legacy-session-access on every invocation.
+  - Codex exec sessions are ignored by legacy scanning by default.
   - Delegated/subagent sessions are ignored by default.
   - Broad roots and artifact-output repos are refused unless explicitly overridden.
   - Use -- before Codex args that conflict with ORP wrapper options.
@@ -697,11 +843,23 @@ Notes:
 `);
 }
 
+function printContextHelp() {
+  console.log(`ORP Codex context
+
+Usage:
+  orp codex context --allow-once [--path <repo-or-subdir>] [--prompt <exact-prompt> | --prompt-stdin]
+
+The packet is read-only, offline, transcript-free, prompt-preserving, and bounded
+by codex.max_bytes (hard maximum: 2048 bytes). --allow-once opts in without
+changing local configuration.
+`);
+}
+
 function printStatusHelp() {
   console.log(`ORP Codex status
 
 Usage:
-  orp codex status [--workspace main] [--path <repo-or-subdir>] [--codex-home <path>] [--include-exec] [--json]
+  orp codex status --legacy-session-access [--workspace main] [--path <repo-or-subdir>] [--codex-home <path>] [--include-exec] [--json]
 `);
 }
 
@@ -709,7 +867,7 @@ function printReconcileHelp() {
   console.log(`ORP Codex reconcile
 
 Usage:
-  orp codex reconcile [--workspace main] [--dry-run] [--add-missing] [--since-days <n>] [--include-exec] [--json]
+  orp codex reconcile --legacy-session-access [--workspace main] [--dry-run] [--add-missing] [--since-days <n>] [--include-exec] [--json]
 `);
 }
 
@@ -717,8 +875,7 @@ function printStartHelp() {
   console.log(`ORP Codex start
 
 Usage:
-  orp codex [--workspace main] [--append] [--title <title>] [codex args...]
-  orp codex start [--workspace main] [--append] [--title <title>] [--codex-bin <bin>] [--watch-timeout-ms <ms>] [-- <codex args...>]
+  orp codex start --legacy-session-access [--workspace main] [--append] [--title <title>] [--codex-bin <bin>] [--watch-timeout-ms <ms>] [-- <codex args...>]
 `);
 }
 
@@ -727,6 +884,9 @@ async function runCodexStatus(argv) {
   if (options.help) {
     printStatusHelp();
     return 0;
+  }
+  if (!options.legacySessionAccess) {
+    throw new Error("Legacy Codex session status requires --legacy-session-access");
   }
   const report = await buildCodexStatusReport(options);
   process.stdout.write(options.json ? `${JSON.stringify(report, null, 2)}\n` : `${summarizeCodexStatus(report)}\n`);
@@ -739,9 +899,32 @@ async function runCodexReconcile(argv) {
     printReconcileHelp();
     return 0;
   }
+  if (!options.legacySessionAccess) {
+    throw new Error("Legacy Codex session reconciliation requires --legacy-session-access");
+  }
   const plan = await buildCodexReconcilePlan(options);
   const report = await applyCodexReconcilePlan(plan, options);
   process.stdout.write(options.json ? `${JSON.stringify(report, null, 2)}\n` : `${summarizeCodexReconcile(report)}\n`);
+  return 0;
+}
+
+async function runCodexContext(argv) {
+  const { options, rest } = parseCommonOptions(argv);
+  if (options.help) {
+    printContextHelp();
+    return 0;
+  }
+  if (rest.length > 0) {
+    throw new Error(`unexpected context argument: ${rest[0]}`);
+  }
+  if (options.prompt != null && options.promptStdin) {
+    throw new Error("Use either --prompt or --prompt-stdin, not both");
+  }
+  if (options.promptStdin) {
+    options.prompt = await readPromptStdin();
+  }
+  const result = await buildCodexContextPacket(options);
+  process.stdout.write(`${result.serialized}\n`);
   return 0;
 }
 
@@ -775,6 +958,9 @@ async function runCodexStart(argv) {
   if (options.help) {
     printStartHelp();
     return 0;
+  }
+  if (!options.legacySessionAccess) {
+    throw new Error("Legacy Codex launching and session recording requires --legacy-session-access");
   }
   const repo = resolveRepoRoot(options.path || process.cwd(), options);
   if (!repo.ok) {
@@ -839,10 +1025,14 @@ export async function runOrpCodexCommand(argv = []) {
     return 0;
   }
   if (!subcommand) {
-    return runCodexStart([]);
+    printCodexHelp();
+    return 0;
   }
   if (subcommand === "status") {
     return runCodexStatus(rest);
+  }
+  if (subcommand === "context") {
+    return runCodexContext(rest);
   }
   if (subcommand === "reconcile") {
     return runCodexReconcile(rest);
@@ -850,5 +1040,5 @@ export async function runOrpCodexCommand(argv = []) {
   if (subcommand === "start") {
     return runCodexStart(rest);
   }
-  return runCodexStart(argv);
+  throw new Error(`unknown codex subcommand: ${subcommand}`);
 }

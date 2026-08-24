@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import {
   applyCodexReconcilePlan,
+  buildCodexContextPacket,
   buildCodexReconcilePlan,
   buildCodexStatusReport,
   parseCodexSessionMetaLine,
@@ -66,6 +68,84 @@ async function writeWorkspaceManifest(filePath, tabs) {
     "utf8",
   );
 }
+
+function localXdgEnv(root) {
+  return {
+    HOME: path.join(root, "home"),
+    XDG_CONFIG_HOME: path.join(root, "config"),
+    XDG_DATA_HOME: path.join(root, "data"),
+    XDG_STATE_HOME: path.join(root, "state"),
+    XDG_CACHE_HOME: path.join(root, "cache"),
+  };
+}
+
+async function makeGitRepo(root) {
+  const repoRoot = path.join(root, "context-repo");
+  await fs.mkdir(repoRoot, { recursive: true });
+  const result = spawnSync("git", ["init", "-b", "main", repoRoot], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  await fs.writeFile(path.join(repoRoot, "AGENTS.md"), "Project-local instructions.\n", "utf8");
+  await fs.writeFile(path.join(repoRoot, "PROTOCOL.md"), "Protocol contract.\n", "utf8");
+  return repoRoot;
+}
+
+test("Codex context is opt-in, prompt-preserving, bounded, and transcript-free", async () => {
+  const root = await makeTempDir();
+  const env = localXdgEnv(root);
+  const repoRoot = await makeGitRepo(root);
+  const sentinel = "PRIVATE_TRANSCRIPT_SENTINEL";
+  const transcript = path.join(env.HOME, ".codex", "sessions", "rollout-private.jsonl");
+  await fs.mkdir(path.dirname(transcript), { recursive: true });
+  await fs.writeFile(transcript, sentinel, "utf8");
+  const prompt = "Keep my exact words — unchanged.\nSecond line.";
+
+  await assert.rejects(
+    buildCodexContextPacket({ path: repoRoot, env, prompt }),
+    /context is disabled/,
+  );
+
+  const result = await buildCodexContextPacket({
+    path: repoRoot,
+    env,
+    prompt,
+    allowOnce: true,
+    forbiddenRoots: new Set(),
+  });
+  const parsed = JSON.parse(result.serialized);
+
+  assert.equal(parsed.prompt, prompt);
+  assert.equal(parsed.boundaries.prompt_transform, "none");
+  assert.equal(parsed.boundaries.read_only, true);
+  assert.equal(parsed.boundaries.offline, true);
+  assert.equal(parsed.boundaries.transcript_access, false);
+  assert.equal(parsed.boundaries.memory_access, false);
+  assert.equal(parsed.boundaries.goal_access, false);
+  assert.equal(parsed.boundaries.hosted_sync, false);
+  assert.equal(parsed.boundaries.absolute_paths_emitted, false);
+  assert.equal(parsed.boundaries.resume_ids_emitted, false);
+  assert.ok(result.byteLength <= 2048);
+  assert.ok(!result.serialized.includes(root));
+  assert.ok(!result.serialized.includes(sentinel));
+  assert.ok(!result.serialized.toLowerCase().includes("sessionid"));
+});
+
+test("Codex context rejects over-budget prompts instead of rewriting or truncating them", async () => {
+  const root = await makeTempDir();
+  const env = localXdgEnv(root);
+  const repoRoot = await makeGitRepo(root);
+  const prompt = "x".repeat(4096);
+
+  await assert.rejects(
+    buildCodexContextPacket({
+      path: repoRoot,
+      env,
+      prompt,
+      allowOnce: true,
+      forbiddenRoots: new Set(),
+    }),
+    /Prompt-preserving context would be/,
+  );
+});
 
 test("parseCodexSessionMetaLine reads stable session metadata", () => {
   const row = JSON.stringify({
@@ -241,7 +321,25 @@ test("Codex reconcile updates tracked workspace tabs without appending by defaul
   assert.equal(manifest.tabs[0].codexSessionId, "019dc2cb-d435-7072-bbfd-4ae428047412");
 });
 
-test("bare orp codex routes to start", async () => {
+test("bare ORP Codex is inert and legacy commands require explicit session access", async () => {
+  const originalWrite = process.stdout.write;
+  let stdout = "";
+  process.stdout.write = (chunk) => {
+    stdout += String(chunk);
+    return true;
+  };
+  try {
+    assert.equal(await runOrpCodexCommand([]), 0);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  assert.match(stdout, /ORP Codex adapter/);
+  await assert.rejects(runOrpCodexCommand(["start"]), /requires --legacy-session-access/);
+  await assert.rejects(runOrpCodexCommand(["status"]), /requires --legacy-session-access/);
+  await assert.rejects(runOrpCodexCommand(["reconcile"]), /requires --legacy-session-access/);
+});
+
+test("explicit legacy Codex start remains available for compatibility", async () => {
   const tempDir = await makeTempDir();
   const codexHome = path.join(tempDir, "codex-home");
   const fakeCodex = path.join(tempDir, "fake-codex");
@@ -256,6 +354,8 @@ test("bare orp codex routes to start", async () => {
   };
   try {
     const code = await runOrpCodexCommand([
+      "start",
+      "--legacy-session-access",
       "--path",
       tempDir,
       "--codex-home",
@@ -273,7 +373,7 @@ test("bare orp codex routes to start", async () => {
   }
 });
 
-test("bare orp codex saves the new session when Codex writes metadata", async () => {
+test("explicit legacy Codex start saves the new session when metadata appears", async () => {
   const tempDir = await makeTempDir();
   const repoRoot = path.join(tempDir, "repo");
   const codexHome = path.join(tempDir, "codex-home");
@@ -315,6 +415,8 @@ fs.writeFileSync(
   };
   try {
     const code = await runOrpCodexCommand([
+      "start",
+      "--legacy-session-access",
       "--path",
       repoRoot,
       "--workspace-file",

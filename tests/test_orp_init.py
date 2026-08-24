@@ -465,6 +465,15 @@ class OrpInitTests(unittest.TestCase):
             branch_proc = _run_cli(root, "branch", "start", "feature/checkpoint", "--allow-dirty", "--json")
             self.assertEqual(branch_proc.returncode, 0, msg=branch_proc.stderr + "\n" + branch_proc.stdout)
 
+            inspect_proc = _run_cli(root, "checkpoint", "inspect", "--json")
+            self.assertEqual(inspect_proc.returncode, 0, msg=inspect_proc.stderr + "\n" + inspect_proc.stdout)
+            inspection = json.loads(inspect_proc.stdout)
+            self.assertTrue(inspection["ok"])
+            self.assertTrue(inspection["boundary"]["read_only"])
+            self.assertTrue(inspection["boundary"]["local_only"])
+            self.assertFalse(inspection["boundary"]["hosted_request"])
+            self.assertFalse(inspection["boundary"]["file_contents_included"])
+
             checkpoint_proc = _run_cli(
                 root,
                 "checkpoint",
@@ -485,6 +494,9 @@ class OrpInitTests(unittest.TestCase):
             self.assertEqual(payload["commit_message"], "checkpoint: bootstrap governance checkpoint")
             self.assertEqual(payload["checkpoint_log_path"], "orp/checkpoints/CHECKPOINT_LOG.md")
             self.assertTrue(payload["ready_for_agent_work"])
+            self.assertTrue(payload["boundary"]["local_only"])
+            self.assertFalse(payload["boundary"]["hosted_request"])
+            self.assertTrue(payload["boundary"]["staged_paths_classified"])
 
             head = _run_git(root, "log", "-1", "--pretty=%s")
             self.assertEqual(head.returncode, 0, msg=head.stderr + "\n" + head.stdout)

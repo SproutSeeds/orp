@@ -372,15 +372,31 @@ class HostedWorkspacesCliTests(unittest.TestCase):
             state_path.write_text(
                 json.dumps(
                     {
+                        "contract_version": "2.0.0",
                         "state_version": 3,
-                        "snapshot_id": "snapshot_abc",
+                        "snapshot_id": "snapshot-0123456789abcdef",
+                        "captured_at_utc": "2026-03-29T12:00:00Z",
                         "updated_at_utc": "2026-03-29T12:00:00Z",
                         "tab_count": 1,
+                        "sync_policy": {
+                            "mode": "explicit_allowlist",
+                            "allowlist": [],
+                            "always_excluded": [
+                                "absolute_paths",
+                                "source_files",
+                                "transcripts",
+                                "secret_values",
+                                "resume_commands",
+                                "resume_ids",
+                                "codex_state",
+                                "machine_ids",
+                                "hostnames",
+                            ],
+                        },
                         "tabs": [
                             {
-                                "tab_id": "tab_1",
+                                "tab_id": "tab-0123456789abcdef",
                                 "order_index": 0,
-                                "project_root": "/Volumes/Code_2TB/code/orp",
                                 "status": "active",
                             }
                         ],
@@ -405,7 +421,7 @@ class HostedWorkspacesCliTests(unittest.TestCase):
             self.assertEqual(calls[0][0], "POST")
             self.assertEqual(calls[0][1], "/api/cli/workspaces/ws_orp_main/state")
             assert calls[0][2] is not None
-            self.assertEqual(calls[0][2]["snapshot_id"], "snapshot_abc")
+            self.assertEqual(calls[0][2]["snapshot_id"], "snapshot-0123456789abcdef")
 
 
 if __name__ == "__main__":

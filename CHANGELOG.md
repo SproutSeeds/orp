@@ -6,6 +6,56 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.5.0-rc.1 - 2026-08-23
+
+This release candidate makes the local machine the clear authority for ORP
+workspace recovery, storage, checkpoints, credentials, and optional Codex
+context. orp.earth receives only a reviewed workspace projection.
+
+### Added
+
+- Added strict XDG-aware local configuration with `config path/show/get/set/validate`.
+- Added ORP-owned storage reporting, copy-and-verify migration, and
+  deterministic archive-before-delete compaction. Migration and compaction are
+  dry-run by default and require the exact current plan ID to apply.
+- Added read-only checkpoint inspection and hygiene enforcement before local
+  checkpoint creation.
+- Added an opt-in Codex context adapter that preserves the prompt, stays
+  offline, emits provenance, excludes Codex-owned state, and caps output at
+  2,048 bytes.
+- Added hosted workspace contract 2.0 with an empty default allowlist,
+  dedicated versioned records, deterministic snapshots, and dual client/server
+  projection validation.
+- Added browser device authorization, scoped 10-minute access tokens, rotating
+  30-day refresh tokens, refresh-family reuse revocation, device listing, and
+  device revocation.
+
+### Changed
+
+- Ordinary `orp secrets` commands now use the local macOS Keychain. Hosted
+  secret import remains available only through the explicit
+  `secrets sync-keychain` compatibility command.
+- Keychain credentials are read and written through Security.framework
+  directly, keeping credential bytes out of subprocess arguments and avoiding
+  command-line input truncation.
+- Workspace tab edits loaded from hosted state now save to a local managed
+  copy. Remote writes are restricted to reviewed `workspace sync` applies.
+- `orp workspace list` now reads only the local ledger by default. One hosted
+  lookup requires `--hosted` or an explicit local `sync.enabled=true` setting.
+- Bare `orp codex` no longer launches or mutates Codex. Historical session
+  surfaces require `--legacy-session-access`.
+
+### Hosted migration
+
+- Added additive migration `0046_orp_v2_local_first.sql` for devices,
+  authorizations, rotating refresh tokens, workspaces, snapshots, events, and
+  reversible backfill mappings.
+- Added a dry-run-first, exactly confirmed backfill and rollback tool that
+  preserves legacy ideas and rolls back only empty rows created by the chosen
+  batch.
+- Added `/healthz` and schema-aware `/readyz` endpoints plus structured,
+  sanitized API errors and logs.
+
 ## v0.4.38 - 2026-08-23
 
 This release carries the verified local reliability work forward from the

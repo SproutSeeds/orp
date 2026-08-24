@@ -67,7 +67,7 @@ function runPythonCli(args, { captureOutput }) {
           process.stderr.write(result.stderr);
         }
         if (result.status === 0) {
-          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n  orp codex status -h\n");
+          process.stdout.write("\nAdditional wrapper surface:\n  orp compute -h\n  orp workspace tabs -h\n  orp workspace hygiene --json\n  orp codex context -h\n");
         }
       }
       return result.status == null ? 1 : result.status;

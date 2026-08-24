@@ -14,14 +14,15 @@ import { buildHostedWorkspaceState, enrichWorkspaceManifestWithProjectContext } 
 import { mergeLocalProjectInventoryIntoManifest } from "./local-inventory.js";
 import {
   buildWorkspaceManifestFromHostedWorkspacePayload,
+  createHostedWorkspaceForIdea,
   fetchHostedWorkspacesPayload,
   fetchIdeaPayload,
   findHostedWorkspaceByWorkspaceId,
   loadWorkspaceSource,
   pushHostedWorkspaceState,
-  updateIdeaPayload,
 } from "./orp.js";
 import { cacheManagedWorkspaceManifest } from "./registry.js";
+import { loadLocalConfig } from "./storage.js";
 
 const STRUCTURED_WORKSPACE_BLOCK_PATTERN = /```orp-workspace\s*[\s\S]*?```/i;
 const WORKSPACE_TITLE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -31,13 +32,16 @@ function printSyncHelp() {
   console.log(`ORP workspace sync
 
 Usage:
-  orp workspace sync <name-or-id> [--workspace-file <path> | --notes-file <path>] [--title <slug>] [--dry-run] [--json]
+  orp workspace sync <name-or-id> [--workspace-file <path> | --notes-file <path>] [--title <slug>] [--allow <field>] [--apply --confirm <snapshot-id>] [--json]
 
 Options:
   --workspace-file <path> Read a structured workspace manifest JSON file
   --notes-file <path>     Read a local notes file and normalize launchable paths into a manifest
   --title <slug>          Required when the source workspace does not already have a saved title
-  --dry-run               Print the sync preview without updating the hosted idea
+  --allow <field>         Explicitly allow one hosted field; repeat for additional fields
+  --dry-run               Print the sync preview (the default)
+  --apply                 Push the reviewed payload to a dedicated workspace record
+  --confirm <snapshot-id> Exact snapshot id from the current preview
   --json                  Print the sync preview as JSON
   --base-url <url>        Override the ORP hosted base URL
   --orp-command <cmd>     Override the ORP CLI executable used for hosted fetches/updates
@@ -60,8 +64,11 @@ function normalizeOptionalString(value) {
 
 function parseWorkspaceSyncArgs(argv = []) {
   const options = {
-    dryRun: false,
+    dryRun: true,
+    apply: false,
+    confirm: "",
     json: false,
+    syncAllowlist: [],
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -72,6 +79,12 @@ function parseWorkspaceSyncArgs(argv = []) {
     }
     if (arg === "--dry-run") {
       options.dryRun = true;
+      options.apply = false;
+      continue;
+    }
+    if (arg === "--apply") {
+      options.apply = true;
+      options.dryRun = false;
       continue;
     }
     if (arg === "--json") {
@@ -93,6 +106,10 @@ function parseWorkspaceSyncArgs(argv = []) {
         options.baseUrl = next;
       } else if (arg === "--orp-command") {
         options.orpCommand = next;
+      } else if (arg === "--allow") {
+        options.syncAllowlist.push(next);
+      } else if (arg === "--confirm") {
+        options.confirm = next;
       } else {
         throw new Error(`unknown option: ${arg}`);
       }
@@ -507,6 +524,9 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
   if (!options.ideaId) {
     throw new Error("Provide the hosted workspace selector that should receive the synced workspace.");
   }
+  if (options.syncAllowlist.length === 0) {
+    options.syncAllowlist = [...loadLocalConfig().sync.allowlist];
+  }
 
   const source = await loadWorkspaceSource(options);
   const parsed = parseWorkspaceSource(source);
@@ -549,10 +569,18 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
   const narrativeNotes = extractWorkspaceNarrativeNotes(preview.nextNotes, {
     stripLegacyWorkspaceLines: true,
   });
-  const storedIdeaNotes = buildStoredIdeaNotes({
-    narrativeNotes,
-    manifest: reconciled.manifest,
-    hostedWorkspaceId,
+  const storedIdeaNotes = {
+    notes: narrativeNotes,
+    compacted: false,
+    omittedPlanTaskDetails: true,
+  };
+  const syncTimestamp = new Date().toISOString();
+  const hostedState = buildHostedWorkspaceState(reconciled.manifest, {
+    previousWorkspace: targetSource.hostedWorkspace,
+    capturedAt: syncTimestamp,
+    updatedAt: syncTimestamp,
+    localInventory: reconciled.inventory,
+    syncAllowlist: options.syncAllowlist,
   });
   const finalPreview = {
     ...preview,
@@ -563,47 +591,62 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
     hostedWorkspaceId,
     compactedIdeaNotes: storedIdeaNotes.compacted,
     omittedPlanTaskDetailsFromIdeaNotes: storedIdeaNotes.omittedPlanTaskDetails,
+    hostedSync: {
+      allowlist: options.syncAllowlist,
+      createsDedicatedWorkspace: !hostedWorkspaceId,
+      state: hostedState,
+    },
   };
   finalPreview.nextNotesLength = finalPreview.nextNotes.length;
 
-  if (options.json) {
-    process.stdout.write(`${JSON.stringify(finalPreview, null, 2)}\n`);
+  if (!options.apply) {
+    if (options.json) {
+      process.stdout.write(`${JSON.stringify(finalPreview, null, 2)}\n`);
+    } else {
+      process.stdout.write(`${summarizeSyncPreview(finalPreview)}\n`);
+      process.stdout.write(`Confirm: orp workspace sync ${options.ideaId} --apply --confirm ${hostedState.snapshot_id}\n`);
+    }
     return 0;
   }
 
-  if (options.dryRun) {
-    process.stdout.write(`${summarizeSyncPreview(finalPreview)}\n`);
-    return 0;
+  if (options.confirm !== hostedState.snapshot_id) {
+    throw new Error("Hosted workspace sync confirmation must exactly match the current snapshot_id.");
   }
 
-  let pushedWorkspace = null;
-  if (hostedWorkspaceId) {
-    const state = buildHostedWorkspaceState(finalPreview.manifest, {
-      previousWorkspace: targetSource.hostedWorkspace,
-      updatedAt: new Date().toISOString(),
-      localInventory: finalPreview.inventory,
-    });
-    const pushed = await pushHostedWorkspaceState(hostedWorkspaceId, state, options);
-    pushedWorkspace = pushed?.workspace || null;
+  let activeHostedWorkspaceId = hostedWorkspaceId;
+  if (!activeHostedWorkspaceId) {
+    const created = await createHostedWorkspaceForIdea(
+      { title: resolvedWorkspaceTitle, ideaId: targetIdeaId },
+      options,
+    );
+    activeHostedWorkspaceId = normalizeOptionalString(created?.workspace?.workspace_id ?? created?.workspace?.id);
+    if (!activeHostedWorkspaceId) {
+      throw new Error("Hosted ORP did not return an id for the dedicated workspace record.");
+    }
   }
-  const updated = hostedWorkspaceId
-    ? { title: finalPreview.targetIdeaTitle }
-    : await updateIdeaPayload(targetIdeaId, { notes: finalPreview.nextNotes }, options);
+  const pushed = await pushHostedWorkspaceState(activeHostedWorkspaceId, hostedState, options);
+  const pushedWorkspace = pushed?.workspace || null;
+  const updated = { title: finalPreview.targetIdeaTitle };
   const managedCache = await cacheManagedWorkspaceManifest(finalPreview.manifest);
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify({
+      ok: true,
+      workspaceId: finalPreview.workspaceId,
+      hostedWorkspaceId: activeHostedWorkspaceId,
+      snapshotId: hostedState.snapshot_id,
+      allowlist: options.syncAllowlist,
+      managedCachePath: managedCache.manifestPath,
+    }, null, 2)}\n`);
+    return 0;
+  }
   process.stdout.write(
     `Synced workspace '${finalPreview.workspaceId}' to idea '${updated.title || finalPreview.targetIdeaTitle}'.\n`,
   );
   if (pushedWorkspace) {
-    process.stdout.write(`Pushed hosted workspace state to '${hostedWorkspaceId}'.\n`);
-    process.stdout.write("Skipped idea-note mirror update because hosted workspace state is authoritative.\n");
+    process.stdout.write(`Pushed hosted workspace state to '${activeHostedWorkspaceId}'.\n`);
   }
-  if (hostedWorkspaceId) {
-    process.stdout.write(
-      `Tabs: ${finalPreview.tabs.length}. Compatibility notes would be ${finalPreview.nextNotesLength} chars.\n`,
-    );
-  } else {
-    process.stdout.write(`Tabs: ${finalPreview.tabs.length}. Stored notes: ${finalPreview.nextNotesLength} chars.\n`);
-  }
+  process.stdout.write("Idea notes were left unchanged; the dedicated versioned workspace record is authoritative.\n");
+  process.stdout.write(`Tabs: ${finalPreview.tabs.length}. Hosted contract: 2.0.0.\n`);
   process.stdout.write(`Updated local workspace cache at ${managedCache.manifestPath}.\n`);
   return 0;
 }

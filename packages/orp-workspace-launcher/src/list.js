@@ -8,6 +8,7 @@ import {
   loadWorkspaceSlots,
   normalizeWorkspaceSlotName,
 } from "./registry.js";
+import { loadLocalConfig } from "./storage.js";
 
 function normalizeOptionalString(value) {
   if (value == null) {
@@ -202,7 +203,7 @@ export function applyWorkspaceSlotsToInventory(result, slots = {}) {
   };
 }
 
-export function buildWorkspaceInventory({ localResult, hostedResult, hostedError = null }) {
+export function buildWorkspaceInventory({ localResult, hostedResult, hostedError = null, hostedRequested = false }) {
   const merged = new Map();
   const localWorkspaces = Array.isArray(localResult?.workspaces) ? localResult.workspaces : [];
   const hostedWorkspaces = Array.isArray(hostedResult?.workspaces) ? hostedResult.workspaces : [];
@@ -268,6 +269,7 @@ export function buildWorkspaceInventory({ localResult, hostedResult, hostedError
 
   return {
     registryPath: localResult?.registryPath || null,
+    hostedRequested: Boolean(hostedRequested),
     hostedSource: normalizeOptionalString(hostedResult?.source) || null,
     hostedError: normalizeOptionalString(hostedError),
     workspaces,
@@ -344,6 +346,7 @@ export function summarizeWorkspaceInventory(result) {
 export function parseWorkspaceListArgs(argv = []) {
   const options = {
     json: false,
+    hosted: false,
   };
 
   for (const arg of argv) {
@@ -353,6 +356,10 @@ export function parseWorkspaceListArgs(argv = []) {
     }
     if (arg === "--json") {
       options.json = true;
+      continue;
+    }
+    if (arg === "--hosted") {
+      options.hosted = true;
       continue;
     }
     throw new Error(`unexpected argument: ${arg}`);
@@ -402,8 +409,8 @@ export function summarizeTrackedWorkspaces(result) {
       "Create one with:",
       "  orp workspace create main-cody-1",
       "",
-      "For the combined hosted + local inventory, use:",
-      "  orp workspace list",
+      "For one explicit hosted + local inventory, use:",
+      "  orp workspace list --hosted",
     ].join("\n");
   }
 
@@ -454,14 +461,16 @@ function printWorkspaceListHelp() {
   console.log(`ORP workspace list
 
 Usage:
-  orp workspace list [--json]
+  orp workspace list [--hosted] [--json]
 
 Options:
+  --hosted     Also request and merge hosted ORP workspaces
   --json       Print tracked workspace metadata as JSON
   -h, --help   Show this help text
 
 Notes:
-  - This shows one merged inventory of hosted ORP workspaces and local manifests on this Mac.
+  - The default is local-only and performs no hosted request.
+  - Use --hosted for one explicit merged lookup. Setting sync.enabled=true also enables hosted reads.
   - Hosted workspaces are labeled separately from local manifests.
   - Syncing or editing a hosted workspace stores a managed local cache so it can show up on both sides.
   - Slot labels show which workspace is currently assigned as \`main\` or \`offhand\`.
@@ -478,16 +487,20 @@ export async function runWorkspaceList(argv = process.argv.slice(2)) {
   const localResult = await listTrackedWorkspaces();
   let hostedResult = { source: null, workspaces: [] };
   let hostedError = null;
-  try {
-    hostedResult = await fetchHostedWorkspacesPayload();
-  } catch (error) {
-    hostedError = error instanceof Error ? error.message : String(error);
+  const hostedRequested = options.hosted || loadLocalConfig().sync.enabled;
+  if (hostedRequested) {
+    try {
+      hostedResult = await fetchHostedWorkspacesPayload();
+    } catch (error) {
+      hostedError = error instanceof Error ? error.message : String(error);
+    }
   }
 
   let result = buildWorkspaceInventory({
     localResult,
     hostedResult,
     hostedError,
+    hostedRequested,
   });
   try {
     const slotsResult = await loadWorkspaceSlots();

@@ -1,334 +1,197 @@
-# ORP Hosted Workspace Contract
+# ORP hosted workspace contract 2.0
 
-This document defines the first-class hosted workspace model that should
-replace the current "workspace JSON embedded inside idea notes" bridge.
+Status: Exact release contract for ORP 0.5. A release verification record must
+name the commands and artifacts that demonstrate this contract.
 
-## Status
+## Authority boundary
 
-The current implementation in this repo is still bridge-first:
+The local ORP workspace ledger is the recovery authority. An orp.earth
+workspace is an optional, reviewed projection for cross-machine visibility.
+Hosted state never becomes authority for Codex threads, goals, native memory,
+configuration, permissions, or execution.
 
-- local workspace state can live in a local workspace manifest JSON file
-- hosted workspace state is mirrored into an idea's `notes` field via
-  the fenced ` ```orp-workspace ` block
-- `orp workspace tabs/add-tab/remove-tab/sync` currently read or update that bridge
+The 2.0 hosted model uses dedicated, versioned workspace records. Legacy
+workspace blocks embedded in idea notes remain readable only for migration and
+compatibility. ORP 0.5 does not write workspace state into idea notes.
 
-This document and the accompanying schemas define the next exact contract so
-the web app, hosted backend, and CLI can converge on one durable source of
-truth.
+## Dedicated resources
 
-## Canonical Source Of Truth
+The hosted service stores ORP 2.0 data in these resources:
 
-The canonical hosted source of truth should be one hosted workspace record:
+- `orp_workspaces`: ownership, public selector, title, visibility, optional
+  linked idea, contract version, and current state version;
+- `orp_workspace_snapshots`: immutable, SHA-256-addressed projection payloads
+  with monotonically increasing state versions;
+- `orp_workspace_events`: append-only, user-scoped timeline summaries; and
+- `orp_workspace_backfills`: reversible mappings from legacy idea rows to
+  workspace rows created by a migration batch.
 
-- schema: `spec/v1/hosted-workspace.schema.json`
-- stable id: `workspace_id`
-- one current state object
-- one activity timeline made of workspace events
+Device authorization uses separate `orp_devices`,
+`orp_device_authorizations`, and `orp_device_refresh_tokens` resources.
+Every workspace lookup is scoped to the authenticated user.
 
-Idea notes are a compatibility bridge only after this contract lands.
+The additive database migration is:
 
-## CLI Sync Contract
-
-`orp workspace sync <selector>` is the canonical local-to-hosted sync path.
-The web app should render the hosted workspace state produced by this command,
-not reconstruct a competing workspace model.
-
-The local canonical input is a reconciled workspace snapshot:
-
-1. Start with the selected ORP workspace ledger, usually
-   `orp workspace tabs main`.
-2. If that selector resolves to a local workspace file, match a hosted
-   workspace by the same `workspaceId` before writing hosted state.
-3. Reconcile known local projects from ORP project startup state
-   (`orp/state.json`, including historical startup result manifests).
-4. Use Clawdad state only to refresh projects already known from the ledger or
-   ORP startup manifests, unless a caller explicitly opts into Clawdad-only
-   projects.
-5. Use recent Codex session metadata to refresh known project paths with the
-   newest local `codex resume ...` session. Codex-only paths are not added by
-   default.
-
-The pushed hosted state must include, for every project/tab where available:
-
-- `title`
-- `project_root` / local `path`
-- resume command plus structured `resume_tool` and `resume_session_id`
-- `last_activity_at_utc`
-- `last_synced_at_utc`
-- `linked_idea_id`
-- `linked_feature_id`
-- `plan`
-- `tasks`
-
-Idea notes are only a compatibility mirror. When sync can write the matched
-hosted workspace state directly, the hosted workspace `state` is authoritative
-and the idea-note mirror may be skipped to avoid truncating or conflicting with
-the full payload. If no hosted workspace target exists, sync may still write a
-compact ` ```orp-workspace ` block to the linked idea.
-
-## Resource Model
-
-### Hosted Workspace
-
-One hosted workspace record owns:
-
-- `workspace_id`
-- `title`
-- `description`
-- `visibility`
-- `linked_idea`
-- `state`
-- `latest_event`
-- `metrics`
-
-The important invariant is:
-
-- `state` is the thing ORP opens locally
-- the timeline explains how that state changed over time
-
-### Current State
-
-`state` is the exact recoverable workspace ledger shape:
-
-- current tab order
-- repo/project roots
-- saved `codex resume ...` or `claude --resume ...` commands
-- current focus
-- current trajectory
-- ledger metadata such as host, notes bridge status, and last sync origin
-
-### Timeline Events
-
-Events are append-only and explain why the current state changed:
-
-- workspace created
-- ledger viewed
-- tab added/removed/updated
-- focus summary updated
-- trajectory summary updated
-- bridge synced back to an idea
-
-Schema:
-
-- `spec/v1/hosted-workspace-event.schema.json`
-
-## CLI Contract
-
-To avoid colliding with the existing local launcher surface under
-`orp workspace ...`, the hosted first-class resource should live under:
-
-```bash
-orp workspaces ...
+```text
+drizzle/migrations/0046_orp_v2_local_first.sql
 ```
 
-### Hosted Workspace Commands
+It does not delete or rewrite legacy idea or device-pairing rows.
 
-List hosted workspaces:
+## Projection schema
 
-```bash
-orp workspaces list [--json]
+Every pushed state conforms to:
+
+```text
+spec/v1/hosted-workspace-state-v2.schema.json
 ```
 
-Show one hosted workspace:
+Required envelope fields are:
 
-```bash
-orp workspaces show <workspace-id> [--json]
+- `contract_version: "2.0.0"`;
+- a positive, monotonically increasing `state_version`;
+- deterministic `snapshot_id`;
+- capture and update timestamps;
+- `tab_count`;
+- an explicit `sync_policy`; and
+- one or more tab identity rows.
+
+The server validates the schema, allowlist, exclusions, byte limit, absolute
+path boundary, and payload SHA-256 before committing a snapshot. Reusing a
+snapshot ID with different bytes fails.
+
+## Explicit allowlist
+
+The default allowlist is empty. A user may opt in to these fields:
+
+```text
+workspace.summary
+workspace.current_focus
+workspace.trajectory
+tabs.title
+tabs.remote_url
+tabs.remote_branch
+tabs.linked_idea_id
+tabs.linked_feature_id
+tabs.activity
+tabs.plan_summary
+tabs.tasks
 ```
 
-Create one hosted workspace:
+Remote URLs are accepted only after credential, query-string, fragment, and
+protocol checks. Text and task fields are bounded before projection.
 
-```bash
-orp workspaces add --title "ORP Main" [--idea-id <idea-id>] [--json]
+These categories are always excluded, regardless of the allowlist:
+
+- absolute paths;
+- source files and file contents;
+- transcripts and prompts;
+- secret values and secret registry metadata;
+- resume commands and resume or session IDs;
+- Codex or Claude state;
+- machine IDs; and
+- hostnames.
+
+The CLI and server both enforce this boundary.
+
+## Reviewed sync
+
+`orp workspace sync` is dry-run by default:
+
+```sh
+orp workspace sync main --json
+orp workspace sync main --allow tabs.title --allow tabs.remote_url --json
 ```
 
-Update one hosted workspace:
+The preview contains the exact sanitized hosted projection and deterministic
+`snapshot_id`. A write requires the current ID:
 
-```bash
-orp workspaces update <workspace-id> [--title <title>] [--description <text>] [--visibility <visibility>] [--json]
+```sh
+orp workspace sync main \
+  --allow tabs.title \
+  --allow tabs.remote_url \
+  --apply \
+  --confirm <snapshot_id> \
+  --json
 ```
 
-Show just the current tabs for one hosted workspace:
+If no dedicated hosted record exists, the apply step creates one linked to the
+resolved idea and then pushes the snapshot. Idea notes remain unchanged.
 
-```bash
-orp workspaces tabs <workspace-id> [--json]
-```
+## Hosted CLI resources
 
-Show the hosted timeline:
-
-```bash
-orp workspaces timeline <workspace-id> [--limit <n>] [--json]
-```
-
-Append a new hosted snapshot/state push:
-
-```bash
-orp workspaces push-state <workspace-id> --state-file <path> [--json]
-```
-
-Append an agent/user event:
-
-```bash
-orp workspaces add-event <workspace-id> --event-file <path> [--json]
-```
-
-## Local Ledger Bridge Contract
-
-The existing local workspace surface should evolve like this:
-
-Inspect the hosted workspace ledger through the local operator surface:
-
-```bash
-orp workspace tabs --hosted-workspace-id <workspace-id>
-```
-
-Append or remove ledger entries directly:
-
-```bash
-orp workspace add-tab --hosted-workspace-id <workspace-id> --path /absolute/path/to/project --resume-command "codex resume <id>"
-orp workspace remove-tab --hosted-workspace-id <workspace-id> --path /absolute/path/to/project
-```
-
-Compatibility bridge back to the linked idea when needed:
-
-```bash
-orp workspace sync <idea-id> --workspace-file ./workspace.json
-```
-
-The long-term rule is:
-
-- `orp workspace ...` remains the local operator surface for editing and inspecting the workspace ledger
-- `orp workspaces ...` becomes the hosted source-of-truth surface
-
-## Hosted API Contract
-
-The hosted backend should expose these CLI-facing routes:
+The authenticated CLI surface is:
 
 ```text
 GET    /api/cli/workspaces
 POST   /api/cli/workspaces
-GET    /api/cli/workspaces/:workspaceId
-PATCH  /api/cli/workspaces/:workspaceId
-GET    /api/cli/workspaces/:workspaceId/tabs
-GET    /api/cli/workspaces/:workspaceId/timeline
-POST   /api/cli/workspaces/:workspaceId/state
-POST   /api/cli/workspaces/:workspaceId/events
+GET    /api/cli/workspaces/:id
+PATCH  /api/cli/workspaces/:id
+GET    /api/cli/workspaces/:id/tabs
+GET    /api/cli/workspaces/:id/timeline
+POST   /api/cli/workspaces/:id/state
+POST   /api/cli/workspaces/:id/events
 ```
 
-### GET /api/cli/workspaces
+Read routes require `workspaces:read`. Mutation routes require
+`workspaces:write`. These dedicated 2.0 routes reject the legacy bearer-token
+fallback even while older CLI routes remain available during migration.
+Responses use structured JSON errors and sanitized server-side logging.
 
-Returns a list view for the web app dropdown and agent discovery:
+The web dashboard presents metadata-only workspace cards and the current
+allowlisted projection. It does not reconstruct local paths, resume commands,
+or Codex state.
 
-- `workspace_id`
-- `title`
-- `linked_idea`
-- `metrics`
-- `updated_at_utc`
-- `latest_event`
+## Authentication contract
 
-### GET /api/cli/workspaces/:workspaceId
+`orp auth login` starts browser device authorization and opens
+`https://orp.earth/device`. The signed-in user reviews the device name and
+requested scopes before approval.
 
-Returns the full hosted workspace record conforming to:
+- device and user codes expire after 10 minutes;
+- access tokens expire after 10 minutes;
+- refresh tokens expire after 30 days and rotate on every use;
+- refresh-token reuse revokes the token family;
+- access tokens validate signature, issuer, audience, type, expiry, device,
+  revocation state, and required scope; and
+- users can list and revoke their devices.
 
-- `spec/v1/hosted-workspace.schema.json`
+The CLI stores access and refresh credentials in the macOS Keychain. The local
+session JSON contains only non-secret metadata and Keychain coordinates.
+Legacy token acceptance is controlled separately during rollout; disabling it
+is an explicit production gate.
 
-### GET /api/cli/workspaces/:workspaceId/tabs
+```sh
+orp auth devices --json
+orp auth revoke-device <device_id> --json
+```
 
-Returns a thin projection of the current state for lightweight inspection:
+## Legacy backfill and rollback
 
-- current ordered tabs
-- path/project root
-- saved resume command or structured resume metadata
-- focus/trajectory excerpts
+The backfill is dry-run by default and creates metadata-only workspace rows.
+It preserves every source idea and creates no snapshots:
 
-### GET /api/cli/workspaces/:workspaceId/timeline
+```sh
+pnpm orp:workspace-backfill -- --json
+pnpm orp:workspace-backfill -- --apply --confirm <plan_id> --json
+```
 
-Returns newest-first hosted workspace events conforming to:
+The resulting `batch_id` can be reviewed for rollback. Rollback removes only
+empty rows created by that batch and also requires an exact current plan ID:
 
-- `spec/v1/hosted-workspace-event.schema.json`
+```sh
+pnpm orp:workspace-backfill -- --rollback <batch_id> --json
+pnpm orp:workspace-backfill -- \
+  --rollback <batch_id> \
+  --apply \
+  --confirm <rollback_plan_id> \
+  --json
+```
 
-### POST /api/cli/workspaces/:workspaceId/state
+Rows with snapshots or events are deliberately retained for manual review.
 
-Accepts a new current-state payload and:
+## Service verification
 
-- validates the incoming state
-- increments `state.state_version`
-- updates `updated_at_utc`
-- appends a `snapshot.created` event
-
-### POST /api/cli/workspaces/:workspaceId/events
-
-Accepts one explicit event payload and appends it to the timeline.
-
-## Web App Contract
-
-The web app should surface hosted workspaces as a first-class screen.
-
-### Workspace List Screen
-
-The list screen should show:
-
-- workspace title
-- linked idea title
-- tab count
-- project count
-- current focus
-- last updated timestamp
-- latest event summary
-
-This is the dropdown/picker surface the user asked for.
-
-### Workspace Detail Screen
-
-The detail page should show:
-
-- workspace header and linked idea
-- current summary / focus / trajectory
-- ordered tabs with repo roots and session ids
-- per-tab focus summary
-- per-tab trajectory summary
-- current task per tab/project
-- timeline of state changes over time
-
-### Timeline
-
-The timeline should make it easy to answer:
-
-- what changed
-- when it changed
-- whether a tab was added or removed
-- what the agent says is being worked on now
-- where the work appears to be heading
-
-## Agent Write Contract
-
-Agents should be allowed to update structured workspace state rather than only
-free-form notes.
-
-The minimum agent-owned fields are:
-
-- workspace-level `state.summary`
-- workspace-level `state.current_focus`
-- workspace-level `state.trajectory`
-- per-tab `current_task`
-- per-tab `focus_summary`
-- per-tab `trajectory_summary`
-
-Agents should also append explicit timeline events when they make meaningful
-updates so the hosted detail page remains explainable instead of silently
-mutating.
-
-## Migration Rule
-
-Migration should happen in this order:
-
-1. create hosted workspace records linked to existing ideas
-2. copy the current ` ```orp-workspace ` block into `state`
-3. keep mirroring back into idea notes temporarily
-4. update the local launcher to prefer `--hosted-workspace-id`
-5. make idea-note mirroring optional and eventually secondary
-
-## Non-Negotiable Rule
-
-After the hosted workspace model lands, the web app should never invent a
-different workspace state shape from the CLI contract. The CLI contract and
-these schemas remain authoritative.
+`GET /healthz` proves process liveness. `GET /readyz` verifies database
+connectivity and the seven ORP 2.0 tables; it returns HTTP 503 until both are
+ready. Neither response includes credentials or database details.

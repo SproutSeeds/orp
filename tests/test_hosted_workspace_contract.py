@@ -41,11 +41,11 @@ class HostedWorkspaceContractTests(unittest.TestCase):
         path = REPO_ROOT / "docs" / "ORP_HOSTED_WORKSPACE_CONTRACT.md"
         text = path.read_text(encoding="utf-8")
 
-        self.assertIn("orp workspaces list", text)
-        self.assertIn("orp workspaces show <workspace-id>", text)
-        self.assertIn("/api/cli/workspaces/:workspaceId/state", text)
-        self.assertIn("Workspace Detail Screen", text)
-        self.assertIn("Agent Write Contract", text)
+        self.assertIn("orp workspace sync main --json", text)
+        self.assertIn("GET    /api/cli/workspaces", text)
+        self.assertIn("POST   /api/cli/workspaces/:id/state", text)
+        self.assertIn("workspaces:write", text)
+        self.assertIn("The CLI and server both enforce this boundary.", text)
 
 
 if __name__ == "__main__":

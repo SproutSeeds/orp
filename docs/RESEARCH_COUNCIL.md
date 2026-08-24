@@ -91,10 +91,19 @@ The default live profile expects this ORP secret alias or env var:
 
 - `openai-primary` / `OPENAI_API_KEY`
 
-Store a local machine copy without the hosted secret API like this:
+Store the key locally in macOS Keychain:
 
 ```bash
-printf '%s' '<openai-key>' | orp secrets keychain-add \
+orp secrets add \
+  --alias openai-primary \
+  --label "OpenAI Primary" \
+  --provider openai
+```
+
+For an agent with `OPENAI_API_KEY` already present:
+
+```bash
+printenv OPENAI_API_KEY | orp secrets add \
   --alias openai-primary \
   --label "OpenAI Primary" \
   --provider openai \

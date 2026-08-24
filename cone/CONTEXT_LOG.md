@@ -31,3 +31,15 @@
   - Result: PASS / FAIL / (skipped)
 - Canonical artifacts touched (paths only):
 - Next hook:
+
+## Checkpoint — 2026-08-24T01:17:08Z
+- Note: ORP 0.5.0-rc.1 release candidate verified locally
+- Repo state:
+  - Branch: release/orp-v0.5.0
+  - Head: 6222b37
+  - Git status: staged=0, unstaged=37, untracked=12
+- ORP snippet sync:
+  - Agent instruction files checked: /Volumes/Code_2TB/code/ascension-free-pick/AGENTS.md
+  - Result: PASS
+- Canonical artifacts touched (paths only):
+- Next hook:
