@@ -16,3 +16,20 @@ Verification record: `results/verification/0.5.0-rc.2/VERIFICATION_RECORD.md`.
 Raw local logs remain in that canonical directory and are excluded from npm.
 
 The first GitHub matrix attempt exposed two platform assumptions in historical tests: an identity-before-Keychain test omitted its mocked supported backend, and a Node argument-parser test changed into a personal absolute directory. The fixtures now declare their mocked backend and use a disposable working directory. Their focused reruns pass; the matrix is rerun before publication.
+
+## Registry propagation after publication
+
+Workflow 35949575104 attempt 2 accepted `npm publish` but failed its immediate
+integrity readback with E404. The registry remained temporarily unavailable for
+this version and later served bytes identical to the tested archive. Attempt 3
+passed verification without republishing or replacing the immutable tag.
+
+Result: **FAIL** for immediate readback; **PASS** for the later registry download,
+all three installed-package lanes, and the workflow rerun. Raw evidence:
+`results/verification/0.5.0-rc.2/publish-retry-failed.log` and `registry/` beneath
+the same directory.
+
+Next hook: six deterministic cases in `tests/test_npm_registry_readback.py`
+exercise delayed version/channel visibility, conflicting bytes, stable-tag
+mutation, lookup errors, and timeout. Future publication uses a ten-minute
+bounded retry, while integrity and stable-tag conflicts still fail immediately.

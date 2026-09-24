@@ -37,7 +37,11 @@ Prereleases publish to `next`; stable versions publish to `latest`.
    then publishes those exact bytes with provenance. Publication is serialized.
 4. The workflow verifies registry SHA-512, the selected dist-tag, and that a
    prerelease did not move stable `latest`. An existing version is accepted only
-   if its integrity and channel match the candidate.
+   if its integrity and channel match the candidate. Registry visibility and
+   channel propagation are retried for up to ten minutes after publication;
+   conflicting integrity, changed stable tags, and other lookup errors fail.
+   If visibility still times out, preserve the immutable tag and archive and
+   rerun the failed job after checking the registry. Do not repack or retag.
 5. Download the registry tarball, check its integrity, run an isolated install,
    and create the matching GitHub prerelease/release with the reviewed notes.
 

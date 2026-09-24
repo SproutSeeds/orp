@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { waitForPublishedCandidate } = require("./npm-registry-readback");
 const directory = path.resolve(process.argv[2]);
 const manifestPath = path.join(directory, "manifest.json");
 const manifest = JSON.parse(fs.readFileSync(manifestPath))[0];
@@ -19,17 +20,31 @@ function run(command, args) {
 }
 run(process.execPath, [path.join(__dirname, "verify-package.js"), manifestPath, tarball]);
 const channel = run(process.execPath, [path.join(__dirname, "npm-release-tag.js"), pkg.version]);
-const before = JSON.parse(run("npm", ["view", pkg.name, "dist-tags", "--json"]));
+const before = JSON.parse(run("npm", ["view", pkg.name, "dist-tags", "--json", "--prefer-online"]));
 const spec = `${pkg.name}@${pkg.version}`;
-const lookup = spawnSync("npm", ["view", spec, "dist.integrity", "--json"], { encoding: "utf8" });
-if (lookup.status !== 0) {
-  let error; try { error = JSON.parse(lookup.stdout); } catch {}
-  if (error?.error?.code !== "E404") throw new Error("Registry lookup failed; publication stopped");
-  run("npm", ["publish", tarball, "--ignore-scripts", "--access", "public", "--provenance", "--tag", channel]);
+function readIntegrity() {
+  const lookup = spawnSync("npm", ["view", spec, "dist.integrity", "--json", "--prefer-online"], { encoding: "utf8" });
+  if (lookup.status !== 0) {
+    let error; try { error = JSON.parse(lookup.stdout); } catch {}
+    if (error?.error?.code !== "E404") throw new Error("Registry lookup failed; publication stopped");
+    return null;
+  }
+  return JSON.parse(lookup.stdout);
 }
-const integrity = JSON.parse(run("npm", ["view", spec, "dist.integrity", "--json"]));
-if (integrity !== manifest.integrity) throw new Error("Registry bytes differ from the tested candidate");
-const after = JSON.parse(run("npm", ["view", pkg.name, "dist-tags", "--json"]));
-if (after[channel] !== pkg.version) throw new Error("Registry channel does not match the candidate");
-if (channel === "next" && after.latest !== before.latest) throw new Error("Stable latest unexpectedly changed");
-console.log(JSON.stringify({ status:"PASS", package:spec, integrity, channel, distTags:after }, null, 2));
+async function publish() {
+  if (readIntegrity() === null) {
+    run("npm", ["publish", tarball, "--ignore-scripts", "--access", "public", "--provenance", "--tag", channel]);
+    console.log("Publication accepted; waiting for registry visibility and release channel.");
+  }
+  const result = await waitForPublishedCandidate({
+    integrity: manifest.integrity, version: pkg.version, channel, previousLatest: before.latest,
+    read() {
+      const integrity = readIntegrity();
+      if (integrity === null) return null;
+      const tags = JSON.parse(run("npm", ["view", pkg.name, "dist-tags", "--json", "--prefer-online"]));
+      return { integrity, tags };
+    },
+  });
+  console.log(JSON.stringify({ status:"PASS", package:spec, integrity:result.integrity, channel, distTags:result.tags }, null, 2));
+}
+publish().catch((error) => { console.error(error.message); process.exitCode = 1; });
