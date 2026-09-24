@@ -250,6 +250,7 @@ class OrpAuthTests(IsolatedTestCase):
 
     def test_auth_login_verifies_identity_before_writing_keychain(self) -> None:
         module = load_cli_module()
+        module._keychain_supported = lambda: True
         stored = []
 
         def fake_request_hosted_json(**kwargs):

@@ -14,3 +14,5 @@ The first final combined attempt passed all 275 Python tests but failed one Node
 
 Verification record: `results/verification/0.5.0-rc.2/VERIFICATION_RECORD.md`.
 Raw local logs remain in that canonical directory and are excluded from npm.
+
+The first GitHub matrix attempt exposed two platform assumptions in historical tests: an identity-before-Keychain test omitted its mocked supported backend, and a Node argument-parser test changed into a personal absolute directory. The fixtures now declare their mocked backend and use a disposable working directory. Their focused reruns pass; the matrix is rerun before publication.
