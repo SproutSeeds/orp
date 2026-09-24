@@ -6,6 +6,49 @@ There was no prior in-repo changelog file, so the first formal entry starts
 with the currently shipped `v0.4.4` release and summarizes the full release
 delta reflected in this repo.
 
+## v0.5.0-rc.2 - 2026-09-23
+
+This candidate repairs storage and sync behavior and adds installed upgrade
+checks before publication. Install it with `npm i -g open-research-protocol@next`.
+Stable `latest` remains 0.4.38.
+
+### Fixed
+
+- Preserve active data, configuration, unknown files, and retained archives
+  during legacy compaction. Add verified archive restoration and stopped-writer
+  lock recovery with exact confirmation.
+- Pin storage layout on first write; reject ambiguous or overlapping roots.
+  Migrate managed workspace references, retain sources, verify copies, and
+  back up conflicting targets when explicitly reconciling rc.1 legacy edits.
+- Write workspace edits atomically under a shared storage lock. A partial
+  temporary write leaves the previous manifest intact.
+- Bind sync approval to every projected field, destination, allowlist, and
+  expected version. Keep approval stable across execution timestamps, verify
+  hosted v2 readiness, and check persisted readback before reporting success.
+- Require a selector match before choosing a hosted workspace.
+- Apply SemVer precedence and install the exact version checked by the updater.
+  Prerelease installs default to `next`; `--channel latest` selects stable.
+- Migrate the deprecated Codex `codex_hooks` setting to `hooks`, preserve
+  intentional false values and TOML comments, validate edits, and keep a backup.
+  Generated hooks use the selected Python and configured projects root.
+- Refuse unsupported hosted login before opening device authorization.
+  Align Codex context's governance status with `orp init` and checkpoint state.
+
+### Verification and compatibility
+
+- Require Python 3.11+ and PyYAML. Local workflows support macOS and Linux;
+  hosted login and secret storage require macOS Keychain.
+- Run guarded Python and Node tests, schema fixtures, kernel checks, and fresh
+  install/stable upgrade/rc.1 repair tests through the release workflow.
+- Test Node 18 compatibility plus maintained Node 22/24 and Python 3.11/3.14.
+- Publish the tested tarball only after main lineage, tag, lockfile, package
+  contents, and installed checks pass. Verify registry integrity and dist-tags.
+- Exclude audit folders, tests, and session continuity logs from npm packages.
+
+Hosted v2 activation and stable promotion retain their deployment and real-use
+acceptance gates. Local recovery remains available when the hosted service is
+unavailable or incompatible.
+
 ## v0.5.0-rc.1 - 2026-08-23
 
 This release candidate makes the local machine the clear authority for ORP

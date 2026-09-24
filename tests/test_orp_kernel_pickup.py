@@ -5,13 +5,14 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "orp-kernel-pickup.py"
 
 
-class OrpKernelPickupTests(unittest.TestCase):
+class OrpKernelPickupTests(IsolatedTestCase):
     def test_pickup_report_has_expected_shape_and_ordering(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(SCRIPT)],

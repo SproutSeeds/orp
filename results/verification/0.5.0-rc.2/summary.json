@@ -1,0 +1,49 @@
+{
+  "claim_level": "Verified",
+  "scope": "Local rc.2 verification before GitHub matrix and publication",
+  "result": "PASS",
+  "base_commit": "acc75d123ee032883a48ce751e67864e8f04eaac",
+  "package": "open-research-protocol@0.5.0-rc.2",
+  "python": "3.14.7",
+  "node": "24.10.0",
+  "os": "Darwin",
+  "python_tests": 277,
+  "node_tests": 92,
+  "skips": 0,
+  "kernel": "PASS",
+  "installed": {
+    "status": "PASS",
+    "tarball_sha512": "0380ac0975de4b18763cfde8729f7dd637cb80c80d497349d6d84742147dc0d8f925a5bf517ccde35a2bd399edaed923804f72ed3cb8b643ec0d378ed47f26bf",
+    "lanes": [
+      {
+        "lane": "fresh",
+        "status": "PASS"
+      },
+      {
+        "lane": "stable-upgrade",
+        "status": "PASS"
+      },
+      {
+        "lane": "rc1-repair",
+        "status": "PASS"
+      }
+    ]
+  },
+  "local_tarball_integrity": "sha512-A4CsCXXeSxh2PP3ocp991jfLgMgNSXNJ1thHQhR9wNj5JaW/UXzN41or05ntrtkjgE9y7Ty4tkPsDTeO1H8mvw==",
+  "package_file_count": 200,
+  "native_keychain": "PASS synthetic credential only",
+  "dependency_audit_scope": "CLI production dependencies",
+  "dependency_audit_vulnerabilities": 0,
+  "source_file_sha256": {
+    "cli/orp.py": "0ffd3f8bcb7a877b6e7d7c29218fbfafb1370313c6b78c2d3be2e6e9cacaf3c0",
+    "packages/orp-workspace-launcher/src/storage.js": "ed0d8ae947df6511ace10237afeb2723a33ca04c45b673b22a05e55e041a0072",
+    "packages/orp-workspace-launcher/src/sync.js": "2b0229c07225b8d55dc76323eb9f2c32cd085142aaa9ede17044789dd04f899f",
+    "packages/orp-workspace-launcher/src/hosted-state.js": "86abb91730359acabbf82b9b8dd7bdbf88f1561eb088a1ec2d74e199b7e120f0",
+    "scripts/test-installed.py": "95bae63524f638ae5dd9040ef261f19621872c94ba11f78d7f289f9fcbd06cb6"
+  },
+  "remaining_acceptance": [
+    "GitHub runtime/platform matrix and registry byte verification",
+    "Hosted production activation and fresh signed-in browser acceptance",
+    "Fresh interactive Codex SessionStart delivery before stable promotion"
+  ]
+}

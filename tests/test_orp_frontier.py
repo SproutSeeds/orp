@@ -6,13 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 
 
-class OrpFrontierTests(unittest.TestCase):
+class OrpFrontierTests(IsolatedTestCase):
     def _run(self, root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(CLI), "--repo-root", str(root), *args],

@@ -11,6 +11,7 @@ import sys
 import tempfile
 from contextlib import redirect_stdout
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,7 @@ def load_cli_module():
     return module
 
 
-class OrpOpportunitiesTests(unittest.TestCase):
+class OrpOpportunitiesTests(IsolatedTestCase):
     def run_cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
         if env:
@@ -170,7 +171,7 @@ class OrpOpportunitiesTests(unittest.TestCase):
             self.assertEqual(after_payload["items"], [])
 
 
-class HostedOpportunityMirrorTests(unittest.TestCase):
+class HostedOpportunityMirrorTests(IsolatedTestCase):
     def setUp(self) -> None:
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         self._old_registry = os.environ.get("ORP_OPPORTUNITIES_REGISTRY_PATH")

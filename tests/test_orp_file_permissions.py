@@ -7,6 +7,7 @@ from pathlib import Path
 import stat
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 from unittest import mock
 
 
@@ -25,7 +26,7 @@ def _load_cli_module():
 ORP = _load_cli_module()
 
 
-class OrpFilePermissionTests(unittest.TestCase):
+class OrpFilePermissionTests(IsolatedTestCase):
     def test_user_config_json_is_atomic_and_private_independent_of_umask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             config_home = Path(td) / "config"

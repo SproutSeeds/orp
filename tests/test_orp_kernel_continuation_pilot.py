@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import unittest
+from orp_test_support import IsolatedTestCase
 from unittest import mock
 
 
@@ -19,7 +20,7 @@ def _load_module():
     return module
 
 
-class OrpKernelContinuationPilotTests(unittest.TestCase):
+class OrpKernelContinuationPilotTests(IsolatedTestCase):
     def test_score_continuation_accounts_for_invention(self) -> None:
         module = _load_module()
         case = {

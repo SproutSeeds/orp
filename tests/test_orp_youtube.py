@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +23,7 @@ def load_cli_module():
     return module
 
 
-class OrpYoutubeTests(unittest.TestCase):
+class OrpYoutubeTests(IsolatedTestCase):
     def test_video_id_from_supported_inputs(self) -> None:
         module = load_cli_module()
         expected = "dQw4w9WgXcQ"

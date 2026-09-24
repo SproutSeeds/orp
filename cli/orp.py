@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from contextlib import contextmanager
 import ctypes
 import datetime as dt
 import fnmatch
@@ -46,6 +47,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+if sys.version_info < (3, 11):
+    raise SystemExit("ORP requires Python 3.11 or newer. Set ORP_PYTHON to a supported interpreter.")
+import tomllib
 import tempfile
 import threading
 import time
@@ -127,6 +131,16 @@ def _is_private_orp_user_path(path: Path) -> bool:
 
 
 def _write_json(path: Path, data: Any) -> None:
+    if _is_private_orp_user_path(path):
+        with _storage_write_lock():
+            _pin_storage_layout(path)
+            _assert_active_storage_target(path)
+            _write_json_unlocked(path, data)
+    else:
+        _write_json_unlocked(path, data)
+
+
+def _write_json_unlocked(path: Path, data: Any) -> None:
     path = path.expanduser()
     private_root = _private_orp_user_root(path)
     private = private_root is not None
@@ -1314,7 +1328,10 @@ def _legacy_layout_has_material() -> bool:
     if not root.exists() or not root.is_dir():
         return False
     try:
-        return any(entry.name != "config.json" for entry in root.iterdir())
+        return any(
+            _classify_legacy_relative_path(Path(entry.name)) in {"data", "state", "cache"}
+            for entry in root.iterdir()
+        )
     except OSError:
         return False
 
@@ -1327,9 +1344,169 @@ def _detect_default_storage_layout() -> str:
         os.environ.get(name, "").strip()
         for name in ("XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME")
     )
-    if _legacy_layout_has_material() or xdg_config_only:
+    if xdg_config_only:
+        return STORAGE_LAYOUT_LEGACY
+    if _legacy_layout_has_material():
+        for category in ("data", "state", "cache"):
+            root = _orp_storage_root(category, layout=STORAGE_LAYOUT_XDG)
+            if root.resolve() != _legacy_orp_user_dir().resolve() and root.is_dir():
+                if any(_classify_legacy_relative_path(Path(entry.name)) == category for entry in root.iterdir()):
+                    raise _AmbiguousStorageLayout("Both legacy and XDG data exist without a selected layout. Run `orp storage migrate` to review reconciliation.")
         return STORAGE_LAYOUT_LEGACY
     return STORAGE_LAYOUT_XDG
+
+
+class _AmbiguousStorageLayout(RuntimeError):
+    pass
+
+
+_STORAGE_LOCK_STATE = threading.local()
+_STORAGE_THREAD_LOCK = threading.RLock()
+
+
+@contextmanager
+def _storage_write_lock():
+    """Serialize owned writes and migration across the Python and Node CLIs.
+
+    A crashed holder leaves a visible lock. Never expire a lock based on age:
+    removing a live writer's lock could turn a safe retry into data loss.
+    """
+    with _STORAGE_THREAD_LOCK:
+        if getattr(_STORAGE_LOCK_STATE, "held", False):
+            yield
+            return
+        directory = _local_config_path().parent
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        lock = directory / ".storage-write.lock"
+        try:
+            lock.mkdir(mode=0o700)
+        except FileExistsError as exc:
+            raise RuntimeError(f"ORP storage is busy or an interrupted writer left a lock: {lock}. Run `orp storage unlock` to inspect recovery.") from exc
+        owner = lock / "owner.json"
+        try:
+            owner.write_text(json.JSONEncoder().encode({"pid": os.getpid(), "host": platform.node(), "created_at": _now_utc()}), encoding="utf-8")
+            os.chmod(owner, 0o600)
+            _STORAGE_LOCK_STATE.held = True
+            yield
+        finally:
+            _STORAGE_LOCK_STATE.held = False
+            owner.unlink(missing_ok=True)
+            lock.rmdir()
+
+
+def _pin_storage_layout(target: Path) -> None:
+    if target.resolve() == _local_config_path().resolve() or _local_config_path().exists():
+        return
+    config = _local_config_template(layout=_orp_storage_layout())
+    _write_json_unlocked(_local_config_path(), config)
+
+
+def _storage_unlock_plan() -> dict[str, Any]:
+    lock = _local_config_path().parent / ".storage-write.lock"
+    owner_path = lock / "owner.json"
+    errors: list[str] = []
+    owner: dict[str, Any] = {}
+    alive = True
+    if not lock.exists():
+        errors.append("No storage write lock exists.")
+    elif lock.is_symlink() or owner_path.is_symlink() or not owner_path.is_file():
+        errors.append("Lock ownership cannot be verified; inspect it manually before recovery.")
+    else:
+        try:
+            owner = json.loads(owner_path.read_text(encoding="utf-8"))
+            pid = owner.get("pid")
+            if type(pid) is not int or pid <= 0 or owner.get("host") != platform.node():
+                errors.append("Lock is not attributable to a process on this machine.")
+            else:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    alive = False
+                except PermissionError:
+                    pass
+                if alive:
+                    errors.append(f"Lock owner PID {pid} is still running or cannot be checked.")
+            if sorted(item.name for item in lock.iterdir()) != ["owner.json"]:
+                errors.append("Unexpected files in lock directory; inspect them manually.")
+        except (OSError, ValueError, AttributeError) as exc:
+            errors.append(f"Lock ownership cannot be verified: {exc}")
+    material = {"path": str(lock), "owner": owner, "inode": lock.stat().st_ino if lock.exists() else None}
+    return {"schema": "orp.storage_unlock_plan/1", "plan_id": _canonical_plan_id("storage-unlock", [material]), "lock": str(lock), "owner": owner, "can_apply": not errors, "errors": errors, "dry_run": True}
+
+
+def cmd_storage_unlock(args: argparse.Namespace) -> int:
+    plan = _storage_unlock_plan()
+    if args.apply:
+        recovery = _local_config_path().parent / ".storage-recovery.lock"
+        try:
+            recovery.mkdir(mode=0o700)
+        except FileExistsError as exc:
+            raise RuntimeError("Another storage recovery is in progress; inspect it before retrying.") from exc
+        try:
+            current = _storage_unlock_plan()
+            if args.confirm != current["plan_id"] or not current["can_apply"]:
+                raise RuntimeError("Recovery needs the current exact plan_id and a verified stopped owner: " + "; ".join(current["errors"]))
+            lock = Path(current["lock"])
+            (lock / "owner.json").unlink()
+            lock.rmdir()
+            plan = {**current, "dry_run": False, "applied": True}
+        finally:
+            recovery.rmdir()
+    if args.json_output:
+        _print_json(plan)
+    else:
+        print(f"plan_id={plan['plan_id']}\nlock={plan['lock']}\ncan_apply={plan['can_apply']}")
+        for error in plan["errors"]:
+            print(error)
+        if not args.apply and plan["can_apply"]:
+            print(f"next=orp storage unlock --apply --confirm {plan['plan_id']}")
+    return 0
+
+
+def _assert_active_storage_target(target: Path) -> None:
+    """Reject a stale path resolved before another process switched layouts."""
+    if _orp_storage_layout() != STORAGE_LAYOUT_XDG:
+        return
+    try:
+        relative = target.resolve().relative_to(_legacy_orp_user_dir().resolve())
+    except ValueError:
+        return
+    category = _classify_legacy_relative_path(relative)
+    if category in {"data", "state", "cache"}:
+        expected = _orp_storage_root(category) / relative
+        if target.resolve() != expected.resolve():
+            raise RuntimeError(f"Refusing a write through a legacy reference: {target}. Run `orp storage migrate` to review reference repair.")
+
+
+def _storage_roots_errors(*, layout: str) -> list[str]:
+    roots = {name: _orp_storage_root(name, layout=layout) for name in ("config", "data", "state", "cache")}
+    errors = [f"Storage root is a symlink: {root}" for root in set(roots.values()) if root.is_symlink()]
+    if layout == STORAGE_LAYOUT_XDG:
+        names = list(roots)
+        for index, name in enumerate(names):
+            for other in names[index + 1:]:
+                left, right = roots[name].resolve(), roots[other].resolve()
+                if left == right or left in right.parents or right in left.parents:
+                    errors.append(f"Overlapping storage roots: {name}={roots[name]}, {other}={roots[other]}")
+    return errors
+
+
+def _assert_owned_regular_file(path: Path, root: Path) -> None:
+    try:
+        relative = path.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError(f"Storage path is outside its owned root: {path}") from exc
+    if ".." in relative.parts:
+        raise RuntimeError(f"Storage path escapes its owned root: {path}")
+    current = root
+    if root.is_symlink():
+        raise RuntimeError(f"Storage root is a symlink: {root}")
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise RuntimeError(f"Storage path contains a symlink: {current}")
+    if path.exists() and not path.is_file():
+        raise RuntimeError(f"Expected a regular storage file: {path}")
 
 
 def _orp_storage_layout() -> str:
@@ -1376,6 +1553,7 @@ def _orp_user_dir() -> Path:
 
 
 _STORAGE_TOP_LEVEL_CATEGORIES: dict[str, str] = {
+    "config.json": "config",
     "agents.json": "config",
     "agenda.json": "data",
     "connections.json": "data",
@@ -1417,7 +1595,7 @@ def _iter_regular_files(root: Path) -> list[Path]:
         return []
     files: list[Path] = []
     for directory, names, file_names in os.walk(root, followlinks=False):
-        names[:] = sorted(name for name in names if not (Path(directory) / name).is_symlink())
+        names[:] = sorted(name for name in names if name != ".storage-write.lock" and not (Path(directory) / name).is_symlink())
         for name in sorted(file_names):
             candidate = Path(directory) / name
             if candidate.is_symlink() or not candidate.is_file():
@@ -1519,12 +1697,56 @@ def _canonical_plan_id(kind: str, operations: list[dict[str, Any]], extra: dict[
     return hashlib.sha256(encoded).hexdigest()[:20]
 
 
-def _build_storage_migration_plan() -> dict[str, Any]:
+def _migration_content(source: Path, relative: Path) -> tuple[bytes, list[dict[str, str]]]:
+    content = source.read_bytes()
+    rewrites: list[dict[str, str]] = []
+    if relative.as_posix() not in {"workspace-registry.json", "workspace-slots.json"}:
+        return content, rewrites
+    payload = json.loads(content)
+    legacy = (_legacy_orp_user_dir() / "workspaces").resolve()
+    destination = _orp_storage_root("data", layout=STORAGE_LAYOUT_XDG) / "workspaces"
+
+    def visit(value: Any) -> None:
+        if isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, dict):
+            old = value.get("manifestPath")
+            if isinstance(old, str) and Path(old).is_absolute():
+                try:
+                    suffix = Path(old).resolve().relative_to(legacy)
+                except ValueError:
+                    suffix = None
+                if suffix is not None and ".." not in suffix.parts:
+                    new = str(destination / suffix)
+                    if new != old:
+                        value["manifestPath"] = new
+                        if value.get("selector") == old:
+                            value["selector"] = new
+                        rewrites.append({"from": old, "to": new})
+            for child in value.values():
+                visit(child)
+
+    visit(payload)
+    if rewrites:
+        content = (json.JSONEncoder(indent=2).encode(payload) + "\n").encode("utf-8")
+    return content, rewrites
+
+
+def _build_storage_migration_plan(*, prefer_legacy: bool = False) -> dict[str, Any]:
     source_root = _legacy_orp_user_dir()
+    ambiguous_layout = False
+    try:
+        current_layout = _orp_storage_layout()
+    except _AmbiguousStorageLayout:
+        current_layout = STORAGE_LAYOUT_LEGACY
+        ambiguous_layout = True
     operations: list[dict[str, Any]] = []
     unclassified: list[str] = []
     conflicts: list[dict[str, Any]] = []
-    if source_root.exists():
+    root_errors = _storage_roots_errors(layout=STORAGE_LAYOUT_XDG)
+    candidates: dict[str, tuple[Path, Path, str]] = {}
+    if current_layout == STORAGE_LAYOUT_LEGACY and source_root.exists():
         for source in _iter_regular_files(source_root):
             relative = source.relative_to(source_root)
             if relative.as_posix() == "config.json":
@@ -1536,31 +1758,64 @@ def _build_storage_migration_plan() -> dict[str, Any]:
             target = _orp_storage_root(category, layout=STORAGE_LAYOUT_XDG) / relative
             if source.resolve() == target.resolve():
                 continue
-            source_sha256 = _sha256_file(source)
-            operation = {
-                "action": "copy",
-                "category": category,
-                "relative_path": relative.as_posix(),
-                "source": str(source),
-                "target": str(target),
-                "bytes": source.stat().st_size,
-                "sha256": source_sha256,
-            }
-            if target.exists():
-                target_sha256 = _sha256_file(target) if target.is_file() and not target.is_symlink() else ""
-                if target_sha256 == source_sha256:
-                    operation["action"] = "already_copied"
-                else:
-                    operation["action"] = "conflict"
-                    operation["target_sha256"] = target_sha256
-                    conflicts.append(operation)
-            operations.append(operation)
+            candidates[str(target)] = (source, relative, category)
+    else:
+        # rc.1 may already have switched the selector while registry/slot paths
+        # still point to legacy manifests. Repair only those explicit references.
+        data_root = _orp_storage_root("data", layout=STORAGE_LAYOUT_XDG)
+        for name in ("workspace-registry.json", "workspace-slots.json"):
+            source = data_root / name
+            if not source.is_file() or source.is_symlink():
+                continue
+            _, rewrites = _migration_content(source, Path(name))
+            if rewrites:
+                candidates[str(source)] = (source, Path(name), "data")
+            for rewrite in rewrites:
+                old = Path(rewrite["from"])
+                if not old.is_file() or old.is_symlink():
+                    root_errors.append(f"Referenced legacy manifest is missing or unsafe: {old}")
+                    continue
+                candidates[rewrite["to"]] = (old, old.resolve().relative_to(source_root.resolve()), "data")
 
-    operations.sort(key=lambda row: (row["relative_path"], row["category"], row["target"]))
+    for target_name, (source, relative, category) in candidates.items():
+        target = Path(target_name)
+        source_sha256 = _sha256_file(source)
+        content, rewrites = _migration_content(source, relative)
+        desired_sha256 = hashlib.sha256(content).hexdigest()
+        operation = {
+            "action": "copy", "category": category, "relative_path": relative.as_posix(),
+            "source": str(source), "target": str(target), "bytes": len(content),
+            "sha256": source_sha256, "target_sha256": desired_sha256, "rewrites": rewrites,
+        }
+        try:
+            _assert_owned_regular_file(target, _orp_storage_root(category, layout=STORAGE_LAYOUT_XDG))
+            _assert_owned_regular_file(source, source_root if current_layout == STORAGE_LAYOUT_LEGACY or source != target else _orp_storage_root(category))
+        except RuntimeError as exc:
+            root_errors.append(str(exc))
+        if target.exists() or target.is_symlink():
+            observed = _sha256_file(target) if target.is_file() and not target.is_symlink() else ""
+            operation["existing_sha256"] = observed
+            if observed == desired_sha256:
+                operation["action"] = "already_copied"
+            elif observed and (source == target or observed == source_sha256 or prefer_legacy):
+                operation["action"] = "replace_with_backup"
+            else:
+                operation["action"] = "conflict"
+                conflicts.append(operation)
+        operations.append(operation)
+
+    # Files must exist before publishing their new references, including repair
+    # when XDG is already active and a process stops between operations.
+    operations.sort(key=lambda row: (row["relative_path"] in {"workspace-registry.json", "workspace-slots.json"}, row["relative_path"], row["category"], row["target"]))
     extra = {
         "from": STORAGE_LAYOUT_LEGACY,
         "to": STORAGE_LAYOUT_XDG,
         "unclassified": sorted(unclassified),
+        "current_layout": current_layout,
+        "ambiguous_layout": ambiguous_layout,
+        "prefer_legacy": prefer_legacy,
+        "config_sha256": _sha256_file(_local_config_path()) if _local_config_path().exists() else None,
+        "errors": root_errors,
     }
     plan_id = _canonical_plan_id("storage-migration", operations, extra)
     return {
@@ -1569,20 +1824,22 @@ def _build_storage_migration_plan() -> dict[str, Any]:
         "plan_id": plan_id,
         "from_layout": STORAGE_LAYOUT_LEGACY,
         "to_layout": STORAGE_LAYOUT_XDG,
-        "current_layout": _orp_storage_layout(),
+        "current_layout": current_layout,
+        "prefer_legacy": prefer_legacy,
         "dry_run": True,
-        "can_apply": not conflicts,
+        "can_apply": not conflicts and not root_errors,
         "operations": operations,
-        "copy_count": sum(row["action"] == "copy" for row in operations),
+        "copy_count": sum(row["action"] in {"copy", "replace_with_backup"} for row in operations),
         "already_copied_count": sum(row["action"] == "already_copied" for row in operations),
         "conflicts": conflicts,
+        "errors": root_errors,
         "unclassified": sorted(unclassified),
         "source_retained": True,
-        "rollback": "Set storage.layout to legacy-v0 in the local config; migration never removes legacy files.",
+        "rollback": "Legacy files and replaced-target backups are retained. Reconcile newer writes before changing layouts; a selector flip alone is not a rollback.",
     }
 
 
-def _copy_file_atomic(source: Path, target: Path) -> None:
+def _copy_file_atomic(source: Path, target: Path, *, content: bytes | None = None, expected_target_sha256: str | None = None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     current = target.parent.resolve()
     private_root = _private_orp_user_root(target)
@@ -1597,12 +1854,23 @@ def _copy_file_atomic(source: Path, target: Path) -> None:
     open_descriptor: int | None = descriptor
     try:
         os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "wb") as output, source.open("rb") as input_handle:
+        with os.fdopen(descriptor, "wb") as output:
             open_descriptor = None
-            shutil.copyfileobj(input_handle, output, length=1024 * 1024)
+            if content is None:
+                with source.open("rb") as input_handle:
+                    shutil.copyfileobj(input_handle, output, length=1024 * 1024)
+            else:
+                output.write(content)
             output.flush()
             os.fsync(output.fileno())
-        os.replace(temporary, target)
+        if expected_target_sha256 is None:
+            # Link creates the destination atomically and refuses a target that
+            # appeared after planning. Replacing it would clobber concurrent data.
+            os.link(temporary, target)
+        else:
+            if target.is_symlink() or not target.is_file() or _sha256_file(target) != expected_target_sha256:
+                raise RuntimeError(f"Migration target changed after review: {target}")
+            os.replace(temporary, target)
         os.chmod(target, 0o600)
     finally:
         if open_descriptor is not None:
@@ -1611,35 +1879,70 @@ def _copy_file_atomic(source: Path, target: Path) -> None:
 
 
 def _apply_storage_migration(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
+    with _storage_write_lock():
+        return _apply_storage_migration_locked(plan, confirmation)
+
+
+def _apply_storage_migration_locked(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
     if confirmation != plan["plan_id"]:
         raise RuntimeError("Migration confirmation must exactly match the current plan_id.")
     if not plan.get("can_apply"):
-        raise RuntimeError("Migration has target conflicts; resolve them and generate a new plan before applying.")
+        raise RuntimeError("Migration has target conflicts or unsafe roots; resolve them and generate a new plan before applying.")
+    current = _build_storage_migration_plan(prefer_legacy=bool(plan.get("prefer_legacy")))
+    if current["plan_id"] != plan["plan_id"]:
+        raise RuntimeError("Migration source or target changed after review; generate a new plan.")
+    # Pin the original selector before copying. Failed/interrupted copies cannot
+    # change layout detection, and a later preview can reuse verified copies.
+    if not _local_config_path().exists():
+        _write_json_unlocked(_local_config_path(), _local_config_template(layout=plan["current_layout"]))
+    journal_root = _orp_storage_root("state", layout=STORAGE_LAYOUT_XDG) / "migrations" / plan["plan_id"]
+    journal = {"plan": plan, "status": "copying", "completed": []}
+    _write_json_unlocked(journal_root / "journal.json", journal)
     copied: list[dict[str, Any]] = []
     for operation in plan["operations"]:
-        if operation["action"] != "copy":
-            continue
         source = Path(operation["source"])
         target = Path(operation["target"])
         if _sha256_file(source) != operation["sha256"]:
             raise RuntimeError(f"Migration source changed after review: {source}")
-        _copy_file_atomic(source, target)
-        if _sha256_file(target) != operation["sha256"]:
+        if operation["action"] != "already_copied":
+            content, _ = _migration_content(source, Path(operation["relative_path"]))
+            if hashlib.sha256(content).hexdigest() != operation["target_sha256"]:
+                raise RuntimeError(f"Migration transformed content changed: {source}")
+            expected = operation.get("existing_sha256")
+            if expected:
+                backup = journal_root / "backups" / hashlib.sha256(str(target).encode()).hexdigest()
+                if not backup.exists():
+                    _copy_file_atomic(target, backup)
+                if _sha256_file(backup) != expected:
+                    raise RuntimeError(f"Migration backup verification failed: {target}")
+            _copy_file_atomic(source, target, content=content, expected_target_sha256=expected)
+            copied.append(operation)
+        if _sha256_file(target) != operation["target_sha256"]:
             raise RuntimeError(f"Migration verification failed for target: {target}")
-        copied.append(operation)
+        journal["completed"].append(str(target))
+        _write_json_unlocked(journal_root / "journal.json", journal)
+
+    for operation in plan["operations"]:
+        source, target = Path(operation["source"]), Path(operation["target"])
+        _assert_owned_regular_file(target, _orp_storage_root(operation["category"], layout=STORAGE_LAYOUT_XDG))
+        if _sha256_file(target) != operation["target_sha256"] or (source != target and _sha256_file(source) != operation["sha256"]):
+            raise RuntimeError(f"Migration data changed before selector update: {target}")
 
     config = _load_local_config()
     config["storage"]["layout"] = STORAGE_LAYOUT_XDG
-    _write_json(_local_config_path(), config)
+    _write_json_unlocked(_local_config_path(), config)
     errors = _validate_local_config(_load_local_config())
     if errors:
         raise RuntimeError("Migrated local config failed validation: " + "; ".join(errors))
+    journal["status"] = "complete"
+    _write_json_unlocked(journal_root / "journal.json", journal)
     return {
         **plan,
         "dry_run": False,
         "applied": True,
         "copied_count": len(copied),
-        "verified_count": len(copied),
+        "verified_count": len(plan["operations"]),
+        "journal_path": str(journal_root / "journal.json"),
         "active_layout": _orp_storage_layout(),
     }
 
@@ -1663,6 +1966,8 @@ def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, 
         category: _orp_storage_root(category)
         for category in ("config", "data", "state", "cache")
     }
+    layout = _orp_storage_layout()
+    root_errors = _storage_roots_errors(layout=layout)
 
     backup_groups: dict[tuple[str, str, str], list[Path]] = {}
     for category in ("config", "data", "state"):
@@ -1671,26 +1976,32 @@ def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, 
             family = _backup_family(path)
             if family is None:
                 continue
+            relative = path.relative_to(root)
+            if _classify_legacy_relative_path(relative) != category:
+                continue
+            if relative.parts[0] == "workspaces" and not family.endswith(".json"):
+                continue
             key = (category, str(path.parent.resolve()), family)
             backup_groups.setdefault(key, []).append(path)
 
-    candidates: dict[str, tuple[str, Path, Path]] = {}
+    candidates: dict[str, tuple[str, Path, Path, str]] = {}
     for (category, _parent, _family), paths in backup_groups.items():
         ordered = sorted(paths, key=lambda item: (-item.stat().st_mtime_ns, item.name))
         root = roots[category]
         for index, path in enumerate(ordered):
             if index >= keep and path.stat().st_mtime <= backup_cutoff:
-                candidates[str(path.resolve())] = ("expired_backup", path, root)
+                candidates[str(path.resolve())] = ("expired_backup", path, root, category)
 
     cache_root = roots["cache"]
     for path in _iter_regular_files(cache_root):
-        if path.stat().st_mtime <= cache_cutoff:
-            candidates[str(path.resolve())] = ("expired_cache", path, cache_root)
+        relative = path.relative_to(cache_root)
+        owned_namespaces = {"cache"} if layout == STORAGE_LAYOUT_LEGACY else {"cache", "responses"}
+        if relative.parts[0] in owned_namespaces and len(relative.parts) > 1 and path.stat().st_mtime <= cache_cutoff:
+            candidates[str(path.resolve())] = ("expired_cache", path, cache_root, "cache")
 
     operations: list[dict[str, Any]] = []
     for absolute in sorted(candidates):
-        reason, path, root = candidates[absolute]
-        category = next(name for name, candidate_root in roots.items() if candidate_root.resolve() == root.resolve())
+        reason, path, root, category = candidates[absolute]
         operations.append(
             {
                 "action": "archive_then_remove",
@@ -1705,6 +2016,7 @@ def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, 
     extra = {
         "retention": retention,
         "layout": _orp_storage_layout(),
+        "errors": root_errors,
     }
     plan_id = _canonical_plan_id("storage-compaction", operations, extra)
     archive_path = _orp_storage_root("data") / "archives" / f"compaction-{plan_id}.tar.gz"
@@ -1714,6 +2026,8 @@ def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, 
         "plan_id": plan_id,
         "layout": _orp_storage_layout(),
         "dry_run": True,
+        "can_apply": not root_errors,
+        "errors": root_errors,
         "operations": operations,
         "operation_count": len(operations),
         "reclaimable_bytes": sum(row["bytes"] for row in operations),
@@ -1726,6 +2040,10 @@ def _build_storage_compaction_plan(now: dt.datetime | None = None) -> dict[str, 
 
 def _write_compaction_archive(plan: dict[str, Any]) -> Path:
     archive_path = Path(plan["archive_path"])
+    _assert_owned_regular_file(archive_path, _orp_storage_root("data"))
+    if archive_path.exists():
+        _verify_compaction_archive(archive_path, plan)
+        return archive_path
     archive_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{archive_path.name}.", suffix=".tmp", dir=str(archive_path.parent)
@@ -1741,6 +2059,7 @@ def _write_compaction_archive(plan: dict[str, Any]) -> Path:
                     manifest_rows: list[dict[str, Any]] = []
                     for index, operation in enumerate(plan["operations"]):
                         source = Path(operation["path"])
+                        _assert_owned_regular_file(source, _orp_storage_root(operation["category"]))
                         if _sha256_file(source) != operation["sha256"]:
                             raise RuntimeError(f"Compaction source changed after review: {source}")
                         member_name = f"files/{index:04d}/{operation['category']}/{operation['relative_path']}"
@@ -1767,7 +2086,7 @@ def _write_compaction_archive(plan: dict[str, Any]) -> Path:
                     archive.addfile(manifest_info, io.BytesIO(manifest_bytes))
             raw.flush()
             os.fsync(raw.fileno())
-        os.replace(temporary, archive_path)
+        os.link(temporary, archive_path)
         os.chmod(archive_path, 0o600)
     finally:
         if open_descriptor is not None:
@@ -1787,21 +2106,125 @@ def _verify_compaction_archive(archive_path: Path, plan: dict[str, Any]) -> None
         rows = manifest.get("files") if isinstance(manifest.get("files"), list) else []
         if len(rows) != len(plan["operations"]):
             raise RuntimeError("Compaction archive file count mismatch.")
-        for row in rows:
+        for index, (row, expected) in enumerate(zip(rows, plan["operations"])):
+            member_name = f"files/{index:04d}/{expected['category']}/{expected['relative_path']}"
+            if row != {**expected, "archive_member": member_name}:
+                raise RuntimeError("Compaction archive manifest differs from the approved plan.")
+            member = archive.getmember(member_name)
+            if not member.isfile() or member.size != expected["bytes"]:
+                raise RuntimeError("Compaction archive member type or size mismatch.")
             handle = archive.extractfile(row["archive_member"])
             if handle is None or hashlib.sha256(handle.read()).hexdigest() != row["sha256"]:
                 raise RuntimeError(f"Compaction archive hash mismatch for {row.get('relative_path', '')}.")
 
 
+def _build_storage_restore_plan(archive_path: Path, layout: str) -> dict[str, Any]:
+    archive_path = archive_path.expanduser().resolve()
+    if layout not in STORAGE_LAYOUTS:
+        raise RuntimeError("Choose legacy-v0 or xdg-v1 for restoration.")
+    errors = _storage_roots_errors(layout=layout)
+    operations: list[dict[str, Any]] = []
+    targets: set[str] = set()
+    with tarfile.open(archive_path, "r:gz") as archive:
+        metadata = archive.getmember("MANIFEST.json")
+        if not metadata.isfile() or metadata.size > 4 * 1024 * 1024:
+            raise RuntimeError("Restore archive has an invalid or oversized manifest.")
+        manifest = json.loads(archive.extractfile(metadata).read())
+        rows = manifest.get("files")
+        if not isinstance(rows, list) or len(rows) > 10000:
+            raise RuntimeError("Restore archive has an invalid file list.")
+        for row in rows:
+            category, relative = row.get("category"), row.get("relative_path")
+            if category not in {"config", "data", "state", "cache"} or not isinstance(relative, str):
+                raise RuntimeError("Restore archive has an invalid storage category or path.")
+            relative_path = Path(relative)
+            if not relative or relative_path.is_absolute() or ".." in relative_path.parts or "\\" in relative or "\x00" in relative:
+                raise RuntimeError("Restore archive path escapes its owned root.")
+            if any(part in {".storage-write.lock", ".storage-recovery.lock"} for part in relative_path.parts):
+                raise RuntimeError("Restore archive targets reserved storage lock state.")
+            root = _orp_storage_root(category, layout=layout)
+            target = root / relative_path
+            _assert_owned_regular_file(target, root)
+            if str(target.resolve()) in targets:
+                raise RuntimeError("Restore archive has duplicate destinations.")
+            targets.add(str(target.resolve()))
+            member = archive.getmember(row["archive_member"])
+            if not member.isfile() or member.size != row.get("bytes") or member.size > 256 * 1024 * 1024:
+                raise RuntimeError("Restore archive member is invalid or exceeds the 256 MiB per-file recovery limit.")
+            content = archive.extractfile(member).read()
+            digest = hashlib.sha256(content).hexdigest()
+            if digest != row.get("sha256"):
+                raise RuntimeError("Restore archive file hash mismatch.")
+            if target.resolve() == _local_config_path().resolve():
+                config = json.loads(content)
+                if _validate_local_config(config) or config["storage"]["layout"] != layout:
+                    errors.append("Archived config does not match the selected restoration layout.")
+            action = "restore"
+            if target.exists():
+                action = "already_present" if _sha256_file(target) == digest else "conflict"
+            operations.append({"action": action, "category": category, "relative_path": relative, "target": str(target), "archive_member": row["archive_member"], "bytes": member.size, "sha256": digest})
+    operations.sort(key=lambda row: row["target"])
+    archive_sha256 = _sha256_file(archive_path)
+    extra = {"archive_sha256": archive_sha256, "layout": layout, "errors": errors}
+    return {"schema": "orp.storage_restore_plan/1", "plan_id": _canonical_plan_id("storage-restore", operations, extra), "archive_path": str(archive_path), "archive_sha256": archive_sha256, "layout": layout, "operations": operations, "errors": errors, "can_apply": not errors and all(row["action"] != "conflict" for row in operations), "dry_run": True}
+
+
+def _apply_storage_restore(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
+    with _storage_write_lock():
+        current = _build_storage_restore_plan(Path(plan["archive_path"]), plan["layout"])
+        if confirmation != current["plan_id"] or not current["can_apply"]:
+            raise RuntimeError("Restoration requires the current exact plan_id and no destination conflicts.")
+        restored = 0
+        with tarfile.open(current["archive_path"], "r:gz") as archive:
+            for row in current["operations"]:
+                target = Path(row["target"])
+                if row["action"] == "restore":
+                    _assert_owned_regular_file(target, _orp_storage_root(row["category"], layout=current["layout"]))
+                    content = archive.extractfile(row["archive_member"]).read()
+                    if hashlib.sha256(content).hexdigest() != row["sha256"]:
+                        raise RuntimeError("Archive changed during restoration.")
+                    _copy_file_atomic(Path(current["archive_path"]), target, content=content)
+                    restored += 1
+                if _sha256_file(target) != row["sha256"]:
+                    raise RuntimeError(f"Restoration verification failed: {target}")
+        return {**current, "dry_run": False, "applied": True, "restored_count": restored}
+
+
+def cmd_storage_restore(args: argparse.Namespace) -> int:
+    plan = _build_storage_restore_plan(Path(args.archive), args.layout)
+    result = _apply_storage_restore(plan, args.confirm) if args.apply else plan
+    if args.json_output:
+        _print_json(result)
+    else:
+        print(f"plan_id={result['plan_id']}\ncan_apply={result['can_apply']}")
+        for row in result["operations"]:
+            print(f"{row['action']}: {row['target']}")
+        for error in result["errors"]:
+            print(error)
+        if not args.apply and result["can_apply"]:
+            print(f"next=orp storage restore {shlex.quote(result['archive_path'])} --layout {args.layout} --apply --confirm {result['plan_id']}")
+    return 0
+
+
 def _apply_storage_compaction(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
+    with _storage_write_lock():
+        return _apply_storage_compaction_locked(plan, confirmation)
+
+
+def _apply_storage_compaction_locked(plan: dict[str, Any], confirmation: str) -> dict[str, Any]:
     if confirmation != plan["plan_id"]:
         raise RuntimeError("Compaction confirmation must exactly match the current plan_id.")
+    if not plan.get("can_apply"):
+        raise RuntimeError("Compaction has unsafe storage roots: " + "; ".join(plan.get("errors", [])))
+    if _orp_storage_layout() != plan["layout"] or _load_local_config()["storage"]["retention"] != plan["retention"]:
+        raise RuntimeError("Compaction configuration changed after review; generate a new plan.")
     if not plan["operations"]:
         return {**plan, "dry_run": False, "applied": True, "removed_count": 0, "archive_created": False}
     archive_path = _write_compaction_archive(plan)
     _verify_compaction_archive(archive_path, plan)
     for operation in plan["operations"]:
         path = Path(operation["path"])
+        _assert_owned_regular_file(path, _orp_storage_root(operation["category"]))
         if _sha256_file(path) != operation["sha256"]:
             raise RuntimeError(f"Compaction source changed before removal: {path}")
         path.unlink()
@@ -1951,7 +2374,7 @@ def cmd_storage_report(args: argparse.Namespace) -> int:
 
 
 def cmd_storage_migrate(args: argparse.Namespace) -> int:
-    plan = _build_storage_migration_plan()
+    plan = _build_storage_migration_plan(prefer_legacy=bool(getattr(args, "prefer_legacy", False)))
     result = _apply_storage_migration(plan, args.confirm) if args.apply else plan
     if args.json_output:
         _print_json(result)
@@ -1962,7 +2385,8 @@ def cmd_storage_migrate(args: argparse.Namespace) -> int:
         print(f"conflicts={len(result.get('conflicts', []))}")
         print(f"unclassified={len(result.get('unclassified', []))}")
         if not args.apply:
-            print(f"next=orp storage migrate --apply --confirm {result['plan_id']}")
+            preference = " --prefer-legacy" if result.get("prefer_legacy") else ""
+            print(f"next=orp storage migrate{preference} --apply --confirm {result['plan_id']}")
     return 0
 
 
@@ -2406,35 +2830,45 @@ def _update_install_kind() -> str:
     package_root = _tool_package_root()
     if (package_root / ".git").exists():
         return "source-checkout"
-    return "npm-global"
+    if package_root.parent.name == "node_modules" and package_root.parent.parent.name == "lib":
+        return "npm-global"
+    return "unknown"
 
 
-def _version_key(version: str) -> tuple[int, ...]:
-    parts = [int(part) for part in re.findall(r"\d+", str(version))]
-    return tuple(parts) if parts else (0,)
+def _version_key(version: str) -> tuple[Any, ...]:
+    match = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?", str(version))
+    if not match:
+        raise ValueError(f"Invalid semantic version: {version}")
+    pre = match.group(4)
+    identifiers = []
+    for part in pre.split(".") if pre is not None else []:
+        if part.isascii() and part.isdigit():
+            if len(part) > 1 and part.startswith("0"):
+                raise ValueError(f"Invalid semantic version: {version}")
+            identifiers.append((0, int(part)))
+        else:
+            identifiers.append((1, part))
+    return (*map(int, match.group(1, 2, 3)), 1 if pre is None else 0, tuple(identifiers))
 
 
 def _compare_versions(left: str, right: str) -> int:
     left_key = _version_key(left)
     right_key = _version_key(right)
-    width = max(len(left_key), len(right_key))
-    padded_left = left_key + (0,) * (width - len(left_key))
-    padded_right = right_key + (0,) * (width - len(right_key))
-    if padded_left < padded_right:
+    if left_key < right_key:
         return -1
-    if padded_left > padded_right:
+    if left_key > right_key:
         return 1
     return 0
 
 
-def _fetch_latest_npm_version(*, timeout_sec: int = 8) -> tuple[str, str]:
+def _fetch_latest_npm_version(*, timeout_sec: int = 8, channel: str = "latest") -> tuple[str, str]:
     override = str(os.environ.get("ORP_UPDATE_LATEST_VERSION", "")).strip()
     if override:
         return override, ""
 
     try:
         proc = subprocess.run(
-            ["npm", "view", ORP_PACKAGE_NAME, "version", "--json"],
+            ["npm", "view", f"{ORP_PACKAGE_NAME}@{channel}", "version", "--json"],
             capture_output=True,
             text=True,
             timeout=timeout_sec,
@@ -2471,10 +2905,10 @@ def _fetch_latest_npm_version(*, timeout_sec: int = 8) -> tuple[str, str]:
     return version, ""
 
 
-def _recommended_update_command(install_kind: str) -> str:
+def _recommended_update_command(install_kind: str, version: str = "latest") -> str:
     if install_kind == "source-checkout":
         return f"git -C {shlex.quote(str(_tool_package_root()))} pull --ff-only"
-    return f"npm install -g {ORP_PACKAGE_NAME}@latest"
+    return f"npm install -g {ORP_PACKAGE_NAME}@{version}"
 
 
 def _run_text_command(command: Sequence[str], *, cwd: Path | None = None, timeout_sec: int | None = None) -> subprocess.CompletedProcess[str]:
@@ -2635,15 +3069,21 @@ def _source_checkout_update_readiness(package_root: Path) -> dict[str, Any]:
     }
 
 
-def _update_payload() -> dict[str, Any]:
+def _update_payload(channel: str = "") -> dict[str, Any]:
     install_kind = _update_install_kind()
     package_root = _tool_package_root()
     current_version = ORP_TOOL_VERSION
-    latest_version, check_error = _fetch_latest_npm_version()
+    channel = channel or ("next" if "-" in current_version.split("+")[0] else "latest")
+    latest_version, check_error = _fetch_latest_npm_version(channel=channel)
     source_readiness = _source_checkout_update_readiness(package_root) if install_kind == "source-checkout" else None
     comparison = 0
     if latest_version and current_version != "unknown":
-        comparison = _compare_versions(latest_version, current_version)
+        try:
+            comparison = _compare_versions(latest_version, current_version)
+            if channel == "latest" and _version_key(latest_version)[3] == 0:
+                check_error = "The latest channel unexpectedly points to a prerelease. Choose --channel next explicitly."
+        except ValueError as exc:
+            check_error = str(exc)
 
     if check_error:
         status = "check_failed"
@@ -2655,7 +3095,7 @@ def _update_payload() -> dict[str, Any]:
         status = "up_to_date"
 
     update_available = status == "update_available"
-    recommended_command = _recommended_update_command(install_kind) if update_available else ""
+    recommended_command = _recommended_update_command(install_kind, latest_version) if update_available else ""
     if not update_available:
         can_apply = False
     elif install_kind == "npm-global":
@@ -2692,6 +3132,7 @@ def _update_payload() -> dict[str, Any]:
             "latest_version": latest_version or "",
         },
         "status": status,
+        "channel": channel,
         "install_kind": install_kind,
         "package_root": str(package_root),
         "update_available": update_available,
@@ -2704,6 +3145,8 @@ def _update_payload() -> dict[str, Any]:
 
 
 def _apply_update(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("check_error"):
+        return {"ok": False, "applied": False, "message": payload["check_error"]}
     forced_apply = str(os.environ.get("ORP_UPDATE_APPLY_OK", "")).strip().lower()
     if forced_apply in {"0", "1", "false", "true", "no", "yes"}:
         ok = forced_apply in {"1", "true", "yes"}
@@ -2768,8 +3211,10 @@ def _apply_update(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
+        checked_version = str(payload.get("tool", {}).get("latest_version", ""))
+        _version_key(checked_version)
         proc = subprocess.run(
-            ["npm", "install", "-g", f"{ORP_PACKAGE_NAME}@latest"],
+            ["npm", "install", "-g", f"{ORP_PACKAGE_NAME}@{checked_version}"],
             capture_output=True,
             text=True,
         )
@@ -12959,8 +13404,15 @@ def main() -> int:
     protocol = root / "PROTOCOL.md"
     orp_config = root / "orp.yml"
     clawdad_dir = root / ".clawdad"
-    code_root = Path("/Volumes/Code_2TB/code")
-    parent_agents = code_root / "AGENTS.md" if _is_within(root, code_root) and root != code_root else None
+    registry_path = Path(os.environ.get("ORP_AGENTS_REGISTRY_PATH") or
+                         (Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "orp" / "agents.json")).expanduser()
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        registry = {}
+    configured_root = os.environ.get("ORP_PROJECTS_ROOT") or registry.get("projects_root")
+    code_root = Path(configured_root).expanduser() if configured_root else None
+    parent_agents = code_root / "AGENTS.md" if code_root and _is_within(root, code_root) and root != code_root else None
 
     tools = {
         "orp": _tool_status("orp"),
@@ -12968,7 +13420,7 @@ def main() -> int:
         "dumpy-files": _tool_status("dumpy-files"),
         "cmail": _tool_status("cmail"),
     }
-    missing_tools = [name for name, value in tools.items() if value == "missing"]
+    available_tools = [name for name, value in tools.items() if value != "missing"]
 
     lines = [
         "ORP/Codex startup context:",
@@ -12981,9 +13433,9 @@ def main() -> int:
         f"- Clawdad project state: {_bool_text(clawdad_dir.exists())}",
     ]
     if parent_agents is not None:
-        lines.append(f"- Code_2TB umbrella AGENTS.md: {_bool_text(parent_agents.exists())} at {parent_agents}")
-    if missing_tools:
-        lines.append(f"- missing optional stack tools: {', '.join(missing_tools)}")
+        lines.append(f"- configured umbrella AGENTS.md: {_bool_text(parent_agents.exists())} at {parent_agents}")
+    if available_tools:
+        lines.append(f"- available local tools: {', '.join(available_tools)}")
     if not project_agents.exists():
         lines.append("- note: ask before creating project AGENTS.md; suggested commands include `orp agents sync` or `orp init --projects-root <root>`.")
     if not protocol.exists() and not orp_config.exists():
@@ -13008,53 +13460,56 @@ if __name__ == "__main__":
 
 
 def _codex_config_hooks_enabled(text: str) -> bool:
-    in_features = False
-    for raw_line in str(text or "").splitlines():
-        stripped = raw_line.strip()
-        section_match = re.match(r"^\[([^\]]+)\]\s*$", stripped)
-        if section_match:
-            in_features = section_match.group(1).strip() == "features"
-            continue
-        if not in_features or stripped.startswith("#"):
-            continue
-        if re.match(r"^codex_hooks\s*=\s*true(?:\s*(?:#.*)?)?$", stripped, flags=re.IGNORECASE):
-            return True
-    return False
+    features = tomllib.loads(str(text or "")).get("features", {})
+    return features.get("hooks", features.get("codex_hooks", True)) is True
 
 
 def _codex_config_enable_hooks_text(text: str) -> tuple[str, str]:
     original = str(text or "")
-    if _codex_config_hooks_enabled(original):
-        return (original if original.endswith("\n") or not original else original + "\n"), "kept"
-
+    parsed = tomllib.loads(original)
+    features = parsed.get("features", {})
+    if not isinstance(features, dict):
+        raise RuntimeError("Codex features must be a TOML table; config was left unchanged.")
+    enabled = features.get("hooks", features.get("codex_hooks", True))
+    if not isinstance(enabled, bool):
+        raise RuntimeError("Codex features.hooks must be boolean; config was left unchanged.")
+    if "hooks" in features and "codex_hooks" not in features:
+        return original, "kept" if enabled else "kept_disabled"
     lines = original.splitlines()
     feature_start = -1
     feature_end = len(lines)
     for index, line in enumerate(lines):
-        section_match = re.match(r"^\s*\[([^\]]+)\]\s*$", line)
-        if not section_match:
-            continue
-        if section_match.group(1).strip() == "features":
+        if re.match(r'''^\s*\[\s*(?:features|"features"|'features')\s*\]\s*(?:#.*)?$''', line):
             feature_start = index
             feature_end = len(lines)
             for next_index in range(index + 1, len(lines)):
-                if re.match(r"^\s*\[[^\]]+\]\s*$", lines[next_index]):
+                if re.match(r"^\s*\[", lines[next_index]):
                     feature_end = next_index
                     break
             break
 
     if feature_start >= 0:
-        for index in range(feature_start + 1, feature_end):
-            if re.match(r"^\s*codex_hooks\s*=", lines[index]):
-                lines[index] = "codex_hooks = true"
-                return "\n".join(lines).rstrip() + "\n", "updated"
-        lines.insert(feature_end, "codex_hooks = true")
-        return "\n".join(lines).rstrip() + "\n", "updated"
-
-    if lines and lines[-1].strip():
-        lines.append("")
-    lines.extend(["[features]", "codex_hooks = true"])
-    return "\n".join(lines).rstrip() + "\n", "updated"
+        section = []
+        for line in lines[feature_start + 1:feature_end]:
+            match = re.match(r'''^(\s*)(?:hooks|codex_hooks|"hooks"|"codex_hooks"|'hooks'|'codex_hooks')\s*=\s*(?:true|false)\s*(#.*)?$''', line)
+            if match:
+                if match.group(2): section.append(match.group(1) + match.group(2))
+            else:
+                section.append(line)
+        section.append(f"hooks = {'true' if enabled else 'false'}")
+        lines[feature_start + 1:feature_end] = section
+    else:
+        if features:
+            raise RuntimeError("Use a [features] table to migrate Codex's deprecated hook key; inline/dotted config was left unchanged.")
+        if lines and lines[-1].strip(): lines.append("")
+        lines.extend(["[features]", f"hooks = {'true' if enabled else 'false'}"])
+    updated = "\n".join(lines) + "\n"
+    expected = copy.deepcopy(parsed)
+    expected.setdefault("features", {}).pop("codex_hooks", None)
+    expected["features"]["hooks"] = enabled
+    if tomllib.loads(updated) != expected:
+        raise RuntimeError("Codex config edit could not preserve all existing settings; config was left unchanged.")
+    return updated, "migrated" if "codex_hooks" in features else "updated"
 
 
 def _codex_desired_session_hook(codex_home: Path) -> dict[str, Any]:
@@ -13064,7 +13519,7 @@ def _codex_desired_session_hook(codex_home: Path) -> dict[str, Any]:
         "hooks": [
             {
                 "type": "command",
-                "command": f"/usr/bin/python3 {shlex.quote(str(script))}",
+                "command": f"{shlex.quote(sys.executable)} {shlex.quote(str(script))}",
                 "timeout": 10,
                 "statusMessage": "Checking ORP/Codex startup context",
             }
@@ -13116,6 +13571,12 @@ def _codex_merge_hooks_payload(payload: dict[str, Any], codex_home: Path) -> tup
     if not isinstance(groups, list):
         groups = []
         hooks["SessionStart"] = groups
+    owned_script = str(_codex_session_hook_path(codex_home))
+    for group in groups:
+        if isinstance(group, dict) and isinstance(group.get("hooks"), list):
+            group["hooks"] = [handler for handler in group["hooks"]
+                              if not (isinstance(handler, dict) and owned_script in str(handler.get("command", "")))]
+    groups[:] = [group for group in groups if not isinstance(group, dict) or group.get("hooks")]
     groups.append(_codex_desired_session_hook(codex_home))
     return updated, "updated"
 
@@ -13150,8 +13611,10 @@ def _codex_audit_payload(codex_home: Path) -> dict[str, Any]:
         "config": {
             "path": str(config_path),
             "exists": config_path.exists(),
-            "codex_hooks_enabled": _codex_config_hooks_enabled(config_text),
-            "status": "ok" if config_path.exists() and _codex_config_hooks_enabled(config_text) else "needs_sync",
+            "hooks_enabled": _codex_config_hooks_enabled(config_text),
+            "feature_key": "hooks",
+            "status": ("ok" if _codex_config_hooks_enabled(config_text) else "disabled")
+                      if config_path.exists() and "codex_hooks" not in tomllib.loads(config_text).get("features", {}) else "needs_sync",
         },
         "hooks_json": {
             "path": str(hooks_path),
@@ -13174,7 +13637,7 @@ def _codex_audit_payload(codex_home: Path) -> dict[str, Any]:
         }
         for name in ("orp", "clawdad", "dumpy-files", "cmail")
     }
-    ok = all(row.get("status") == "ok" for row in checks.values())
+    ok = all(row.get("status") in {"ok", "disabled"} for row in checks.values())
     next_actions = [] if ok else [f"orp agents codex sync --codex-home {shlex.quote(str(codex_home))} --json"]
     return {
         "ok": ok,
@@ -13194,6 +13657,28 @@ def _codex_sync_payload(codex_home: Path, *, dry_run: bool = False) -> dict[str,
     hooks_path = codex_home / "hooks.json"
     hook_script_path = _codex_session_hook_path(codex_home)
     actions: list[dict[str, Any]] = []
+
+    config_existed = config_path.exists()
+    if config_path.is_symlink():
+        raise RuntimeError("Codex config.toml is a symlink; edit its target explicitly before syncing.")
+    config_text = config_path.read_text(encoding="utf-8") if config_existed else ""
+    updated_config, config_action = _codex_config_enable_hooks_text(config_text)
+
+    hooks_existed = hooks_path.exists()
+    hooks_payload, hooks_load_status = _codex_load_hooks_for_edit(hooks_path)
+    if hooks_load_status == "invalid_json":
+        actions.append({"path": str(hooks_path), "action": "blocked_invalid_json"})
+        audit = _codex_audit_payload(codex_home) if not dry_run else {}
+        return {
+            "ok": False,
+            "schema_version": "1.0.0",
+            "kind": "orp_codex_global_sync",
+            "codex_home": str(codex_home),
+            "dry_run": dry_run,
+            "actions": actions,
+            "audit": audit,
+            "warnings": ["hooks.json exists but is not a JSON object; ORP did not overwrite it."],
+        }
 
     if not dry_run:
         codex_home.mkdir(parents=True, exist_ok=True)
@@ -13218,11 +13703,16 @@ def _codex_sync_payload(codex_home: Path, *, dry_run: bool = False) -> dict[str,
         action = "would_create" if dry_run else "created"
     actions.append({"path": str(agents_path), "action": action, "guide_action": guide_action})
 
-    config_existed = config_path.exists()
-    config_text = config_path.read_text(encoding="utf-8") if config_existed else ""
-    updated_config, config_action = _codex_config_enable_hooks_text(config_text)
     if updated_config != config_text and not dry_run:
-        _write_text(config_path, updated_config)
+        digest = hashlib.sha256(config_text.encode("utf-8")).hexdigest()
+        if config_existed:
+            backup = config_path.with_name(f"config.toml.orp-backup-{digest[:16]}")
+            if not backup.exists(): _copy_file_atomic(config_path, backup)
+            if backup.is_symlink() or _sha256_file(backup) != digest:
+                raise RuntimeError("Codex config backup did not verify; original config retained.")
+            actions.append({"path": str(backup), "action": "backup_verified"})
+        _copy_file_atomic(config_path, config_path, content=updated_config.encode("utf-8"),
+                          expected_target_sha256=digest if config_existed else None)
     actions.append(
         {
             "path": str(config_path),
@@ -13235,21 +13725,6 @@ def _codex_sync_payload(codex_home: Path, *, dry_run: bool = False) -> dict[str,
         }
     )
 
-    hooks_existed = hooks_path.exists()
-    hooks_payload, hooks_load_status = _codex_load_hooks_for_edit(hooks_path)
-    if hooks_load_status == "invalid_json":
-        actions.append({"path": str(hooks_path), "action": "blocked_invalid_json"})
-        audit = _codex_audit_payload(codex_home) if not dry_run else {}
-        return {
-            "ok": False,
-            "schema_version": "1.0.0",
-            "kind": "orp_codex_global_sync",
-            "codex_home": str(codex_home),
-            "dry_run": dry_run,
-            "actions": actions,
-            "audit": audit,
-            "warnings": ["hooks.json exists but is not a JSON object; ORP did not overwrite it."],
-        }
     updated_hooks, hooks_action = _codex_merge_hooks_payload(hooks_payload, codex_home)
     if updated_hooks != hooks_payload and not dry_run:
         _write_json(hooks_path, updated_hooks)
@@ -22818,7 +23293,7 @@ def cmd_mode_breakdown(args: argparse.Namespace) -> int:
 
 
 def cmd_update(args: argparse.Namespace) -> int:
-    payload = _update_payload()
+    payload = _update_payload(str(getattr(args, "channel", "")))
     if getattr(args, "yes", False):
         payload["apply"] = _apply_update(payload)
 
@@ -25873,6 +26348,8 @@ def cmd_report_summary(args: argparse.Namespace) -> int:
 
 
 def cmd_auth_login(args: argparse.Namespace) -> int:
+    if not _keychain_supported():
+        raise RuntimeError("Hosted login currently requires macOS Keychain. Local ORP commands work on this platform; no device authorization was started.")
     session = _load_hosted_session()
     base_url = _resolve_hosted_base_url(args, session)
     device_name = str(getattr(args, "device_name", "")).strip() or f"ORP CLI on {platform.system() or 'this computer'}"
@@ -27488,6 +27965,29 @@ def _load_hosted_workspace_json_file(path_arg: str, *, label: str) -> tuple[Path
         raise RuntimeError(f"{label} JSON at {path} must be an object.")
     _assert_safe_hosted_payload(payload, field_path=label.replace(" ", "_"))
     return path, payload
+
+
+def _hosted_workspace_capabilities(args: argparse.Namespace) -> dict[str, Any]:
+    base_url = _resolve_hosted_base_url(args, _load_hosted_session())
+    ready = _request_hosted_json(base_url=base_url, path="/readyz")
+    if (ready.get("ok") is not True or ready.get("contract_version") != "2.0.0"
+            or ready.get("dependencies", {}).get("schema") != "orp-v2-ready"):
+        raise RuntimeError("Hosted sync requires a ready contract 2.0.0 service. Local workspaces remain available.")
+    session = _require_hosted_session(args)
+    identity = _request_hosted_json(base_url=base_url, path="/api/cli/me", token=str(session.get("token", "")).strip())
+    user_id = str((identity.get("user") or {}).get("id", "")).strip()
+    if not user_id:
+        raise RuntimeError("Hosted sync could not verify the destination account.")
+    return {"ok": True, "contract_version": "2.0.0", "base_url": base_url, "user_id": user_id}
+
+
+def cmd_workspaces_capabilities(args: argparse.Namespace) -> int:
+    result = _hosted_workspace_capabilities(args)
+    if args.json_output:
+        _print_json(result)
+    else:
+        _print_pairs(list(result.items()))
+    return 0
 
 
 def cmd_workspaces_list(args: argparse.Namespace) -> int:
@@ -30334,6 +30834,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_storage_migrate.add_argument("--apply", action="store_true", help="Apply the reviewed migration plan")
     s_storage_migrate.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
+    s_storage_migrate.add_argument("--prefer-legacy", action="store_true", help="Review legacy data replacing conflicting targets, with verified target backups")
     add_json_flag(s_storage_migrate)
     s_storage_migrate.set_defaults(func=cmd_storage_migrate, json_output=False)
 
@@ -30345,6 +30846,20 @@ def build_parser() -> argparse.ArgumentParser:
     s_storage_compact.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
     add_json_flag(s_storage_compact)
     s_storage_compact.set_defaults(func=cmd_storage_compact, json_output=False)
+
+    s_storage_unlock = storage_sub.add_parser("unlock", help="Inspect or clear a write lock whose recorded owner has stopped")
+    s_storage_unlock.add_argument("--apply", action="store_true")
+    s_storage_unlock.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
+    add_json_flag(s_storage_unlock)
+    s_storage_unlock.set_defaults(func=cmd_storage_unlock, json_output=False)
+
+    s_storage_restore = storage_sub.add_parser("restore", help="Preview or restore a verified compaction archive without overwriting existing data")
+    s_storage_restore.add_argument("archive", help="Compaction archive path")
+    s_storage_restore.add_argument("--layout", required=True, choices=sorted(STORAGE_LAYOUTS), help="Explicit destination layout")
+    s_storage_restore.add_argument("--apply", action="store_true")
+    s_storage_restore.add_argument("--confirm", default="", help="Exact plan_id required with --apply")
+    add_json_flag(s_storage_restore)
+    s_storage_restore.set_defaults(func=cmd_storage_restore, json_output=False)
 
     s_mode = sub.add_parser(
         "mode",
@@ -30396,6 +30911,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Apply the recommended update step when ORP can do so safely",
     )
+    s_update.add_argument("--channel", choices=("latest", "next"), default="", help="Release channel (default: next for prereleases, latest for stable installs)")
     add_json_flag(s_update)
     s_update.set_defaults(func=cmd_update, json_output=False)
 
@@ -30700,7 +31216,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_agents_codex_audit = agents_codex_sub.add_parser(
         "audit",
-        help="Audit Codex global AGENTS.md, hooks.json, hook script, and codex_hooks feature flag",
+        help="Audit Codex global AGENTS.md, hooks.json, hook script, and canonical hooks feature flag",
     )
     s_agents_codex_audit.add_argument(
         "--codex-home",
@@ -31050,6 +31566,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_workspaces = sub.add_parser("workspaces", help="Hosted workspace record operations")
     workspaces_sub = s_workspaces.add_subparsers(dest="workspaces_cmd", required=True)
+
+    s_workspaces_capabilities = workspaces_sub.add_parser("capabilities", help="Check hosted sync readiness and destination account")
+    add_base_url_flag(s_workspaces_capabilities)
+    add_json_flag(s_workspaces_capabilities)
+    s_workspaces_capabilities.set_defaults(func=cmd_workspaces_capabilities, json_output=False)
 
     s_workspaces_list = workspaces_sub.add_parser("list", help="List hosted workspaces")
     s_workspaces_list.add_argument("--limit", type=int, default=25, help="Page size (default: 25)")

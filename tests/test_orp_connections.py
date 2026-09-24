@@ -11,6 +11,7 @@ import sys
 import tempfile
 from contextlib import redirect_stdout
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,7 @@ def load_cli_module():
     return module
 
 
-class OrpConnectionsTests(unittest.TestCase):
+class OrpConnectionsTests(IsolatedTestCase):
     def run_cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
         if env:
@@ -159,7 +160,7 @@ class OrpConnectionsTests(unittest.TestCase):
             self.assertEqual(json.loads(list_after_remove.stdout)["connections"], [])
 
 
-class HostedConnectionsMirrorTests(unittest.TestCase):
+class HostedConnectionsMirrorTests(IsolatedTestCase):
     def setUp(self) -> None:
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         self._old_registry = os.environ.get("ORP_CONNECTIONS_REGISTRY_PATH")

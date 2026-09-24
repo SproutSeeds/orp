@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +27,7 @@ def _run_cli(*args: str, env: dict[str, str] | None = None) -> subprocess.Comple
     )
 
 
-class OrpAgentsTests(unittest.TestCase):
+class OrpAgentsTests(IsolatedTestCase):
     def test_agents_codex_audit_reports_missing_then_sync_bootstraps_global_layer(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             codex_home = Path(td) / "codex-home"
@@ -52,7 +53,7 @@ class OrpAgentsTests(unittest.TestCase):
             self.assertTrue(hooks_path.exists())
             self.assertTrue(script_path.exists())
             self.assertIn("<!-- ORP:CODEX_GLOBAL:BEGIN -->", agents_path.read_text(encoding="utf-8"))
-            self.assertIn("codex_hooks = true", config_path.read_text(encoding="utf-8"))
+            self.assertIn("hooks = true", config_path.read_text(encoding="utf-8"))
 
             hooks_payload = json.loads(hooks_path.read_text(encoding="utf-8"))
             self.assertIn("SessionStart", hooks_payload["hooks"])
@@ -109,7 +110,7 @@ class OrpAgentsTests(unittest.TestCase):
 
             config_text = (codex_home / "config.toml").read_text(encoding="utf-8")
             self.assertIn("js_repl = true", config_text)
-            self.assertIn("codex_hooks = true", config_text)
+            self.assertIn("hooks = true", config_text)
 
             hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
             self.assertIn("Stop", hooks_payload["hooks"])

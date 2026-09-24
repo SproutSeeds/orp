@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +26,7 @@ def rpc(proc: subprocess.Popen[str], payload: dict[str, object]) -> dict[str, ob
     return json.loads(line)
 
 
-class OrpResearchMcpTests(unittest.TestCase):
+class OrpResearchMcpTests(IsolatedTestCase):
     def test_mcp_lists_and_calls_research_ask(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -1,90 +1,58 @@
-# npm Release Checklist (`open-research-protocol`)
+# npm release procedure
 
-Use this checklist to publish professional, versioned ORP CLI releases.
+The release unit is one tested tarball tied to a tagged commit on `origin/main`.
+Prereleases publish to `next`; stable versions publish to `latest`.
 
-## One-time setup
+## Prepare and verify
 
-1. Confirm npm package ownership for `open-research-protocol`.
-2. Add repository secret `NPM_TOKEN` in GitHub Actions:
-   - token should have permission to publish this package.
-3. Confirm package metadata in `package.json`:
-   - `name`, `version`, `repository`, `bin`.
+1. Preserve and classify existing work with `git status --short` and
+   `orp hygiene --json`. Work on one scoped release branch.
+2. Update `package.json`, `package-lock.json`, changelog, migration guidance,
+   and release notes together. Check current registry versions and tags.
+3. Create a Python 3.11+ environment and install `requirements-test.txt`.
+   Run `npm ci --ignore-scripts` and `ORP_PYTHON=/path/to/python npm test`.
+   The required Python suite rejects skipped checks. Node tests use a separate
+   isolated environment; real installers, remote writes, and Keychain calls
+   are blocked in ordinary unit tests.
+4. Pack to a temporary directory with `npm pack --ignore-scripts --json`.
+   Run `node scripts/verify-package.js <manifest.json> <tarball.tgz>`, then
+   `python scripts/test-installed.py <tarball.tgz> --output <installed.json>`.
+   This installs lifecycle scripts into temporary prefixes and exercises a
+   fresh setup, stable 0.4.38 upgrade, and the rc.1 migration repair.
+5. Run `git diff --check`, check the scoped staged files, and record verification
+   under `results/verification/<version>/`. Preserve raw local evidence there;
+   publish only the sanitized record and summary.
+6. Open a release PR. The reusable `.github/workflows/validate.yml` gate covers
+   Linux with Node 18/22/24, macOS with Node 24, and Python 3.11/3.14.
+   All jobs must pass, including the installed artifact checks.
 
-## Per-release flow
+## Publish
 
-1. Ensure `main` is green and local tests pass:
-   - shortcut: `bash scripts/orp-release-smoke.sh`
-   - `python3 -m unittest discover -s tests -v`
-   - `git status --short`
-   - `git rev-list --left-right --count origin/main...HEAD`
-   - `npm view open-research-protocol version dist-tags --json`
-   - `npm pack --dry-run --cache /tmp/orp-npm-cache`
-   - `npm publish --dry-run`
-2. Run the fresh-install governance smoke test from a clean temp prefix and clean repo:
-   - scripted path:
-     - `bash scripts/orp-release-smoke.sh`
-     - `bash scripts/orp-release-smoke.sh --hosted --codex-session-id <session-id>`
-     - `bash scripts/orp-release-smoke.sh --hosted --worker --codex-session-id <session-id>`
-   - `npm pack`
-   - `npm install -g --prefix /tmp/orp-global ./open-research-protocol-X.Y.Z.tgz`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp -h`
-   - `mkdir /tmp/orp-fresh && cd /tmp/orp-fresh`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp init --json`
-   - `git config user.name "ORP Release Smoke"`
-   - `git config user.email "orp-release@example.com"`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp branch start work/bootstrap --allow-dirty --json`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp checkpoint create -m "bootstrap governance" --json`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp backup -m "backup bootstrap governance" --json`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp gate run --profile default --json`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp checkpoint create -m "capture passing validation" --json`
-   - `env PATH=/tmp/orp-global/bin:$PATH orp ready --json`
-   - optional follow-through:
-     - `env PATH=/tmp/orp-global/bin:$PATH orp packet emit --profile default --json`
-     - `env PATH=/tmp/orp-global/bin:$PATH orp report summary --json`
-3. Confirm the version you intend to publish is not already live.
-   - local `package.json` version must be newer than the currently published `latest`
-   - `npm publish` is guarded and will fail if the worktree is dirty or the current commit is not already on a remote branch
-4. Bump version in `package.json` (for example `0.4.4` -> `0.4.5`).
-5. Commit and push the version bump to `main`.
-6. Create and push a matching tag:
-   - `git tag v0.4.5`
-   - `git push origin v0.4.5`
-7. Watch workflow:
-   - `.github/workflows/npm-publish.yml`
-   - tag push is the normal publish trigger
-   - semantic prereleases such as `0.5.0-rc.1` publish to npm `next`; stable
-     versions publish to `latest`
-8. Verify npm install after publish:
-   - `npm i -g open-research-protocol`
-   - `orp -h`
-   - `orp init`
-   - `orp status --json`
-   - `orp about --json`
+1. Merge the reviewed PR after required checks pass. Fetch `origin/main` and
+   verify the exact release commit and version again.
+2. Tag that commit `v<package-version>` and push the tag. This triggers
+   `.github/workflows/npm-publish.yml`.
+3. The publish workflow runs the reusable validation gate, downloads its tested
+   tarball, checks a clean tree, main ancestry, matching version tag and lockfile,
+   then publishes those exact bytes with provenance. Publication is serialized.
+4. The workflow verifies registry SHA-512, the selected dist-tag, and that a
+   prerelease did not move stable `latest`. An existing version is accepted only
+   if its integrity and channel match the candidate.
+5. Download the registry tarball, check its integrity, run an isolated install,
+   and create the matching GitHub prerelease/release with the reviewed notes.
 
-## Important guardrail
+Manual workflow dispatch is a recovery path on main. It requires the existing
+matching tag and exact `release_version`. Avoid direct `npm publish` from an
+unreviewed checkout; use the same tested artifact and checks during recovery.
 
-Tag version must match `package.json` exactly.
+## Hosted and stable acceptance
 
-- Example:
-  - tag: `v0.4.0`
-  - package version: `0.4.0`
+Hosted readiness, device authorization, scope enforcement, token rotation and
+revocation, workspace readback, and migration recovery have their own checks.
+A disposable database and synthetic credentials establish automated behavior.
+Production migration/deployment, legacy credential retirement, and stable
+promotion require their concrete deployment and acceptance decisions.
 
-The publish workflow hard-fails if these differ.
-
-Manual workflow dispatch is available as a recovery path, but it still requires the same exact version string.
-
-## Manual publish fallback
-
-If automation is temporarily unavailable:
-
-1. Checkout intended commit locally.
-2. Run release validations above, including `npm publish --dry-run`.
-3. Publish:
-   - prerelease: `npm publish --access public --tag next`
-   - stable: `npm publish --access public --tag latest`
-4. Create and push the matching tag:
-   - `git tag vX.Y.Z`
-   - `git push origin vX.Y.Z`
-5. Add release notes.
-
-The tag-triggered workflow will still validate the version and will skip `npm publish` if that exact npm version already exists.
+Use the native macOS Keychain round-trip check separately from mocked tests.
+Record fresh interactive Codex hook delivery separately from TOML/configuration
+checks. Keep stable `latest=0.4.38` through the 0.5.0-rc.2 candidate period.

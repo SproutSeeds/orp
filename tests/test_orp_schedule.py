@@ -9,13 +9,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 
 
-class OrpScheduleTests(unittest.TestCase):
+class OrpScheduleTests(IsolatedTestCase):
     def run_cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
         if env:

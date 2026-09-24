@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -15,7 +16,7 @@ CLI = REPO_ROOT / "cli" / "orp.py"
 PACKAGE_VERSION = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 
 
-class OrpMaintenanceTests(unittest.TestCase):
+class OrpMaintenanceTests(IsolatedTestCase):
     def run_cli(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
         if env:

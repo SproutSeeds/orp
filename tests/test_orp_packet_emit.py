@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ def _run_cli(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[st
     return subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
 
 
-class OrpPacketEmitTests(unittest.TestCase):
+class OrpPacketEmitTests(IsolatedTestCase):
     def test_packet_emit_uses_package_version(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

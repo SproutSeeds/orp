@@ -1,0 +1,4677 @@
+{
+  "contract_version": "2.0.0",
+  "valid": [
+    {
+      "name": "metadata-only",
+      "manifest": {
+        "version": "1",
+        "workspaceId": "example",
+        "title": "example",
+        "tabs": [
+          {
+            "title": "Example",
+            "path": "/synthetic/project",
+            "remoteUrl": "https://github.com/example/project.git",
+            "remoteBranch": "main",
+            "linkedIdeaId": "idea-example",
+            "linkedFeatureId": "feature-example",
+            "lastActivityAt": "2026-09-22T12:00:00.000Z",
+            "lastSyncedAt": "2026-09-22T13:00:00.000Z",
+            "plan": {
+              "summary": "Verify the release"
+            },
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "capturedAt": "2026-09-23T12:00:00.000Z"
+      },
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active"
+          }
+        ],
+        "snapshot_id": "snapshot-d3b5ae2196ec7009"
+      },
+      "payload_sha256": "442bd36af268d2d6fe03a696a3dcfa8e4f64573c7d5a93fe3395bc1e00292839"
+    },
+    {
+      "name": "all-fields",
+      "manifest": {
+        "version": "1",
+        "workspaceId": "example",
+        "title": "example",
+        "tabs": [
+          {
+            "title": "Example",
+            "path": "/synthetic/project",
+            "remoteUrl": "https://github.com/example/project.git",
+            "remoteBranch": "main",
+            "linkedIdeaId": "idea-example",
+            "linkedFeatureId": "feature-example",
+            "lastActivityAt": "2026-09-22T12:00:00.000Z",
+            "lastSyncedAt": "2026-09-22T13:00:00.000Z",
+            "plan": {
+              "summary": "Verify the release"
+            },
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "capturedAt": "2026-09-23T12:00:00.000Z",
+        "destination": {
+          "base_url": "https://example.com",
+          "user_id": "user-example",
+          "workspace_id": "example",
+          "idea_id": "idea-example",
+          "title": "example"
+        },
+        "summary": "Prepare the release",
+        "currentFocus": "Review tests",
+        "trajectory": "Publish a candidate",
+        "syncAllowlist": [
+          "workspace.summary",
+          "workspace.current_focus",
+          "workspace.trajectory",
+          "tabs.title",
+          "tabs.remote_url",
+          "tabs.remote_branch",
+          "tabs.linked_idea_id",
+          "tabs.linked_feature_id",
+          "tabs.activity",
+          "tabs.plan_summary",
+          "tabs.tasks"
+        ]
+      },
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [
+            "tabs.activity",
+            "tabs.linked_feature_id",
+            "tabs.linked_idea_id",
+            "tabs.plan_summary",
+            "tabs.remote_branch",
+            "tabs.remote_url",
+            "tabs.tasks",
+            "tabs.title",
+            "workspace.current_focus",
+            "workspace.summary",
+            "workspace.trajectory"
+          ],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ],
+        "summary": "Prepare the release",
+        "current_focus": "Review tests",
+        "trajectory": "Publish a candidate",
+        "snapshot_id": "snapshot-02cc6e9712883e7a"
+      },
+      "payload_sha256": "376ed131001417de5ee057986149b8e342000e22647481c6f926b2c1b64ee721"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "legacy-version",
+      "state": {
+        "contract_version": "1.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [
+            "tabs.activity",
+            "tabs.linked_feature_id",
+            "tabs.linked_idea_id",
+            "tabs.plan_summary",
+            "tabs.remote_branch",
+            "tabs.remote_url",
+            "tabs.tasks",
+            "tabs.title",
+            "workspace.current_focus",
+            "workspace.summary",
+            "workspace.trajectory"
+          ],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ],
+        "summary": "Prepare the release",
+        "current_focus": "Review tests",
+        "trajectory": "Publish a candidate",
+        "snapshot_id": "snapshot-02cc6e9712883e7a"
+      }
+    },
+    {
+      "name": "unknown-field",
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [
+            "tabs.activity",
+            "tabs.linked_feature_id",
+            "tabs.linked_idea_id",
+            "tabs.plan_summary",
+            "tabs.remote_branch",
+            "tabs.remote_url",
+            "tabs.tasks",
+            "tabs.title",
+            "workspace.current_focus",
+            "workspace.summary",
+            "workspace.trajectory"
+          ],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ],
+        "summary": "Prepare the release",
+        "current_focus": "Review tests",
+        "trajectory": "Publish a candidate",
+        "snapshot_id": "snapshot-02cc6e9712883e7a",
+        "project_root": "/synthetic/project"
+      }
+    },
+    {
+      "name": "unapproved-summary",
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active"
+          }
+        ],
+        "snapshot_id": "snapshot-d3b5ae2196ec7009",
+        "summary": "Unapproved"
+      }
+    },
+    {
+      "name": "too-many-tabs",
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 201,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [
+            "tabs.activity",
+            "tabs.linked_feature_id",
+            "tabs.linked_idea_id",
+            "tabs.plan_summary",
+            "tabs.remote_branch",
+            "tabs.remote_url",
+            "tabs.tasks",
+            "tabs.title",
+            "workspace.current_focus",
+            "workspace.summary",
+            "workspace.trajectory"
+          ],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          },
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active",
+            "title": "Example",
+            "remote_url": "https://github.com/example/project.git",
+            "remote_branch": "main",
+            "linked_idea_id": "idea-example",
+            "linked_feature_id": "feature-example",
+            "last_activity_at_utc": "2026-09-22T12:00:00.000Z",
+            "last_synced_at_utc": "2026-09-22T13:00:00.000Z",
+            "plan_summary": "Verify the release",
+            "tasks": [
+              {
+                "id": "task-example",
+                "title": "Review tests",
+                "status": "in_progress",
+                "completed": false
+              }
+            ]
+          }
+        ],
+        "summary": "Prepare the release",
+        "current_focus": "Review tests",
+        "trajectory": "Publish a candidate",
+        "snapshot_id": "snapshot-02cc6e9712883e7a"
+      }
+    },
+    {
+      "name": "wrong-exclusions",
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [],
+          "always_excluded": []
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active"
+          }
+        ],
+        "snapshot_id": "snapshot-d3b5ae2196ec7009"
+      }
+    },
+    {
+      "name": "duplicate-allowlist",
+      "state": {
+        "contract_version": "2.0.0",
+        "state_version": 1,
+        "captured_at_utc": "2026-09-23T12:00:00.000Z",
+        "updated_at_utc": "2026-09-23T12:00:00.000Z",
+        "tab_count": 1,
+        "sync_policy": {
+          "mode": "explicit_allowlist",
+          "allowlist": [
+            "tabs.title",
+            "tabs.title"
+          ],
+          "always_excluded": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        },
+        "tabs": [
+          {
+            "tab_id": "tab-049486ce9524eabb",
+            "order_index": 0,
+            "status": "active"
+          }
+        ],
+        "snapshot_id": "snapshot-d3b5ae2196ec7009"
+      }
+    }
+  ]
+}

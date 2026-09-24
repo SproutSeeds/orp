@@ -2,6 +2,11 @@
 
 ORP (Open Research Protocol) is a docs-first, local-first, agent-friendly protocol and CLI for research workflows.
 
+This checkout targets 0.5.0-rc.2 (`npm install -g open-research-protocol@next`).
+Stable `latest` remains 0.4.38. Use Node 22/24 and Python 3.11+ with PyYAML.
+Set ORP_PYTHON when using a virtual environment. Local macOS/Linux workflows
+are supported; hosted login requires macOS Keychain. See INSTALL.md.
+
 ## Start Here
 
 - `README.md` — high-level overview, install path, pack flow, and validated examples.
@@ -39,6 +44,7 @@ ORP (Open Research Protocol) is a docs-first, local-first, agent-friendly protoc
 - `spec/v1/packet.schema.json`
 - `spec/v1/profile-pack.schema.json`
 - `spec/v1/youtube-source.schema.json`
+- `spec/v2/hosted-workspace-state.schema.json`
 
 ## Key Commands
 

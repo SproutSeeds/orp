@@ -1,0 +1,503 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openresearchprotocol.com/spec/v2/hosted-workspace-state.schema.json",
+  "title": "ORP Hosted Workspace State v2",
+  "description": "Structural contract. Runtime validators also enforce metadata safety, sorted allowlists, unique tab ids, consecutive indices, matching tab_count and a 262144 byte limit.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "2.0.0"
+    },
+    "state_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^snapshot-[a-f0-9]{16}$"
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "format": "date-time"
+    },
+    "updated_at_utc": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "format": "date-time"
+    },
+    "tab_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "current_focus": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "trajectory": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "sync_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "explicit_allowlist"
+        },
+        "allowlist": {
+          "type": "array",
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "workspace.summary",
+              "workspace.current_focus",
+              "workspace.trajectory",
+              "tabs.title",
+              "tabs.remote_url",
+              "tabs.remote_branch",
+              "tabs.linked_idea_id",
+              "tabs.linked_feature_id",
+              "tabs.activity",
+              "tabs.plan_summary",
+              "tabs.tasks"
+            ]
+          }
+        },
+        "always_excluded": {
+          "const": [
+            "absolute_paths",
+            "source_files",
+            "transcripts",
+            "secret_values",
+            "resume_commands",
+            "resume_ids",
+            "codex_state",
+            "machine_ids",
+            "hostnames"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "allowlist",
+        "always_excluded"
+      ]
+    },
+    "tabs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tab_id": {
+            "type": "string",
+            "pattern": "^tab-[a-f0-9]{16}$"
+          },
+          "order_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "const": "active"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "remote_url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "remote_branch": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "linked_idea_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "linked_feature_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "last_activity_at_utc": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "format": "date-time"
+          },
+          "last_synced_at_utc": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "format": "date-time"
+          },
+          "plan_summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "tasks": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 300
+                },
+                "status": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 40
+                },
+                "completed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tab_id",
+          "order_index",
+          "status"
+        ]
+      }
+    }
+  },
+  "required": [
+    "contract_version",
+    "state_version",
+    "snapshot_id",
+    "captured_at_utc",
+    "updated_at_utc",
+    "tab_count",
+    "sync_policy",
+    "tabs"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "workspace.summary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "summary": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "workspace.current_focus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "current_focus": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "workspace.trajectory"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trajectory": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.title"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "title": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.remote_url"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "remote_url": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.remote_branch"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "remote_branch": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.linked_idea_id"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "linked_idea_id": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.linked_feature_id"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "linked_feature_id": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.activity"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "last_activity_at_utc": false,
+                "last_synced_at_utc": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.plan_summary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "plan_summary": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sync_policy": {
+            "properties": {
+              "allowlist": {
+                "not": {
+                  "contains": {
+                    "const": "tabs.tasks"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tabs": {
+            "items": {
+              "properties": {
+                "tasks": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

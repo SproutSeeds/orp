@@ -1,0 +1,3 @@
+# Install in an isolated virtual environment. Runtime pack commands need PyYAML.
+PyYAML==6.0.3
+jsonschema==4.26.0

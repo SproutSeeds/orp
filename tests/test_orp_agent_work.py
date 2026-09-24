@@ -7,6 +7,7 @@ import json
 from contextlib import redirect_stdout
 from pathlib import Path
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ def load_cli_module():
     return module
 
 
-class OrpAgentWorkTests(unittest.TestCase):
+class OrpAgentWorkTests(IsolatedTestCase):
     def test_agent_work_prefers_runner_primary_path(self) -> None:
         module = load_cli_module()
         repo_root = "/tmp/rust-smoke-linked-repo"

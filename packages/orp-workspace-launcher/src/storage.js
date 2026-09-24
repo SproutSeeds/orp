@@ -4,11 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { randomBytes } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 
 export const STORAGE_LAYOUT_LEGACY = "legacy-v0";
 export const STORAGE_LAYOUT_XDG = "xdg-v1";
 const STORAGE_LAYOUTS = new Set([STORAGE_LAYOUT_LEGACY, STORAGE_LAYOUT_XDG]);
+const LEGACY_DATA_NAMES = new Set([
+  "agenda.json", "connections.json", "opportunities.json", "research-spend-ledger.json",
+  "schedules.json", "secrets-keychain.json", "workspace-registry.json", "workspace-slots.json",
+  "workspace-styles.json", "workspace-style-bindings.json", "workspaces", "launch-runtime",
+  "maintenance.json", "machine.json", "remote-session.json", "schedule-logs", "cache",
+]);
+const storageLockContext = new AsyncLocalStorage();
 const HOSTED_SYNC_FIELDS = new Set([
   "workspace.summary",
   "workspace.current_focus",
@@ -152,7 +160,7 @@ export function validateLocalConfig(config, configPath = "ORP local config") {
 function legacyHasMaterial(env = process.env) {
   const root = path.join(getConfigHome(env), "orp");
   try {
-    return fsSync.readdirSync(root).some((name) => name !== "config.json");
+    return fsSync.readdirSync(root).some((name) => LEGACY_DATA_NAMES.has(name.split(".bak-")[0]));
   } catch {
     return false;
   }
@@ -164,7 +172,21 @@ function detectDefaultStorageLayout(env = process.env) {
     "XDG_STATE_HOME",
     "XDG_CACHE_HOME",
   ].some((name) => Boolean(optional(env?.[name])));
-  return legacyHasMaterial(env) || configOnly ? STORAGE_LAYOUT_LEGACY : STORAGE_LAYOUT_XDG;
+  if (configOnly) return STORAGE_LAYOUT_LEGACY;
+  if (legacyHasMaterial(env)) {
+    const legacy = path.join(getConfigHome(env), "orp");
+    for (const home of [getDataHome(env), getStateHome(env), getCacheHome(env)]) {
+      const root = path.join(home, "orp");
+      if (root === legacy) continue;
+      try {
+        if (fsSync.readdirSync(root).some((name) => LEGACY_DATA_NAMES.has(name.split(".bak-")[0]))) {
+          throw new Error("Both legacy and XDG data exist without a selected layout. Run orp storage migrate to review reconciliation.");
+        }
+      } catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    return STORAGE_LAYOUT_LEGACY;
+  }
+  return STORAGE_LAYOUT_XDG;
 }
 
 export function getStorageLayout(env = process.env) {
@@ -249,6 +271,49 @@ export async function atomicWriteOrpFile(filePath, content, options = {}) {
   const env = options.env || process.env;
   const target = path.resolve(filePath);
   const root = containingOrpRoot(target, env);
+  if (root) {
+    return withStorageWriteLock(env, async () => {
+      const configPath = getLocalConfigPath(env);
+      if (target !== configPath && !fsSync.existsSync(configPath)) {
+        const config = defaultLocalConfig(getStorageLayout(env));
+        await atomicWriteOrpFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { env });
+      }
+      const legacyRoot = path.join(getConfigHome(env), "orp");
+      const relative = path.relative(legacyRoot, target);
+      const first = relative.split(path.sep)[0].split(".bak-")[0];
+      if (getStorageLayout(env) === STORAGE_LAYOUT_XDG && LEGACY_DATA_NAMES.has(first)) {
+        throw new Error(`Refusing a write through a legacy reference: ${target}. Run orp storage migrate to review reference repair.`);
+      }
+      return atomicWriteUnlocked(target, content, options, root);
+    });
+  }
+  return atomicWriteUnlocked(target, content, options, null);
+}
+
+export async function withStorageWriteLock(env, action) {
+  const directory = path.dirname(getLocalConfigPath(env));
+  const lock = path.join(directory, ".storage-write.lock");
+  if (storageLockContext.getStore() === lock) return action();
+  await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  try {
+    await fs.mkdir(lock, { mode: 0o700 });
+  } catch (error) {
+    if (error.code === "EEXIST") {
+      throw new Error(`ORP storage is busy or an interrupted writer left a lock: ${lock}. Run orp storage unlock to inspect recovery.`);
+    }
+    throw error;
+  }
+  const owner = path.join(lock, "owner.json");
+  try {
+    await fs.writeFile(owner, JSON.stringify({ pid: process.pid, host: os.hostname(), created_at: new Date().toISOString() }), { mode: 0o600 });
+    return await storageLockContext.run(lock, action);
+  } finally {
+    await fs.rm(owner, { force: true });
+    await fs.rmdir(lock);
+  }
+}
+
+async function atomicWriteUnlocked(target, content, options, root) {
   const directory = path.dirname(target);
   if (root) {
     await makePrivateParents(directory, root);
@@ -260,7 +325,11 @@ export async function atomicWriteOrpFile(filePath, content, options = {}) {
     directory,
     `.${path.basename(target)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`,
   );
-  const mode = root ? 0o600 : 0o644;
+  let mode = root ? 0o600 : 0o644;
+  if (!root) {
+    try { mode = (await fs.stat(target)).mode & 0o777; }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
   let handle;
   try {
     handle = await fs.open(temporary, "wx", mode);

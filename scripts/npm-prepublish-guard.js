@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require("child_process");
+const fs = require("node:fs");
 
 function git(args) {
   return spawnSync("git", args, { encoding: "utf8" });
@@ -31,13 +32,9 @@ if (status.stdout.trim()) {
     .slice(0, 10)
     .join("\n");
   fail(
-    "working tree is not clean. Commit, stash, or remove local-only files before publishing so npm and GitHub stay aligned.",
+    "working tree is not clean. Classify and commit the release scope before publishing so npm and GitHub stay aligned.",
     preview,
   );
-}
-
-if (process.env.GITHUB_ACTIONS === "true") {
-  process.exit(0);
 }
 
 const remoteContains = git(["branch", "-r", "--contains", "HEAD"]);
@@ -52,4 +49,20 @@ const remoteBranches = remoteContains.stdout
 
 if (remoteBranches.length === 0) {
   fail("current HEAD is not present on any remote branch. Push the release commit to GitHub before publishing.");
+}
+
+const main = git(["merge-base", "--is-ancestor", "HEAD", "refs/remotes/origin/main"]);
+if (main.status !== 0) fail("release HEAD must be contained in origin/main.");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+if (pkg.name !== "open-research-protocol" || lock.name !== pkg.name
+    || lock.version !== pkg.version || lock.packages?.[""]?.version !== pkg.version
+    || JSON.stringify(pkg.dependencies) !== JSON.stringify(lock.packages?.[""]?.dependencies)) {
+  fail("package and lockfile identity, version or dependencies differ.");
+}
+const head = git(["rev-parse", "HEAD"]);
+const tag = git(["rev-parse", `refs/tags/v${pkg.version}^{commit}`]);
+if (tag.status !== 0 || tag.stdout.trim() !== head.stdout.trim()) fail("the version tag must point to release HEAD.");
+if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_REPOSITORY !== "SproutSeeds/orp") {
+  fail("publishing is restricted to the canonical SproutSeeds/orp repository.");
 }

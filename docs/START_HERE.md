@@ -17,8 +17,12 @@ over.
 
 ## Start in 60 seconds
 
+This tutorial uses **0.5.0-rc.2** from npm's `next` channel. Stable `latest`
+remains 0.4.38. Install Node 22/24, Python 3.11+, and PyYAML first; see
+[INSTALL.md](../INSTALL.md) for the Python environment setup and platform table.
+
 ```sh
-npm install -g open-research-protocol
+npm install -g open-research-protocol@next
 
 cd /path/to/project
 orp init
@@ -74,6 +78,16 @@ deterministic plan:
 orp storage migrate --apply --confirm <plan_id> --json
 ```
 
+Migration rewrites ORP-managed registry and slot references after copying the
+manifests. User-owned external workspace paths stay unchanged. The selected
+layout is pinned before the first write. Keep all four XDG overrides together
+when choosing custom roots; overlapping roots are rejected.
+
+If rc.1 left newer workspace edits in the legacy directory, review
+`orp storage migrate --prefer-legacy --json`, then apply with the same flag and
+its exact plan ID. Replaced XDG targets are backed up in the migration journal.
+Reconcile newer writes before changing layouts during recovery.
+
 Compaction selects only expired ORP backups beyond the configured keep count
 and expired ORP cache files. It writes and verifies a deterministic archive
 before removing reviewed inputs:
@@ -81,6 +95,17 @@ before removing reviewed inputs:
 ```sh
 orp storage compact --apply --confirm <plan_id> --json
 ```
+
+Restore reviewed archive entries with an explicit destination layout:
+
+```sh
+orp storage restore /path/to/archive.tar.gz --layout legacy-v0 --json
+orp storage restore /path/to/archive.tar.gz --layout legacy-v0 --apply --confirm <plan_id> --json
+```
+
+Restoration refuses conflicting files and unsafe paths. If a stopped process
+left a storage lock, `orp storage unlock --json` checks its recorded owner.
+Unlocking requires the current plan ID and proof that the local process ended.
 
 Repository files, proof/results artifacts, Codex data, secret values, and
 unclassified legacy files stay outside that scope.

@@ -24,3 +24,9 @@ node_modules/
 
 # Local Clawdad runtime state
 /.clawdad/
+
+# Keep raw local release logs in the canonical evidence directory.
+/results/verification/0.5.0-rc.2/*
+!/results/verification/0.5.0-rc.2/VERIFICATION_RECORD.md
+!/results/verification/0.5.0-rc.2/summary.json
+!/results/verification/0.5.0-rc.2/native-keychain.json

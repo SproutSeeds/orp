@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +81,7 @@ def _write_file(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-class OrpInitTests(unittest.TestCase):
+class OrpInitTests(IsolatedTestCase):
     def test_init_json_bootstraps_git_and_governance_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

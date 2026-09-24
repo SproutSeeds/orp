@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -15,7 +16,7 @@ REQUIRED_MODULE_EXPR = '${ORP_NATURALITY_MODULE:?set ORP_NATURALITY_MODULE}'
 LEGACY_TODO_EXPR = '${ORP_NATURALITY_MODULE:-TODO}'
 
 
-class GovernancePackContractTests(unittest.TestCase):
+class GovernancePackContractTests(IsolatedTestCase):
     def test_naturality_module_is_required_in_template_and_example(self) -> None:
         template_text = TEMPLATE.read_text(encoding="utf-8")
         example_text = EXAMPLE.read_text(encoding="utf-8")

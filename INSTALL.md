@@ -17,10 +17,12 @@ The default runtime story is now:
 - `orp erdos ...` for Erdos-specific workflows
 - `orp pack ...` only when you need advanced/internal template install behavior
 
-Optional global CLI install:
+These commands install the **0.5.0-rc.2 preview** on npm's `next` channel.
+Stable 0.4.38 remains available with `npm i -g open-research-protocol@latest`.
+The storage, configuration, and context tutorial below requires 0.5.
 
 ```sh
-npm i -g open-research-protocol
+npm i -g open-research-protocol@next
 orp
 orp -h
 orp about --json
@@ -28,8 +30,32 @@ orp about --json
 
 CLI prerequisites:
 
-- Python 3 on `PATH`
+- Node.js 22 or 24 LTS and Python 3.11 or newer on `PATH` (or set `ORP_PYTHON`)
 - `PyYAML` (`python3 -m pip install pyyaml`)
+
+For Python installations that require a virtual environment:
+
+```sh
+python3 -m venv "$HOME/.local/share/orp-python"
+"$HOME/.local/share/orp-python/bin/python" -m pip install PyYAML==6.0.3
+export ORP_PYTHON="$HOME/.local/share/orp-python/bin/python"
+```
+
+Keep the `ORP_PYTHON` export in your shell configuration. The wrapper and
+postinstall check use that interpreter. ORP now requires Python 3.11+ for
+validated TOML edits; the wrapper reports an older interpreter before running
+the CLI. Node 18 compatibility remains in CI; Node 22/24 are the supported LTS
+choices ([Node release schedule](https://nodejs.org/en/about/previous-releases)).
+
+| Surface | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| Local ledgers, storage, governance, context | Supported | Supported | Unverified |
+| Hosted login and local secrets | macOS Keychain | Login refuses before authorization | Unverified |
+| launchd scheduling and iTerm recovery | Supported | Unavailable | Unavailable |
+
+Local workflows need no hosted account. Hosted sync first checks the service's
+v2 readiness and account identity. A service without that contract reports an
+error before workspace creation or state writes.
 
 Agent-friendly discovery surfaces:
 
@@ -97,7 +123,7 @@ This is the fastest way to verify the published CLI before integrating ORP into 
 
 ```sh
 mkdir test-orp && cd test-orp
-npm i -g open-research-protocol
+npm i -g open-research-protocol@next
 orp init
 orp config validate --json
 orp storage report --json

@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,9 +25,10 @@ def load_cli_module():
     return module
 
 
-class OrpUpdateTests(unittest.TestCase):
+class OrpUpdateTests(IsolatedTestCase):
     def run_update(self, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         merged_env = os.environ.copy()
+        merged_env["ORP_UPDATE_INSTALL_KIND"] = "source-checkout"
         if env:
             merged_env.update(env)
         return subprocess.run(
@@ -67,7 +69,7 @@ class OrpUpdateTests(unittest.TestCase):
         self.assertEqual(payload["status"], "update_available")
         self.assertEqual(payload["install_kind"], "npm-global")
         self.assertTrue(payload["can_apply"])
-        self.assertEqual(payload["recommended_command"], f"npm install -g {PACKAGE_NAME}@latest")
+        self.assertEqual(payload["recommended_command"], f"npm install -g {PACKAGE_NAME}@9.9.9")
 
     def test_update_json_can_mark_source_checkout_as_safe_to_auto_pull(self) -> None:
         proc = self.run_update(

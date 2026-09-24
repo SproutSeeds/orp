@@ -217,11 +217,12 @@ test("parseWorkspaceAddTabArgs accepts explicit resume metadata", () => {
   assert.equal(parsed.json, true);
 });
 
-test("parseWorkspaceAddTabArgs resolves --here and --current-codex", () => {
+test("parseWorkspaceAddTabArgs resolves --here and --current-codex", async () => {
   const originalThreadId = process.env.CODEX_THREAD_ID;
   const originalCwd = process.cwd();
   process.env.CODEX_THREAD_ID = "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9";
-  process.chdir("/Volumes/Code_2TB/code/orp");
+  const fixtureCwd = await fs.realpath(await makeTempDir());
+  process.chdir(fixtureCwd);
   try {
     const parsed = parseWorkspaceAddTabArgs([
       "main",
@@ -230,11 +231,12 @@ test("parseWorkspaceAddTabArgs resolves --here and --current-codex", () => {
     ]);
 
     assert.equal(parsed.ideaId, "main");
-    assert.equal(parsed.path, "/Volumes/Code_2TB/code/orp");
+    assert.equal(parsed.path, fixtureCwd);
     assert.equal(parsed.resumeTool, "codex");
     assert.equal(parsed.resumeSessionId, "019d4f24-c8ba-78b2-a726-48b1ce9f0fe9");
   } finally {
     process.chdir(originalCwd);
+    await fs.rm(fixtureCwd, { recursive: true, force: true });
     if (originalThreadId == null) {
       delete process.env.CODEX_THREAD_ID;
     } else {

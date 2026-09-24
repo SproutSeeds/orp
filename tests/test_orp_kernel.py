@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +33,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-class OrpKernelTests(unittest.TestCase):
+class OrpKernelTests(IsolatedTestCase):
     def test_kernel_scaffold_writes_task_template_and_validate_passes(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

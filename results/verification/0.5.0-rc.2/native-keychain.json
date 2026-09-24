@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "platform": "macOS",
+  "operations": [
+    "write synthetic credential",
+    "read and compare",
+    "delete synthetic credential",
+    "verify absence"
+  ],
+  "real_credentials_accessed": false
+}

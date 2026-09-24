@@ -23,6 +23,7 @@ import {
   setWorkspaceSlot,
 } from "./registry.js";
 import { validateWorkspaceTitle } from "./sync.js";
+import { atomicWriteOrpFile, withStorageWriteLock } from "./storage.js";
 
 function normalizeOptionalString(value) {
   if (value == null) {
@@ -661,7 +662,7 @@ async function persistWorkspaceManifest(source, manifest, options = {}) {
   const watchTargets = resolveWorkspaceWatchTargets(source, options);
 
   if (source.sourceType === "workspace-file" && source.sourcePath) {
-    await fs.writeFile(source.sourcePath, serializeManifest(manifest), "utf8");
+    await atomicWriteOrpFile(source.sourcePath, serializeManifest(manifest), { env: options.env });
     const registration = await registerWorkspaceManifest(source.sourcePath, manifest, options);
     return {
       persistedTo: "workspace-file",
@@ -851,6 +852,10 @@ function summarizeWorkspaceLedgerMutation(result) {
 }
 
 async function applyWorkspaceLedgerMutation(options, mutate, action) {
+  return withStorageWriteLock(options.env || process.env, () => applyWorkspaceLedgerMutationUnlocked(options, mutate, action));
+}
+
+async function applyWorkspaceLedgerMutationUnlocked(options, mutate, action) {
   const source = await loadWorkspaceSource(options);
   const parsed = parseWorkspaceSource(source);
   const manifest = normalizeEditableManifest(source, parsed);
@@ -963,7 +968,7 @@ export async function runWorkspaceCreate(argv = process.argv.slice(2)) {
   if (options.workspaceFile) {
     manifestPath = path.resolve(options.workspaceFile);
     await fs.mkdir(path.dirname(manifestPath), { recursive: true });
-    await fs.writeFile(manifestPath, serializeManifest(manifest), "utf8");
+    await atomicWriteOrpFile(manifestPath, serializeManifest(manifest), { env: options.env });
     const registration = await registerWorkspaceManifest(manifestPath, manifest, options);
     registryPath = registration.registryPath;
   } else {
