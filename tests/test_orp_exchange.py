@@ -6,13 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 
 
-class OrpExchangeTests(unittest.TestCase):
+class OrpExchangeTests(IsolatedTestCase):
     def test_exchange_repo_synthesize_bootstraps_local_directory_when_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as host_td, tempfile.TemporaryDirectory() as source_td:
             host_root = Path(host_td)

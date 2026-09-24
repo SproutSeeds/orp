@@ -609,11 +609,18 @@ export async function buildCodexContextPacket(options = {}) {
   const head = runReadOnlyGit(repo.repoRoot, ["rev-parse", "--short=12", "HEAD"]);
   const porcelain = runReadOnlyGit(repo.repoRoot, ["status", "--porcelain=v1", "--untracked-files=normal"]);
   const contractFiles = [];
-  for (const relativePath of ["AGENTS.md", "PROTOCOL.md", "orp.yml"]) {
+  for (const relativePath of ["AGENTS.md", "PROTOCOL.md", "orp.yml", "orp/governance.json", "orp/state.json"]) {
     const digest = await digestLocalContractFile(repo.repoRoot, relativePath);
     if (digest) {
       contractFiles.push(digest);
     }
+  }
+
+  let governed = false;
+  for (const relativePath of ["orp/governance.json", "orp/state.json"]) {
+    if (!contractFiles.some((row) => row.path === relativePath)) continue;
+    const value = JSON.parse(await fs.readFile(path.join(repo.repoRoot, relativePath), "utf8"));
+    governed ||= value?.repo?.orp_governed === true || value?.governance?.orp_governed === true;
   }
 
   const packet = {
@@ -627,7 +634,8 @@ export async function buildCodexContextPacket(options = {}) {
         head: head || "unknown",
         worktree: porcelain == null ? "unknown" : porcelain.length === 0 ? "clean" : "dirty",
       },
-      governed: contractFiles.some((row) => row.path === "PROTOCOL.md"),
+      governed,
+      protocol_present: contractFiles.some((row) => row.path === "PROTOCOL.md"),
     },
     provenance: [
       {

@@ -6,13 +6,14 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BIN = REPO_ROOT / "bin" / "orp.js"
 
 
-class NpmBinWrapperTests(unittest.TestCase):
+class NpmBinWrapperTests(IsolatedTestCase):
     def test_node_wrapper_invokes_cli_help(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("node not found on PATH")

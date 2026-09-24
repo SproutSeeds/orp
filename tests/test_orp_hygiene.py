@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +33,7 @@ def _write_file(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-class OrpHygieneTests(unittest.TestCase):
+class OrpHygieneTests(IsolatedTestCase):
     def _init_repo(self, root: Path) -> dict:
         proc = _run_cli(root, "init", "--json")
         self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)

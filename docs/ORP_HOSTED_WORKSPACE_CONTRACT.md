@@ -1,6 +1,6 @@
 # ORP hosted workspace contract 2.0
 
-Status: Exact release contract for ORP 0.5. A release verification record must
+Status: normative contract for ORP 0.5. A release verification record must
 name the commands and artifacts that demonstrate this contract.
 
 ## Authority boundary
@@ -43,7 +43,7 @@ It does not delete or rewrite legacy idea or device-pairing rows.
 Every pushed state conforms to:
 
 ```text
-spec/v1/hosted-workspace-state-v2.schema.json
+spec/v2/hosted-workspace-state.schema.json
 ```
 
 Required envelope fields are:
@@ -57,8 +57,17 @@ Required envelope fields are:
 - one or more tab identity rows.
 
 The server validates the schema, allowlist, exclusions, byte limit, absolute
-path boundary, and payload SHA-256 before committing a snapshot. Reusing a
-snapshot ID with different bytes fails.
+path boundary, and payload SHA-256 before committing a snapshot. The previous
+`spec/v1/hosted-workspace-state-v2.schema.json` path remains a compatibility
+copy of the same structural schema. Golden fixtures live in
+`tests/fixtures/hosted-workspace-v2.json` and run against the CLI, JSON Schema,
+and hosted validator.
+
+Semantic hashes sort object keys by code point and preserve array order. They
+exclude only the root capture/update timestamps, which describe execution.
+User-supplied tab activity remains part of the approved content. Reusing a
+snapshot ID with changed semantic content fails; an unchanged retry returns
+the original stored timestamps.
 
 ## Explicit allowlist
 
@@ -117,6 +126,13 @@ orp workspace sync main \
 
 If no dedicated hosted record exists, the apply step creates one linked to the
 resolved idea and then pushes the snapshot. Idea notes remain unchanged.
+
+Approval binds the destination origin, account, workspace, linked idea, title,
+expected state version, allowlist, tab order, and every projected field.
+The human preview includes the full hosted projection and an apply command
+that preserves the source and allowlist flags. Changing content requires a new
+preview. `GET /readyz` must advertise ready v2 storage before sync proceeds;
+the client verifies both the write response and a subsequent state readback.
 
 ## Hosted CLI resources
 

@@ -9,6 +9,7 @@ import subprocess
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +24,7 @@ def load_cli_module():
     return module
 
 
-class HostedCliShapeTests(unittest.TestCase):
+class HostedCliShapeTests(IsolatedTestCase):
     def setUp(self) -> None:
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         self.addCleanup(self._restore_xdg)

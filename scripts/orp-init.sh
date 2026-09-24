@@ -7,7 +7,8 @@ set -eu
 #   ./scripts/orp-init.sh /path/to/your/repo/orp
 #
 # This script copies:
-#   LICENSE, README.md, INSTALL.md, PROTOCOL.md, AGENT_INTEGRATION.md, templates/, examples/, scripts/, modules/, docs/, cone/
+#   LICENSE, README.md, INSTALL.md, PROTOCOL.md, AGENT_INTEGRATION.md, templates/, examples/, scripts/, modules/, docs/
+# It creates a fresh process-only cone/CONTEXT_LOG.md when no log exists.
 #
 # It does NOT:
 #   - initialize git
@@ -44,7 +45,15 @@ cp -f "./examples/"*.md "$TARGET/examples/"
 cp -f "./scripts/"*.sh "$TARGET/scripts/"
 cp -R "./modules" "$TARGET/"
 cp -R "./docs" "$TARGET/"
-cp -R "./cone" "$TARGET/"
+mkdir -p "$TARGET/cone"
+if [ ! -e "$TARGET/cone/CONTEXT_LOG.md" ]; then
+  (set -C; cat > "$TARGET/cone/CONTEXT_LOG.md" <<'EOF'
+# Context Log
+
+Process-only checkpoints for this project. Evidence belongs in its canonical artifact paths.
+EOF
+  )
+fi
 
 echo "ORP copied to: $TARGET"
 echo "IMPORTANT: Edit $TARGET/PROTOCOL.md and define Canonical Paths."

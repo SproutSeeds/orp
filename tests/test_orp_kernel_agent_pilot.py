@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import subprocess
 import unittest
+from orp_test_support import IsolatedTestCase
 from unittest import mock
 
 
@@ -20,7 +21,7 @@ def _load_module():
     return module
 
 
-class OrpKernelAgentPilotTests(unittest.TestCase):
+class OrpKernelAgentPilotTests(IsolatedTestCase):
     def test_run_codex_exec_retries_transient_failures(self) -> None:
         module = _load_module()
         transient = subprocess.CompletedProcess(

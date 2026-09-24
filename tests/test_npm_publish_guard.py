@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,9 @@ def _git_config_identity(root: Path) -> None:
 
 def _git_commit_all(root: Path, message: str) -> None:
     _git_config_identity(root)
+    if not (root / "package.json").exists():
+        (root / "package.json").write_text(json.JSONEncoder().encode({"name":"open-research-protocol","version":"1.2.3","dependencies":{}}))
+        (root / "package-lock.json").write_text(json.JSONEncoder().encode({"name":"open-research-protocol","version":"1.2.3","packages":{"":{"version":"1.2.3","dependencies":{}}}}))
     proc = _run_git(root, "add", "-A")
     if proc.returncode != 0:
         raise AssertionError(proc.stderr + "\n" + proc.stdout)
@@ -73,7 +77,7 @@ def _git_init_bare(root: Path) -> None:
         raise AssertionError(proc.stderr + "\n" + proc.stdout)
 
 
-class NpmPublishGuardTests(unittest.TestCase):
+class NpmPublishGuardTests(IsolatedTestCase):
     def test_release_tag_keeps_prereleases_off_latest(self) -> None:
         node = shutil.which("node")
         if node is None:
@@ -112,7 +116,7 @@ class NpmPublishGuardTests(unittest.TestCase):
             shutil.copytree(
                 REPO_ROOT,
                 root,
-                ignore=shutil.ignore_patterns(".git", "node_modules", "*.tgz"),
+                ignore=shutil.ignore_patterns(".git", "node_modules", ".venv", "*.tgz"),
             )
             bytecode_dir = root / "cli" / "__pycache__"
             bytecode_dir.mkdir(parents=True, exist_ok=True)
@@ -203,6 +207,7 @@ class NpmPublishGuardTests(unittest.TestCase):
             self.assertEqual(add_remote.returncode, 0, msg=add_remote.stderr + "\n" + add_remote.stdout)
             push = _run_git(root, "push", "-u", "origin", "main")
             self.assertEqual(push.returncode, 0, msg=push.stderr + "\n" + push.stdout)
+            self.assertEqual(_run_git(root, "tag", "v1.2.3").returncode, 0)
 
             proc = subprocess.run(
                 ["node", str(GUARD)],
@@ -212,6 +217,34 @@ class NpmPublishGuardTests(unittest.TestCase):
                 env=_guard_env(GITHUB_ACTIONS=None),
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr + "\n" + proc.stdout)
+
+    def test_guard_rejects_missing_tag_lock_drift_and_non_main_even_on_actions(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            remote = Path(td) / "remote.git"
+            root.mkdir(); remote.mkdir()
+            _git_init_main(root); _git_init_bare(remote)
+            _git_commit_all(root, "initial")
+            self.assertEqual(_run_git(root, "remote", "add", "origin", str(remote)).returncode, 0)
+            self.assertEqual(_run_git(root, "push", "-u", "origin", "main").returncode, 0)
+            env = _guard_env(GITHUB_ACTIONS="true", GITHUB_REPOSITORY="SproutSeeds/orp")
+            def check(message):
+                result = subprocess.run(["node", str(GUARD)], cwd=root, env=env, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+            check("version tag must point")
+            self.assertEqual(_run_git(root, "tag", "v1.2.3").returncode, 0)
+            lock = json.loads((root / "package-lock.json").read_text())
+            lock["version"] = "9.9.9"
+            (root / "package-lock.json").write_text(json.JSONEncoder().encode(lock))
+            _git_commit_all(root, "lock drift")
+            self.assertEqual(_run_git(root, "push", "origin", "main").returncode, 0)
+            check("package and lockfile")
+            self.assertEqual(_run_git(root, "switch", "-c", "unmerged").returncode, 0)
+            (root / "README.md").write_text("unmerged release")
+            _git_commit_all(root, "unmerged")
+            self.assertEqual(_run_git(root, "push", "origin", "unmerged").returncode, 0)
+            check("contained in origin/main")
 
 
 if __name__ == "__main__":

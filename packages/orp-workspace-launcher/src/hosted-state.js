@@ -710,6 +710,37 @@ function previousWorkspaceState(previousWorkspace) {
   return getHostedObjectValue(previousWorkspace, "state") || {};
 }
 
+// Stable key ordering uses code points, independent of machine locale. Only
+// root execution timestamps are excluded; user supplied activity is approved.
+export function stableWorkspaceJson(value) {
+  const stable = (item) => Array.isArray(item) ? item.map(stable)
+    : item && typeof item === "object"
+      ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, stable(item[key])]))
+      : item;
+  return JSON.stringify(stable(value));
+}
+
+export function hostedContentProjection(state) {
+  const { captured_at_utc, updated_at_utc, ...content } = state;
+  return content;
+}
+
+export function workspacePayloadSha256(state) {
+  return hashText(stableWorkspaceJson(hostedContentProjection(state)));
+}
+
+export function verifyHostedWorkspaceReadback(workspace, approved, destination) {
+  if (workspace?.schema_version !== "2.0.0" || workspace?.source_kind !== "hosted_v2"
+      || (workspace.workspace_id ?? workspace.id) !== destination.workspace_id
+      || workspace.linked_idea?.idea_id !== destination.idea_id
+      || workspace.current_state_version !== approved.state_version
+      || !workspace.state || workspacePayloadSha256(workspace.state) !== workspacePayloadSha256(approved)
+      || workspace.payload_sha256 !== workspacePayloadSha256(approved)) {
+    throw new Error("Hosted workspace readback differs from the approved snapshot. Fetch a new preview before retrying.");
+  }
+  return workspace;
+}
+
 function assertSafeHostedWorkspaceState(state) {
   const forbiddenKey = /(^|_)(path|project_root|resume|session|codex|claude|transcript|prompt|secret|token|password|source_files?|machine|hostname|host_name)(_|$)/i;
   const visit = (value, keyPath = []) => {
@@ -742,13 +773,17 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
     throw new Error("workspace manifest must include at least one saved tab");
   }
 
+  if (manifest.tabs.length > 200) throw new Error("hosted workspace supports at most 200 tabs");
+
   const allowlist = normalizeHostedSyncAllowlist(options.syncAllowlist ?? options.allowlist);
   const allowed = new Set(allowlist);
   const previousState = previousWorkspaceState(options.previousWorkspace);
   const capturedAt = normalizeOptionalString(options.capturedAt) || new Date().toISOString();
   const updatedAt = normalizeOptionalString(options.updatedAt) || capturedAt;
   const workspaceId = normalizeOptionalString(manifest.workspaceId) || "workspace";
-  const stateVersion = Math.max(1, (getHostedIntegerValue(previousState, "state_version", "stateVersion") || 0) + 1);
+  const previousVersion = getHostedIntegerValue(previousState, "state_version", "stateVersion") || 0;
+  const retry = options.confirm && options.confirm === previousState.snapshot_id;
+  const stateVersion = Math.max(1, previousVersion + (retry ? 0 : 1));
 
   const tabs = manifest.tabs.map((tab, index) => {
     const row = {
@@ -773,7 +808,10 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
     }
     if (allowed.has("tabs.activity")) {
       row.last_activity_at_utc = boundedText(tab.lastActivityAt ?? tab.last_activity_at_utc, 50) || undefined;
-      row.last_synced_at_utc = boundedText(tab.lastSyncedAt ?? tab.last_synced_at_utc, 50) || updatedAt;
+      row.last_synced_at_utc = boundedText(tab.lastSyncedAt ?? tab.last_synced_at_utc, 50) || undefined;
+      for (const field of ["last_activity_at_utc", "last_synced_at_utc"]) {
+        if (row[field] && Number.isNaN(Date.parse(row[field]))) throw new Error(`invalid activity timestamp: ${field}`);
+      }
     }
     if (allowed.has("tabs.plan_summary")) {
       row.plan_summary = boundedText(tab.plan?.summary, 500) || undefined;
@@ -788,7 +826,6 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
   const state = {
     contract_version: "2.0.0",
     state_version: stateVersion,
-    snapshot_id: `snapshot-${hashText(JSON.stringify({ workspaceId, stateVersion, allowlist, tabs })).slice(0, 16)}`,
     captured_at_utc: capturedAt,
     updated_at_utc: updatedAt,
     tab_count: tabs.length,
@@ -819,6 +856,10 @@ export function buildHostedWorkspaceState(manifest, options = {}) {
     state.trajectory = boundedText(options.trajectory ?? previousState.trajectory, 500) || undefined;
   }
 
+  state.snapshot_id = `snapshot-${hashText(stableWorkspaceJson({
+    workspaceId, destination: options.destination || null, content: hostedContentProjection(state),
+  })).slice(0, 16)}`;
+  if (Buffer.byteLength(JSON.stringify(state), "utf8") > 256 * 1024) throw new Error("hosted workspace state exceeds 262144 bytes");
   return assertSafeHostedWorkspaceState(
     Object.fromEntries(Object.entries(state).filter(([, value]) => value !== undefined && value !== null)),
   );

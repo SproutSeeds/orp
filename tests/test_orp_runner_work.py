@@ -11,6 +11,7 @@ import tempfile
 import threading
 import time
 import unittest
+from orp_test_support import IsolatedTestCase
 from contextlib import redirect_stdout
 
 
@@ -47,7 +48,7 @@ def _git_init_main(root: Path) -> None:
         raise AssertionError(proc.stderr + "\n" + proc.stdout)
 
 
-class OrpRunnerWorkTests(unittest.TestCase):
+class OrpRunnerWorkTests(IsolatedTestCase):
     def setUp(self) -> None:
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         self.addCleanup(self._restore_xdg)

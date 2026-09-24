@@ -4,7 +4,7 @@ const { spawnSync } = require("child_process");
 
 function firstAvailable(candidates) {
   for (const cmd of candidates) {
-    const probe = spawnSync(cmd, ["--version"], { encoding: "utf8" });
+    const probe = spawnSync(cmd, [...(cmd === "py" ? ["-3"] : []), "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"], { encoding: "utf8" });
     if (!probe.error && probe.status === 0) {
       return cmd;
     }
@@ -12,12 +12,11 @@ function firstAvailable(candidates) {
   return null;
 }
 
-const pythonCandidates = process.platform === "win32" ? ["py", "python", "python3"] : ["python3", "python"];
+const pythonCandidates = [process.env.ORP_PYTHON, ...(process.platform === "win32" ? ["py", "python3", "python"] : ["python3", "python"])].filter(Boolean);
 const py = firstAvailable(pythonCandidates);
 
 if (!py) {
-  console.warn("[orp] warning: Python 3 not found on PATH.");
-  console.warn("[orp] install Python 3 to use the `orp` CLI binary.");
+  console.warn("[orp] Python 3.11 or newer is required. Install it on PATH or set ORP_PYTHON.");
   process.exit(0);
 }
 
@@ -26,6 +25,5 @@ const yamlCheck = spawnSync(py, yamlCheckArgs, { encoding: "utf8" });
 
 if (yamlCheck.error || yamlCheck.status !== 0) {
   console.warn("[orp] warning: PyYAML not detected in your Python environment.");
-  console.warn("[orp] run: python3 -m pip install pyyaml");
+  console.warn(`[orp] install PyYAML in the Python environment selected by ORP_PYTHON or ${py}. See INSTALL.md for a virtual environment setup.`);
 }
-

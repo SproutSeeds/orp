@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ def load_benchmark_module():
     return module
 
 
-class OrpKernelBenchmarkTests(unittest.TestCase):
+class OrpKernelBenchmarkTests(IsolatedTestCase):
     def test_kernel_benchmark_cli_help_loads(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "--help"],

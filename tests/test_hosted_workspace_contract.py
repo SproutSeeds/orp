@@ -3,12 +3,29 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import unittest
+from jsonschema import Draft202012Validator, FormatChecker
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-class HostedWorkspaceContractTests(unittest.TestCase):
+class HostedWorkspaceContractTests(IsolatedTestCase):
+    def test_v2_golden_payloads_validate_and_invalid_payloads_fail(self):
+        schema = json.loads((REPO_ROOT / "spec/v2/hosted-workspace-state.schema.json").read_text())
+        compatibility = json.loads((REPO_ROOT / "spec/v1/hosted-workspace-state-v2.schema.json").read_text())
+        compatibility["$id"] = schema["$id"]
+        self.assertEqual(compatibility, schema)
+        fixtures = json.loads((REPO_ROOT / "tests/fixtures/hosted-workspace-v2.json").read_text())
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema, format_checker=FormatChecker())
+        for case in fixtures["valid"]:
+            with self.subTest(case=case["name"]):
+                validator.validate(case["state"])
+        for case in fixtures["invalid"]:
+            with self.subTest(case=case["name"]):
+                self.assertTrue(list(validator.iter_errors(case["state"])))
+
     def test_hosted_workspace_schema_exists_and_has_expected_core_fields(self) -> None:
         path = REPO_ROOT / "spec" / "v1" / "hosted-workspace.schema.json"
         payload = json.loads(path.read_text(encoding="utf-8"))

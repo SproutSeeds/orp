@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,7 @@ def _run_fetch(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
 
 
-class OrpPackFetchTests(unittest.TestCase):
+class OrpPackFetchTests(IsolatedTestCase):
     def test_fetch_from_local_repo_returns_pack_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             cache = Path(td) / "cache"

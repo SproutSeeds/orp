@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -204,7 +205,7 @@ profiles:
     return pack_root
 
 
-class OrpPackInstallTests(unittest.TestCase):
+class OrpPackInstallTests(IsolatedTestCase):
     def test_pack_install_supports_repo_owned_pack_metadata_from_pack_yml(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -7,6 +7,7 @@ import json
 from contextlib import redirect_stdout
 from pathlib import Path
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ def load_cli_module():
     return module
 
 
-class OrpModeTests(unittest.TestCase):
+class OrpModeTests(IsolatedTestCase):
     def test_mode_list_includes_sleek_minimal_progressive(self) -> None:
         module = load_cli_module()
         buf = io.StringIO()

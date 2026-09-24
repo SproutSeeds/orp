@@ -18,3 +18,12 @@ node_modules/
 **/node_modules/
 *.tgz
 **/*.tgz
+
+# Local review and continuity artifacts stay in the repository.
+docs/audits/
+cone/
+analysis/
+results/
+tests/
+**/test/
+scripts/test-*

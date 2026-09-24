@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,7 +25,7 @@ def load_cli_module():
     return module
 
 
-class OrpAuthTests(unittest.TestCase):
+class OrpAuthTests(IsolatedTestCase):
     def test_local_secret_uses_native_keychain_without_process_arguments(self) -> None:
         module = load_cli_module()
         captured = {}
@@ -139,6 +140,7 @@ class OrpAuthTests(unittest.TestCase):
 
     def test_auth_login_uses_browser_device_flow_and_keeps_tokens_out_of_state(self) -> None:
         module = load_cli_module()
+        module._keychain_supported = lambda: True
         requests = []
         stored = {}
         token_polls = 0

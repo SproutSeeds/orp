@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -104,7 +105,7 @@ def _run_cli(root: Path, *args: str, check: bool = True) -> subprocess.Completed
     return proc
 
 
-class OrpKernelCorpusTests(unittest.TestCase):
+class OrpKernelCorpusTests(IsolatedTestCase):
     def test_schema_and_cli_requirements_stay_aligned(self) -> None:
         schema = json.loads((REPO_ROOT / "spec" / "v1" / "kernel.schema.json").read_text(encoding="utf-8"))
         schema_requirements = {}

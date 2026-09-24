@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +36,7 @@ def _run_sync(tmp: Path, extra: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True, cwd=str(REPO_ROOT))
 
 
-class ErdosProblemsSyncTests(unittest.TestCase):
+class ErdosProblemsSyncTests(IsolatedTestCase):
     def test_parses_status_and_counts(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

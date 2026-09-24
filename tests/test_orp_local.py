@@ -10,6 +10,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 from unittest import mock
 
 
@@ -25,7 +26,7 @@ def load_cli_module():
     return module
 
 
-class OrpLocalContractTests(unittest.TestCase):
+class OrpLocalContractTests(IsolatedTestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

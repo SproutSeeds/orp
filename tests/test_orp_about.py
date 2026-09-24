@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +17,7 @@ PACKAGE_VERSION = PACKAGE_METADATA["version"]
 PACKAGE_NAME = PACKAGE_METADATA["name"]
 
 
-class OrpAboutTests(unittest.TestCase):
+class OrpAboutTests(IsolatedTestCase):
     def test_about_json_reports_agent_discovery_surfaces(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(CLI), "about", "--json"],

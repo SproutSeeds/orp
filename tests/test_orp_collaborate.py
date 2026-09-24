@@ -6,13 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPO_ROOT / "cli" / "orp.py"
 
 
-class OrpCollaborateTests(unittest.TestCase):
+class OrpCollaborateTests(IsolatedTestCase):
     def test_collaborate_workflows_json_lists_built_in_workflows(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

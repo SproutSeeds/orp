@@ -1,0 +1,50 @@
+name: Validate release
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, node: '18', python: '3.11'}
+          - {os: ubuntu-latest, node: '22', python: '3.11'}
+          - {os: ubuntu-latest, node: '24', python: '3.14'}
+          - {os: macos-latest, node: '24', python: '3.14'}
+    runs-on: ${{ matrix.os }}
+    env:
+      ORP_PYTHON: python
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: python -m pip install -r requirements-test.txt
+      - name: Run guarded suites and kernel checks
+        run: npm test
+      - name: Pack and exercise installed releases
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/orp-candidate"
+          npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP/orp-candidate" > "$RUNNER_TEMP/orp-candidate/manifest.json"
+          TARBALL="$RUNNER_TEMP/orp-candidate/$(node -p "require(process.env.RUNNER_TEMP + '/orp-candidate/manifest.json')[0].filename")"
+          node scripts/verify-package.js "$RUNNER_TEMP/orp-candidate/manifest.json" "$TARBALL"
+          python scripts/test-installed.py "$TARBALL" --output "$RUNNER_TEMP/orp-candidate/installed.json"
+          git diff --exit-code
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        with:
+          name: orp-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/orp-candidate/
+          if-no-files-found: error
+          retention-days: 30

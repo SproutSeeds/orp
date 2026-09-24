@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 from contextlib import redirect_stdout
 
 
@@ -70,7 +71,7 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-class OrpRunnerTests(unittest.TestCase):
+class OrpRunnerTests(IsolatedTestCase):
     def setUp(self) -> None:
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         self.addCleanup(self._restore_xdg)

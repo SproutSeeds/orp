@@ -49,6 +49,9 @@ function runPythonCli(args, { captureOutput }) {
   let lastErr = null;
 
   for (const py of candidates) {
+    const probeArgs = [...(py === "py" ? ["-3"] : []), "-c", "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"];
+    const probe = spawnSync(py, probeArgs, { encoding: "utf8" });
+    if (probe.error || probe.status !== 0) { lastErr = probe.error || new Error(`${py} is older than Python 3.11`); continue; }
     const pyArgs = py === "py" ? ["-3", cliPath, ...args] : [cliPath, ...args];
     const result = spawnSync(
       py,
@@ -79,7 +82,7 @@ function runPythonCli(args, { captureOutput }) {
     lastErr = result.error;
   }
 
-  console.error("ORP CLI requires Python 3 on PATH.");
+  console.error("ORP CLI requires Python 3.11 or newer on PATH (or set ORP_PYTHON).");
   console.error("Tried: " + candidates.join(", "));
   if (lastErr) {
     console.error(String(lastErr));

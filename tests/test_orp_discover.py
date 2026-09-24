@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +15,7 @@ REPOS_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "github_discover_repos.json"
 ISSUES_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "github_discover_issues.json"
 
 
-class OrpDiscoverTests(unittest.TestCase):
+class OrpDiscoverTests(IsolatedTestCase):
     def test_discover_profile_init_json_writes_profile_scaffold(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -13,12 +14,12 @@ BIN = REPO_ROOT / "bin" / "orp.js"
 BREAKTHROUGHS_DEP = REPO_ROOT / "node_modules" / "breakthroughs"
 
 
-class OrpComputeTests(unittest.TestCase):
+class OrpComputeTests(IsolatedTestCase):
     def setUp(self) -> None:
         if shutil.which("node") is None:
-            self.skipTest("node not found on PATH")
+            self.fail("node is required; install the documented runtime before testing")
         if not BREAKTHROUGHS_DEP.exists():
-            self.skipTest("breakthroughs dependency not installed; run npm install first")
+            self.fail("breakthroughs dependency is required; run npm ci before testing")
 
     def _write_json(self, root: Path, name: str, payload: dict) -> Path:
         path = root / name

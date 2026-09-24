@@ -10,11 +10,13 @@ import {
   resolveResumeMetadata,
   WORKSPACE_SCHEMA_VERSION,
 } from "./core-plan.js";
-import { buildHostedWorkspaceState, enrichWorkspaceManifestWithProjectContext } from "./hosted-state.js";
+import { buildHostedWorkspaceState, enrichWorkspaceManifestWithProjectContext, verifyHostedWorkspaceReadback } from "./hosted-state.js";
 import { mergeLocalProjectInventoryIntoManifest } from "./local-inventory.js";
 import {
   buildWorkspaceManifestFromHostedWorkspacePayload,
   createHostedWorkspaceForIdea,
+  fetchHostedCapabilities,
+  fetchHostedWorkspacePayload,
   fetchHostedWorkspacesPayload,
   fetchIdeaPayload,
   findHostedWorkspaceByWorkspaceId,
@@ -450,15 +452,7 @@ export function buildWorkspaceSyncPreview({ source, parsed, targetIdea, workspac
           syncSource: entry.syncSource || null,
         })),
       };
-  const syncTimestamp = new Date().toISOString();
-  const timestampedManifest = {
-    ...manifest,
-    tabs: manifest.tabs.map((tab) => ({
-      ...tab,
-      lastSyncedAt: tab.lastSyncedAt || syncTimestamp,
-    })),
-  };
-  const enrichedManifest = enrichWorkspaceManifestWithProjectContext(timestampedManifest);
+  const enrichedManifest = enrichWorkspaceManifestWithProjectContext(manifest);
 
   const narrativeSourceNotes =
     source.sourceType === "workspace-file" ? targetIdea.notes || "" : source.notes || targetIdea.notes || "";
@@ -528,6 +522,9 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
     options.syncAllowlist = [...loadLocalConfig().sync.allowlist];
   }
 
+  const capabilities = await fetchHostedCapabilities(options);
+  options.baseUrl = capabilities.base_url;
+
   const source = await loadWorkspaceSource(options);
   const parsed = parseWorkspaceSource(source);
   if (parsed.entries.length === 0) {
@@ -565,7 +562,22 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
     ...options,
     workspaceSelector: options.ideaId,
   });
-  const hostedWorkspaceId = normalizeOptionalString(targetSource.hostedWorkspace?.workspace_id ?? targetSource.hostedWorkspace?.id);
+  const dedicated = targetSource.hostedWorkspace?.source_kind === "hosted_v2"
+    ? targetSource.hostedWorkspace : null;
+  const expectedWorkspaceId = dedicated?.workspace_id ?? dedicated?.id ?? validateWorkspaceTitle(resolvedWorkspaceTitle);
+  // A prior apply may have created the record before losing its response.
+  const hostedList = await fetchHostedWorkspacesPayload(options);
+  const existing = (hostedList.workspaces || []).find((row) => (row.workspace_id ?? row.id) === expectedWorkspaceId);
+  const hostedWorkspace = existing ? (await fetchHostedWorkspacePayload(expectedWorkspaceId, options)).workspace : dedicated;
+  if (hostedWorkspace && (hostedWorkspace.source_kind !== "hosted_v2"
+      || hostedWorkspace.schema_version !== "2.0.0" || getLinkedIdeaIdFromWorkspaceRecord(hostedWorkspace) !== targetIdeaId)) {
+    throw new Error("Hosted destination is incompatible or linked to a different idea. Choose another workspace title.");
+  }
+  const hostedWorkspaceId = hostedWorkspace ? expectedWorkspaceId : null;
+  const destination = {
+    base_url: capabilities.base_url, user_id: capabilities.user_id,
+    workspace_id: expectedWorkspaceId, idea_id: targetIdeaId, title: resolvedWorkspaceTitle,
+  };
   const narrativeNotes = extractWorkspaceNarrativeNotes(preview.nextNotes, {
     stripLegacyWorkspaceLines: true,
   });
@@ -576,7 +588,9 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
   };
   const syncTimestamp = new Date().toISOString();
   const hostedState = buildHostedWorkspaceState(reconciled.manifest, {
-    previousWorkspace: targetSource.hostedWorkspace,
+    previousWorkspace: hostedWorkspace,
+    destination,
+    confirm: options.confirm,
     capturedAt: syncTimestamp,
     updatedAt: syncTimestamp,
     localInventory: reconciled.inventory,
@@ -592,6 +606,7 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
     compactedIdeaNotes: storedIdeaNotes.compacted,
     omittedPlanTaskDetailsFromIdeaNotes: storedIdeaNotes.omittedPlanTaskDetails,
     hostedSync: {
+      destination,
       allowlist: options.syncAllowlist,
       createsDedicatedWorkspace: !hostedWorkspaceId,
       state: hostedState,
@@ -604,7 +619,16 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
       process.stdout.write(`${JSON.stringify(finalPreview, null, 2)}\n`);
     } else {
       process.stdout.write(`${summarizeSyncPreview(finalPreview)}\n`);
-      process.stdout.write(`Confirm: orp workspace sync ${options.ideaId} --apply --confirm ${hostedState.snapshot_id}\n`);
+      process.stdout.write(`Approved hosted projection (root capture/update times record execution):\n${JSON.stringify(finalPreview.hostedSync, null, 2)}\n`);
+      const confirmArgs = ["orp", "workspace", "sync", options.ideaId];
+      for (const [flag, value] of [["--workspace-file", options.workspaceFile], ["--notes-file", options.notesFile],
+        ["--title", resolvedWorkspaceTitle], ["--base-url", options.baseUrl], ["--orp-command", options.orpCommand]]) {
+        if (value) confirmArgs.push(flag, value);
+      }
+      for (const field of options.syncAllowlist) confirmArgs.push("--allow", field);
+      confirmArgs.push("--apply", "--confirm", hostedState.snapshot_id);
+      const quote = (value) => /^[a-zA-Z0-9_./:@=-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
+      process.stdout.write(`Confirm: ${confirmArgs.map(quote).join(" ")}\n`);
     }
     return 0;
   }
@@ -620,12 +644,17 @@ export async function runWorkspaceSync(argv = process.argv.slice(2)) {
       options,
     );
     activeHostedWorkspaceId = normalizeOptionalString(created?.workspace?.workspace_id ?? created?.workspace?.id);
-    if (!activeHostedWorkspaceId) {
-      throw new Error("Hosted ORP did not return an id for the dedicated workspace record.");
+    if (activeHostedWorkspaceId !== destination.workspace_id
+        || created.workspace.source_kind !== "hosted_v2"
+        || created.workspace.schema_version !== "2.0.0"
+        || getLinkedIdeaIdFromWorkspaceRecord(created.workspace) !== targetIdeaId) {
+      throw new Error("Hosted workspace creation returned a different destination. Fetch a new preview before retrying.");
     }
   }
   const pushed = await pushHostedWorkspaceState(activeHostedWorkspaceId, hostedState, options);
-  const pushedWorkspace = pushed?.workspace || null;
+  const pushedWorkspace = verifyHostedWorkspaceReadback(pushed?.workspace, hostedState, destination);
+  const readback = await fetchHostedWorkspacePayload(activeHostedWorkspaceId, options);
+  verifyHostedWorkspaceReadback(readback.workspace, hostedState, destination);
   const updated = { title: finalPreview.targetIdeaTitle };
   const managedCache = await cacheManagedWorkspaceManifest(finalPreview.manifest);
   if (options.json) {

@@ -68,18 +68,23 @@ npm run render:terminal-demo
 
 ## Install CLI (npm)
 
-Global install:
+The examples in this checkout target **0.5.0-rc.2**, available on the preview
+`next` channel. Use `open-research-protocol@latest` for stable 0.4.38; the
+0.5 storage and context commands below require the preview version.
 
 ```bash
-npm i -g open-research-protocol
+npm i -g open-research-protocol@next
 orp
 orp -h
 ```
 
 Prerequisites:
 
-- Python 3 available on `PATH`
+- Node.js 22 or 24 LTS and Python 3.11 or newer on `PATH` (or set `ORP_PYTHON`)
 - `PyYAML` in that Python environment (`python3 -m pip install pyyaml`)
+
+See [INSTALL.md](INSTALL.md) for an isolated Python setup and platform support.
+Node 18 remains a compatibility floor; use a maintained LTS for normal work.
 
 Local repo usage still works:
 

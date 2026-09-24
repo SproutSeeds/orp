@@ -134,6 +134,17 @@ export async function fetchIdeaPayload(ideaId, options = {}) {
   return payload;
 }
 
+export async function fetchHostedCapabilities(options = {}) {
+  const invocation = resolveOrpInvocation(options);
+  const args = [...invocation.prefixArgs, "workspaces", "capabilities", "--json"];
+  if (options.baseUrl) args.push("--base-url", options.baseUrl);
+  const payload = parseOrpJsonResult(await runCommand(invocation.command, args, options), "Hosted sync readiness check failed.");
+  if (payload?.ok !== true || payload.contract_version !== "2.0.0" || !payload.base_url || !payload.user_id) {
+    throw new Error("Hosted sync requires a ready contract 2.0.0 service and an authenticated account.");
+  }
+  return payload;
+}
+
 export async function fetchIdeasPayload(options = {}) {
   const invocation = resolveOrpInvocation(options);
   const items = [];
@@ -645,9 +656,9 @@ export function resolveWorkspaceSelectorFromCollections(selector, collections = 
   const ranked = [];
   for (const candidate of [...hostedCandidates, ...ideaCandidates, ...localCandidates]) {
     let score = matchQuality(normalizedSelector, candidate.selectorValues);
-    if (candidate.kind === "hosted-workspace") {
+    if (score > 0 && candidate.kind === "hosted-workspace") {
       score += 10;
-    } else if (candidate.kind === "hosted-idea") {
+    } else if (score > 0 && candidate.kind === "hosted-idea") {
       score += 5;
     }
     if (score > 0) {

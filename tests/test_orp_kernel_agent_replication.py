@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from orp_test_support import IsolatedTestCase
 from unittest import mock
 
 
@@ -21,7 +22,7 @@ def _load_module():
     return module
 
 
-class OrpKernelAgentReplicationTests(unittest.TestCase):
+class OrpKernelAgentReplicationTests(IsolatedTestCase):
     def test_build_report_aggregates_repeated_runs(self) -> None:
         module = _load_module()
 
